@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from threading import Thread
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -720,10 +721,14 @@ def uploaded_file(filename):
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
     await update.message.reply_text('Привет! Я TradeJournalBot. Как я могу помочь вам сегодня?')
 
 # Команда /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
     help_text = (
         "Доступные команды:\n"
         "/start - Начать общение с ботом\n"
@@ -735,12 +740,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Команда /add_trade
 async def add_trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    logger.info(f"Получена команда /add_trade от пользователя {user.id} ({user.username})")
     # Здесь вы можете реализовать логику добавления сделки через бота
     await update.message.reply_text('Функция добавления сделки пока не реализована.')
 
 # Команда /view_trades
 async def view_trades_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = 1  # Замените на реальный user_id после реализации аутентификации
+    user = update.effective_user
+    logger.info(f"Получена команда /view_trades от пользователя {user.id} ({user.username})")
+    user_id = user.id  # Связывание Telegram ID с user_id в базе данных
     trades = Trade.query.filter_by(user_id=user_id).all()
     if not trades:
         await update.message.reply_text('У вас пока нет сделок.')
@@ -768,17 +777,28 @@ application.add_handler(CommandHandler('help', help_command))
 application.add_handler(CommandHandler('add_trade', add_trade_command))
 application.add_handler(CommandHandler('view_trades', view_trades_command))
 
+# **Запуск Telegram-бота в фоновом потоке**
+
+def run_bot():
+    """Запуск Telegram бота."""
+    logger.info("Запуск Telegram бота")
+    application.run_polling()
+
 # **Flask Routes for Telegram Webhooks**
+# В данном подходе вебхуки используются для получения обновлений Telegram.
 
 # Маршрут для обработки вебхуков от Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Обработчик вебхуков от Telegram."""
     if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), bot)
-        # Передаём обновление объекту Application для обработки
-        asyncio.run(application.process_update(update))
-        return 'OK', 200
+        try:
+            update = Update.de_json(request.get_json(force=True), bot)
+            asyncio.run_coroutine_threadsafe(application.process_update(update), asyncio.get_event_loop())
+            return 'OK', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке вебхука: {e}")
+            return 'Internal Server Error', 500
     else:
         return 'Method Not Allowed', 405
 
@@ -787,17 +807,31 @@ def webhook():
 def set_webhook():
     """Маршрут для установки вебхука Telegram."""
     webhook_url = f"https://{request.host}/webhook"
-    success = bot.set_webhook(webhook_url)
-    if success:
-        return f"Webhook установлен на {webhook_url}", 200
-    else:
-        return "Не удалось установить webhook", 500
+    try:
+        success = bot.set_webhook(webhook_url)
+        if success:
+            logger.info(f"Webhook установлен на {webhook_url}")
+            return f"Webhook установлен на {webhook_url}", 200
+        else:
+            logger.error("Не удалось установить webhook")
+            return "Не удалось установить webhook", 500
+    except Exception as e:
+        logger.error(f"Ошибка при установке webhook: {e}")
+        return "Произошла ошибка при установке webhook", 500
 
-# **Запуск Flask-приложения**
+# **Запуск Flask-приложения и Telegram бота**
+
 if __name__ == '__main__':
     # Инициализация базы данных и создание предопределённых данных
     with app.app_context():
         db.create_all()
         create_predefined_data()
+
+    # Запуск Telegram бота в отдельном потоке
+    bot_thread = Thread(target=run_bot, name="TelegramBot")
+    bot_thread.start()
+
     # Запуск Flask-приложения
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    logger.info(f"Запуск Flask-приложения на порту {port}")
+    app.run(host='0.0.0.0', port=port, debug=True)
