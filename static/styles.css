@@ -1,0 +1,355 @@
+/* static/styles.css */
+
+/* Основные стили */
+body {
+    background-color: #C0C0C0;
+    font-family: 'Courier New', Courier, monospace;
+    color: #000000;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+*, *::before, *::after {
+    box-sizing: inherit;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+header {
+    background-color: #000080;
+    color: white;
+    padding: 10px 0;
+    text-align: center;
+    border-bottom: 3px solid #FFD700;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2em;
+    text-shadow: 2px 2px #FF0000;
+}
+
+nav {
+    margin-top: 10px;
+}
+
+nav a {
+    color: white;
+    margin: 0 15px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+nav a:hover {
+    color: #FFD700;
+}
+
+.flashes {
+    list-style-type: none;
+    padding: 0;
+}
+
+.flashes li {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+
+.flashes .success {
+    background-color: #90EE90;
+}
+
+.flashes .danger {
+    background-color: #FF6347;
+}
+
+main {
+    background-color: #FFFFFF;
+    padding: 20px;
+    border: 2px solid #000080;
+    border-radius: 10px;
+    box-shadow: 5px 5px #A9A9A9;
+    animation: fadeIn 1s ease-in-out;
+}
+
+footer {
+    text-align: center;
+    padding: 10px 0;
+    margin-top: 20px;
+    border-top: 1px solid #000080;
+}
+
+/* Стили для таблиц */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    table-layout: auto; /* Гибкая ширина столбцов */
+    word-wrap: break-word; /* Перенос слов */
+    overflow-wrap: break-word; /* Дополнительный перенос */
+    max-width: 100%; /* Предотвращает выход за пределы контейнера */
+}
+
+th, td {
+    border: 1px solid #000080;
+    padding: 6px; /* Уменьшенные отступы */
+    text-align: center; /* Выравнивание текста по центру */
+    font-size: 0.8em; /* Уменьшенный размер шрифта */
+    vertical-align: top;
+}
+
+th {
+    background-color: #000080;
+    color: white;
+    font-size: 0.8em; /* Дополнительное уменьшение размера шрифта */
+    white-space: nowrap; /* Предотвращает перенос заголовков */
+    text-align: center; /* Выравнивание заголовков по центру */
+}
+
+td {
+    white-space: normal; /* Разрешает перенос строк в ячейках */
+    word-break: normal; /* Предотвращает разрыв слов внутри слов */
+    overflow-wrap: break-word; /* Позволяет переносить длинные слова */
+    padding: 6px; /* Уменьшенные отступы */
+    font-size: 0.75em; /* Дополнительное уменьшение размера шрифта */
+}
+
+/* Центрирование изображений внутри ячеек */
+td img {
+    max-width: 80px; /* Уменьшение размера изображений */
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Стили для кнопок */
+button, input[type="submit"] {
+    background-color: #000080;
+    color: white;
+    border: none;
+    padding: 6px 12px; /* Уменьшенные отступы */
+    cursor: pointer;
+    font-family: 'Courier New', Courier, monospace;
+    transition: background-color 0.3s ease;
+    margin-bottom: 5px;
+    width: 100%; /* Растягивание кнопок на всю ширину ячейки */
+    box-sizing: border-box;
+    font-size: 0.8em; /* Уменьшенный размер шрифта */
+}
+
+button:hover, input[type="submit"]:hover {
+    background-color: #0000CD;
+}
+
+/* Стили для форм */
+input, select, textarea {
+    padding: 5px;
+    margin-bottom: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: 'Courier New', Courier, monospace;
+    border: 1px solid #000080;
+    border-radius: 4px;
+    font-size: 0.85em; /* Уменьшенный размер шрифта */
+}
+
+select[multiple] {
+    height: 100px;
+}
+
+/* Стили для мини-изображений сетапов */
+img.setup-mini {
+    width: 40px; /* Уменьшение размера мини-изображений */
+    height: 40px;
+    object-fit: cover;
+    border: 1px solid #000;
+    border-radius: 5px;
+}
+
+/* Общие стили для изображений */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Стили для критериев */
+span.criterion {
+    background-color: #E6E6FA;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.7em; /* Сильно уменьшенный размер шрифта */
+    display: inline-block;
+    margin-right: 2px; /* Отступ справа для разделения критериев */
+    margin-bottom: 2px; /* Отступ снизу для вертикального размещения, если нужно */
+}
+
+/* Структура категорий и подкатегорий */
+.category {
+    margin-bottom: 10px;
+}
+
+.subcategory {
+    margin-left: 20px;
+}
+
+.category-content, .subcategory-content {
+    margin-left: 20px;
+    display: none;
+}
+
+/* Стили для кнопок раскрытия */
+.collapse-button {
+    background-color: transparent;
+    border: none;
+    color: #000080;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1em;
+    padding: 0;
+    text-align: left; /* Выравнивание текста по левому краю */
+    width: 100%;
+}
+
+.collapse-button:hover {
+    text-decoration: underline;
+}
+
+/* Стили для чекбоксов критериев */
+.criteria-section {
+    margin-top: 10px;
+}
+
+.criteria-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Распределение пространства между текстом и чекбоксом */
+    margin-bottom: 5px;
+}
+
+.criteria-item label {
+    flex: 1;
+    text-align: left; /* Выравнивание текста по левому краю */
+    margin-right: 10px; /* Отступ справа для чекбокса */
+    font-size: 0.85em; /* Уменьшенный размер шрифта */
+}
+
+.criteria-item input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-left: auto; /* Перемещает чекбокс вправо */
+    transform: scale(0.8); /* Уменьшение размера чекбокса */
+}
+
+/* Стили для модального окна */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.8);
+}
+
+.modal-content {
+    display: block;
+    margin: auto;
+    max-width: 90%;
+    max-height: 80%;
+}
+
+.close {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: #fff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 1s ease-in;
+}
+
+/* Адаптивность */
+@media screen and (max-width: 768px) {
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+    tr {
+        margin-bottom: 15px;
+    }
+    th, td {
+        text-align: center; /* Выравнивание текста по центру на мобильных */
+        position: relative;
+        font-size: 0.75em; /* Дополнительное уменьшение шрифта на мобильных */
+        padding: 4px; /* Ещё меньше отступы */
+    }
+    td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 0;
+        width: 45%;
+        padding-left: 15px;
+        font-weight: bold;
+        text-align: left;
+    }
+    td {
+        padding-left: 50%;
+    }
+    nav a {
+        display: block;
+        margin: 5px 0;
+    }
+    header h1 {
+        font-size: 1.5em;
+    }
+
+    /* Улучшение таблицы для мобильных устройств */
+    table {
+        table-layout: auto;
+    }
+
+    /* Можно убрать фиксированные ширины для мобильных, чтобы столбцы адаптировались */
+    table.trade-table th:nth-child(2), table.trade-table td:nth-child(2),
+    table.trade-table th:nth-child(3), table.trade-table td:nth-child(3),
+    table.trade-table th:nth-child(11), table.trade-table td:nth-child(11),
+    table.trade-table th:nth-child(12), table.trade-table td:nth-child(12),
+    table.trade-table th:nth-child(13), table.trade-table td:nth-child(13) {
+        width: auto;
+    }
+}
+
+/* Дополнительные стили */
+.setup-info {
+    display: flex;
+    align-items: center;
+}
+
+.setup-info img {
+    margin-right: 5px;
+}

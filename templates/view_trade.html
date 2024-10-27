@@ -1,0 +1,74 @@
+<!-- templates/view_trade.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Просмотр Сделки</h2>
+
+<p><strong>ID:</strong> {{ trade.id }}</p>
+<p><strong>Инструмент:</strong> {{ trade.instrument.name }}</p>
+<p><strong>Направление:</strong> {{ trade.direction }}</p>
+<p><strong>Цена входа:</strong> {{ trade.entry_price }}</p>
+<p><strong>Цена выхода:</strong> {{ trade.exit_price or '-' }}</p>
+<p><strong>Дата открытия:</strong> {{ trade.trade_open_time.strftime('%Y-%m-%d') }}</p>
+<p><strong>Дата закрытия:</strong> {{ trade.trade_close_time.strftime('%Y-%m-%d') if trade.trade_close_time else '-' }}</p>
+<p><strong>Прибыль/Убыток:</strong> {{ "{:.2f}".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</p>
+<p><strong>% Прибыли/Убытка:</strong>
+    {% if trade.profit_loss_percentage is not none %}
+        {{ "{:.2f}%".format(trade.profit_loss_percentage) }}
+    {% else %}
+        -
+    {% endif %}
+</p>
+<p><strong>Сетап:</strong>
+    {% if trade.setup %}
+        {{ trade.setup.setup_name }}
+    {% else %}
+        -
+    {% endif %}
+</p>
+<p><strong>Комментарий:</strong><br>{{ trade.comment or '-' }}</p>
+<p><strong>Критерии:</strong><br>
+    {% for criterion in trade.criteria %}
+        <span class="criterion">{{ criterion.name }}</span><br>
+    {% endfor %}
+</p>
+<p><strong>Скриншот:</strong><br>
+    {% if trade.screenshot %}
+        <img src="{{ url_for('uploaded_file', filename=trade.screenshot) }}" alt="Trade Screenshot" class="clickable-image">
+    {% else %}
+        Нет
+    {% endif %}
+</p>
+
+<a href="{{ url_for('index') }}">Вернуться к списку сделок</a>
+
+<!-- Модальное окно для изображений -->
+<div id="modal" class="modal">
+    <span class="close">&times;</span>
+    <img class="modal-content" id="modal-img">
+</div>
+
+<script>
+    $(document).ready(function(){
+        // Открытие модального окна при клике на изображение
+        $('.clickable-image').on('click', function() {
+            $('#modal').css('display', 'block');
+            $('#modal-img').attr('src', $(this).attr('src'));
+        });
+
+        // Закрытие модального окна
+        $('.close').on('click', function() {
+            $('#modal').css('display', 'none');
+        });
+
+        // Закрытие модального окна при клике вне изображения
+        $('#modal').on('click', function(event) {
+            if (!$(event.target).is('#modal-img')) {
+                $(this).css('display', 'none');
+            }
+        });
+    });
+</script>
+
+{% endblock %}

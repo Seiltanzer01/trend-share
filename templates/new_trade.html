@@ -1,0 +1,83 @@
+<!-- templates/new_trade.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Добавить Сделку</h2>
+
+<form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+
+    {{ form.instrument.label }}<br>
+    {{ form.instrument }}<br>
+
+    {{ form.direction.label }}<br>
+    {{ form.direction }}<br>
+
+    {{ form.entry_price.label }}<br>
+    {{ form.entry_price }}<br>
+
+    {{ form.exit_price.label }}<br>
+    {{ form.exit_price }}<br>
+
+    {{ form.trade_open_time.label }}<br>
+    {{ form.trade_open_time }}<br>
+
+    {{ form.trade_close_time.label }}<br>
+    {{ form.trade_close_time }}<br>
+
+    {{ form.comment.label }}<br>
+    {{ form.comment }}<br>
+
+    {{ form.setup_id.label }}<br>
+    {{ form.setup_id }}<br>
+
+    {{ form.screenshot.label }}<br>
+    {{ form.screenshot }}<br>
+
+    <br>
+    <label>Критерии:</label><br>
+    <div class="criteria-section">
+        {% for category in criteria_categories %}
+            <div class="category">
+                <button type="button" class="collapse-button">{{ category.name }}</button>
+                <div class="category-content">
+                    {% for subcategory in category.subcategories %}
+                        <div class="subcategory">
+                            <button type="button" class="collapse-button">{{ subcategory.name }}</button>
+                            <div class="subcategory-content">
+                                {% for criterion in subcategory.criteria %}
+                                    <div class="criteria-item">
+                                        <label>
+                                            <input type="checkbox" name="criteria" value="{{ criterion.id }}">
+                                            {{ criterion.name }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <br>
+    {{ form.submit }}
+</form>
+
+<script>
+    $(document).ready(function(){
+        // Инициализация datepickers
+        $("#trade_open_time, #trade_close_time").datepicker({
+            dateFormat: 'yy-mm-dd'
+        });
+
+        // Раскрывающиеся списки для категорий и подкатегорий
+        $('.collapse-button').click(function(){
+            $(this).next().toggle();
+        });
+    });
+</script>
+
+{% endblock %}

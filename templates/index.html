@@ -1,0 +1,190 @@
+<!-- templates/index.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Журнал Сделок</h2>
+
+    <button id="toggle-filters">Показать/Скрыть Фильтры</button>
+
+    <div id="filters" style="display: none;">
+        <form method="GET">
+            <fieldset>
+                <legend>Фильтры</legend>
+                <label for="instrument_id">Инструмент:</label>
+                <select name="instrument_id" id="instrument_id">
+                    <option value="">Все</option>
+                    {% for category in categories %}
+                        <optgroup label="{{ category.name }}">
+                            {% for instrument in category.instruments %}
+                                <option value="{{ instrument.id }}" {% if selected_instrument_id == instrument.id %}selected{% endif %}>{{ instrument.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+
+                <label for="direction">Направление:</label>
+                <select name="direction" id="direction">
+                    <option value="">Все</option>
+                    <option value="Buy" {% if request.args.get('direction') == 'Buy' %}selected{% endif %}>Buy</option>
+                    <option value="Sell" {% if request.args.get('direction') == 'Sell' %}selected{% endif %}>Sell</option>
+                </select>
+
+                <label for="start_date">Дата открытия (с):</label>
+                <input type="text" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}" autocomplete="off">
+
+                <label for="end_date">Дата открытия (по):</label>
+                <input type="text" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}" autocomplete="off">
+
+                <label>Критерии:</label>
+                <div class="criteria-filters">
+                    <div class="criteria-section">
+                        {% for category in criteria_categories %}
+                            <div class="category">
+                                <button type="button" class="collapse-button">{{ category.name }}</button>
+                                <div class="category-content">
+                                    {% for subcategory in category.subcategories %}
+                                        <div class="subcategory">
+                                            <button type="button" class="collapse-button">{{ subcategory.name }}</button>
+                                            <div class="subcategory-content">
+                                                {% for criterion in subcategory.criteria %}
+                                                    <div class="criteria-item">
+                                                        <label>
+                                                            {{ criterion.name }}
+                                                            <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id|string in request.args.getlist('filter_criteria') %}checked{% endif %}>
+                                                        </label>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <input type="submit" value="Применить фильтры">
+            </fieldset>
+        </form>
+    </div>
+
+    <!-- Обёртывание таблицы в контейнер для предотвращения выхода за пределы -->
+    <div class="table-responsive">
+        <table class="trade-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Скриншот</th>
+                    <th>Инструмент</th>
+                    <th>Направление</th>
+                    <th>Цена входа</th>
+                    <th>Цена выхода</th>
+                    <th>Дата открытия</th>
+                    <th>Дата закрытия</th>
+                    <th>Прибыль/Убыток</th>
+                    <th>% Прибыли/Убытка</th>
+                    <th>Сетап</th>
+                    <th>Критерии</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trade in trades %}
+                <tr>
+                    <td>{{ trade.id }}</td>
+                    <td>
+                        {% if trade.screenshot %}
+                            <img src="{{ url_for('uploaded_file', filename=trade.screenshot) }}" alt="Trade Screenshot" class="clickable-image">
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ trade.instrument.name }}</td>
+                    <td>{{ trade.direction }}</td>
+                    <td>{{ trade.entry_price }}</td>
+                    <td>{{ trade.exit_price or '-' }}</td>
+                    <td>{{ trade.trade_open_time.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ trade.trade_close_time.strftime('%Y-%m-%d') if trade.trade_close_time else '-' }}</td>
+                    <td>{{ "{:.2f}".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</td>
+                    <td>
+                        {% if trade.profit_loss_percentage is not none %}
+                            {{ "{:.2f}%".format(trade.profit_loss_percentage) }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if trade.setup %}
+                            <div class="setup-info">
+                                {% if trade.setup.screenshot %}
+                                    <img src="{{ url_for('uploaded_file', filename=trade.setup.screenshot) }}" alt="Setup Screenshot" class="setup-mini clickable-image">
+                                {% endif %}
+                                {{ trade.setup.setup_name }}
+                            </div>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for criterion in trade.criteria %}
+                            <span class="criterion">{{ criterion.name }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('view_trade', trade_id=trade.id) }}">Просмотр</a><br>
+                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}">Редактировать</a><br>
+                        <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
+                            <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            $('#toggle-filters').click(function(){
+                $('#filters').toggle();
+            });
+
+            // Открытие модального окна при клике на изображение
+            $('.clickable-image').on('click', function() {
+                $('#modal').css('display', 'block');
+                $('#modal-img').attr('src', $(this).attr('src'));
+            });
+
+            // Закрытие модального окна
+            $('.close').on('click', function() {
+                $('#modal').css('display', 'none');
+            });
+
+            // Закрытие модального окна при клике вне изображения
+            $('#modal').on('click', function(event) {
+                if (!$(event.target).is('#modal-img')) {
+                    $(this).css('display', 'none');
+                }
+            });
+
+            // Инициализация datepickers
+            $("input[type='text'][id$='date']").datepicker({
+                dateFormat: 'yy-mm-dd'
+            });
+
+            // Раскрывающиеся списки для категорий и подкатегорий
+            $('.collapse-button').click(function(){
+                $(this).next().toggle();
+            });
+        });
+    </script>
+</div>
+{% endblock %}
