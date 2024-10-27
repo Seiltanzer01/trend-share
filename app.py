@@ -9,6 +9,8 @@ from werkzeug.datastructures import FileStorage
 from flask_migrate import Migrate
 from datetime import datetime
 import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -17,7 +19,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_default_secret_key')
 
 # Настройки базы данных
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///trades.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Инициализация SQLAlchemy
@@ -713,9 +715,77 @@ def view_setup(setup_id):
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# Запуск приложения
+# **Telegram Bot Handlers**
+
+# Команда /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('Привет! Я TradeJournalBot. Как я могу помочь вам сегодня?')
+
+# Команда /help
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "Доступные команды:\n"
+        "/start - Начать общение с ботом\n"
+        "/help - Получить справку\n"
+        "/add_trade - Добавить новую сделку\n"
+        "/view_trades - Просмотреть список сделок"
+    )
+    await update.message.reply_text(help_text)
+
+# Команда /add_trade
+async def add_trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Здесь вы можете реализовать логику добавления сделки через бота
+    await update.message.reply_text('Функция добавления сделки пока не реализована.')
+
+# Команда /view_trades
+async def view_trades_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = 1  # Замените на реальный user_id после реализации аутентификации
+    trades = Trade.query.filter_by(user_id=user_id).all()
+    if not trades:
+        await update.message.reply_text('У вас пока нет сделок.')
+        return
+    message = "Ваши сделки:\n"
+    for trade in trades:
+        message += f"ID: {trade.id}, Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}\n"
+    await update.message.reply_text(message)
+
+# Создание и запуск бота
+async def run_telegram_bot(application):
+    # Добавление обработчиков команд
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CommandHandler('add_trade', add_trade_command))
+    application.add_handler(CommandHandler('view_trades', view_trades_command))
+
+    # Запуск бота
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    await application.idle()
+
+# Запуск Flask и Telegram бота параллельно
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        create_predefined_data()
-    app.run(debug=True)
+    from threading import Thread
+
+    # Функция для запуска Flask-приложения
+    def run_flask():
+        with app.app_context():
+            db.create_all()
+            create_predefined_data()
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+
+    # Функция для запуска Telegram-бота
+    def run_bot():
+        TOKEN = os.environ.get('TELEGRAM_TOKEN')  # Установите переменную окружения TELEGRAM_TOKEN с вашим токеном
+        if not TOKEN:
+            logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+            return
+        application = ApplicationBuilder().token(TOKEN).build()
+        Thread(target=lambda: application.run_polling()).start()
+
+    # Создание и запуск потоков
+    flask_thread = Thread(target=run_flask)
+    bot_thread = Thread(target=run_bot)
+
+    flask_thread.start()
+    bot_thread.start()
