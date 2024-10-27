@@ -1,6 +1,7 @@
 # app.py
 
 import os
+import asyncio
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory
 from forms import TradeForm, SetupForm
 from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
@@ -10,8 +11,7 @@ from flask_migrate import Migrate
 from datetime import datetime
 import logging
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, Dispatcher
-from threading import Thread
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -750,6 +750,24 @@ async def view_trades_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         message += f"ID: {trade.id}, Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}\n"
     await update.message.reply_text(message)
 
+# **Инициализация Telegram бота**
+
+# Получение токена бота из переменных окружения
+TOKEN = os.environ.get('TELEGRAM_TOKEN')
+if not TOKEN:
+    logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+    TOKEN = "ВАШ_ТОКЕН"  # Замените на ваш токен или оставьте как есть для дальнейшей настройки
+
+# Инициализация бота и приложения
+bot = Bot(token=TOKEN)
+application = ApplicationBuilder().token(TOKEN).build()
+
+# Добавление обработчиков команд
+application.add_handler(CommandHandler('start', start))
+application.add_handler(CommandHandler('help', help_command))
+application.add_handler(CommandHandler('add_trade', add_trade_command))
+application.add_handler(CommandHandler('view_trades', view_trades_command))
+
 # **Flask Routes for Telegram Webhooks**
 
 # Маршрут для обработки вебхуков от Telegram
@@ -758,7 +776,8 @@ def webhook():
     """Обработчик вебхуков от Telegram."""
     if request.method == "POST":
         update = Update.de_json(request.get_json(force=True), bot)
-        dispatcher.process_update(update)
+        # Передаём обновление объекту Application для обработки
+        asyncio.run(application.process_update(update))
         return 'OK', 200
     else:
         return 'Method Not Allowed', 405
@@ -774,42 +793,11 @@ def set_webhook():
     else:
         return "Не удалось установить webhook", 500
 
-# **Инициализация Telegram бота**
-
-# Получение токена бота из переменных окружения
-TOKEN = os.environ.get('TELEGRAM_TOKEN')
-if not TOKEN:
-    logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-    TOKEN = "ВАШ_ТОКЕН"  # Замените на ваш токен или оставьте как есть для дальнейшей настройки
-
-# Инициализация бота и диспетчера
-bot = Bot(token=TOKEN)
-application = ApplicationBuilder().token(TOKEN).build()
-dispatcher = Dispatcher(bot, None, workers=0)
-
-# Добавление обработчиков команд
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(CommandHandler('help', help_command))
-dispatcher.add_handler(CommandHandler('add_trade', add_trade_command))
-dispatcher.add_handler(CommandHandler('view_trades', view_trades_command))
-
-# **Запуск Flask-приложения и Telegram бота**
-
-def run_flask():
+# **Запуск Flask-приложения**
+if __name__ == '__main__':
+    # Инициализация базы данных и создание предопределённых данных
     with app.app_context():
         db.create_all()
         create_predefined_data()
+    # Запуск Flask-приложения
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
-
-def run_bot():
-    """Запуск диспетчера Telegram бота."""
-    dispatcher.start()
-    dispatcher.idle()
-
-if __name__ == '__main__':
-    # Создание и запуск потоков для Flask и бота
-    flask_thread = Thread(target=run_flask)
-    bot_thread = Thread(target=run_bot)
-
-    flask_thread.start()
-    bot_thread.start()
