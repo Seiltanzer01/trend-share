@@ -15,9 +15,9 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
-    padding: 0 15px;
+    padding: 0 10px;
 }
 
 header {
@@ -30,7 +30,7 @@ header {
 
 header h1 {
     margin: 0;
-    font-size: 2em;
+    font-size: 1.5em;
     text-shadow: 2px 2px #FF0000;
 }
 
@@ -40,10 +40,11 @@ nav {
 
 nav a {
     color: white;
-    margin: 0 15px;
+    margin: 0 5px;
     text-decoration: none;
     font-weight: bold;
     transition: color 0.3s ease;
+    font-size: 0.9em;
 }
 
 nav a:hover {
@@ -71,7 +72,7 @@ nav a:hover {
 
 main {
     background-color: #FFFFFF;
-    padding: 20px;
+    padding: 10px;
     border: 2px solid #000080;
     border-radius: 10px;
     box-shadow: 5px 5px #A9A9A9;
@@ -83,6 +84,7 @@ footer {
     padding: 10px 0;
     margin-top: 20px;
     border-top: 1px solid #000080;
+    font-size: 0.8em;
 }
 
 /* Стили для таблиц */
@@ -94,40 +96,40 @@ footer {
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
-    table-layout: auto; /* Гибкая ширина столбцов */
-    word-wrap: break-word; /* Перенос слов */
-    overflow-wrap: break-word; /* Дополнительный перенос */
-    max-width: 100%; /* Предотвращает выход за пределы контейнера */
+    margin-top: 10px;
+    table-layout: auto;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
 }
 
 th, td {
     border: 1px solid #000080;
-    padding: 6px; /* Уменьшенные отступы */
-    text-align: center; /* Выравнивание текста по центру */
-    font-size: 0.8em; /* Уменьшенный размер шрифта */
+    padding: 4px;
+    text-align: center;
+    font-size: 0.7em;
     vertical-align: top;
 }
 
 th {
     background-color: #000080;
     color: white;
-    font-size: 0.8em; /* Дополнительное уменьшение размера шрифта */
-    white-space: nowrap; /* Предотвращает перенос заголовков */
-    text-align: center; /* Выравнивание заголовков по центру */
+    font-size: 0.7em;
+    white-space: nowrap;
+    text-align: center;
 }
 
 td {
-    white-space: normal; /* Разрешает перенос строк в ячейках */
-    word-break: normal; /* Предотвращает разрыв слов внутри слов */
-    overflow-wrap: break-word; /* Позволяет переносить длинные слова */
-    padding: 6px; /* Уменьшенные отступы */
-    font-size: 0.75em; /* Дополнительное уменьшение размера шрифта */
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+    padding: 4px;
+    font-size: 0.7em;
 }
 
 /* Центрирование изображений внутри ячеек */
 td img {
-    max-width: 80px; /* Уменьшение размера изображений */
+    max-width: 60px;
     height: auto;
     display: block;
     margin: 0 auto;
@@ -138,14 +140,14 @@ button, input[type="submit"] {
     background-color: #000080;
     color: white;
     border: none;
-    padding: 6px 12px; /* Уменьшенные отступы */
+    padding: 6px 12px;
     cursor: pointer;
     font-family: 'Courier New', Courier, monospace;
     transition: background-color 0.3s ease;
     margin-bottom: 5px;
-    width: 100%; /* Растягивание кнопок на всю ширину ячейки */
+    width: 100%;
     box-sizing: border-box;
-    font-size: 0.8em; /* Уменьшенный размер шрифта */
+    font-size: 0.8em;
 }
 
 button:hover, input[type="submit"]:hover {
@@ -161,7 +163,7 @@ input, select, textarea {
     font-family: 'Courier New', Courier, monospace;
     border: 1px solid #000080;
     border-radius: 4px;
-    font-size: 0.85em; /* Уменьшенный размер шрифта */
+    font-size: 0.8em;
 }
 
 select[multiple] {
@@ -170,7 +172,7 @@ select[multiple] {
 
 /* Стили для мини-изображений сетапов */
 img.setup-mini {
-    width: 40px; /* Уменьшение размера мини-изображений */
+    width: 40px;
     height: 40px;
     object-fit: cover;
     border: 1px solid #000;
@@ -188,23 +190,23 @@ span.criterion {
     background-color: #E6E6FA;
     padding: 2px 4px;
     border-radius: 3px;
-    font-size: 0.7em; /* Сильно уменьшенный размер шрифта */
+    font-size: 0.7em;
     display: inline-block;
-    margin-right: 2px; /* Отступ справа для разделения критериев */
-    margin-bottom: 2px; /* Отступ снизу для вертикального размещения, если нужно */
+    margin-right: 2px;
+    margin-bottom: 2px;
 }
 
 /* Структура категорий и подкатегорий */
 .category {
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .subcategory {
-    margin-left: 20px;
+    margin-left: 10px;
 }
 
 .category-content, .subcategory-content {
-    margin-left: 20px;
+    margin-left: 10px;
     display: none;
 }
 
@@ -215,9 +217,9 @@ span.criterion {
     color: #000080;
     font-weight: bold;
     cursor: pointer;
-    font-size: 1em;
+    font-size: 0.9em;
     padding: 0;
-    text-align: left; /* Выравнивание текста по левому краю */
+    text-align: left;
     width: 100%;
 }
 
@@ -227,27 +229,27 @@ span.criterion {
 
 /* Стили для чекбоксов критериев */
 .criteria-section {
-    margin-top: 10px;
+    margin-top: 5px;
 }
 
 .criteria-item {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Распределение пространства между текстом и чекбоксом */
+    justify-content: space-between;
     margin-bottom: 5px;
 }
 
 .criteria-item label {
     flex: 1;
-    text-align: left; /* Выравнивание текста по левому краю */
-    margin-right: 10px; /* Отступ справа для чекбокса */
-    font-size: 0.85em; /* Уменьшенный размер шрифта */
+    text-align: left;
+    margin-right: 10px;
+    font-size: 0.8em;
 }
 
 .criteria-item input[type="checkbox"] {
     flex: 0 0 auto;
-    margin-left: auto; /* Перемещает чекбокс вправо */
-    transform: scale(0.8); /* Уменьшение размера чекбокса */
+    margin-left: auto;
+    transform: scale(0.8);
 }
 
 /* Стили для модального окна */
@@ -292,9 +294,17 @@ span.criterion {
 
 /* Адаптивность */
 @media screen and (max-width: 768px) {
-    .table-responsive {
-        width: 100%;
-        overflow-x: auto;
+    .container {
+        padding: 0 5px;
+    }
+
+    nav a {
+        margin: 5px 0;
+        font-size: 0.8em;
+    }
+
+    header h1 {
+        font-size: 1.2em;
     }
 
     table, thead, tbody, th, td, tr {
@@ -304,10 +314,9 @@ span.criterion {
         margin-bottom: 15px;
     }
     th, td {
-        text-align: center; /* Выравнивание текста по центру на мобильных */
+        text-align: left;
         position: relative;
-        font-size: 0.75em; /* Дополнительное уменьшение шрифта на мобильных */
-        padding: 4px; /* Ещё меньше отступы */
+        padding: 4px;
     }
     td::before {
         content: attr(data-label);
@@ -321,26 +330,11 @@ span.criterion {
     td {
         padding-left: 50%;
     }
-    nav a {
-        display: block;
-        margin: 5px 0;
+    button, input[type="submit"] {
+        font-size: 0.7em;
     }
-    header h1 {
-        font-size: 1.5em;
-    }
-
-    /* Улучшение таблицы для мобильных устройств */
-    table {
-        table-layout: auto;
-    }
-
-    /* Можно убрать фиксированные ширины для мобильных, чтобы столбцы адаптировались */
-    table.trade-table th:nth-child(2), table.trade-table td:nth-child(2),
-    table.trade-table th:nth-child(3), table.trade-table td:nth-child(3),
-    table.trade-table th:nth-child(11), table.trade-table td:nth-child(11),
-    table.trade-table th:nth-child(12), table.trade-table td:nth-child(12),
-    table.trade-table th:nth-child(13), table.trade-table td:nth-child(13) {
-        width: auto;
+    input, select, textarea {
+        font-size: 0.7em;
     }
 }
 
