@@ -1,4 +1,3 @@
-
 # models.py
 
 from flask_sqlalchemy import SQLAlchemy
@@ -17,7 +16,10 @@ setup_criteria = db.Table('setup_criteria',
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # Добавьте остальные поля пользователя по необходимости
+    telegram_id = db.Column(db.Integer, unique=True, nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=True)
+    first_name = db.Column(db.String(80), nullable=True)
+    last_name = db.Column(db.String(80), nullable=True)
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
 
