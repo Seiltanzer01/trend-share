@@ -823,7 +823,8 @@ logger.info("Фоновый цикл событий asyncio запущен.")
 async def initialize_application():
     try:
         await application.initialize()
-        logger.info("Telegram Application успешно инициализировано.")
+        await application.start()
+        logger.info("Telegram Application успешно инициализировано и запущено.")
     except Exception as e:
         logger.error(f"Ошибка при инициализации Telegram Application: {e}")
         logger.error(traceback.format_exc())
@@ -843,6 +844,7 @@ def webhook():
             update = Update.de_json(request.get_json(force=True), application.bot)
             # Отправляем задачу в фоновый цикл событий
             asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+            logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке вебхука: {e}")
