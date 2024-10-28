@@ -12,6 +12,7 @@ from werkzeug.datastructures import FileStorage
 from flask_migrate import Migrate
 from datetime import datetime
 import logging
+import requests  # Для синхронных HTTP-запросов
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
@@ -816,12 +817,18 @@ def start_background_loop(loop):
 
 background_thread = threading.Thread(target=start_background_loop, args=(loop,), daemon=True)
 background_thread.start()
+logger.info("Фоновый цикл событий asyncio запущен.")
 
-# Инициализация Telegram Application в фоновом цикле
+# Инициализация Telegram Application в фоновом цикле событий
 async def initialize_application():
-    await application.initialize()
+    try:
+        await application.initialize()
+        logger.info("Telegram Application успешно инициализировано.")
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации Telegram Application: {e}")
+        logger.error(traceback.format_exc())
 
-# Запускаем инициализацию приложения в фоновом цикле
+# Запускаем инициализацию приложения в фоновом цикле событий
 asyncio.run_coroutine_threadsafe(initialize_application(), loop)
 
 # **Flask Routes for Telegram Webhooks**
@@ -849,16 +856,24 @@ def webhook():
 def set_webhook():
     """Маршрут для установки вебхука Telegram."""
     webhook_url = f"https://{request.host}/webhook"
+    bot_token = os.environ.get('TELEGRAM_TOKEN')
+    if not bot_token:
+        logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+        return "TELEGRAM_TOKEN не установлен", 500
+    set_webhook_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
     try:
-        # Отправляем запрос на установку вебхука в фоновый цикл событий
-        future = asyncio.run_coroutine_threadsafe(application.bot.set_webhook(webhook_url), loop)
-        success = future.result(timeout=10)  # Устанавливаем таймаут для ожидания результата
-        if success:
-            logger.info(f"Webhook установлен на {webhook_url}")
-            return f"Webhook установлен на {webhook_url}", 200
+        response = requests.post(set_webhook_url, data={"url": webhook_url})
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("ok"):
+                logger.info(f"Webhook успешно установлен на {webhook_url}")
+                return f"Webhook успешно установлен на {webhook_url}", 200
+            else:
+                logger.error(f"Не удалось установить webhook: {result}")
+                return f"Не удалось установить webhook: {result.get('description')}", 500
         else:
-            logger.error("Не удалось установить webhook")
-            return "Не удалось установить webhook", 500
+            logger.error(f"Ошибка HTTP при установке webhook: {response.status_code}")
+            return f"Ошибка HTTP: {response.status_code}", 500
     except Exception as e:
         logger.error(f"Ошибка при установке webhook: {e}")
         logger.error(traceback.format_exc())  # Логирование полного стека ошибки
