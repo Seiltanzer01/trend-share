@@ -43,11 +43,11 @@
                         {% for category in criteria_categories %}
                             <div class="category">
                                 <button type="button" class="collapse-button">{{ category.name }}</button>
-                                <div class="category-content">
+                                <div class="category-content" style="display: none;">
                                     {% for subcategory in category.subcategories %}
                                         <div class="subcategory">
                                             <button type="button" class="collapse-button">{{ subcategory.name }}</button>
-                                            <div class="subcategory-content">
+                                            <div class="subcategory-content" style="display: none;">
                                                 {% for criterion in subcategory.criteria %}
                                                     <div class="criteria-item">
                                                         <label>
