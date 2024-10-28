@@ -805,18 +805,24 @@ application.add_handler(CommandHandler('add_trade', add_trade_command))
 application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
 
-# Функция для инициализации Telegram-приложения
-def initialize_bot():
-    try:
-        asyncio.run(application.initialize())
-        logger.info("Telegram Application успешно инициализировано.")
-    except Exception as e:
-        logger.error(f"Ошибка при инициализации Telegram Application: {e}")
-        logger.error(traceback.format_exc())
+# **Создание и запуск цикла событий в фоновом потоке**
 
-# Запуск инициализации в фоновом потоке
-init_thread = threading.Thread(target=initialize_bot, daemon=True)
-init_thread.start()
+# Создаём новый цикл событий и запускаем его в отдельном потоке
+loop = asyncio.new_event_loop()
+
+def start_background_loop(loop):
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+background_thread = threading.Thread(target=start_background_loop, args=(loop,), daemon=True)
+background_thread.start()
+
+# Инициализация Telegram Application в фоновом цикле
+async def initialize_application():
+    await application.initialize()
+
+# Запускаем инициализацию приложения в фоновом цикле
+asyncio.run_coroutine_threadsafe(initialize_application(), loop)
 
 # **Flask Routes for Telegram Webhooks**
 # В данном подходе вебхуки используются для получения обновлений Telegram.
@@ -828,8 +834,8 @@ def webhook():
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            # Используем create_task для асинхронного выполнения без блокировки
-            asyncio.create_task(application.process_update(update))
+            # Отправляем задачу в фоновый цикл событий
+            asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
             return 'OK', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке вебхука: {e}")
@@ -844,9 +850,9 @@ def set_webhook():
     """Маршрут для установки вебхука Telegram."""
     webhook_url = f"https://{request.host}/webhook"
     try:
-        # Используем текущий цикл событий
-        loop = asyncio.get_event_loop()
-        success = loop.run_until_complete(application.bot.set_webhook(webhook_url))
+        # Отправляем запрос на установку вебхука в фоновый цикл событий
+        future = asyncio.run_coroutine_threadsafe(application.bot.set_webhook(webhook_url), loop)
+        success = future.result(timeout=10)  # Устанавливаем таймаут для ожидания результата
         if success:
             logger.info(f"Webhook установлен на {webhook_url}")
             return f"Webhook установлен на {webhook_url}", 200
