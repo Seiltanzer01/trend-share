@@ -789,7 +789,8 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 if not TOKEN:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-    TOKEN = "ВАШ_НОВЫЙ_ТОКЕН"  # Замените на ваш новый токен после сброса
+    exit(1)  # Завершить работу приложения, если токен отсутствует
+
 
 # Инициализация бота и приложения Telegram
 builder = ApplicationBuilder().token(TOKEN)
