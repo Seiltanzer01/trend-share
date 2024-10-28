@@ -2,9 +2,9 @@
 
 import os
 import asyncio
-import traceback  # Для подробного логирования ошибок
-import threading  # Для запуска фонового потока
-from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory
+import traceback
+import threading
+from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
 from forms import TradeForm, SetupForm
 from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
 from werkzeug.utils import secure_filename
@@ -12,7 +12,10 @@ from werkzeug.datastructures import FileStorage
 from flask_migrate import Migrate
 from datetime import datetime
 import logging
-import requests  # Для синхронных HTTP-запросов
+import requests
+import hashlib
+import hmac
+import json
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
@@ -334,12 +337,74 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
-# Маршруты
+# Маршруты аутентификации
+
+@app.route('/login')
+def login():
+    return render_template('login.html')
+
+@app.route('/telegram_auth', methods=['POST'])
+def telegram_auth():
+    data = request.get_json()
+    if not data:
+        return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+
+    auth_date = data.get('auth_date')
+    first_name = data.get('first_name')
+    hash_value = data.get('hash')
+    id = data.get('id')
+    last_name = data.get('last_name')
+    username = data.get('username')
+    photo_url = data.get('photo_url')
+
+    # Проверка данных
+    check_string_parts = []
+    if 'auth_date' in data:
+        check_string_parts.append(f"auth_date={auth_date}")
+    if 'first_name' in data:
+        check_string_parts.append(f"first_name={first_name}")
+    if 'id' in data:
+        check_string_parts.append(f"id={id}")
+    if 'last_name' in data:
+        check_string_parts.append(f"last_name={last_name}")
+    if 'photo_url' in data:
+        check_string_parts.append(f"photo_url={photo_url}")
+    if 'username' in data:
+        check_string_parts.append(f"username={username}")
+
+    check_string = '\n'.join(sorted(check_string_parts))
+
+    secret_key = hashlib.sha256(os.environ.get('TELEGRAM_TOKEN').encode()).digest()
+    hmac_string = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+
+    if hmac_string != hash_value:
+        return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
+
+    # Получение или создание пользователя
+    user = User.query.filter_by(telegram_id=id).first()
+    if not user:
+        user = User(telegram_id=id, username=username, first_name=first_name, last_name=last_name)
+        db.session.add(user)
+        db.session.commit()
+
+    # Сохранение данных пользователя в сессии
+    session['user_id'] = user.id
+    session['telegram_id'] = id
+
+    return jsonify({'status': 'ok'})
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 # Главная страница — список сделок с фильтрацией
 @app.route('/', methods=['GET'])
 def index():
-    user_id = 1  # Замените на реальный user_id после реализации аутентификации
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     categories = InstrumentCategory.query.all()
     criteria_categories = CriterionCategory.query.all()
 
@@ -378,7 +443,10 @@ def index():
 # Добавить новую сделку
 @app.route('/new_trade', methods=['GET', 'POST'])
 def new_trade():
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     form = TradeForm()
     # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
@@ -447,6 +515,9 @@ def new_trade():
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template('new_trade.html', form=form, criteria_categories=criteria_categories, grouped_instruments=grouped_instruments)
@@ -454,11 +525,15 @@ def new_trade():
 # Редактировать сделку
 @app.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
 def edit_trade(trade_id):
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
         flash('У вас нет прав для редактирования этой сделки.', 'danger')
         return redirect(url_for('index'))
+
     form = TradeForm(obj=trade)
     # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
@@ -471,10 +546,8 @@ def edit_trade(trade_id):
     # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in trade.criteria]
-
-    # Установка выбранного инструмента и сетапа
-    form.instrument.data = trade.instrument_id
-    form.setup_id.data = trade.setup_id if trade.setup_id else 0
+        form.instrument.data = trade.instrument_id
+        form.setup_id.data = trade.setup_id if trade.setup_id else 0
 
     if form.validate_on_submit():
         trade.instrument_id = form.instrument.data
@@ -514,7 +587,7 @@ def edit_trade(trade_id):
                     os.remove(old_filepath)
             filename = secure_filename(screenshot_file.filename)
             screenshot_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            trade.screenshot = filename  # Обновляем поле screenshot в модели Trade
+            trade.screenshot = filename
 
         try:
             db.session.commit()
@@ -527,6 +600,9 @@ def edit_trade(trade_id):
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     # Группировка инструментов по категориям
@@ -538,7 +614,10 @@ def edit_trade(trade_id):
 # Удалить сделку
 @app.route('/delete_trade/<int:trade_id>', methods=['POST'])
 def delete_trade(trade_id):
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
         flash('У вас нет прав для удаления этой сделки.', 'danger')
@@ -560,7 +639,10 @@ def delete_trade(trade_id):
 # Добавить новый сетап
 @app.route('/add_setup', methods=['GET', 'POST'])
 def add_setup():
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     form = SetupForm()
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
@@ -604,6 +686,9 @@ def add_setup():
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template('add_setup.html', form=form, criteria_categories=criteria_categories)
@@ -611,7 +696,10 @@ def add_setup():
 # Редактировать сетап
 @app.route('/edit_setup/<int:setup_id>', methods=['GET', 'POST'])
 def edit_setup(setup_id):
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
         flash('У вас нет прав для редактирования этого сетапа.', 'danger')
@@ -661,6 +749,9 @@ def edit_setup(setup_id):
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
@@ -668,7 +759,10 @@ def edit_setup(setup_id):
 # Удалить сетап
 @app.route('/delete_setup/<int:setup_id>', methods=['POST'])
 def delete_setup(setup_id):
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
         flash('У вас нет прав для удаления этого сетапа.', 'danger')
@@ -690,14 +784,20 @@ def delete_setup(setup_id):
 # Управление сетапами
 @app.route('/manage_setups')
 def manage_setups():
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     setups = Setup.query.filter_by(user_id=user_id).all()
     return render_template('manage_setups.html', setups=setups)
 
 # Просмотр сделки
 @app.route('/view_trade/<int:trade_id>')
 def view_trade(trade_id):
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
         flash('У вас нет прав для просмотра этой сделки.', 'danger')
@@ -707,7 +807,10 @@ def view_trade(trade_id):
 # Просмотр сетапа
 @app.route('/view_setup/<int:setup_id>')
 def view_setup(setup_id):
-    user_id = 1  # Замените на реальный user_id
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
         flash('У вас нет прав для просмотра этого сетапа.', 'danger')
@@ -811,7 +914,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Ошибка при отправке сообщения о существующей регистрации: {e}")
             logger.error(traceback.format_exc())
         return
-    new_user = User(telegram_id=telegram_id)
+    new_user = User(telegram_id=telegram_id, username=user.username, first_name=user.first_name, last_name=user.last_name)
     db.session.add(new_user)
     try:
         db.session.commit()
@@ -829,7 +932,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 if not TOKEN:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-    exit(1)  # Завершить работу приложения, если токен отсутствует
+    exit(1)
 
 # Инициализация бота и приложения Telegram
 builder = ApplicationBuilder().token(TOKEN)
@@ -844,9 +947,7 @@ application.add_handler(CommandHandler('add_trade', add_trade_command))
 application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
 
-# **Создание и запуск цикла событий в фоновом потоке**
-
-# Создаём новый цикл событий и запускаем его в отдельном потоке
+# Создание и запуск цикла событий в фоновом потоке
 loop = asyncio.new_event_loop()
 
 def start_background_loop(loop):
@@ -871,7 +972,6 @@ async def initialize_application():
 asyncio.run_coroutine_threadsafe(initialize_application(), loop)
 
 # **Flask Routes for Telegram Webhooks**
-# В данном подходе вебхуки используются для получения обновлений Telegram.
 
 # Маршрут для обработки вебхуков от Telegram
 @app.route('/webhook', methods=['POST'])
@@ -881,13 +981,12 @@ def webhook():
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
             # Отправляем задачу в фоновый цикл событий
-            future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
-            result = future.result(timeout=10)  # Ждем завершения обработки
+            asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
             logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке вебхука: {e}")
-            logger.error(traceback.format_exc())  # Логирование полного стека ошибки
+            logger.error(traceback.format_exc())
             return 'Internal Server Error', 500
     else:
         return 'Method Not Allowed', 405
@@ -917,10 +1016,10 @@ def set_webhook():
             return f"Ошибка HTTP: {response.status_code}", 500
     except Exception as e:
         logger.error(f"Ошибка при установке webhook: {e}")
-        logger.error(traceback.format_exc())  # Логирование полного стека ошибки
+        logger.error(traceback.format_exc())
         return "Произошла ошибка при установке webhook", 500
 
-# **Запуск Flask-приложения и Telegram бота**
+# **Запуск Flask-приложения**
 
 if __name__ == '__main__':
     # Инициализация базы данных и создание предопределённых данных
@@ -928,8 +1027,6 @@ if __name__ == '__main__':
         db.create_all()
         create_predefined_data()
 
-    # Прямой запуск Flask-приложения (не требуется при использовании Gunicorn)
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Запуск Flask-приложения на порту {port}")
-    # Рекомендуется запускать Flask через WSGI-сервер, такой как gunicorn
-    app.run(host='0.0.0.0', port=port, debug=False)  # Установите debug=False для продакшена
+    app.run(host='0.0.0.0', port=port, debug=False)
