@@ -3,81 +3,106 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Добавить Сделку</h2>
+<div class="container">
+    <h2>Добавить Сделку</h2>
 
-<form method="POST" enctype="multipart/form-data">
-    {{ form.hidden_tag() }}
+    <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
 
-    {{ form.instrument.label }}<br>
-    {{ form.instrument }}<br>
+        <label for="instrument">{{ form.instrument.label }}</label><br>
+        {{ form.instrument }}<br>
 
-    {{ form.direction.label }}<br>
-    {{ form.direction }}<br>
+        <label for="direction">{{ form.direction.label }}</label><br>
+        {{ form.direction }}<br>
 
-    {{ form.entry_price.label }}<br>
-    {{ form.entry_price }}<br>
+        <label for="entry_price">{{ form.entry_price.label }}</label><br>
+        {{ form.entry_price }}<br>
 
-    {{ form.exit_price.label }}<br>
-    {{ form.exit_price }}<br>
+        <label for="exit_price">{{ form.exit_price.label }}</label><br>
+        {{ form.exit_price }}<br>
 
-    {{ form.trade_open_time.label }}<br>
-    {{ form.trade_open_time }}<br>
+        <label for="trade_open_time">{{ form.trade_open_time.label }}</label><br>
+        {{ form.trade_open_time(id='trade_open_time') }}<br>
 
-    {{ form.trade_close_time.label }}<br>
-    {{ form.trade_close_time }}<br>
+        <label for="trade_close_time">{{ form.trade_close_time.label }}</label><br>
+        {{ form.trade_close_time(id='trade_close_time') }}<br>
 
-    {{ form.comment.label }}<br>
-    {{ form.comment }}<br>
+        <label for="comment">{{ form.comment.label }}</label><br>
+        {{ form.comment }}<br>
 
-    {{ form.setup_id.label }}<br>
-    {{ form.setup_id }}<br>
+        <label for="setup_id">{{ form.setup_id.label }}</label><br>
+        {{ form.setup_id }}<br>
 
-    {{ form.screenshot.label }}<br>
-    {{ form.screenshot }}<br>
+        <label for="screenshot">{{ form.screenshot.label }}</label><br>
+        {{ form.screenshot }}<br>
 
-    <br>
-    <label>Критерии:</label><br>
-    <div class="criteria-section">
-        {% for category in criteria_categories %}
-            <div class="category">
-                <button type="button" class="collapse-button">{{ category.name }}</button>
-                <div class="category-content">
-                    {% for subcategory in category.subcategories %}
-                        <div class="subcategory">
-                            <button type="button" class="collapse-button">{{ subcategory.name }}</button>
-                            <div class="subcategory-content">
-                                {% for criterion in subcategory.criteria %}
-                                    <div class="criteria-item">
-                                        <label>
-                                            <input type="checkbox" name="criteria" value="{{ criterion.id }}">
-                                            {{ criterion.name }}
-                                        </label>
-                                    </div>
-                                {% endfor %}
+        <br>
+        <label>Критерии:</label>
+        <div class="criteria-section">
+            {% for category in criteria_categories %}
+                <div class="category">
+                    <button type="button" class="collapse-button">{{ category.name }}</button>
+                    <div class="category-content" style="display: none;">
+                        {% for subcategory in category.subcategories %}
+                            <div class="subcategory">
+                                <button type="button" class="collapse-button">{{ subcategory.name }}</button>
+                                <div class="subcategory-content" style="display: none;">
+                                    {% for criterion in subcategory.criteria %}
+                                        <div class="criteria-item">
+                                            <label>
+                                                {{ criterion.name }}
+                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}">
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
+
+        <br>
+        {{ form.submit }}
+    </form>
+
+    <!-- Модальное окно для изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
     </div>
 
-    <br>
-    {{ form.submit }}
-</form>
+    <script>
+        $(document).ready(function(){
+            // Инициализация datepickers
+            $("#trade_open_time, #trade_close_time").datepicker({
+                dateFormat: 'yy-mm-dd'
+            });
 
-<script>
-    $(document).ready(function(){
-        // Инициализация datepickers
-        $("#trade_open_time, #trade_close_time").datepicker({
-            dateFormat: 'yy-mm-dd'
+            // Раскрывающиеся списки для категорий и подкатегорий
+            $('.collapse-button').click(function(){
+                $(this).next().toggle();
+            });
+
+            // Открытие модального окна при клике на изображение
+            $('.clickable-image').on('click', function() {
+                $('#modal').css('display', 'block');
+                $('#modal-img').attr('src', $(this).attr('src'));
+            });
+
+            // Закрытие модального окна
+            $('.close').on('click', function() {
+                $('#modal').css('display', 'none');
+            });
+
+            // Закрытие модального окна при клике вне изображения
+            $('#modal').on('click', function(event) {
+                if (!$(event.target).is('#modal-img')) {
+                    $(this).css('display', 'none');
+                }
+            });
         });
-
-        // Раскрывающиеся списки для категорий и подкатегорий
-        $('.collapse-button').click(function(){
-            $(this).next().toggle();
-        });
-    });
-</script>
-
+    </script>
+</div>
 {% endblock %}
