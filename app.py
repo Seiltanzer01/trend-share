@@ -3,6 +3,7 @@
 import os
 import asyncio
 import traceback  # Для подробного логирования ошибок
+import threading  # Для запуска фонового потока
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory
 from forms import TradeForm, SetupForm
 from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
@@ -791,7 +792,6 @@ if not TOKEN:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
     exit(1)  # Завершить работу приложения, если токен отсутствует
 
-
 # Инициализация бота и приложения Telegram
 builder = ApplicationBuilder().token(TOKEN)
 
@@ -805,6 +805,19 @@ application.add_handler(CommandHandler('add_trade', add_trade_command))
 application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
 
+# Функция для инициализации Telegram-приложения
+def initialize_bot():
+    try:
+        asyncio.run(application.initialize())
+        logger.info("Telegram Application успешно инициализировано.")
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации Telegram Application: {e}")
+        logger.error(traceback.format_exc())
+
+# Запуск инициализации в фоновом потоке
+init_thread = threading.Thread(target=initialize_bot, daemon=True)
+init_thread.start()
+
 # **Flask Routes for Telegram Webhooks**
 # В данном подходе вебхуки используются для получения обновлений Telegram.
 
@@ -815,7 +828,8 @@ def webhook():
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            asyncio.run(application.process_update(update))
+            # Используем create_task для асинхронного выполнения без блокировки
+            asyncio.create_task(application.process_update(update))
             return 'OK', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке вебхука: {e}")
@@ -830,11 +844,9 @@ def set_webhook():
     """Маршрут для установки вебхука Telegram."""
     webhook_url = f"https://{request.host}/webhook"
     try:
-        # Создаём новый цикл событий для выполнения асинхронной функции
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Используем текущий цикл событий
+        loop = asyncio.get_event_loop()
         success = loop.run_until_complete(application.bot.set_webhook(webhook_url))
-        loop.close()
         if success:
             logger.info(f"Webhook установлен на {webhook_url}")
             return f"Webhook установлен на {webhook_url}", 200
@@ -854,10 +866,7 @@ if __name__ == '__main__':
         db.create_all()
         create_predefined_data()
 
-    # Инициализация Application
-    asyncio.run(application.initialize())
-
-    # Запуск Flask-приложения
+    # Прямой запуск Flask-приложения (не требуется при использовании Gunicorn)
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Запуск Flask-приложения на порту {port}")
     # Рекомендуется запускать Flask через WSGI-сервер, такой как gunicorn
