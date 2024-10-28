@@ -725,7 +725,12 @@ def uploaded_file(filename):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
-    await update.message.reply_text('Привет! Я TradeJournalBot. Как я могу помочь вам сегодня?')
+    try:
+        await update.message.reply_text('Привет! Я TradeJournalBot. Как я могу помочь вам сегодня?')
+        logger.info(f"Ответ отправлен пользователю {user.id} ({user.username}) на команду /start")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /start: {e}")
+        logger.error(traceback.format_exc())
 
 # Команда /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -739,14 +744,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/view_trades - Просмотреть список сделок\n"
         "/register - Зарегистрировать пользователя"
     )
-    await update.message.reply_text(help_text)
+    try:
+        await update.message.reply_text(help_text)
+        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username})")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /help: {e}")
+        logger.error(traceback.format_exc())
 
 # Команда /add_trade
 async def add_trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Получена команда /add_trade от пользователя {user.id} ({user.username})")
-    # Здесь вы можете реализовать логику добавления сделки через бота
-    await update.message.reply_text('Функция добавления сделки пока не реализована.')
+    try:
+        # Здесь вы можете реализовать логику добавления сделки через бота
+        await update.message.reply_text('Функция добавления сделки пока не реализована.')
+        logger.info(f"Ответ на /add_trade отправлен пользователю {user.id} ({user.username})")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке команды /add_trade: {e}")
+        logger.error(traceback.format_exc())
 
 # Команда /view_trades
 async def view_trades_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -755,35 +770,58 @@ async def view_trades_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     telegram_id = user.id
     user_record = User.query.filter_by(telegram_id=telegram_id).first()
     if not user_record:
-        await update.message.reply_text('Пользователь не найден. Пожалуйста, зарегистрируйтесь с помощью команды /register.')
+        try:
+            await update.message.reply_text('Пользователь не найден. Пожалуйста, зарегистрируйтесь с помощью команды /register.')
+            logger.info(f"Пользователь {user.id} ({user.username}) не зарегистрирован.")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения незарегистрированному пользователю: {e}")
+            logger.error(traceback.format_exc())
         return
     user_id = user_record.id
     trades = Trade.query.filter_by(user_id=user_id).all()
     if not trades:
-        await update.message.reply_text('У вас пока нет сделок.')
+        try:
+            await update.message.reply_text('У вас пока нет сделок.')
+            logger.info(f"Пользователь {user.id} ({user.username}) не имеет сделок.")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения о пустом списке сделок: {e}")
+            logger.error(traceback.format_exc())
         return
     message = "Ваши сделки:\n"
     for trade in trades:
         message += f"ID: {trade.id}, Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}\n"
-    await update.message.reply_text(message)
+    try:
+        await update.message.reply_text(message)
+        logger.info(f"Список сделок отправлен пользователю {user.id} ({user.username})")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке списка сделок: {e}")
+        logger.error(traceback.format_exc())
 
 # Команда /register
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
+    logger.info(f"Получена команда /register от пользователя {user.id} ({user.username})")
     existing_user = User.query.filter_by(telegram_id=telegram_id).first()
     if existing_user:
-        await update.message.reply_text('Вы уже зарегистрированы.')
+        try:
+            await update.message.reply_text('Вы уже зарегистрированы.')
+            logger.info(f"Пользователь {user.id} ({user.username}) уже зарегистрирован.")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения о существующей регистрации: {e}")
+            logger.error(traceback.format_exc())
         return
     new_user = User(telegram_id=telegram_id)
     db.session.add(new_user)
     try:
         db.session.commit()
         await update.message.reply_text('Регистрация прошла успешно.')
+        logger.info(f"Пользователь {user.id} ({user.username}) зарегистрирован успешно.")
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Ошибка при регистрации пользователя: {e}")
         await update.message.reply_text('Произошла ошибка при регистрации.')
+        logger.error(f"Ошибка при регистрации пользователя {user.id} ({user.username}): {e}")
+        logger.error(traceback.format_exc())
 
 # **Инициализация Telegram бота и приложения**
 
@@ -843,7 +881,8 @@ def webhook():
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
             # Отправляем задачу в фоновый цикл событий
-            asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+            future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+            result = future.result(timeout=10)  # Ждем завершения обработки
             logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
         except Exception as e:
