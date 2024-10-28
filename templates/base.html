@@ -12,15 +12,22 @@
     <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
     <!-- Подключение внешнего скрипта -->
     <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <!-- Подключение Telegram WebApp -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Trend Share</h1>
             <nav>
-                <a href="{{ url_for('index') }}">Главная</a>
-                <a href="{{ url_for('new_trade') }}">Добавить Сделку</a>
-                <a href="{{ url_for('manage_setups') }}">Управление Сетапами</a>
+                {% if 'user_id' in session %}
+                    <a href="{{ url_for('index') }}">Главная</a>
+                    <a href="{{ url_for('new_trade') }}">Добавить Сделку</a>
+                    <a href="{{ url_for('manage_setups') }}">Управление Сетапами</a>
+                    <a href="{{ url_for('logout') }}">Выйти</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}">Войти через Telegram</a>
+                {% endif %}
             </nav>
         </header>
 
