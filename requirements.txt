@@ -60,3 +60,4 @@ wrapt==1.16.0
 WTForms==2.3.3
 psycopg2-binary
 honcho
+uvicorn
