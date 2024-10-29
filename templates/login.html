@@ -4,14 +4,57 @@
 
 {% block content %}
 <h2>Вход через Telegram</h2>
-<p>Пожалуйста, войдите через Telegram, чтобы использовать приложение.</p>
+<p>Пожалуйста, подождите, выполняется вход...</p>
 
-<script async src="https://telegram.org/js/telegram-widget.js?15"
-        data-telegram-login="TrendShare_bot"  <!-- Замените на имя вашего бота без @ -->
-        data-size="large"
-        data-userpic="false"
-        data-lang="ru"
-        data-auth-url="{{ url_for('telegram_auth', _external=True) }}"
-        data-request-access="write">
+<!-- Подключаем Telegram Web Apps SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script>
+    window.addEventListener('DOMContentLoaded', (event) => {
+        const tg = window.Telegram.WebApp;
+
+        // Получаем данные пользователя
+        const user = tg.initDataUnsafe.user;
+
+        if (user) {
+            // Формируем данные для отправки на сервер
+            const authData = {
+                id: user.id,
+                first_name: user.first_name,
+                last_name: user.last_name || '',
+                username: user.username || '',
+                photo_url: user.photo_url || '',
+                auth_date: tg.initDataUnsafe.auth_date,
+                hash: tg.initDataUnsafe.hash
+            };
+
+            // Отправляем данные на сервер для аутентификации
+            fetch('{{ url_for('telegram_auth', _external=True) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'  // Если вы используете CSRF защиту
+                },
+                body: JSON.stringify(authData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    // Перенаправляем пользователя на главную страницу
+                    window.location.href = '{{ url_for('index') }}';
+                } else {
+                    // Обработка ошибки
+                    alert('Ошибка авторизации: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при отправке данных на сервер:', error);
+                alert('Произошла ошибка при авторизации.');
+            });
+        } else {
+            // Если данные пользователя недоступны
+            alert('Информация о пользователе недоступна. Пожалуйста, запустите приложение из Telegram.');
+        }
+    });
 </script>
 {% endblock %}
