@@ -338,23 +338,18 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
-# Функция для парсинга init_data
+# Функция для парсинга init_data с использованием urllib.parse.parse_qsl
 def parse_init_data(init_data_str):
-    data = {}
+    """
+    Парсинг init_data с использованием urllib.parse.parse_qsl
+    """
     try:
-        # Разделяем по '&'
-        pairs = init_data_str.split('&')
-        for pair in pairs:
-            if '=' not in pair:
-                continue  # Пропускаем некорректные пары
-            key, value = pair.split('=', 1)
-            # Декодируем URL-энкодированные ключи и значения
-            key = urllib.parse.unquote_plus(key)
-            value = urllib.parse.unquote_plus(value)
-            data[key] = value
+        pairs = urllib.parse.parse_qsl(init_data_str, keep_blank_values=True)
+        data = {key: value for key, value in pairs}
+        return data
     except Exception as e:
-        logger.error(f"Ошибка при парсинге init_data: {e}")
-    return data
+        logger.error(f"Ошибка при парсинге init_data с помощью parse_qsl: {e}")
+        return {}
 
 # Маршруты аутентификации
 
@@ -364,17 +359,22 @@ def login():
 
 @app.route('/telegram_auth', methods=['POST'])
 def telegram_auth():
+    # Попытка получить данные как JSON
     data = request.get_json()
     logger.info(f"Получены данные для авторизации: {data}")
 
     if not data or 'init_data' not in data:
-        logger.warning("Нет данных для авторизации или отсутствует init_data.")
-        return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
+        # Если не удалось получить как JSON, попробуем как form data
+        init_data_str = request.form.get('init_data')
+        if not init_data_str:
+            logger.warning("Нет данных для авторизации или отсутствует init_data.")
+            return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
+        data_dict = parse_init_data(init_data_str)
+    else:
+        init_data_str = data.get('init_data')
+        logger.info(f"Получено init_data: {init_data_str}")
+        data_dict = parse_init_data(init_data_str)
 
-    init_data_str = data.get('init_data')
-    logger.info(f"Получено init_data: {init_data_str}")
-
-    data_dict = parse_init_data(init_data_str)
     logger.info(f"Parsed data_dict: {data_dict}")
 
     # Извлечение hash и удаление его из данных
@@ -414,12 +414,12 @@ def telegram_auth():
     # Добавлено логирование первых 10 символов токена для проверки (безопасно)
     logger.info(f"Bot Token (начало): {bot_token[:10]}...")
 
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
-    secret_key_hash = hashlib.sha256(bot_token.encode()).hexdigest()
+    # Вычисление HMAC
+    secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+    secret_key_hash = hashlib.sha256(bot_token.encode('utf-8')).hexdigest()
     logger.info(f"Secret key (SHA256): {secret_key_hash}")
 
-    # Вычисление HMAC
-    hmac_computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    hmac_computed = hmac.new(secret_key, check_string.encode('utf-8'), hashlib.sha256).hexdigest()
     logger.info(f"Computed HMAC: {hmac_computed}")
     logger.info(f"Received hash: {hash_received}")
 
@@ -825,7 +825,11 @@ def edit_setup(setup_id):
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
+    # Группировка инструментов по категориям
+    grouped_instruments = {}
+    for category in InstrumentCategory.query.all():
+        grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
+    return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup, grouped_instruments=grouped_instruments)
 
 # Удалить сетап
 @app.route('/delete_setup/<int:setup_id>', methods=['POST'])
