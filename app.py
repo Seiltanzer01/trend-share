@@ -332,6 +332,11 @@ def create_predefined_data():
 
     db.session.commit()
 
+# Вызываем функцию перед первым запросом
+@app.before_first_request
+def setup_data():
+    create_predefined_data()
+
 # Функция для парсинга init_data
 def parse_init_data(init_data_str):
     data = {}
