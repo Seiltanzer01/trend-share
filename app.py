@@ -342,7 +342,7 @@ def setup_data():
 def parse_init_data(init_data_str):
     data = {}
     try:
-        # Разделяем по '&' вместо '\n'
+        # Разделяем по '&'
         pairs = init_data_str.split('&')
         for pair in pairs:
             if '=' not in pair:
@@ -408,7 +408,12 @@ def telegram_auth():
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
 
+    # Добавлено логирование первых 10 символов токена для проверки (безопасно)
+    logger.info(f"Bot Token (начало): {bot_token[:10]}...")
+
     secret_key = hashlib.sha256(bot_token.encode()).digest()
+    secret_key_hash = hashlib.sha256(bot_token.encode()).hexdigest()
+    logger.info(f"Secret key (SHA256): {secret_key_hash}")
 
     # Вычисление HMAC
     hmac_computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
@@ -420,19 +425,18 @@ def telegram_auth():
         logger.warning("Hash не совпадает. Данные авторизации недействительны.")
         return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
 
-    # Получение или создание пользователя
-    telegram_id_str = data_dict.get('id')
+    # Извлечение информации о пользователе из поля 'user'
     try:
-        telegram_id = int(telegram_id_str)
-    except (ValueError, TypeError):
-        logger.warning(f"Некорректный формат Telegram ID: {telegram_id_str}")
-        return jsonify({'status': 'error', 'message': 'Некорректный формат Telegram ID'}), 400
+        user_data = json.loads(data_dict.get('user', '{}'))
+        telegram_id = int(user_data.get('id'))
+        first_name = user_data.get('first_name', '')
+        last_name = user_data.get('last_name', '')
+        username = user_data.get('username', '')
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        logger.error(f"Ошибка при извлечении данных пользователя: {e}")
+        return jsonify({'status': 'error', 'message': 'Некорректные данные пользователя'}), 400
 
-    first_name = data_dict.get('first_name', '')
-    last_name = data_dict.get('last_name', '')
-    username = data_dict.get('username', '')
-    photo_url = data_dict.get('photo_url', '')
-
+    # Получение или создание пользователя
     user = User.query.filter_by(telegram_id=telegram_id).first()
     if not user:
         user = User(telegram_id=telegram_id, username=username, first_name=first_name, last_name=last_name)
