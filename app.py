@@ -400,6 +400,8 @@ def telegram_auth():
     sorted_keys = sorted(data_dict.keys())
     check_string = '\n'.join([f"{key}={data_dict[key]}" for key in sorted_keys])
 
+    logger.info(f"Check string:\n{check_string}")
+
     # Вычисление секретного ключа
     bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
     if not bot_token:
@@ -410,6 +412,8 @@ def telegram_auth():
 
     # Вычисление HMAC
     hmac_computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    logger.info(f"Computed HMAC: {hmac_computed}")
+    logger.info(f"Received hash: {hash_received}")
 
     # Сравнение полученного хеша с вычисленным
     if not hmac.compare_digest(hmac_computed, hash_received):
