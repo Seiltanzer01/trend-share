@@ -18,6 +18,7 @@ import hmac
 import json
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+import urllib.parse  # Для декодирования URL-энкодированных данных
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -341,8 +342,15 @@ def setup_data():
 def parse_init_data(init_data_str):
     data = {}
     try:
-        for pair in init_data_str.split('\n'):
+        # Разделяем по '&' вместо '\n'
+        pairs = init_data_str.split('&')
+        for pair in pairs:
+            if '=' not in pair:
+                continue  # Пропускаем некорректные пары
             key, value = pair.split('=', 1)
+            # Декодируем URL-энкодированные ключи и значения
+            key = urllib.parse.unquote_plus(key)
+            value = urllib.parse.unquote_plus(value)
             data[key] = value
     except Exception as e:
         logger.error(f"Ошибка при парсинге init_data: {e}")
@@ -357,13 +365,17 @@ def login():
 @app.route('/telegram_auth', methods=['POST'])
 def telegram_auth():
     data = request.get_json()
+    logger.info(f"Получены данные для авторизации: {data}")
+
     if not data or 'init_data' not in data:
         logger.warning("Нет данных для авторизации или отсутствует init_data.")
         return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
 
     init_data_str = data.get('init_data')
     logger.info(f"Получено init_data: {init_data_str}")
+
     data_dict = parse_init_data(init_data_str)
+    logger.info(f"Parsed data_dict: {data_dict}")
 
     # Извлечение hash и удаление его из данных
     hash_received = data_dict.pop('hash', None)
@@ -372,7 +384,13 @@ def telegram_auth():
         return jsonify({'status': 'error', 'message': 'Hash отсутствует'}), 400
 
     # Проверка актуальности auth_date (например, не старше 1 дня)
-    auth_date = int(data_dict.get('auth_date', 0))
+    auth_date_str = data_dict.get('auth_date', '0')
+    try:
+        auth_date = int(auth_date_str)
+    except ValueError:
+        logger.warning(f"Некорректный формат auth_date: {auth_date_str}")
+        return jsonify({'status': 'error', 'message': 'Некорректный формат auth_date'}), 400
+
     current_time = int(datetime.utcnow().timestamp())
     if current_time - auth_date > 86400:
         logger.warning("Данные авторизации устарели.")
@@ -399,8 +417,14 @@ def telegram_auth():
         return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
 
     # Получение или создание пользователя
-    telegram_id = data_dict.get('id')
-    first_name = data_dict.get('first_name')
+    telegram_id_str = data_dict.get('id')
+    try:
+        telegram_id = int(telegram_id_str)
+    except (ValueError, TypeError):
+        logger.warning(f"Некорректный формат Telegram ID: {telegram_id_str}")
+        return jsonify({'status': 'error', 'message': 'Некорректный формат Telegram ID'}), 400
+
+    first_name = data_dict.get('first_name', '')
     last_name = data_dict.get('last_name', '')
     username = data_dict.get('username', '')
     photo_url = data_dict.get('photo_url', '')
@@ -409,8 +433,13 @@ def telegram_auth():
     if not user:
         user = User(telegram_id=telegram_id, username=username, first_name=first_name, last_name=last_name)
         db.session.add(user)
-        db.session.commit()
-        logger.info(f"Создан новый пользователь: {username} (ID: {telegram_id})")
+        try:
+            db.session.commit()
+            logger.info(f"Создан новый пользователь: {username} (ID: {telegram_id})")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка при создании пользователя: {e}")
+            return jsonify({'status': 'error', 'message': 'Ошибка при создании пользователя'}), 500
 
     # Сохранение данных пользователя в сессии
     session['user_id'] = user.id
