@@ -362,6 +362,7 @@ def telegram_auth():
         return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
 
     init_data_str = data.get('init_data')
+    logger.info(f"Получено init_data: {init_data_str}")
     data_dict = parse_init_data(init_data_str)
 
     # Извлечение hash и удаление его из данных
