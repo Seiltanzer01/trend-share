@@ -13,29 +13,15 @@
     window.addEventListener('DOMContentLoaded', (event) => {
         const tg = window.Telegram.WebApp;
 
-        // Получаем данные пользователя
-        const user = tg.initDataUnsafe.user;
-
-        if (user) {
-            // Формируем данные для отправки на сервер
-            const authData = {
-                id: user.id,
-                first_name: user.first_name,
-                last_name: user.last_name || '',
-                username: user.username || '',
-                photo_url: user.photo_url || '',
-                auth_date: tg.initDataUnsafe.auth_date,
-                hash: tg.initDataUnsafe.hash
-            };
-
-            // Отправляем данные на сервер для аутентификации
+        // Проверяем наличие данных авторизации
+        if (tg.initData) {
+            // Отправляем init_data на сервер для аутентификации
             fetch('{{ url_for('telegram_auth', _external=True) }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                   
                 },
-                body: JSON.stringify(authData)
+                body: JSON.stringify({init_data: tg.initData})
             })
             .then(response => response.json())
             .then(data => {
