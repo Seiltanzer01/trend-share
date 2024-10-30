@@ -408,6 +408,9 @@ def telegram_auth():
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
 
+    # Добавлено логирование длины токена для проверки
+    logger.info(f"Длина Bot Token: {len(bot_token)} символов")
+
     # Добавлено логирование первых 10 символов токена для проверки (безопасно)
     logger.info(f"Bot Token (начало): {bot_token[:10]}...")
 
