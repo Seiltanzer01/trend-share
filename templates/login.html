@@ -12,7 +12,8 @@
 <script>
     window.addEventListener('DOMContentLoaded', (event) => {
         const tg = window.Telegram.WebApp;
-
+        
+        console.log("initData:", tg.initData); // Добавлено для отладки
         // Проверяем наличие данных авторизации
         if (tg.initData) {
             // Отправляем init_data на сервер для аутентификации
