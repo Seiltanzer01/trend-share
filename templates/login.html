@@ -1,48 +1,80 @@
-<!-- templates/login.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Авторизация через Telegram</title>
+    <!-- Подключение Telegram Web App JS SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        window.onload = function() {
+            const tg = window.Telegram.WebApp;
 
-{% extends "base.html" %}
+            // Получение init_data от Telegram Web App
+            const initData = tg.initData;
 
-{% block content %}
-<h2>Вход через Telegram</h2>
-<p>Пожалуйста, подождите, выполняется вход...</p>
+            // Проверка доступности initData
+            if (!initData) {
+                alert('Не удалось получить данные авторизации от Telegram.');
+                return;
+            }
 
-<!-- Подключаем Telegram Web Apps SDK -->
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<script>
-    window.addEventListener('DOMContentLoaded', (event) => {
-        const tg = window.Telegram.WebApp;
-
-        console.log("initData:", tg.initData); // Для отладки
-
-        // Проверяем наличие данных авторизации
-        if (tg.initData) {
-            // Отправляем init_data на сервер для аутентификации
-            fetch('{{ url_for('telegram_auth', _external=True) }}', {
+            // Отправка init_data на сервер через fetch API
+            fetch('/telegram_auth', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json' // Отправляем данные в формате JSON
                 },
-                body: JSON.stringify({init_data: tg.initData})
+                body: JSON.stringify({ init_data: initData }) // Структурируем данные как JSON
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    // Перенаправляем пользователя на главную страницу
-                    window.location.href = '{{ url_for('index') }}';
+                    // Перенаправление пользователя на главную страницу после успешной авторизации
+                    window.location.href = '/';
                 } else {
-                    // Обработка ошибки
-                    alert('Ошибка авторизации: ' + data.message);
+                    // Вывод сообщения об ошибке
+                    alert(data.message || 'Ошибка при авторизации.');
                 }
             })
             .catch(error => {
-                console.error('Ошибка при отправке данных на сервер:', error);
+                console.error('Ошибка при авторизации:', error);
                 alert('Произошла ошибка при авторизации.');
             });
-        } else {
-            // Если данные пользователя недоступны
-            alert('Информация о пользователе недоступна. Пожалуйста, запустите приложение из Telegram.');
         }
-    });
-</script>
-{% endblock %}
+    </script>
+    <style>
+        /* Простые стили для центровки контента */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .auth-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .auth-container h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #333;
+        }
+        .auth-container p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Авторизация через Telegram</h1>
+        <p>Пожалуйста, авторизуйтесь через Telegram Web App.</p>
+        <p>Если авторизация не произошла автоматически, попробуйте обновить страницу или вернуться в Telegram.</p>
+    </div>
+</body>
+</html>
