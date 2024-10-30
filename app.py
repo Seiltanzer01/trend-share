@@ -332,10 +332,16 @@ def create_predefined_data():
 
     db.session.commit()
 
-# Вызываем функцию перед первым запросом
-@app.before_first_request
-def setup_data():
-    create_predefined_data()
+# Функция для парсинга init_data
+def parse_init_data(init_data_str):
+    data = {}
+    try:
+        for pair in init_data_str.split('\n'):
+            key, value = pair.split('=', 1)
+            data[key] = value
+    except Exception as e:
+        logger.error(f"Ошибка при парсинге init_data: {e}")
+    return data
 
 # Маршруты аутентификации
 
@@ -346,51 +352,65 @@ def login():
 @app.route('/telegram_auth', methods=['POST'])
 def telegram_auth():
     data = request.get_json()
-    if not data:
-        return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+    if not data or 'init_data' not in data:
+        logger.warning("Нет данных для авторизации или отсутствует init_data.")
+        return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
 
-    auth_date = data.get('auth_date')
-    first_name = data.get('first_name')
-    hash_value = data.get('hash')
-    id = data.get('id')
-    last_name = data.get('last_name')
-    username = data.get('username')
-    photo_url = data.get('photo_url')
+    init_data_str = data.get('init_data')
+    data_dict = parse_init_data(init_data_str)
 
-    # Проверка данных
-    check_string_parts = []
-    if 'auth_date' in data:
-        check_string_parts.append(f"auth_date={auth_date}")
-    if 'first_name' in data:
-        check_string_parts.append(f"first_name={first_name}")
-    if 'id' in data:
-        check_string_parts.append(f"id={id}")
-    if 'last_name' in data:
-        check_string_parts.append(f"last_name={last_name}")
-    if 'photo_url' in data:
-        check_string_parts.append(f"photo_url={photo_url}")
-    if 'username' in data:
-        check_string_parts.append(f"username={username}")
+    # Извлечение hash и удаление его из данных
+    hash_received = data_dict.pop('hash', None)
+    if not hash_received:
+        logger.warning("Hash отсутствует в данных авторизации.")
+        return jsonify({'status': 'error', 'message': 'Hash отсутствует'}), 400
 
-    check_string = '\n'.join(sorted(check_string_parts))
+    # Проверка актуальности auth_date (например, не старше 1 дня)
+    auth_date = int(data_dict.get('auth_date', 0))
+    current_time = int(datetime.utcnow().timestamp())
+    if current_time - auth_date > 86400:
+        logger.warning("Данные авторизации устарели.")
+        return jsonify({'status': 'error', 'message': 'Данные авторизации устарели'}), 400
 
-    secret_key = hashlib.sha256(os.environ.get('TELEGRAM_TOKEN').encode()).digest()
-    hmac_string = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    # Сортировка параметров по ключу
+    sorted_keys = sorted(data_dict.keys())
+    check_string = '\n'.join([f"{key}={data_dict[key]}" for key in sorted_keys])
 
-    if hmac_string != hash_value:
+    # Вычисление секретного ключа
+    bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
+    if not bot_token:
+        logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+        return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
+
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
+
+    # Вычисление HMAC
+    hmac_computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+
+    # Сравнение полученного хеша с вычисленным
+    if not hmac.compare_digest(hmac_computed, hash_received):
+        logger.warning("Hash не совпадает. Данные авторизации недействительны.")
         return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
 
     # Получение или создание пользователя
-    user = User.query.filter_by(telegram_id=id).first()
+    telegram_id = data_dict.get('id')
+    first_name = data_dict.get('first_name')
+    last_name = data_dict.get('last_name', '')
+    username = data_dict.get('username', '')
+    photo_url = data_dict.get('photo_url', '')
+
+    user = User.query.filter_by(telegram_id=telegram_id).first()
     if not user:
-        user = User(telegram_id=id, username=username, first_name=first_name, last_name=last_name)
+        user = User(telegram_id=telegram_id, username=username, first_name=first_name, last_name=last_name)
         db.session.add(user)
         db.session.commit()
+        logger.info(f"Создан новый пользователь: {username} (ID: {telegram_id})")
 
     # Сохранение данных пользователя в сессии
     session['user_id'] = user.id
-    session['telegram_id'] = id
+    session['telegram_id'] = telegram_id
 
+    logger.info(f"Пользователь {username} (ID: {telegram_id}) успешно авторизовался.")
     return jsonify({'status': 'ok'})
 
 @app.route('/logout')
@@ -507,6 +527,7 @@ def new_trade():
         try:
             db.session.commit()
             flash('Сделка успешно добавлена.', 'success')
+            logger.info(f"Сделка ID {trade.id} добавлена пользователем ID {user_id}.")
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при добавлении сделки.', 'danger')
@@ -592,6 +613,7 @@ def edit_trade(trade_id):
         try:
             db.session.commit()
             flash('Сделка успешно обновлена.', 'success')
+            logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при обновлении сделки.', 'danger')
@@ -630,6 +652,7 @@ def delete_trade(trade_id):
         db.session.delete(trade)
         db.session.commit()
         flash('Сделка успешно удалена.', 'success')
+        logger.info(f"Сделка ID {trade.id} удалена пользователем ID {user_id}.")
     except Exception as e:
         db.session.rollback()
         flash('Произошла ошибка при удалении сделки.', 'danger')
@@ -678,6 +701,7 @@ def add_setup():
         try:
             db.session.commit()
             flash('Сетап успешно добавлен.', 'success')
+            logger.info(f"Сетап ID {setup.id} добавлен пользователем ID {user_id}.")
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при добавлении сетапа.', 'danger')
@@ -741,6 +765,7 @@ def edit_setup(setup_id):
         try:
             db.session.commit()
             flash('Сетап успешно обновлён.', 'success')
+            logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {user_id}.")
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при обновлении сетапа.', 'danger')
@@ -775,6 +800,7 @@ def delete_setup(setup_id):
         db.session.delete(setup)
         db.session.commit()
         flash('Сетап успешно удалён.', 'success')
+        logger.info(f"Сетап ID {setup.id} удалён пользователем ID {user_id}.")
     except Exception as e:
         db.session.rollback()
         flash('Произошла ошибка при удалении сетапа.', 'danger')
