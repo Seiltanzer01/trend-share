@@ -340,15 +340,20 @@ def setup_data():
 
 # Функция для парсинга init_data с декодированием значений
 def parse_init_data(init_data_str):
-    """
-    Парсинг init_data с использованием urllib.parse.parse_qsl
+  """
+    Парсит init_data без декодирования значений параметров.
     """
     try:
-        pairs = urllib.parse.parse_qsl(init_data_str, keep_blank_values=True)
-        data = {key: value for key, value in pairs}
+        data = {}
+        for item in init_data_str.split('&'):
+            key, sep, value = item.partition('=')
+            if sep:
+                data[key] = value  # Оставляем значение без декодирования
+            else:
+                data[key] = ''
         return data
     except Exception as e:
-        logger.error(f"Ошибка при парсинге init_data с помощью parse_qsl: {e}")
+        logger.error(f"Ошибка при парсинге init_data без декодирования: {e}")
         return {}
 
 # Обновленная функция для проверки HMAC
