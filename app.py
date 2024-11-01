@@ -338,9 +338,9 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
-# Функция для парсинга init_data с декодированием значений
+# Функция для парсинга init_data без декодирования значений
 def parse_init_data(init_data_str):
-  """
+    """
     Парсит init_data без декодирования значений параметров.
     """
     try:
@@ -355,6 +355,7 @@ def parse_init_data(init_data_str):
     except Exception as e:
         logger.error(f"Ошибка при парсинге init_data без декодирования: {e}")
         return {}
+
 
 # Обновленная функция для проверки HMAC
 def verify_hmac(init_data_str, bot_token):
