@@ -351,6 +351,41 @@ def parse_init_data(init_data_str):
         logger.error(f"Ошибка при парсинге init_data с помощью parse_qsl: {e}")
         return {}
 
+# Функция для проверки HMAC
+def verify_hmac(init_data_str, bot_token):
+    """
+    Проверяет HMAC подпись init_data.
+    Возвращает True, если подпись корректна, иначе False.
+    """
+    try:
+        data = parse_init_data(init_data_str)
+        hash_received = data.pop('hash', None)
+        if not hash_received:
+            logger.warning("Hash отсутствует в данных авторизации.")
+            return False
+
+        # Сортировка параметров по ключу
+        sorted_keys = sorted(data.keys())
+        check_string = '\n'.join([f"{key}={data[key]}" for key in sorted_keys])
+
+        # Вычисление секретного ключа
+        secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+
+        # Вычисление HMAC
+        hmac_computed = hmac.new(secret_key, check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+
+        # Логирование для отладки
+        logger.debug(f"Check string:\n{check_string}")
+        logger.debug(f"Computed HMAC: {hmac_computed}")
+        logger.debug(f"Received hash:   {hash_received}")
+
+        # Сравнение HMAC
+        return hmac.compare_digest(hmac_computed, hash_received)
+    except Exception as e:
+        logger.error(f"Ошибка при проверке HMAC: {e}")
+        logger.error(traceback.format_exc())
+        return False
+
 # Маршруты аутентификации
 
 @app.route('/login')
@@ -369,64 +404,24 @@ def telegram_auth():
         if not init_data_str:
             logger.warning("Нет данных для авторизации или отсутствует init_data.")
             return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
-        data_dict = parse_init_data(init_data_str)
     else:
         init_data_str = data.get('init_data')
         logger.info(f"Получено init_data: {init_data_str}")
-        data_dict = parse_init_data(init_data_str)
 
-    logger.info(f"Parsed data_dict: {data_dict}")
-
-    # Извлечение hash и удаление его из данных
-    hash_received = data_dict.pop('hash', None)
-    if not hash_received:
-        logger.warning("Hash отсутствует в данных авторизации.")
-        return jsonify({'status': 'error', 'message': 'Hash отсутствует'}), 400
-
-    # Проверка актуальности auth_date (например, не старше 1 дня)
-    auth_date_str = data_dict.get('auth_date', '0')
-    try:
-        auth_date = int(auth_date_str)
-    except ValueError:
-        logger.warning(f"Некорректный формат auth_date: {auth_date_str}")
-        return jsonify({'status': 'error', 'message': 'Некорректный формат auth_date'}), 400
-
-    current_time = int(datetime.utcnow().timestamp())
-    if current_time - auth_date > 86400:
-        logger.warning("Данные авторизации устарели.")
-        return jsonify({'status': 'error', 'message': 'Данные авторизации устарели'}), 400
-
-    # Сортировка параметров по ключу
-    sorted_keys = sorted(data_dict.keys())
-    check_string = '\n'.join([f"{key}={data_dict[key]}" for key in sorted_keys])
-
-    logger.info(f"Check string:\n{check_string}")
-
-    # Вычисление секретного ключа
+    # Получение Telegram Token
     bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
     if not bot_token:
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
 
-    # Добавлено логирование длины токена для проверки
-    logger.info(f"Длина Bot Token: {len(bot_token)} символов")
-
-    # Добавлено логирование первых 10 символов токена для проверки (безопасно)
-    logger.info(f"Bot Token (начало): {bot_token[:10]}...")
-
-    # Вычисление HMAC
-    secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
-    secret_key_hash = hashlib.sha256(bot_token.encode('utf-8')).hexdigest()
-    logger.info(f"Secret key (SHA256): {secret_key_hash}")
-
-    hmac_computed = hmac.new(secret_key, check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-    logger.info(f"Computed HMAC: {hmac_computed}")
-    logger.info(f"Received hash: {hash_received}")
-
-    # Сравнение полученного хеша с вычисленным
-    if not hmac.compare_digest(hmac_computed, hash_received):
+    # Проверка HMAC
+    if not verify_hmac(init_data_str, bot_token):
         logger.warning("Hash не совпадает. Данные авторизации недействительны.")
         return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
+
+    # Парсинг данных после успешной проверки HMAC
+    data_dict = parse_init_data(init_data_str)
+    hash_received = data_dict.pop('hash', None)
 
     # Извлечение информации о пользователе из поля 'user'
     try:
