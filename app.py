@@ -42,7 +42,7 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)  # Измените на INFO после отладки
 logger = logging.getLogger(__name__)
 
 # Контекстный процессор для предоставления datetime в шаблонах
@@ -351,18 +351,34 @@ def parse_init_data(init_data_str):
         logger.error(f"Ошибка при парсинге init_data с помощью parse_qsl: {e}")
         return {}
 
-# Функция для проверки HMAC
+# Обновленная функция для проверки HMAC
 def verify_hmac(init_data_str, bot_token):
     """
     Проверяет HMAC подпись init_data.
-    Возвращает True, если подпись корректна, иначе False.
+    Возвращает (computed_hmac, hash_received, is_valid).
     """
     try:
         data = parse_init_data(init_data_str)
         hash_received = data.pop('hash', None)
         if not hash_received:
             logger.warning("Hash отсутствует в данных авторизации.")
-            return False
+            return None, None, False
+
+        # Проверка времени авторизации (auth_date)
+        auth_date_str = data.get('auth_date', None)
+        if not auth_date_str:
+            logger.warning("auth_date отсутствует в данных авторизации.")
+            return None, hash_received, False
+
+        try:
+            auth_date = int(auth_date_str)
+            current_time = int(datetime.utcnow().timestamp())
+            if current_time - auth_date > 600:
+                logger.warning("Данные авторизации просрочены.")
+                return None, hash_received, False
+        except ValueError:
+            logger.warning("Некорректный формат auth_date.")
+            return None, hash_received, False
 
         # Сортировка параметров по ключу
         sorted_keys = sorted(data.keys())
@@ -381,11 +397,12 @@ def verify_hmac(init_data_str, bot_token):
         logger.debug(f"Received hash:   {hash_received}")
 
         # Сравнение HMAC
-        return hmac.compare_digest(hmac_computed, hash_received)
+        is_valid = hmac.compare_digest(hmac_computed, hash_received)
+        return hmac_computed, hash_received, is_valid
     except Exception as e:
         logger.error(f"Ошибка при проверке HMAC: {e}")
         logger.error(traceback.format_exc())
-        return False
+        return None, None, False
 
 # Маршруты аутентификации
 
@@ -419,13 +436,15 @@ def telegram_auth():
         return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
 
     # Проверка HMAC
-    if not verify_hmac(init_data_str, bot_token):
-        logger.warning("Hash не совпадает. Данные авторизации недействительны.")
+    hmac_computed, hash_received, hmac_valid = verify_hmac(init_data_str, bot_token)
+    if not hmac_valid:
+        logger.warning("Hash не совпадает или данные авторизации недействительны.")
         return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
 
     # Парсинг данных после успешной проверки HMAC
     data_dict = parse_init_data(init_data_str)
-    hash_received = data_dict.pop('hash', None)
+    # hash_received уже было удалено в verify_hmac, но сохраняем его для возможного использования
+    data_dict['hash'] = hash_received
 
     # Извлечение информации о пользователе из поля 'user'
     try:
