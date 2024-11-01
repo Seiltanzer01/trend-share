@@ -338,17 +338,22 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
-# Функция для парсинга init_data с использованием urllib.parse.parse_qsl
+# Функция для парсинга init_data без декодирования значений
 def parse_init_data(init_data_str):
     """
-    Парсинг init_data с использованием urllib.parse.parse_qsl
+    Парсинг init_data без декодирования значений.
     """
     try:
-        pairs = urllib.parse.parse_qsl(init_data_str, keep_blank_values=True)
-        data = {key: value for key, value in pairs}
+        pairs = init_data_str.split('&')
+        data = {}
+        for pair in pairs:
+            if '=' not in pair:
+                continue  # Пропустить некорректные пары
+            key, value = pair.split('=', 1)
+            data[key] = value  # Сохранить сырые значения
         return data
     except Exception as e:
-        logger.error(f"Ошибка при парсинге init_data с помощью parse_qsl: {e}")
+        logger.error(f"Ошибка при парсинге init_data: {e}")
         return {}
 
 # Функция для проверки HMAC
@@ -376,6 +381,7 @@ def verify_hmac(init_data_str, bot_token):
 
         # Логирование для отладки
         logger.debug(f"Check string:\n{check_string}")
+        logger.debug(f"Secret key (SHA256): {hashlib.sha256(bot_token.encode('utf-8')).hexdigest()}")
         logger.debug(f"Computed HMAC: {hmac_computed}")
         logger.debug(f"Received hash:   {hash_received}")
 
@@ -407,6 +413,9 @@ def telegram_auth():
     else:
         init_data_str = data.get('init_data')
         logger.info(f"Получено init_data: {init_data_str}")
+
+    # Логирование исходной строки для сравнения
+    logger.debug(f"Original init_data_str: {init_data_str}")
 
     # Получение Telegram Token
     bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
