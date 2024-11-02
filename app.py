@@ -9,13 +9,11 @@ from forms import TradeForm, SetupForm
 from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from flask_migrate import Migrate
+from flask_migrate import Migrate, upgrade
 from datetime import datetime
 import logging
 import requests
-import hashlib
-import hmac
-import json
+import secrets  # Для генерации токенов
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 import urllib.parse  # Для декодирования URL-энкодированных данных
@@ -342,147 +340,41 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
-# **Корректная функция для парсинга init_data с использованием urllib.parse.parse_qsl**
-def parse_init_data(init_data_str):
-    """
-    Парсит init_data с использованием urllib.parse.parse_qsl для корректного разбора параметров.
-    """
-    try:
-        parsed = urllib.parse.parse_qsl(init_data_str, keep_blank_values=True)
-        data = dict(parsed)
-        return data
-    except Exception as e:
-        logger.error(f"Ошибка при парсинге init_data с использованием parse_qsl: {e}")
-        return {}
-
-# Обновлённая функция для проверки HMAC
-def verify_hmac(init_data_str, bot_token):
-    """
-    Проверяет HMAC подпись init_data.
-    Возвращает (computed_hmac, hash_received, is_valid).
-    """
-    try:
-        data = parse_init_data(init_data_str)
-        hash_received = data.pop('hash', None)
-        if not hash_received:
-            logger.warning("Hash отсутствует в данных авторизации.")
-            return None, None, False
-
-        # Проверка времени авторизации (auth_date)
-        auth_date_str = data.get('auth_date', None)
-        if not auth_date_str:
-            logger.warning("auth_date отсутствует в данных авторизации.")
-            return None, hash_received, False
-
-        try:
-            auth_date = int(auth_date_str)
-            current_time = int(datetime.utcnow().timestamp())
-            if current_time - auth_date > 600:
-                logger.warning("Данные авторизации просрочены.")
-                return None, hash_received, False
-        except ValueError:
-            logger.warning("Некорректный формат auth_date.")
-            return None, hash_received, False
-
-        # Сортировка параметров по ключу
-        sorted_keys = sorted(data.keys())
-        check_string = '\n'.join([f"{key}={data[key]}" for key in sorted_keys])
-
-        # Вычисление секретного ключа
-        secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
-
-        # Вычисление HMAC
-        hmac_computed = hmac.new(secret_key, check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-
-        # Логирование для отладки
-        logger.debug(f"Check string:\n{check_string}")
-        logger.debug(f"Secret key (SHA256): {hashlib.sha256(bot_token.encode('utf-8')).hexdigest()}")
-        logger.debug(f"Computed HMAC: {hmac_computed}")
-        logger.debug(f"Received hash:   {hash_received}")
-
-        # Сравнение HMAC
-        is_valid = hmac.compare_digest(hmac_computed, hash_received)
-        return hmac_computed, hash_received, is_valid
-    except Exception as e:
-        logger.error(f"Ошибка при проверке HMAC: {e}")
-        logger.error(traceback.format_exc())
-        return None, None, False
-
 # Маршруты аутентификации
 
 @app.route('/login')
 def login():
     return render_template('login.html')
 
-@app.route('/telegram_auth', methods=['POST'])
-def telegram_auth():
-    # Попытка получить данные как JSON
-    data = request.get_json()
-    logger.info(f"Получены данные для авторизации: {data}")
-
-    if not data or 'init_data' not in data:
-        # Если не удалось получить как JSON, попробуем как form data
-        init_data_str = request.form.get('init_data')
-        if not init_data_str:
-            logger.warning("Нет данных для авторизации или отсутствует init_data.")
-            return jsonify({'status': 'error', 'message': 'Нет данных для авторизации'}), 400
-    else:
-        init_data_str = data.get('init_data')
-        logger.info(f"Получено init_data: {init_data_str}")
-
-    # Логирование исходной строки для сравнения
-    logger.debug(f"Original init_data_str: {init_data_str}")
-
-    # Получение Telegram Token
-    bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
-    if not bot_token:
-        logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-        return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
-
-    # Дополнительное логирование (НЕ РАСКРЫВАЙТЕ ПОЛНЫЙ TOKEN)
-    logger.debug(f"Telegram Token (SHA256): {hashlib.sha256(bot_token.encode('utf-8')).hexdigest()}")
-
-    # Проверка HMAC
-    hmac_computed, hash_received, hmac_valid = verify_hmac(init_data_str, bot_token)
-    if not hmac_valid:
-        logger.warning("Hash не совпадает или данные авторизации недействительны.")
-        return jsonify({'status': 'error', 'message': 'Данные авторизации недействительны'}), 400
-
-    # Парсинг данных после успешной проверки HMAC
-    data_dict = parse_init_data(init_data_str)
-    # hash_received уже было удалено в verify_hmac, но сохраняем его для возможного использования
-    data_dict['hash'] = hash_received
-
-    # Извлечение информации о пользователе из поля 'user'
-    try:
-        user_data = json.loads(data_dict.get('user', '{}'))
-        telegram_id = int(user_data.get('id'))
-        first_name = user_data.get('first_name', '')
-        last_name = user_data.get('last_name', '')
-        username = user_data.get('username', '')
-    except (json.JSONDecodeError, ValueError, TypeError) as e:
-        logger.error(f"Ошибка при извлечении данных пользователя: {e}")
-        return jsonify({'status': 'error', 'message': 'Некорректные данные пользователя'}), 400
-
-    # Получение или создание пользователя
-    user = User.query.filter_by(telegram_id=telegram_id).first()
-    if not user:
-        user = User(telegram_id=telegram_id, username=username, first_name=first_name, last_name=last_name)
-        db.session.add(user)
-        try:
-            db.session.commit()
-            logger.info(f"Создан новый пользователь: {username} (ID: {telegram_id})")
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка при создании пользователя: {e}")
-            return jsonify({'status': 'error', 'message': 'Ошибка при создании пользователя'}), 500
-
+@app.route('/authorize')
+def authorize():
+    token = request.args.get('token')
+    if not token:
+        flash('Токен авторизации отсутствует.', 'danger')
+        return redirect(url_for('login'))
+    
+    token_record = User.query.filter_by(auth_token=token).first()
+    if not token_record:
+        flash('Неверный токен авторизации.', 'danger')
+        return redirect(url_for('login'))
+    
+    # Проверка срока действия токена (например, 15 минут)
+    token_creation_time = token_record.auth_token_creation_time
+    if not token_creation_time or (datetime.utcnow() - token_creation_time).total_seconds() > 900:
+        flash('Токен авторизации просрочен.', 'danger')
+        return redirect(url_for('login'))
+    
+    # Очистка токена после использования (одноразовый токен)
+    token_record.auth_token = None
+    token_record.auth_token_creation_time = None
+    db.session.commit()
+    
     # Сохранение данных пользователя в сессии
-    session['user_id'] = user.id
-    session['telegram_id'] = telegram_id
-
-    logger.info(f"Пользователь {username} (ID: {telegram_id}) успешно авторизовался.")
-    return jsonify({'status': 'ok'})
+    session['user_id'] = token_record.id
+    session['telegram_id'] = token_record.telegram_id
+    
+    flash('Успешно авторизовались через Telegram.', 'success')
+    return redirect(url_for('index'))
 
 @app.route('/logout')
 def logout():
@@ -920,7 +812,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
     try:
-        await update.message.reply_text('Привет! Я TradeJournalBot. Как я могу помочь вам сегодня?')
+        await update.message.reply_text('Привет! Я TradeJournalBot. Используй команду /register для регистрации.')
         logger.info(f"Ответ отправлен пользователю {user.id} ({user.username}) на команду /start")
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /start: {e}")
@@ -936,7 +828,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/help - Получить справку\n"
         "/add_trade - Добавить новую сделку\n"
         "/view_trades - Просмотреть список сделок\n"
-        "/register - Зарегистрировать пользователя"
+        "/register - Зарегистрировать пользователя\n"
+        "/login - Получить ссылку для авторизации на сайте"
     )
     try:
         await update.message.reply_text(help_text)
@@ -999,23 +892,73 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     existing_user = User.query.filter_by(telegram_id=telegram_id).first()
     if existing_user:
         try:
-            await update.message.reply_text('Вы уже зарегистрированы.')
+            await update.message.reply_text('Вы уже зарегистрированы. Используйте /login для входа.')
             logger.info(f"Пользователь {user.id} ({user.username}) уже зарегистрирован.")
         except Exception as e:
             logger.error(f"Ошибка при отправке сообщения о существующей регистрации: {e}")
             logger.error(traceback.format_exc())
         return
-    new_user = User(telegram_id=telegram_id, username=user.username, first_name=user.first_name, last_name=user.last_name)
+    # Создание нового пользователя
+    new_user = User(
+        telegram_id=telegram_id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name
+    )
+    # Генерация уникального токена
+    token = secrets.token_urlsafe(32)
+    new_user.auth_token = token
+    new_user.auth_token_creation_time = datetime.utcnow()
     db.session.add(new_user)
     try:
         db.session.commit()
-        await update.message.reply_text('Регистрация прошла успешно.')
-        logger.info(f"Пользователь {user.id} ({user.username}) зарегистрирован успешно.")
+        # Отправка ссылки для авторизации
+        auth_url = f"https://{request_host(app)}/authorize?token={token}"
+        await update.message.reply_text(f'Регистрация прошла успешно. Пожалуйста, перейдите по ссылке для авторизации: {auth_url}')
+        logger.info(f"Пользователь {user.id} ({user.username}) зарегистрирован и ссылка для авторизации отправлена.")
     except Exception as e:
         db.session.rollback()
         await update.message.reply_text('Произошла ошибка при регистрации.')
         logger.error(f"Ошибка при регистрации пользователя {user.id} ({user.username}): {e}")
         logger.error(traceback.format_exc())
+
+# Команда /login
+async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    telegram_id = user.id
+    logger.info(f"Получена команда /login от пользователя {user.id} ({user.username})")
+    user_record = User.query.filter_by(telegram_id=telegram_id).first()
+    if not user_record:
+        try:
+            await update.message.reply_text('Пользователь не найден. Пожалуйста, зарегистрируйтесь с помощью команды /register.')
+            logger.info(f"Пользователь {user.id} ({user.username}) не зарегистрирован.")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения незарегистрированному пользователю: {e}")
+            logger.error(traceback.format_exc())
+        return
+    # Генерация нового токена
+    token = secrets.token_urlsafe(32)
+    user_record.auth_token = token
+    user_record.auth_token_creation_time = datetime.utcnow()
+    try:
+        db.session.commit()
+        # Отправка ссылки для авторизации
+        auth_url = f"https://{request_host(app)}/authorize?token={token}"
+        await update.message.reply_text(f'Пожалуйста, перейдите по ссылке для авторизации: {auth_url}')
+        logger.info(f"Ссылка для авторизации отправлена пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        db.session.rollback()
+        await update.message.reply_text('Произошла ошибка при генерации ссылки для авторизации.')
+        logger.error(f"Ошибка при генерации токена для пользователя {user.id} ({user.username}): {e}")
+        logger.error(traceback.format_exc())
+
+# **Вспомогательная функция для получения хоста**
+def request_host(app):
+    """
+    Вспомогательная функция для получения хоста приложения.
+    """
+    # Используется для получения хоста в контексте бота
+    return os.environ.get('APP_HOST', 'your-domain.com')  # Замените на ваш домен или используйте другие методы
 
 # **Инициализация Telegram бота и приложения**
 
@@ -1037,6 +980,7 @@ application.add_handler(CommandHandler('help', help_command))
 application.add_handler(CommandHandler('add_trade', add_trade_command))
 application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
+application.add_handler(CommandHandler('login', login_command))
 
 # Создание и запуск цикла событий в фоновом потоке
 loop = asyncio.new_event_loop()
@@ -1110,90 +1054,19 @@ def set_webhook():
         logger.error(traceback.format_exc())
         return "Произошла ошибка при установке webhook", 500
 
-# **Дополнительные Маршруты для Отладки**
-
-# Временный маршрут для тестирования HMAC
-@app.route('/test_hmac', methods=['GET'])
-def test_hmac():
-    """
-    Временный маршрут для тестирования функции verify_hmac.
-    Использует предопределённые данные и сравнивает вычисленный HMAC с ожидаемым.
-    """
-    # Текущая временная метка (на момент тестирования)
-    current_auth_date = int(datetime.utcnow().timestamp())
-
-    # Предопределённые данные для теста
-    user_data = {
-        "id": 427032240,
-        "first_name": "Daniil",
-        "last_name": "",
-        "username": "LaFunambulo",
-        "language_code": "ru",
-        "is_premium": True,
-        "allows_write_to_pm": True
-    }
-    # Используем separators=(',', ':') чтобы убрать пробелы, как Telegram
-    user_json = json.dumps(user_data, separators=(',', ':'))
-    user_encoded = urllib.parse.quote(user_json)
-
-    test_init_data_str = (
-        f'query_id=AAGw_nMZAAAAALD-cxksJy1E&'
-        f'user={user_encoded}&'
-        f'auth_date={current_auth_date}&'
-        f'hash=PLACEHOLDER_HASH'
-    )
-
-    # Вычисление ожидаемого HMAC для тестовых данных
-    bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
-    if not bot_token:
-        return jsonify({'status': 'error', 'message': 'TELEGRAM_TOKEN не установлен'}), 500
-
-    # Парсим init_data
-    data = parse_init_data(test_init_data_str)
-    hash_received = data.pop('hash', None)
-    if not hash_received:
-        return jsonify({'status': 'error', 'message': 'Hash отсутствует в данных'}), 400
-
-    # Строим check_string
-    sorted_keys = sorted(data.keys())
-    check_string = '\n'.join([f"{key}={data[key]}" for key in sorted_keys])
-
-    # Вычисляем секретный ключ
-    secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
-
-    # Вычисляем HMAC
-    hmac_computed = hmac.new(secret_key, check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-
-    # Для теста устанавливаем ожидаемый hash равным вычисленному HMAC
-    hash_received = hmac_computed
-    data['hash'] = hash_received
-
-    # Проверяем HMAC
-    is_valid = hmac.compare_digest(hmac_computed, hash_received)
-
-    return jsonify({
-        'check_string': check_string,
-        'hmac_computed': hmac_computed,
-        'hash_received': hash_received,
-        'is_valid': is_valid
-    })
-
-# Временный маршрут для проверки текущего времени сервера
-@app.route('/server_time', methods=['GET'])
-def server_time():
-    """
-    Временный маршрут для проверки текущего времени сервера.
-    """
-    current_time = datetime.utcnow().isoformat() + 'Z'
-    return jsonify({'server_time': current_time})
-
 # **Запуск Flask-приложения**
 
 if __name__ == '__main__':
-    # Инициализация базы данных и создание предопределённых данных
+    # Применение миграций и инициализация базы данных
     with app.app_context():
-        db.create_all()
-        create_predefined_data()
+        try:
+            upgrade()  # Применение миграций
+            create_predefined_data()
+            logger.info("Миграции применены и предопределённые данные созданы.")
+        except Exception as e:
+            logger.error(f"Ошибка при применении миграций: {e}")
+            logger.error(traceback.format_exc())
+            exit(1)
 
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Запуск Flask-приложения на порту {port}")
