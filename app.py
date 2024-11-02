@@ -1124,10 +1124,7 @@ def test_hmac():
     """
     test_init_data_str = (
         'query_id=AAGw_nMZAAAAALD-cxksJy1E&'
-        'user=%7B%22id%22%3A427032240%2C%22first_name%22%3A%22Daniil%22%2C'
-        '%22last_name%22%3A%22%22%2C%22username%22%3A%22LaFunambulo%22%2C'
-        '%22language_code%22%3A%22ru%22%2C%22is_premium%22%3Atrue%2C'
-        '%22allows_write_to_pm%22%3Atrue%7D&'
+        'user={"id":427032240,"first_name":"Daniil","last_name":"","username":"LaFunambulo","language_code":"ru","is_premium":true,"allows_write_to_pm":true}&'
         'auth_date=1730504515&'
         'hash=201a0984c3e184e3192ce70f626ff2bb99e234965d5ca8a2d835d64039428855'
     )
@@ -1137,20 +1134,20 @@ def test_hmac():
 
     hmac_computed, hash_received, is_valid = verify_hmac(test_init_data_str, bot_token)
 
-    # Ожидаемый HMAC: 201a0984c3e184e3192ce70f626ff2bb99e234965d5ca8a2d835d64039428855
+    # Построение правильного check_string для проверки
+    data = parse_init_data(test_init_data_str)
+    if 'hash' in data:
+        del data['hash']
+    sorted_keys = sorted(data.keys())
+    check_string = '\n'.join([f"{key}={data[key]}" for key in sorted_keys])
+
     return jsonify({
-        'check_string': '\n'.join([
-            f"auth_date=1730504515",
-            f"query_id=AAGw_nMZAAAAALD-cxksJy1E",
-            f"user=%7B%22id%22%3A427032240%2C%22first_name%22%3A%22Daniil%22%2C"
-            f"%22last_name%22%3A%22%22%2C%22username%22%3A%22LaFunambulo%22%2C"
-            f"%22language_code%22%3A%22ru%22%2C%22is_premium%22%3Atrue%2C"
-            f"%22allows_write_to_pm%22%3Atrue%7D"
-        ]),
+        'check_string': check_string,
         'hmac_computed': hmac_computed,
         'hash_received': hash_received,
         'is_valid': is_valid
     })
+
 
 # Временный маршрут для проверки текущего времени сервера
 @app.route('/server_time', methods=['GET'])
