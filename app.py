@@ -338,25 +338,20 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
-# Функция для парсинга init_data без декодирования значений
+# **Корректная функция для парсинга init_data с использованием urllib.parse.parse_qsl**
 def parse_init_data(init_data_str):
     """
-    Парсит init_data без декодирования значений параметров.
+    Парсит init_data с использованием urllib.parse.parse_qsl для корректного разбора параметров.
     """
     try:
-        data = {}
-        for item in init_data_str.split('&'):
-            key, sep, value = item.partition('=')
-            if sep:
-                data[key] = value  # Оставляем значение без декодирования
-            else:
-                data[key] = ''
+        parsed = urllib.parse.parse_qsl(init_data_str, keep_blank_values=True)
+        data = dict(parsed)
         return data
     except Exception as e:
-        logger.error(f"Ошибка при парсинге init_data без декодирования: {e}")
+        logger.error(f"Ошибка при парсинге init_data с использованием parse_qsl: {e}")
         return {}
 
-# Обновленная функция для проверки HMAC
+# Обновлённая функция для проверки HMAC
 def verify_hmac(init_data_str, bot_token):
     """
     Проверяет HMAC подпись init_data.
