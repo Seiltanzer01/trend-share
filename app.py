@@ -36,6 +36,9 @@ app.secret_key = secret_key_env
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Настройка APP_HOST для формирования ссылок авторизации
+app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
+
 # Инициализация SQLAlchemy
 db.init_app(app)
 
@@ -51,6 +54,13 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
+
+# Вспомогательная функция для получения хоста приложения
+def get_app_host():
+    """
+    Возвращает хост приложения для формирования ссылок авторизации.
+    """
+    return app.config.get('APP_HOST', 'trend-share.onrender.com')
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -379,6 +389,7 @@ def authorize():
 @app.route('/logout')
 def logout():
     session.clear()
+    flash('Вы успешно вышли из системы.', 'success')
     return redirect(url_for('login'))
 
 # Главная страница — список сделок с фильтрацией
@@ -829,7 +840,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/add_trade - Добавить новую сделку\n"
         "/view_trades - Просмотреть список сделок\n"
         "/register - Зарегистрировать пользователя\n"
-        "/login - Получить ссылку для авторизации на сайте"
+        "/login - Получить ссылку для авторизации на сайте\n"
+        "/test - Тестовая команда для проверки работы бота"
     )
     try:
         await update.message.reply_text(help_text)
@@ -913,7 +925,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         db.session.commit()
         # Отправка ссылки для авторизации
-        auth_url = f"https://{app.config.get('APP_HOST', 'trend-share.onrender.com')}/authorize?token={token}"
+        auth_url = f"https://{get_app_host()}/authorize?token={token}"
         await update.message.reply_text(f'Регистрация прошла успешно. Пожалуйста, перейдите по ссылке для авторизации: {auth_url}')
         logger.info(f"Пользователь {user.id} ({user.username}) зарегистрирован и ссылка для авторизации отправлена.")
     except Exception as e:
@@ -921,7 +933,6 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text('Произошла ошибка при регистрации.')
         logger.error(f"Ошибка при регистрации пользователя {user.id} ({user.username}): {e}")
         logger.error(traceback.format_exc())
-
 
 # Команда /login
 async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -944,7 +955,7 @@ async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         db.session.commit()
         # Отправка ссылки для авторизации
-        auth_url = f"https://{request_host(app)}/authorize?token={token}"
+        auth_url = f"https://{get_app_host()}/authorize?token={token}"
         await update.message.reply_text(f'Пожалуйста, перейдите по ссылке для авторизации: {auth_url}')
         logger.info(f"Ссылка для авторизации отправлена пользователю {user.id} ({user.username}).")
     except Exception as e:
@@ -953,13 +964,16 @@ async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка при генерации токена для пользователя {user.id} ({user.username}): {e}")
         logger.error(traceback.format_exc())
 
-# **Вспомогательная функция для получения хоста**
-def request_host(app):
-    """
-    Вспомогательная функция для получения хоста приложения.
-    """
-    # Используется для получения хоста в контексте бота
-    return os.environ.get('APP_HOST', 'your-domain.com')  # Замените на ваш домен или используйте другие методы
+# Команда /test
+async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
+    try:
+        await update.message.reply_text('Команда /test работает корректно!')
+        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username})")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /test: {e}")
+        logger.error(traceback.format_exc())
 
 # **Инициализация Telegram бота и приложения**
 
@@ -982,6 +996,7 @@ application.add_handler(CommandHandler('add_trade', add_trade_command))
 application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
 application.add_handler(CommandHandler('login', login_command))
+application.add_handler(CommandHandler('test', test_command))
 
 # Создание и запуск цикла событий в фоновом потоке
 loop = asyncio.new_event_loop()
@@ -1031,7 +1046,7 @@ def webhook():
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
     """Маршрут для установки вебхука Telegram."""
-    webhook_url = f"https://{request.host}/webhook"
+    webhook_url = f"https://{get_app_host()}/webhook"
     bot_token = os.environ.get('TELEGRAM_TOKEN')
     if not bot_token:
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
