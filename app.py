@@ -24,7 +24,10 @@ import urllib.parse  # Для декодирования URL-энкодиров�
 app = Flask(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
-app.secret_key = os.environ.get('SECRET_KEY', 'your_default_secret_key')
+secret_key_env = os.environ.get('SECRET_KEY', '').strip()
+if not secret_key_env:
+    raise ValueError("SECRET_KEY не установлен в переменных окружения.")
+app.secret_key = secret_key_env
 
 # Настройки базы данных
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
@@ -875,16 +878,6 @@ def delete_setup(setup_id):
         logger.error(f"Ошибка при удалении сетапа: {e}")
     return redirect(url_for('manage_setups'))
 
-# Управление сетапами
-@app.route('/manage_setups')
-def manage_setups():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    setups = Setup.query.filter_by(user_id=user_id).all()
-    return render_template('manage_setups.html', setups=setups)
-
 # Просмотр сделки
 @app.route('/view_trade/<int:trade_id>')
 def view_trade(trade_id):
@@ -1126,13 +1119,25 @@ def test_hmac():
     current_auth_date = int(datetime.utcnow().timestamp())
 
     # Предопределённые данные для теста
+    user_data = {
+        "id": 427032240,
+        "first_name": "Daniil",
+        "last_name": "",
+        "username": "LaFunambulo",
+        "language_code": "ru",
+        "is_premium": True,
+        "allows_write_to_pm": True
+    }
+    user_json = json.dumps(user_data)
+    user_encoded = urllib.parse.quote(user_json)
+
     test_init_data_str = (
         f'query_id=AAGw_nMZAAAAALD-cxksJy1E&'
-        f'user={{"id":427032240,"first_name":"Daniil","last_name":"","username":"LaFunambulo","language_code":"ru","is_premium":true,"allows_write_to_pm":true}}&'
+        f'user={user_encoded}&'
         f'auth_date={current_auth_date}&'
         f'hash=PLACEHOLDER_HASH'
     )
-    
+
     # Вычисление ожидаемого HMAC для тестовых данных
     bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
     if not bot_token:
@@ -1169,8 +1174,6 @@ def test_hmac():
         'hash_received': hash_received,
         'is_valid': is_valid
     })
-
-
 
 # Временный маршрут для проверки текущего времени сервера
 @app.route('/server_time', methods=['GET'])
