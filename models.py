@@ -20,6 +20,8 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=True)
     first_name = db.Column(db.String(80), nullable=True)
     last_name = db.Column(db.String(80), nullable=True)
+    auth_token = db.Column(db.String(64), unique=True, nullable=True)  # Новое поле
+    auth_token_creation_time = db.Column(db.DateTime, nullable=True)    # Новое поле
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
 
