@@ -913,7 +913,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         db.session.commit()
         # Отправка ссылки для авторизации
-        auth_url = f"https://{request_host(app)}/authorize?token={token}"
+        auth_url = f"https://{app.config.get('APP_HOST', 'trend-share.onrender.com')}/authorize?token={token}"
         await update.message.reply_text(f'Регистрация прошла успешно. Пожалуйста, перейдите по ссылке для авторизации: {auth_url}')
         logger.info(f"Пользователь {user.id} ({user.username}) зарегистрирован и ссылка для авторизации отправлена.")
     except Exception as e:
@@ -921,6 +921,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text('Произошла ошибка при регистрации.')
         logger.error(f"Ошибка при регистрации пользователя {user.id} ({user.username}): {e}")
         logger.error(traceback.format_exc())
+
 
 # Команда /login
 async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
