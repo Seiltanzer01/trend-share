@@ -3,45 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Авторизация через Telegram</title>
-    <!-- Подключение Telegram Web App JS SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-        window.onload = function() {
-            const tg = window.Telegram.WebApp;
-
-            // Получение init_data от Telegram Web App
-            const initData = tg.initData;
-
-            // Проверка доступности initData
-            if (!initData) {
-                alert('Не удалось получить данные авторизации от Telegram.');
-                return;
-            }
-
-            // Отправка init_data на сервер через fetch API
-            fetch('/telegram_auth', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json' // Отправляем данные в формате JSON
-                },
-                body: JSON.stringify({ init_data: initData }) // Структурируем данные как JSON
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    // Перенаправление пользователя на главную страницу после успешной авторизации
-                    window.location.href = '/';
-                } else {
-                    // Вывод сообщения об ошибке
-                    alert(data.message || 'Ошибка при авторизации.');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка при авторизации:', error);
-                alert('Произошла ошибка при авторизации.');
-            });
-        }
-    </script>
     <style>
         /* Простые стили для центровки контента */
         body {
@@ -68,13 +29,26 @@
             color: #666;
             margin-bottom: 20px;
         }
+        .auth-container a.button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0088cc;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .auth-container a.button:hover {
+            background-color: #005f99;
+        }
     </style>
 </head>
 <body>
     <div class="auth-container">
         <h1>Авторизация через Telegram</h1>
-        <p>Пожалуйста, авторизуйтесь через Telegram Web App.</p>
-        <p>Если авторизация не произошла автоматически, попробуйте обновить страницу или вернуться в Telegram.</p>
+        <p>Для входа в систему используйте Telegram-бот.</p>
+        <p>Нажмите кнопку ниже, чтобы открыть бота и начать процесс авторизации.</p>
+        <a href="https://t.me/TrendShare_bot" class="button" target="_blank">Открыть Бота</a>
     </div>
 </body>
 </html>
