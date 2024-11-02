@@ -61,7 +61,28 @@ def get_app_host():
     Возвращает хост приложения для формирования ссылок авторизации.
     """
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
+# Инициализация CallbackQueryHandler
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == 'view_trades':
+        await view_trades_command(update, context)
+    elif query.data == 'add_trade':
+        await add_trade_command(update, context)
 
+# Добавление CallbackQueryHandler к приложению
+application.add_handler(CallbackQueryHandler(button_click))
+
+# Установка Webhook при каждом запуске
+@app.before_first_request
+def setup_webhook():
+    webhook_url = f"https://{get_app_host()}/webhook"
+    set_webhook_url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN')}/setWebhook"
+    response = requests.post(set_webhook_url, data={"url": webhook_url})
+    if response.status_code == 200 and response.json().get("ok"):
+        logger.info(f"Webhook установлен на {webhook_url}")
+    else:
+        logger.error(f"Ошибка при установке webhook: {response.text}")
 # Функция для создания предопределённых данных
 def create_predefined_data():
     # Проверяем, есть ли уже данные
