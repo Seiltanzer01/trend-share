@@ -14,8 +14,8 @@ from datetime import datetime
 import logging
 import requests
 import secrets  # Для генерации токенов
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
 import urllib.parse  # Для декодирования URL-энкодированных данных
 
 # Инициализация Flask-приложения
