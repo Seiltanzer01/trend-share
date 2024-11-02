@@ -23,9 +23,14 @@ import urllib.parse  # Для декодирования URL-энкодиров�
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
+# Настройка логирования
+logging.basicConfig(level=logging.DEBUG)  # Измените на INFO после отладки
+logger = logging.getLogger(__name__)
+
 # Использование переменных окружения для конфиденциальных данных
 secret_key_env = os.environ.get('SECRET_KEY', '').strip()
 if not secret_key_env:
+    logger.error("SECRET_KEY не установлен в переменных окружения.")
     raise ValueError("SECRET_KEY не установлен в переменных окружения.")
 app.secret_key = secret_key_env
 
@@ -43,10 +48,6 @@ migrate = Migrate(app, db)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
-
-# Настройка логирования
-logging.basicConfig(level=logging.DEBUG)  # Измените на INFO после отладки
-logger = logging.getLogger(__name__)
 
 # Контекстный процессор для предоставления datetime в шаблонах
 @app.context_processor
@@ -437,6 +438,9 @@ def telegram_auth():
     if not bot_token:
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'status': 'error', 'message': 'Серверная ошибка'}), 500
+
+    # Дополнительное логирование (НЕ РАСКРЫВАЙТЕ ПОЛНЫЙ TOKEN)
+    logger.debug(f"Telegram Token (SHA256): {hashlib.sha256(bot_token.encode('utf-8')).hexdigest()}")
 
     # Проверка HMAC
     hmac_computed, hash_received, hmac_valid = verify_hmac(init_data_str, bot_token)
@@ -1128,7 +1132,8 @@ def test_hmac():
         "is_premium": True,
         "allows_write_to_pm": True
     }
-    user_json = json.dumps(user_data)
+    # Используем separators=(',', ':') чтобы убрать пробелы, как Telegram
+    user_json = json.dumps(user_data, separators=(',', ':'))
     user_encoded = urllib.parse.quote(user_json)
 
     test_init_data_str = (
@@ -1160,8 +1165,6 @@ def test_hmac():
     hmac_computed = hmac.new(secret_key, check_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
     # Для теста устанавливаем ожидаемый hash равным вычисленному HMAC
-    # В реальном тесте вы можете задать заранее известный hash
-    # Здесь мы просто устанавливаем их равными для демонстрации успешной проверки
     hash_received = hmac_computed
     data['hash'] = hash_received
 
