@@ -61,28 +61,7 @@ def get_app_host():
     Возвращает хост приложения для формирования ссылок авторизации.
     """
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
-# Инициализация CallbackQueryHandler
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == 'view_trades':
-        await view_trades_command(update, context)
-    elif query.data == 'add_trade':
-        await add_trade_command(update, context)
 
-# Добавление CallbackQueryHandler к приложению
-application.add_handler(CallbackQueryHandler(button_click))
-
-# Установка Webhook при каждом запуске
-@app.before_first_request
-def setup_webhook():
-    webhook_url = f"https://{get_app_host()}/webhook"
-    set_webhook_url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN')}/setWebhook"
-    response = requests.post(set_webhook_url, data={"url": webhook_url})
-    if response.status_code == 200 and response.json().get("ok"):
-        logger.info(f"Webhook установлен на {webhook_url}")
-    else:
-        logger.error(f"Ошибка при установке webhook: {response.text}")
 # Функция для создания предопределённых данных
 def create_predefined_data():
     # Проверяем, есть ли уже данные
@@ -657,6 +636,16 @@ def delete_trade(trade_id):
         logger.error(f"Ошибка при удалении сделки: {e}")
     return redirect(url_for('index'))
 
+# Управление сетапами
+@app.route('/manage_setups')
+def manage_setups():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    setups = Setup.query.filter_by(user_id=user_id).all()
+    return render_template('manage_setups.html', setups=setups)
+
 # Добавить новый сетап
 @app.route('/add_setup', methods=['GET', 'POST'])
 def add_setup():
@@ -850,8 +839,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
     try:
-        await update.message.reply_text('Привет! Я TradeJournalBot. Используй команду /register для регистрации.')
-        logger.info(f"Ответ отправлен пользователю {user.id} ({user.username}) на команду /start")
+        keyboard = [
+            [
+                InlineKeyboardButton("Зарегистрироваться", callback_data='register'),
+                InlineKeyboardButton("Войти", callback_data='login'),
+            ],
+            [
+                InlineKeyboardButton("Просмотреть сделки", callback_data='view_trades'),
+                InlineKeyboardButton("Добавить сделку", callback_data='add_trade'),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text('Привет! Я TradeJournalBot. Выберите действие:', reply_markup=reply_markup)
+        logger.info(f"Ответ с кнопками отправлен пользователю {user.id} ({user.username}) на команду /start")
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /start: {e}")
         logger.error(traceback.format_exc())
@@ -882,7 +882,6 @@ async def add_trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Получена команда /add_trade от пользователя {user.id} ({user.username})")
     try:
-        # Здесь вы можете реализовать логику добавления сделки через бота
         await update.message.reply_text('Функция добавления сделки пока не реализована.')
         logger.info(f"Ответ на /add_trade отправлен пользователю {user.id} ({user.username})")
     except Exception as e:
@@ -1005,6 +1004,25 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка при отправке ответа на /test: {e}")
         logger.error(traceback.format_exc())
 
+# Обработчик кнопок CallbackQuery
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+    data = query.data
+    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
+    
+    if data == 'register':
+        await register_command(update, context)
+    elif data == 'login':
+        await login_command(update, context)
+    elif data == 'view_trades':
+        await view_trades_command(update, context)
+    elif data == 'add_trade':
+        await add_trade_command(update, context)
+    else:
+        await query.edit_message_text(text="Неизвестная команда.")
+
 # **Инициализация Telegram бота и приложения**
 
 # Получение токена бота из переменных окружения
@@ -1027,6 +1045,9 @@ application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
 application.add_handler(CommandHandler('login', login_command))
 application.add_handler(CommandHandler('test', test_command))
+
+# Добавление обработчика CallbackQueryHandler к приложению
+application.add_handler(CallbackQueryHandler(button_click))
 
 # Создание и запуск цикла событий в фоновом потоке
 loop = asyncio.new_event_loop()
