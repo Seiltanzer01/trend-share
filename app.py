@@ -843,11 +843,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("Зарегистрироваться", callback_data='register'),
                 InlineKeyboardButton("Войти", callback_data='login'),
-            ],
-            [
-                InlineKeyboardButton("Просмотреть сделки", callback_data='view_trades'),
-                InlineKeyboardButton("Добавить сделку", callback_data='add_trade'),
-            ],
+            ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привет! Я TradeJournalBot. Выберите действие:', reply_markup=reply_markup)
@@ -864,8 +860,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Доступные команды:\n"
         "/start - Начать общение с ботом\n"
         "/help - Получить справку\n"
-        "/add_trade - Добавить новую сделку\n"
-        "/view_trades - Просмотреть список сделок\n"
         "/register - Зарегистрировать пользователя\n"
         "/login - Получить ссылку для авторизации на сайте\n"
         "/test - Тестовая команда для проверки работы бота"
@@ -876,52 +870,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /help: {e}")
         logger.error(traceback.format_exc())
-
-# Команда /add_trade
-async def add_trade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    logger.info(f"Получена команда /add_trade от пользователя {user.id} ({user.username})")
-    try:
-        await update.message.reply_text('Функция добавления сделки пока не реализована.')
-        logger.info(f"Ответ на /add_trade отправлен пользователю {user.id} ({user.username})")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке команды /add_trade: {e}")
-        logger.error(traceback.format_exc())
-
-# Команда /view_trades
-async def view_trades_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    logger.info(f"Получена команда /view_trades от пользователя {user.id} ({user.username})")
-    telegram_id = user.id
-    with app.app_context():
-        user_record = User.query.filter_by(telegram_id=telegram_id).first()
-        if not user_record:
-            try:
-                await update.message.reply_text('Пользователь не найден. Пожалуйста, зарегистрируйтесь с помощью команды /register.')
-                logger.info(f"Пользователь {user.id} ({user.username}) не зарегистрирован.")
-            except Exception as e:
-                logger.error(f"Ошибка при отправке сообщения незарегистрированному пользователю: {e}")
-                logger.error(traceback.format_exc())
-            return
-        user_id = user_record.id
-        trades = Trade.query.filter_by(user_id=user_id).all()
-        if not trades:
-            try:
-                await update.message.reply_text('У вас пока нет сделок.')
-                logger.info(f"Пользователь {user.id} ({user.username}) не имеет сделок.")
-            except Exception as e:
-                logger.error(f"Ошибка при отправке сообщения о пустом списке сделок: {e}")
-                logger.error(traceback.format_exc())
-            return
-        message = "Ваши сделки:\n"
-        for trade in trades:
-            message += f"ID: {trade.id}, Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}\n"
-        try:
-            await update.message.reply_text(message)
-            logger.info(f"Список сделок отправлен пользователю {user.id} ({user.username})")
-        except Exception as e:
-            logger.error(f"Ошибка при отправке списка сделок: {e}")
-            logger.error(traceback.format_exc())
 
 # Команда /register
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1016,10 +964,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await register_command(update, context)
     elif data == 'login':
         await login_command(update, context)
-    elif data == 'view_trades':
-        await view_trades_command(update, context)
-    elif data == 'add_trade':
-        await add_trade_command(update, context)
     else:
         await query.edit_message_text(text="Неизвестная команда.")
 
@@ -1040,8 +984,6 @@ application = builder.build()
 # Добавление обработчиков команд к приложению
 application.add_handler(CommandHandler('start', start))
 application.add_handler(CommandHandler('help', help_command))
-application.add_handler(CommandHandler('add_trade', add_trade_command))
-application.add_handler(CommandHandler('view_trades', view_trades_command))
 application.add_handler(CommandHandler('register', register_command))
 application.add_handler(CommandHandler('login', login_command))
 application.add_handler(CommandHandler('test', test_command))
