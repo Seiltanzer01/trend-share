@@ -66,6 +66,7 @@ def get_app_host():
 def create_predefined_data():
     # Проверяем, есть ли уже данные
     if InstrumentCategory.query.first():
+        logger.info("Предопределённые данные уже существуют. Пропуск создания.")
         return
 
     # Создаём категории инструментов и инструменты
@@ -172,14 +173,17 @@ def create_predefined_data():
             category = InstrumentCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
+            logger.info(f"Категория '{category_name}' добавлена.")
 
         # Проверяем, существует ли инструмент
         instrument = Instrument.query.filter_by(name=instrument_name).first()
         if not instrument:
             instrument = Instrument(name=instrument_name, category_id=category.id)
             db.session.add(instrument)
+            logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{category_name}'.")
 
     db.session.commit()
+    logger.info("Инструменты и категории инструментов успешно добавлены.")
 
     # Создаём категории критериев, подкатегории и критерии
     categories_data = {
@@ -327,6 +331,7 @@ def create_predefined_data():
         category = CriterionCategory(name=category_name)
         db.session.add(category)
         db.session.flush()
+        logger.info(f"Категория критерия '{category_name}' добавлена.")
 
         for subcategory_name, criteria_list in subcategories.items():
             subcategory = CriterionSubcategory(
@@ -335,6 +340,7 @@ def create_predefined_data():
             )
             db.session.add(subcategory)
             db.session.flush()
+            logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
 
             for criterion_name in criteria_list:
                 criterion = Criterion(
@@ -342,172 +348,10 @@ def create_predefined_data():
                     subcategory_id=subcategory.id
                 )
                 db.session.add(criterion)
+                logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
 
     db.session.commit()
-
-    # Создаём категории критериев, подкатегории и критерии
-    categories_data = {
-        'Технический анализ': {
-            'Трендовые индикаторы': [
-                'Скользящая средняя (MA)',
-                'Экспоненциальная скользящая средняя (EMA)',
-                'Линии тренда',
-                'Parabolic SAR',
-                'Индекс среднего направления движения (ADX)'
-            ],
-            'Осцилляторы': [
-                'Индекс относительной силы (RSI)',
-                'Стохастик',
-                'MACD',
-                'CCI (Commodity Channel Index)',
-                'Momentum'
-            ],
-            'Объёмные индикаторы': [
-                'On Balance Volume (OBV)',
-                'Индекс денежного потока (MFI)',
-                'Accumulation/Distribution',
-                'Volume Profile',
-                'VWAP (Volume Weighted Average Price)'
-            ],
-            'Волатильность': [
-                'Bollinger Bands',
-                'ATR (Average True Range)',
-                'Каналы Кельтнера',
-                'Donchian Channels',
-                'Envelope Channels'
-            ],
-            'Фигуры технического анализа': [
-                'Голова и плечи',
-                'Двойная вершина/двойное дно',
-                'Флаги и вымпелы',
-                'Клинья',
-                'Треугольники'
-            ],
-            'Свечные паттерны': [
-                'Молот и перевёрнутый молот',
-                'Поглощение',
-                'Доджи',
-                'Харами',
-                'Завеса из тёмных облаков'
-            ]
-        },
-        'Смарт-мани': {
-            'Уровни': [
-                'Уровни поддержки',
-                'Уровни сопротивления',
-                'Психологические уровни',
-                'Фибоначчи уровни',
-                'Pivot Points'
-            ],
-            'Ликвидность': [
-                'Зоны ликвидности',
-                'Области с высокими объёмами',
-                'Накопление и распределение',
-                'Имбаланс рынка',
-                'Stop Loss Hunting'
-            ],
-            'Позиционирование крупных игроков': [
-                'Крупные сделки',
-                'Объёмные всплески',
-                'Open Interest',
-                'Commitment of Traders (COT) Report',
-                'Dark Pool Prints'
-            ]
-        },
-        'Рыночная структура': {
-            'Тренды': [
-                'Восходящий тренд',
-                'Нисходящий тренд',
-                'Боковой тренд',
-                'Изменение тренда',
-                'Ложные пробои'
-            ],
-            'Импульсы и коррекции': [
-                'Импульсные движения',
-                'Коррекционные движения',
-                'Волны Эллиотта',
-                'Цикличность рынка',
-                'Время коррекции'
-            ],
-            'Паттерны': [
-                'Price Action паттерны',
-                'Паттерн 1-2-3',
-                'Пин-бары',
-                'Внутренний бар',
-                'Outside Bar'
-            ]
-        },
-        'Психологические факторы': {
-            'Эмоции': [
-                'Страх',
-                'Жадность',
-                'Уверенность',
-                'Нерешительность',
-                'Переутомление'
-            ],
-            'Дисциплина': [
-                'Следование торговому плану',
-                'Риск-менеджмент',
-                'Мани-менеджмент',
-                'Журналирование сделок',
-                'Самоконтроль'
-            ],
-            'Психология толпы': [
-                'Следование за толпой',
-                'Противоположное мнение',
-                'Эффект FOMO',
-                'Панические продажи',
-                'Эйфория рынка'
-            ]
-        },
-        'Фундаментальный анализ': {
-            'Экономические индикаторы': [
-                'Валовой внутренний продукт (ВВП)',
-                'Уровень безработицы',
-                'Процентные ставки',
-                'Инфляция',
-                'Торговый баланс'
-            ],
-            'Корпоративные показатели': [
-                'Прибыль на акцию (EPS)',
-                'Срок окупаемости инвестиций (ROI)',
-                'Долговая нагрузка',
-                'Маржа прибыли',
-                'Доходность капитала (ROE)'
-            ]
-        },
-        'Психология рынка': {
-            'Поведенческие паттерны': [
-                'Чрезмерная оптимистичность',
-                'Чрезмерный пессимизм',
-                'Ретестирование уровней',
-                'Формирование новых трендов',
-                'Контртрендовые движения'
-            ]
-        }
-    }
-
-    for category_name, subcategories in categories_data.items():
-        category = CriterionCategory(name=category_name)
-        db.session.add(category)
-        db.session.flush()
-
-        for subcategory_name, criteria_list in subcategories.items():
-            subcategory = CriterionSubcategory(
-                name=subcategory_name,
-                category_id=category.id
-            )
-            db.session.add(subcategory)
-            db.session.flush()
-
-            for criterion_name in criteria_list:
-                criterion = Criterion(
-                    name=criterion_name,
-                    subcategory_id=subcategory.id
-                )
-                db.session.add(criterion)
-
-    db.session.commit()
+    logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
 # Вызываем функцию перед первым запросом
 @app.before_first_request
@@ -676,6 +520,7 @@ def new_trade():
                     screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     screenshot_file.save(screenshot_path)
                     trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
+                    logger.info(f"Скриншот '{filename}' сохранён для сделки ID {trade.id}.")
 
                 db.session.add(trade)
                 db.session.commit()
@@ -763,10 +608,12 @@ def edit_trade(trade_id):
                         old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trade.screenshot)
                         if os.path.exists(old_filepath):
                             os.remove(old_filepath)
+                            logger.info(f"Старый скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
                     filename = secure_filename(screenshot_file.filename)
                     screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     screenshot_file.save(screenshot_path)
                     trade.screenshot = filename
+                    logger.info(f"Новый скриншот '{filename}' сохранён для сделки ID {trade.id}.")
 
                 db.session.commit()
                 flash('Сделка успешно обновлена.', 'success')
@@ -809,6 +656,7 @@ def delete_trade(trade_id):
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], trade.screenshot)
                 if os.path.exists(filepath):
                     os.remove(filepath)
+                    logger.info(f"Скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
             db.session.delete(trade)
             db.session.commit()
             flash('Сделка успешно удалена.', 'success')
@@ -870,6 +718,7 @@ def add_setup():
                     screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     screenshot_file.save(screenshot_path)
                     setup.screenshot = filename
+                    logger.info(f"Скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
 
                 db.session.add(setup)
                 db.session.commit()
@@ -935,10 +784,12 @@ def edit_setup(setup_id):
                         old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], setup.screenshot)
                         if os.path.exists(old_filepath):
                             os.remove(old_filepath)
+                            logger.info(f"Старый скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
                     filename = secure_filename(screenshot_file.filename)
                     screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     screenshot_file.save(screenshot_path)
                     setup.screenshot = filename
+                    logger.info(f"Новый скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
 
                 db.session.commit()
                 flash('Сетап успешно обновлён.', 'success')
@@ -981,6 +832,7 @@ def delete_setup(setup_id):
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], setup.screenshot)
                 if os.path.exists(filepath):
                     os.remove(filepath)
+                    logger.info(f"Скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
             db.session.delete(setup)
             db.session.commit()
             flash('Сетап успешно удалён.', 'success')
@@ -1233,7 +1085,7 @@ def webhook():
 
 # Маршрут для установки вебхука
 @app.route('/set_webhook', methods=['GET'])
-def set_webhook():
+def set_webhook_route():
     """Маршрут для установки вебхука Telegram."""
     webhook_url = f"https://{get_app_host()}/webhook"
     bot_token = os.environ.get('TELEGRAM_TOKEN')
