@@ -22,7 +22,7 @@ import urllib.parse  # Для декодирования URL-энкодиров�
 app = Flask(__name__)
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)  # Измените на INFO после отладки
+logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -397,6 +397,11 @@ def logout():
     logger.info("Пользователь вышел из системы.")
     return redirect(url_for('login'))
 
+# Маршрут здоровья для проверки состояния приложения
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "OK"}), 200
+
 # Главная страница — список сделок с фильтрацией
 @app.route('/', methods=['GET'])
 def index():
@@ -438,6 +443,7 @@ def index():
         trades_query = trades_query.join(Trade.criteria).filter(Criterion.id.in_(selected_criteria)).distinct()
 
     trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
+    logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
 
     return render_template('index.html', trades=trades, categories=categories, criteria_categories=criteria_categories, selected_instrument_id=instrument_id)
 
@@ -503,7 +509,8 @@ def new_trade():
                 screenshot_file = form.screenshot.data
                 if screenshot_file and isinstance(screenshot_file, FileStorage):
                     filename = secure_filename(screenshot_file.filename)
-                    screenshot_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
                     trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
 
                 db.session.add(trade)
@@ -593,7 +600,8 @@ def edit_trade(trade_id):
                         if os.path.exists(old_filepath):
                             os.remove(old_filepath)
                     filename = secure_filename(screenshot_file.filename)
-                    screenshot_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
                     trade.screenshot = filename
 
                 db.session.commit()
@@ -695,7 +703,8 @@ def add_setup():
                 screenshot_file = form.screenshot.data
                 if screenshot_file and isinstance(screenshot_file, FileStorage):
                     filename = secure_filename(screenshot_file.filename)
-                    screenshot_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
                     setup.screenshot = filename
 
                 db.session.add(setup)
@@ -763,7 +772,8 @@ def edit_setup(setup_id):
                         if os.path.exists(old_filepath):
                             os.remove(old_filepath)
                     filename = secure_filename(screenshot_file.filename)
-                    screenshot_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
                     setup.screenshot = filename
 
                 db.session.commit()
