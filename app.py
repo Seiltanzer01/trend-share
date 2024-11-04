@@ -24,7 +24,7 @@ import hmac
 app = Flask(__name__)
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
+logging.basicConfig(level=logging.DEBUG)  # Установите на DEBUG для детального логирования
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -360,6 +360,33 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
+# Функция для проверки подписи данных
+def verify_web_app_data(init_data, hash_from_telegram, bot_token):
+    """
+    Проверяет подпись данных, полученных от Telegram Web App.
+    """
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    
+    # Разбор init_data на ключ-значение пары
+    params = dict(urllib.parse.parse_qsl(init_data))
+    
+    # Удаление параметра 'hash'
+    params.pop('hash', None)
+    
+    # Сортировка параметров по ключам в алфавитном порядке
+    sorted_keys = sorted(params.keys())
+    data_check_string = '\n'.join([f"{key}={params[key]}" for key in sorted_keys])
+    
+    # Вычисление HMAC-SHA256
+    hash_calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    
+    logger.debug(f"data_check_string: {data_check_string}")
+    logger.debug(f"hash_calculated: {hash_calculated}")
+    logger.debug(f"hash_from_telegram: {hash_from_telegram}")
+    
+    # Сравнение хешей
+    return hmac.compare_digest(hash_calculated, hash_from_telegram)
+
 # Маршруты аутентификации
 
 @app.route('/login')
@@ -376,11 +403,12 @@ def webapp_auth():
     
     if not data:
         logger.warning("Отсутствуют данные авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствуют данные авторизации.'}), 400
+        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
-    # Проверка подписи данных
+    # Извлечение init_data и hash
     init_data = data.get('init_data')
     hash_from_telegram = data.get('hash')
+    
     logger.debug(f"init_data: {init_data}")
     logger.debug(f"hash_from_telegram: {hash_from_telegram}")
     
@@ -393,16 +421,7 @@ def webapp_auth():
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'success': False, 'message': 'Серверная ошибка.'}), 500
 
-    # Функция для проверки подписи данных
-    def verify_web_app_data(init_data, hash_from_telegram, bot_token):
-        secret_key = hashlib.sha256(bot_token.encode()).digest()
-        data_check_string = '\n'.join(sorted(init_data.split('\n')))
-        hash_calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-        logger.debug(f"data_check_string: {data_check_string}")
-        logger.debug(f"hash_calculated: {hash_calculated}")
-        logger.debug(f"hash_from_telegram: {hash_from_telegram}")
-        return hmac.compare_digest(hash_calculated, hash_from_telegram)
-
+    # Проверка подписи данных
     if not verify_web_app_data(init_data, hash_from_telegram, BOT_TOKEN):
         logger.warning("Неверная подпись данных от Telegram Web App.")
         return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 400
