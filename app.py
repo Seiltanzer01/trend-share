@@ -17,6 +17,8 @@ import secrets  # Для генерации токенов
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
 import urllib.parse  # Для декодирования URL-энкодированных данных
+import hashlib
+import hmac
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -358,6 +360,33 @@ def create_predefined_data():
 def setup_data():
     create_predefined_data()
 
+# Функция для проверки подписи данных
+def verify_web_app_data(init_data, hash_from_telegram, bot_token):
+    """
+    Проверяет подпись данных, полученных от Telegram Web App.
+    """
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    
+    # Разбор init_data на ключ-значение пары
+    params = dict(urllib.parse.parse_qsl(init_data))
+    
+    # Удаление параметра 'hash'
+    params.pop('hash', None)
+    
+    # Сортировка параметров по ключам в алфавитном порядке
+    sorted_keys = sorted(params.keys())
+    data_check_string = '\n'.join([f"{key}={params[key]}" for key in sorted_keys])
+    
+    # Вычисление HMAC-SHA256
+    hash_calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    
+    logger.debug(f"data_check_string: {data_check_string}")
+    logger.debug(f"hash_calculated: {hash_calculated}")
+    logger.debug(f"hash_from_telegram: {hash_from_telegram}")
+    
+    # Сравнение хешей
+    return hmac.compare_digest(hash_calculated, hash_from_telegram)
+
 # Маршруты аутентификации
 
 @app.route('/login')
@@ -368,7 +397,7 @@ def login():
 def webapp_auth():
     """
     Обработчик данных авторизации от Telegram Web App.
-    Теперь принимает 'token' вместо 'init_data' и 'hash'.
+    Принимает 'init_data' и 'hash'.
     """
     data = request.get_json()
     logger.debug(f"Получены данные для авторизации: {data}")
@@ -377,43 +406,73 @@ def webapp_auth():
         logger.warning("Отсутствуют данные авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
-    # Извлечение токена
-    token = data.get('token')
+    # Извлечение init_data и hash
+    init_data = data.get('init_data')
+    hash_from_telegram = data.get('hash')
     
-    logger.debug(f"token: {token}")
+    logger.debug(f"init_data: {init_data}")
+    logger.debug(f"hash_from_telegram: {hash_from_telegram}")
     
-    if not token:
-        logger.warning("Токен авторизации отсутствует.")
-        return jsonify({'success': False, 'message': 'Токен авторизации отсутствует.'}), 400
+    if not init_data or not hash_from_telegram:
+        logger.warning("Недостаточно данных для авторизации.")
+        return jsonify({'success': False, 'message': 'Недостаточно данных для авторизации.'}), 400
 
-    # Поиск пользователя с данным токеном
-    user = User.query.filter_by(auth_token=token).first()
+    BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+    if not BOT_TOKEN:
+        logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+        return jsonify({'success': False, 'message': 'Серверная ошибка.'}), 500
+
+    # Проверка подписи данных
+    if not verify_web_app_data(init_data, hash_from_telegram, BOT_TOKEN):
+        logger.warning("Неверная подпись данных от Telegram Web App.")
+        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 400
+
+    # Декодирование init_data
+    parsed_data = dict(urllib.parse.parse_qsl(init_data))
+    logger.debug(f"Parsed init_data: {parsed_data}")
+    telegram_id = parsed_data.get('user_id')
+    username = parsed_data.get('username')
+    first_name = parsed_data.get('first_name')
+    last_name = parsed_data.get('last_name')
+    auth_date = parsed_data.get('auth_date')
+
+    if not telegram_id:
+        logger.warning("Telegram ID отсутствует.")
+        return jsonify({'success': False, 'message': 'Telegram ID отсутствует.'}), 400
+
+    # Проверка временной метки
+    try:
+        auth_date = int(auth_date)
+        auth_time = datetime.fromtimestamp(auth_date, tz=timezone.utc)
+        current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+        if (current_time - auth_time).total_seconds() > 900:  # 15 минут
+            logger.warning("Время авторизации просрочено.")
+            return jsonify({'success': False, 'message': 'Время авторизации просрочено.'}), 400
+    except (ValueError, TypeError):
+        logger.warning("Некорректная временная метка авторизации.")
+        return jsonify({'success': False, 'message': 'Некорректная временная метка авторизации.'}), 400
+
+    # Поиск пользователя в базе данных
+    user = User.query.filter_by(telegram_id=telegram_id).first()
     if not user:
-        flash('Неверный токен авторизации.', 'danger')
-        logger.warning(f"Авторизация не удалась: неверный токен {token}.")
-        return jsonify({'success': False, 'message': 'Неверный токен авторизации.'}), 400
-
-    # Проверка срока действия токена (например, 15 минут)
-    token_creation_time = user.auth_token_creation_time
-    if not token_creation_time or (datetime.utcnow() - token_creation_time).total_seconds() > 900:
-        flash('Токен авторизации просрочен.', 'danger')
-        logger.warning(f"Авторизация не удалась: токен {token} просрочен.")
-        user.auth_token = None
-        user.auth_token_creation_time = None
+        # Создание нового пользователя, если его нет
+        user = User(
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            registered_at=datetime.utcnow()
+        )
+        db.session.add(user)
         db.session.commit()
-        return jsonify({'success': False, 'message': 'Токен авторизации просрочен.'}), 400
+        logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
 
-    # Очистка токена после использования (одноразовый токен)
-    user.auth_token = None
-    user.auth_token_creation_time = None
-    db.session.commit()
-
-    # Сохранение данных пользователя в сессии
+    # Установка сессии пользователя
     session['user_id'] = user.id
     session['telegram_id'] = user.telegram_id
 
-    flash('Успешно авторизовались через Telegram.', 'success')
-    logger.info(f"Пользователь ID {user.id} авторизовался через Telegram.")
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Web App.")
+
     return jsonify({'success': True}), 200
 
 @app.route('/authorize')
