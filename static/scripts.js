@@ -1,4 +1,4 @@
-// static/scripts.js
+// static/scripts.js 
 
 $(document).ready(function() {
     // Пример анимации при наведении на строки таблицы
@@ -46,13 +46,20 @@ $(document).ready(function() {
         // Инициализация WebApp
         Telegram.WebApp.ready();
 
-        // Отправка данных пользователя на сервер
+        // Получение init_data и hash
+        const initData = Telegram.WebApp.initData;
+        const hash = Telegram.WebApp.initDataHash;
+
+        // Отправка данных авторизации на сервер
         $.ajax({
-            url: '/telegram_auth',
+            url: '/webapp_auth',
             method: 'POST',
             dataType: 'json',
             contentType: 'application/json',
-            data: JSON.stringify(Telegram.WebApp.initDataUnsafe.user),
+            data: JSON.stringify({
+                init_data: initData,
+                hash: hash
+            }),
             success: function(response) {
                 console.log('Пользователь авторизован через Telegram WebApp.');
                 window.location.href = '/';
