@@ -1,3 +1,4 @@
+<!-- templates/login.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -42,13 +43,54 @@
             background-color: #005f99;
         }
     </style>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="auth-container">
         <h1>Авторизация через Telegram</h1>
-        <p>Для входа в систему используйте Telegram-бот.</p>
-        <p>Нажмите кнопку ниже, чтобы открыть бота и начать процесс авторизации.</p>
-        <a href="https://t.me/TrendShare_bot" class="button" target="_blank">Открыть Бота</a>
+        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram-бот.</p>
+        <a href="#" class="button" id="auth-button">Авторизоваться</a>
     </div>
+    <script>
+        const tg = Telegram.WebApp;
+
+        document.getElementById('auth-button').addEventListener('click', () => {
+            tg.ready();
+            const initData = tg.initData;
+            const hash = tg.initDataUnsafe ? tg.initDataUnsafe.hash : '';
+
+            fetch('/webapp_auth', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    init_data: initData,
+                    hash: hash
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Перенаправление на главную страницу журнала сделок
+                    window.location.href = "/";
+                    tg.close();
+                } else {
+                    alert('Ошибка авторизации: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при авторизации:', error);
+                alert('Произошла ошибка при авторизации.');
+            });
+        });
+
+        // Автоматическая авторизация при загрузке страницы, если пользователь уже авторизован
+        window.onload = () => {
+            if (tg.initData && tg.initData.length > 0) {
+                document.getElementById('auth-button').click();
+            }
+        };
+    </script>
 </body>
 </html>
