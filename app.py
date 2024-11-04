@@ -19,6 +19,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Callb
 import urllib.parse  # Для декодирования URL-энкодированных данных
 import hashlib
 import hmac
+import json  # Добавлен для разбора JSON данных
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -417,7 +418,7 @@ def webapp_auth():
         logger.warning("Недостаточно данных для авторизации.")
         return jsonify({'success': False, 'message': 'Недостаточно данных для авторизации.'}), 400
 
-    BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+    BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
     if not BOT_TOKEN:
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'success': False, 'message': 'Серверная ошибка.'}), 500
@@ -430,11 +431,22 @@ def webapp_auth():
     # Декодирование init_data
     parsed_data = dict(urllib.parse.parse_qsl(init_data))
     logger.debug(f"Parsed init_data: {parsed_data}")
-    telegram_id = parsed_data.get('user_id')
-    username = parsed_data.get('username')
-    first_name = parsed_data.get('first_name')
-    last_name = parsed_data.get('last_name')
-    auth_date = parsed_data.get('auth_date')
+    
+    # Корректное извлечение telegram_id из JSON поля 'user'
+    user_json = parsed_data.get('user')
+    if not user_json:
+        logger.warning("Данные пользователя отсутствуют в init_data.")
+        return jsonify({'success': False, 'message': 'Данные пользователя отсутствуют.'}), 400
+
+    try:
+        user_data = json.loads(user_json)
+        telegram_id = user_data.get('id')
+        username = user_data.get('username')
+        first_name = user_data.get('first_name')
+        last_name = user_data.get('last_name')
+    except json.JSONDecodeError as e:
+        logger.warning("Ошибка при декодировании данных пользователя.")
+        return jsonify({'success': False, 'message': 'Ошибка декодирования данных пользователя.'}), 400
 
     if not telegram_id:
         logger.warning("Telegram ID отсутствует.")
@@ -442,7 +454,7 @@ def webapp_auth():
 
     # Проверка временной метки
     try:
-        auth_date = int(auth_date)
+        auth_date = int(parsed_data.get('auth_date'))
         auth_time = datetime.fromtimestamp(auth_date, tz=timezone.utc)
         current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
         if (current_time - auth_time).total_seconds() > 900:  # 15 минут
@@ -1083,7 +1095,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # **Инициализация Telegram бота и приложения**
 
 # Получение токена бота из переменных окружения
-TOKEN = os.environ.get('TELEGRAM_TOKEN')
+TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
 if not TOKEN:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
     exit(1)
@@ -1152,7 +1164,7 @@ def webhook_route():
 def set_webhook_route():
     """Маршрут для установки вебхука Telegram."""
     webhook_url = f"https://{get_app_host()}/webhook"
-    bot_token = os.environ.get('TELEGRAM_TOKEN')
+    bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
     if not bot_token:
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return "TELEGRAM_TOKEN не установлен", 500
