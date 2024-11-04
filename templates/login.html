@@ -62,7 +62,7 @@
 
             tg.ready();
             const initData = tg.initData;
-            const hash = tg.initDataUnsafe ? tg.initDataUnsafe.hash : '';
+            const hash = tg.initDataHash;
 
             fetch('/webapp_auth', {
                 method: 'POST',
