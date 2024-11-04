@@ -19,7 +19,6 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Callb
 import urllib.parse  # Для декодирования URL-энкодированных данных
 import hashlib
 import hmac
-import base64
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -374,12 +373,14 @@ def webapp_auth():
     """
     data = request.get_json()
     if not data:
+        logger.warning("Отсутствуют данные авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствуют данные авторизации.'}), 400
 
     # Проверка подписи данных
     init_data = data.get('init_data')
     hash_from_telegram = data.get('hash')
     if not init_data or not hash_from_telegram:
+        logger.warning("Недостаточно данных для авторизации.")
         return jsonify({'success': False, 'message': 'Недостаточно данных для авторизации.'}), 400
 
     BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN')
@@ -391,9 +392,8 @@ def webapp_auth():
     def verify_web_app_data(init_data, hash_from_telegram, bot_token):
         secret_key = hashlib.sha256(bot_token.encode()).digest()
         data_check_string = '\n'.join(sorted(init_data.split('\n')))
-        hash_calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).digest()
-        hash_calculated_b64 = base64.urlsafe_b64encode(hash_calculated).decode().rstrip('=')
-        return hmac.compare_digest(hash_calculated_b64, hash_from_telegram)
+        hash_calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(hash_calculated, hash_from_telegram)
 
     if not verify_web_app_data(init_data, hash_from_telegram, BOT_TOKEN):
         logger.warning("Неверная подпись данных от Telegram Web App.")
@@ -407,6 +407,7 @@ def webapp_auth():
     last_name = parsed_data.get('last_name')
 
     if not telegram_id:
+        logger.warning("Telegram ID отсутствует.")
         return jsonify({'success': False, 'message': 'Telegram ID отсутствует.'}), 400
 
     # Поиск пользователя в базе данных
@@ -956,21 +957,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
     try:
-        # Создание кнопки для открытия Web App
-        web_app_url = f"https://{get_app_host()}/login"  # URL вашего Web App
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "Авторизоваться",
-                    web_app=WebAppInfo(url=web_app_url)
-                )
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text('Нажмите кнопку ниже для авторизации через Telegram:', reply_markup=reply_markup)
-        logger.info(f"Кнопка Web App отправлена пользователю {user.id} ({user.username}) на команду /start")
+        # Запись данных пользователя в базу данных, если ещё не записаны
+        existing_user = User.query.filter_by(telegram_id=user.id).first()
+        if not existing_user:
+            user_record = User(
+                telegram_id=user.id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                registered_at=datetime.utcnow()
+            )
+            db.session.add(user_record)
+            db.session.commit()
+            logger.info(f"Новый пользователь записан: Telegram ID {user.id}.")
+        else:
+            logger.info(f"Пользователь уже существует: Telegram ID {user.id}.")
+
+        # Отправка подтверждающего сообщения
+        await update.message.reply_text('Вы успешно зарегистрированы. Используйте встроенную кнопку для авторизации через Web App.')
+        logger.info(f"Подтверждающее сообщение отправлено пользователю {user.id} ({user.username}) на команду /start.")
     except Exception as e:
-        logger.error(f"Ошибка при отправке кнопки Web App на /start: {e}")
+        logger.error(f"Ошибка при обработке команды /start: {e}")
         logger.error(traceback.format_exc())
 
 # Команда /help
@@ -979,7 +986,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
     help_text = (
         "Доступные команды:\n"
-        "/start - Начать общение с ботом и авторизоваться\n"
+        "/start - Зарегистрироваться и авторизоваться\n"
         "/help - Получить справку\n"
         "/test - Тестовая команда для проверки работы бота"
     )
@@ -1008,14 +1015,11 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     data = query.data
     logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
-    
-    if data == 'register':
-        await register_command(update, context)
-    elif data == 'login':
-        await login_command(update, context)
-    else:
-        await query.edit_message_text(text="Неизвестная команда.")
-        logger.warning(f"Неизвестная кнопка '{data}' от пользователя {user.id} ({user.username}).")
+
+    # В вашем случае, кнопки 'register' и 'login' больше не используются
+    # Можно уведомить пользователя о необходимости использовать Web App кнопку
+    await query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
+    logger.warning(f"Неизвестная или не нужная кнопка '{data}' от пользователя {user.id} ({user.username}).")
 
 # **Удаление обработчиков /register и /login команд**
 # Поскольку авторизация теперь осуществляется через Web App, обработчики команд /register и /login удаляются.
