@@ -55,6 +55,11 @@
         const tg = Telegram.WebApp;
 
         document.getElementById('auth-button').addEventListener('click', () => {
+            if (!tg.initData || tg.initData.length === 0) {
+                alert('Не удалось получить данные авторизации. Пожалуйста, откройте Web App через Telegram-бота.');
+                return;
+            }
+
             tg.ready();
             const initData = tg.initData;
             const hash = tg.initDataUnsafe ? tg.initDataUnsafe.hash : '';
