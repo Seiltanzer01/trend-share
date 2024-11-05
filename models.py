@@ -15,13 +15,15 @@ setup_criteria = db.Table('setup_criteria',
 )
 
 class User(db.Model):
+    __tablename__ = 'user'  # Явно указываем имя таблицы
     id = db.Column(db.Integer, primary_key=True)
-    telegram_id = db.Column(db.Integer, unique=True, nullable=False)
+    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)  # Изменено на BigInteger
     username = db.Column(db.String(80), unique=True, nullable=True)
     first_name = db.Column(db.String(80), nullable=True)
     last_name = db.Column(db.String(80), nullable=True)
-    auth_token = db.Column(db.String(64), unique=True, nullable=True)  # Новое поле
-    auth_token_creation_time = db.Column(db.DateTime, nullable=True)    # Новое поле
+    auth_token = db.Column(db.String(64), unique=True, nullable=True)
+    auth_token_creation_time = db.Column(db.DateTime, nullable=True)
+    registered_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())  # Добавлено поле регистрации
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
 
