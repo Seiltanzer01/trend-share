@@ -52,7 +52,7 @@
         <a href="#" class="button" id="auth-button">Авторизоваться</a>
     </div>
     <script>
-        const tg = Telegram.WebApp;
+        const tg = window.Telegram.WebApp;
 
         document.getElementById('auth-button').addEventListener('click', () => {
             if (!tg.initData || tg.initData.length === 0) {
@@ -62,8 +62,9 @@
 
             tg.ready();
             const initData = tg.initData;
-            const hash = tg.initDataHash;
+            const hash = tg.initDataUnsafe.hash;
 
+            // Отправка данных авторизации на сервер
             fetch('/webapp_auth', {
                 method: 'POST',
                 headers: {
