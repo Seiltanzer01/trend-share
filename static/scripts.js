@@ -48,7 +48,7 @@ $(document).ready(function() {
 
         // Получение init_data и hash
         const initData = Telegram.WebApp.initData;
-        const hash = Telegram.WebApp.initDataHash;
+        const hash = Telegram.WebApp.initDataUnsafe.hash;
 
         // Отправка данных авторизации на сервер
         $.ajax({
