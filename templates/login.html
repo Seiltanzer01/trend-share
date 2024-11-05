@@ -30,57 +30,39 @@
             color: #666;
             margin-bottom: 20px;
         }
-        .auth-container a.button {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #0088cc;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
-        .auth-container a.button:hover {
-            background-color: #005f99;
+        .auth-container .telegram-login-button {
+            margin-top: 20px;
         }
     </style>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="auth-container">
         <h1>Авторизация через Telegram</h1>
-        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram-бот.</p>
-        <a href="#" class="button" id="auth-button">Авторизоваться</a>
+        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
+        <!-- Telegram Login Widget -->
+        <script async src="https://telegram.org/js/telegram-widget.js?15"
+                data-telegram-login="TrendShare_bot"
+                data-size="large"
+                data-userpic="false"
+                data-request-access="write"
+                data-onauth="onTelegramAuth(user)">
+        </script>
     </div>
-    <script>
-        const tg = window.Telegram.WebApp;
-
-        document.getElementById('auth-button').addEventListener('click', () => {
-            if (!tg.initData || tg.initData.length === 0) {
-                alert('Не удалось получить данные авторизации. Пожалуйста, откройте Web App через Telegram-бота.');
-                return;
-            }
-
-            tg.ready();
-            const initData = tg.initData;
-            const hash = tg.initDataUnsafe.hash;
-
-            // Отправка данных авторизации на сервер
-            fetch('/webapp_auth', {
+    <script type="text/javascript">
+        function onTelegramAuth(user) {
+            // Отправляем данные на сервер для проверки и установки сессии
+            fetch('/telegram_login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    init_data: initData,
-                    hash: hash
-                })
+                body: JSON.stringify(user)
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Перенаправление на главную страницу журнала сделок
-                    window.location.href = "/";
-                    tg.close();
+                    // Перенаправляем пользователя на главную страницу
+                    window.location.href = '/';
                 } else {
                     alert('Ошибка авторизации: ' + data.message);
                 }
@@ -89,14 +71,7 @@
                 console.error('Ошибка при авторизации:', error);
                 alert('Произошла ошибка при авторизации.');
             });
-        });
-
-        // Автоматическая авторизация при загрузке страницы, если пользователь уже авторизован
-        window.onload = () => {
-            if (tg.initData && tg.initData.length > 0) {
-                document.getElementById('auth-button').click();
-            }
-        };
+        }
     </script>
 </body>
 </html>
