@@ -1,4 +1,4 @@
-// static/scripts.js 
+// static/scripts.js
 
 $(document).ready(function() {
     // Пример анимации при наведении на строки таблицы
@@ -41,32 +41,5 @@ $(document).ready(function() {
         dateFormat: 'yy-mm-dd'
     });
 
-    // Telegram WebApp взаимодействие
-    if (window.Telegram.WebApp) {
-        // Инициализация WebApp
-        Telegram.WebApp.ready();
-
-        // Получение init_data и hash
-        const initData = Telegram.WebApp.initData;
-        const hash = Telegram.WebApp.initDataUnsafe.hash;
-
-        // Отправка данных авторизации на сервер
-        $.ajax({
-            url: '/webapp_auth',
-            method: 'POST',
-            dataType: 'json',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                init_data: initData,
-                hash: hash
-            }),
-            success: function(response) {
-                console.log('Пользователь авторизован через Telegram WebApp.');
-                window.location.href = '/';
-            },
-            error: function(error) {
-                console.log('Ошибка авторизации через Telegram WebApp.');
-            }
-        });
-    }
+    // Если у вас есть другие интерактивные элементы, их можно добавить здесь
 });
