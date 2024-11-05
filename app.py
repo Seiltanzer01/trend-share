@@ -362,29 +362,33 @@ def setup_data():
     create_predefined_data()
 
 # Функция для проверки подписи данных
-def verify_web_app_data(init_data, hash_from_telegram, bot_token):
+def verify_web_app_data(init_data_dict, hash_from_telegram, bot_token):
     """
     Проверяет подпись данных, полученных от Telegram Web App.
     """
     secret_key = hashlib.sha256(bot_token.encode()).digest()
-    
-    # Разбор init_data на ключ-значение пары
-    params = dict(urllib.parse.parse_qsl(init_data))
-    
-    # Удаление параметра 'hash'
+
+    # Удаление 'hash' из данных, если он есть
+    params = init_data_dict.copy()
     params.pop('hash', None)
-    
+
     # Сортировка параметров по ключам в алфавитном порядке
     sorted_keys = sorted(params.keys())
-    data_check_string = '\n'.join([f"{key}={params[key]}" for key in sorted_keys])
-    
+    data_check_arr = []
+    for key in sorted_keys:
+        value = params[key]
+        if isinstance(value, dict):
+            value = json.dumps(value, separators=(',', ':'), ensure_ascii=False)
+        data_check_arr.append(f"{key}={value}")
+    data_check_string = '\n'.join(data_check_arr)
+
     # Вычисление HMAC-SHA256
-    hash_calculated = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    
+    hash_calculated = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+
     logger.debug(f"data_check_string: {data_check_string}")
     logger.debug(f"hash_calculated: {hash_calculated}")
     logger.debug(f"hash_from_telegram: {hash_from_telegram}")
-    
+
     # Сравнение хешей
     return hmac.compare_digest(hash_calculated, hash_from_telegram)
 
@@ -402,7 +406,7 @@ def webapp_auth():
     """
     data = request.get_json()
     logger.debug(f"Получены данные для авторизации: {data}")
-    
+
     if not data:
         logger.warning("Отсутствуют данные авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
@@ -410,10 +414,10 @@ def webapp_auth():
     # Извлечение init_data и hash
     init_data = data.get('init_data')
     hash_from_telegram = data.get('hash')
-    
+
     logger.debug(f"init_data: {init_data}")
     logger.debug(f"hash_from_telegram: {hash_from_telegram}")
-    
+
     if not init_data or not hash_from_telegram:
         logger.warning("Недостаточно данных для авторизации.")
         return jsonify({'success': False, 'message': 'Недостаточно данных для авторизации.'}), 400
@@ -423,30 +427,36 @@ def webapp_auth():
         logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
         return jsonify({'success': False, 'message': 'Серверная ошибка.'}), 500
 
+    if not isinstance(init_data, str):
+        logger.warning("init_data должен быть строкой.")
+        return jsonify({'success': False, 'message': 'Некорректный формат init_data.'}), 400
+
+    # Преобразование init_data в словарь
+    init_data_dict = dict(urllib.parse.parse_qsl(init_data))
+    # Декодирование JSON-полей, если необходимо
+    for key in init_data_dict:
+        if init_data_dict[key].startswith('{') and init_data_dict[key].endswith('}'):
+            try:
+                init_data_dict[key] = json.loads(init_data_dict[key])
+            except json.JSONDecodeError:
+                pass  # Если не удалось декодировать, оставляем как есть
+
     # Проверка подписи данных
-    if not verify_web_app_data(init_data, hash_from_telegram, BOT_TOKEN):
+    if not verify_web_app_data(init_data_dict, hash_from_telegram, BOT_TOKEN):
         logger.warning("Неверная подпись данных от Telegram Web App.")
         return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 400
 
-    # Декодирование init_data
-    parsed_data = dict(urllib.parse.parse_qsl(init_data))
-    logger.debug(f"Parsed init_data: {parsed_data}")
-    
-    # Корректное извлечение telegram_id из JSON поля 'user'
-    user_json = parsed_data.get('user')
-    if not user_json:
+    # Извлечение данных пользователя
+    user_data = init_data_dict.get('user')
+    if not user_data:
         logger.warning("Данные пользователя отсутствуют в init_data.")
         return jsonify({'success': False, 'message': 'Данные пользователя отсутствуют.'}), 400
 
-    try:
-        user_data = json.loads(user_json)
-        telegram_id = user_data.get('id')
-        username = user_data.get('username')
-        first_name = user_data.get('first_name')
-        last_name = user_data.get('last_name')
-    except json.JSONDecodeError as e:
-        logger.warning("Ошибка при декодировании данных пользователя.")
-        return jsonify({'success': False, 'message': 'Ошибка декодирования данных пользователя.'}), 400
+    telegram_id = user_data.get('id')
+    username = user_data.get('username')
+    first_name = user_data.get('first_name')
+    last_name = user_data.get('last_name')
+    auth_date = init_data_dict.get('auth_date')
 
     if not telegram_id:
         logger.warning("Telegram ID отсутствует.")
@@ -454,7 +464,7 @@ def webapp_auth():
 
     # Проверка временной метки
     try:
-        auth_date = int(parsed_data.get('auth_date'))
+        auth_date = int(auth_date)
         auth_time = datetime.fromtimestamp(auth_date, tz=timezone.utc)
         current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
         if (current_time - auth_time).total_seconds() > 900:  # 15 минут
