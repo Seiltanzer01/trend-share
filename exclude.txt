@@ -1,0 +1,3 @@
+.git\
+trend-share.git\
+venv\

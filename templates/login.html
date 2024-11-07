@@ -1,0 +1,77 @@
+<!-- templates/login.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Авторизация через Telegram</title>
+    <style>
+        /* Простые стили для центровки контента */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .auth-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .auth-container h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #333;
+        }
+        .auth-container p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .auth-container .telegram-login-button {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Авторизация через Telegram</h1>
+        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
+        <!-- Telegram Login Widget -->
+        <script async src="https://telegram.org/js/telegram-widget.js?15"
+                data-telegram-login="TrendShare_bot"
+                data-size="large"
+                data-userpic="false"
+                data-request-access="write"
+                data-onauth="onTelegramAuth(user)">
+        </script>
+    </div>
+    <script type="text/javascript">
+        function onTelegramAuth(user) {
+            // Отправляем данные на сервер для проверки и установки сессии
+            fetch('/telegram_login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(user)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Перенаправляем пользователя на главную страницу
+                    window.location.href = '/';
+                } else {
+                    alert('Ошибка авторизации: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при авторизации:', error);
+                alert('Произошла ошибка при авторизации.');
+            });
+        }
+    </script>
+</body>
+</html>

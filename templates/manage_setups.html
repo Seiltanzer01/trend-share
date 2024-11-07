@@ -1,0 +1,80 @@
+<!-- templates/manage_setups.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Управление Сетапами</h2>
+
+    <a href="{{ url_for('add_setup') }}">Добавить Сетап</a>
+
+    <div class="table-responsive">
+        <table class="setup-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Скриншот</th>
+                    <th>Критерии</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for setup in setups %}
+                <tr>
+                    <td>{{ setup.id }}</td>
+                    <td>{{ setup.setup_name }}</td>
+                    <td>
+                        {% if setup.screenshot %}
+                            <img src="{{ url_for('uploaded_file', filename=setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="100">
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for criterion in setup.criteria %}
+                            <span class="criterion">{{ criterion.name }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('view_setup', setup_id=setup.id) }}">Просмотр</a><br>
+                        <a href="{{ url_for('edit_setup', setup_id=setup.id) }}">Редактировать</a><br>
+                        <form action="{{ url_for('delete_setup', setup_id=setup.id) }}" method="post" style="display:inline;">
+                            <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить этот сетап?');">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            // Открытие модального окна при клике на изображение
+            $('.clickable-image').on('click', function() {
+                $('#modal').css('display', 'block');
+                $('#modal-img').attr('src', $(this).attr('src'));
+            });
+
+            // Закрытие модального окна
+            $('.close').on('click', function() {
+                $('#modal').css('display', 'none');
+            });
+
+            // Закрытие модального окна при клике вне изображения
+            $('#modal').on('click', function(event) {
+                if (!$(event.target).is('#modal-img')) {
+                    $(this).css('display', 'none');
+                }
+            });
+        });
+    </script>
+</div>
+{% endblock %}

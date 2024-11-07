@@ -1,0 +1,55 @@
+<!-- templates/view_setup.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Детали Сетапа</h2>
+
+    <p><strong>ID:</strong> {{ setup.id }}</p>
+    <p><strong>Название:</strong> {{ setup.setup_name }}</p>
+    <p><strong>Описание:</strong><br>{{ setup.description or '-' }}</p>
+    <p><strong>Критерии:</strong>
+        {% for criterion in setup.criteria %}
+            <span class="criterion">{{ criterion.name }}</span>
+        {% endfor %}
+    </p>
+    <p><strong>Скриншот:</strong><br>
+        {% if setup.screenshot %}
+            <img src="{{ url_for('uploaded_file', filename=setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="400">
+        {% else %}
+            -
+        {% endif %}
+    </p>
+
+    <a href="{{ url_for('manage_setups') }}">Вернуться к списку сетапов</a>
+
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            // Открытие модального окна при клике на изображение
+            $('.clickable-image').on('click', function() {
+                $('#modal').css('display', 'block');
+                $('#modal-img').attr('src', $(this).attr('src'));
+            });
+
+            // Закрытие модального окна
+            $('.close').on('click', function() {
+                $('#modal').css('display', 'none');
+            });
+
+            // Закрытие модального окна при клике вне изображения
+            $('#modal').on('click', function(event) {
+                if (!$(event.target).is('#modal-img')) {
+                    $(this).css('display', 'none');
+                }
+            });
+        });
+    </script>
+</div>
+{% endblock %}

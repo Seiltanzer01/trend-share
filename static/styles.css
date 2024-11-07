@@ -1,0 +1,349 @@
+/* static/styles.css */
+
+/* Основные стили */
+body {
+    background-color: #C0C0C0;
+    font-family: 'Courier New', Courier, monospace;
+    color: #000000;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+*, *::before, *::after {
+    box-sizing: inherit;
+}
+
+.container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0 10px;
+}
+
+header {
+    background-color: #000080;
+    color: white;
+    padding: 10px 0;
+    text-align: center;
+    border-bottom: 3px solid #FFD700;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.5em;
+    text-shadow: 2px 2px #FF0000;
+}
+
+nav {
+    margin-top: 10px;
+}
+
+nav a {
+    color: white;
+    margin: 0 5px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: color 0.3s ease;
+    font-size: 0.9em;
+}
+
+nav a:hover {
+    color: #FFD700;
+}
+
+.flashes {
+    list-style-type: none;
+    padding: 0;
+}
+
+.flashes li {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+
+.flashes .success {
+    background-color: #90EE90;
+}
+
+.flashes .danger {
+    background-color: #FF6347;
+}
+
+main {
+    background-color: #FFFFFF;
+    padding: 10px;
+    border: 2px solid #000080;
+    border-radius: 10px;
+    box-shadow: 5px 5px #A9A9A9;
+    animation: fadeIn 1s ease-in-out;
+}
+
+footer {
+    text-align: center;
+    padding: 10px 0;
+    margin-top: 20px;
+    border-top: 1px solid #000080;
+    font-size: 0.8em;
+}
+
+/* Стили для таблиц */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    table-layout: auto;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+}
+
+th, td {
+    border: 1px solid #000080;
+    padding: 4px;
+    text-align: center;
+    font-size: 0.7em;
+    vertical-align: top;
+}
+
+th {
+    background-color: #000080;
+    color: white;
+    font-size: 0.7em;
+    white-space: nowrap;
+    text-align: center;
+}
+
+td {
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+    padding: 4px;
+    font-size: 0.7em;
+}
+
+/* Центрирование изображений внутри ячеек */
+td img {
+    max-width: 60px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Стили для кнопок */
+button, input[type="submit"] {
+    background-color: #000080;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: 'Courier New', Courier, monospace;
+    transition: background-color 0.3s ease;
+    margin-bottom: 5px;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.8em;
+}
+
+button:hover, input[type="submit"]:hover {
+    background-color: #0000CD;
+}
+
+/* Стили для форм */
+input, select, textarea {
+    padding: 5px;
+    margin-bottom: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: 'Courier New', Courier, monospace;
+    border: 1px solid #000080;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+select[multiple] {
+    height: 100px;
+}
+
+/* Стили для мини-изображений сетапов */
+img.setup-mini {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border: 1px solid #000;
+    border-radius: 5px;
+}
+
+/* Общие стили для изображений */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Стили для критериев */
+span.criterion {
+    background-color: #E6E6FA;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    display: inline-block;
+    margin-right: 2px;
+    margin-bottom: 2px;
+}
+
+/* Структура категорий и подкатегорий */
+.category {
+    margin-bottom: 5px;
+}
+
+.subcategory {
+    margin-left: 10px;
+}
+
+.category-content, .subcategory-content {
+    margin-left: 10px;
+    display: none;
+}
+
+/* Стили для кнопок раскрытия */
+.collapse-button {
+    background-color: transparent;
+    border: none;
+    color: #000080;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 0;
+    text-align: left;
+    width: 100%;
+}
+
+.collapse-button:hover {
+    text-decoration: underline;
+}
+
+/* Стили для чекбоксов критериев */
+.criteria-section {
+    margin-top: 5px;
+}
+
+.criteria-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.criteria-item label {
+    flex: 1;
+    text-align: left;
+    margin-right: 10px;
+    font-size: 0.8em;
+}
+
+.criteria-item input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-left: auto;
+    transform: scale(0.8);
+}
+
+/* Стили для модального окна */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.8);
+}
+
+.modal-content {
+    display: block;
+    margin: auto;
+    max-width: 90%;
+    max-height: 80%;
+}
+
+.close {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: #fff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 1s ease-in;
+}
+
+/* Адаптивность */
+@media screen and (max-width: 768px) {
+    .container {
+        padding: 0 5px;
+    }
+
+    nav a {
+        margin: 5px 0;
+        font-size: 0.8em;
+    }
+
+    header h1 {
+        font-size: 1.2em;
+    }
+
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+    tr {
+        margin-bottom: 15px;
+    }
+    th, td {
+        text-align: left;
+        position: relative;
+        padding: 4px;
+    }
+    td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 0;
+        width: 45%;
+        padding-left: 15px;
+        font-weight: bold;
+        text-align: left;
+    }
+    td {
+        padding-left: 50%;
+    }
+    button, input[type="submit"] {
+        font-size: 0.7em;
+    }
+    input, select, textarea {
+        font-size: 0.7em;
+    }
+}
+
+/* Дополнительные стили */
+.setup-info {
+    display: flex;
+    align-items: center;
+}
+
+.setup-info img {
+    margin-right: 5px;
+}

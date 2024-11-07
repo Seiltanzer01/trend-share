@@ -1,0 +1,92 @@
+<!-- templates/edit_setup.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Редактировать Сетап</h2>
+
+    <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+
+        <label for="setup_name">{{ form.setup_name.label }}</label><br>
+        {{ form.setup_name }}<br>
+
+        <label for="description">{{ form.description.label }}</label><br>
+        {{ form.description }}<br>
+
+        <label for="screenshot">{{ form.screenshot.label }}</label><br>
+        {{ form.screenshot }}<br>
+
+        {% if setup.screenshot %}
+            <div>
+                <label>Текущий скриншот:</label><br>
+                <img src="{{ url_for('uploaded_file', filename=setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="200">
+            </div>
+        {% endif %}
+
+        <br>
+        <label>Критерии:</label>
+        <div class="criteria-section">
+            {% for category in criteria_categories %}
+                <div class="category">
+                    <button type="button" class="collapse-button">{{ category.name }}</button>
+                    <div class="category-content" style="display: none;">
+                        {% for subcategory in category.subcategories %}
+                            <div class="subcategory">
+                                <button type="button" class="collapse-button">{{ subcategory.name }}</button>
+                                <div class="subcategory-content" style="display: none;">
+                                    {% for criterion in subcategory.criteria %}
+                                        <div class="criteria-item">
+                                            <label>
+                                                {{ criterion.name }}
+                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}" {% if criterion.id in form.criteria.data %}checked{% endif %}>
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <br>
+        {{ form.submit }}
+    </form>
+
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            // Раскрывающиеся списки для категорий и подкатегорий
+            $('.collapse-button').click(function(){
+                $(this).next().toggle();
+            });
+
+            // Открытие модального окна при клике на изображение
+            $('.clickable-image').on('click', function() {
+                $('#modal').css('display', 'block');
+                $('#modal-img').attr('src', $(this).attr('src'));
+            });
+
+            // Закрытие модального окна
+            $('.close').on('click', function() {
+                $('#modal').css('display', 'none');
+            });
+
+            // Закрытие модального окна при клике вне изображения
+            $('#modal').on('click', function(event) {
+                if (!$(event.target).is('#modal-img')) {
+                    $(this).css('display', 'none');
+                }
+            });
+        });
+    </script>
+</div>
+{% endblock %}
