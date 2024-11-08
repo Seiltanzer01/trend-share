@@ -4,6 +4,7 @@ import os
 import asyncio
 import traceback
 import threading
+from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
 from forms import TradeForm, SetupForm
 from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
