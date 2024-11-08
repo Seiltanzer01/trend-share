@@ -61,3 +61,4 @@ WTForms==2.3.3
 psycopg2-binary
 honcho
 uvicorn
+python-dotenv
