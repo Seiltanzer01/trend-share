@@ -1,8 +1,8 @@
-"""Добавление поля telegram_id в модель User
+"""Initial migration after reset
 
-Revision ID: ee6d192fd5e5
+Revision ID: dcb3e62c0c44
 Revises: 
-Create Date: 2024-11-06 14:14:22.580329
+Create Date: 2024-11-08 03:21:30.963004
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'ee6d192fd5e5'
+revision = 'dcb3e62c0c44'
 down_revision = None
 branch_labels = None
 depends_on = None
