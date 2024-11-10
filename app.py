@@ -58,8 +58,8 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
     raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
 
 # Настройки сессии
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Изменено с 'Lax' на 'None' для поддержки кросс-доменных сессий
-app.config['SESSION_COOKIE_SECURE'] = True  # Убедитесь, что используете HTTPS
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
+app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Инициализация SQLAlchemy
 db.init_app(app)
@@ -377,8 +377,16 @@ def create_predefined_data():
 
 # Вызываем функцию перед первым запросом
 @app.before_first_request
-def setup_data():
-    create_predefined_data()
+def initialize():
+    with app.app_context():
+        try:
+            upgrade()  # Применение миграций
+            create_predefined_data()
+            logger.info("Миграции применены и предопределённые данные созданы.")
+        except Exception as e:
+            logger.error(f"Ошибка при применении миграций: {e}")
+            logger.error(traceback.format_exc())
+            exit(1)
 
 # Маршруты аутентификации
 
@@ -1124,22 +1132,13 @@ def set_webhook_route():
         logger.error(traceback.format_exc())
         return "Произошла ошибка при установке webhook", 500
 
-# **Запуск Flask-приложения**
+# **Telegram Bot Background Initialization**
 
-if __name__ == '__main__':
-    # Применение миграций и инициализация базы данных
-    with app.app_context():
-        try:
-            upgrade()  # Применение миграций
-            create_predefined_data()
-            logger.info("Миграции применены и предопределённые данные созданы.")
-        except Exception as e:
-            logger.error(f"Ошибка при применении миграций: {e}")
-            logger.error(traceback.format_exc())
-            exit(1)
+# Это необходимо для корректной работы бота при развертывании на Render.com
+def run_bot():
+    asyncio.run(application.run_polling())
 
-    port = int(os.environ.get('PORT', 5000))
-    logger.info(f"Запуск Flask-приложения на порту {port}")
-    # Используем Gunicorn для запуска приложения
-    from gunicorn.app.wsgiapp import run
-    run()
+# Запуск бота в отдельном потоке
+bot_thread = threading.Thread(target=run_bot, daemon=True)
+bot_thread.start()
+logger.info("Telegram Bot запущен в фоновом потоке.")
