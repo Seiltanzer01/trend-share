@@ -177,7 +177,9 @@
 
             // Инициализация datepickers
             $("input[type='text'][id$='date']").datepicker({
-                dateFormat: 'yy-mm-dd'
+                dateFormat: 'yy-mm-dd',
+                changeMonth: true,
+                changeYear: true
             });
 
             // Раскрывающиеся списки для категорий и подкатегорий
