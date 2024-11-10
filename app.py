@@ -682,9 +682,7 @@ def edit_trade(trade_id):
 
                 db.session.commit()
                 flash('Сделка успешно обновлена.', 'success')
-                logger.info(f"Сделка ID {trade.id} обновлён
-
-а пользователем ID {user_id}.")
+                logger.info(f"Сделка ID {trade.id} обновлёна пользователем ID {user_id}.")
                 return redirect(url_for('index'))
             except Exception as e:
                 db.session.rollback()
