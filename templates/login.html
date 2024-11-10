@@ -4,8 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Авторизация через Telegram</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
     <style>
         /* Простые стили для центровки контента */
         body {
@@ -22,6 +20,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             text-align: center;
+            width: 350px;
         }
         .auth-container h1 {
             margin-bottom: 20px;
@@ -32,80 +31,57 @@
             color: #666;
             margin-bottom: 20px;
         }
-        .auth-container .telegram-login-button {
+        .auth-container #message {
             margin-top: 20px;
+            color: red;
         }
     </style>
 </head>
 <body>
     <div class="auth-container">
         <h1>Авторизация через Telegram</h1>
-        <p>Пожалуйста, дождитесь автоматической авторизации...</p>
+        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
+        <!-- Telegram Login Widget -->
+        <script async src="https://telegram.org/js/telegram-widget.js?15"
+                data-telegram-login="TrendShare_bot" <!-- Замените на юзернейм вашего бота -->
+                data-size="large"
+                data-userpic="false"
+                data-auth-url="/telegram_login"
+                data-request-access="write">
+        </script>
         <div id="message"></div>
     </div>
     <script type="text/javascript">
-        document.addEventListener('DOMContentLoaded', () => {
-            // Проверяем, доступен ли Telegram WebApp
-            if (window.Telegram.WebApp) {
-                const tg = window.Telegram.WebApp;
+        // Функция для обработки успешной авторизации
+        function onTelegramAuth(user) {
+            console.log('Authorization data:', user); // Логирование данных авторизации
 
-                // Получаем данные авторизации из Telegram WebApp
-                const authData = tg.initData || tg.initDataUnsafe;
-
-                if (authData) {
-                    // Парсим данные авторизации
-                    const parsedData = parseTelegramAuthData(authData);
-
-                    if (parsedData) {
-                        // Отправляем данные на сервер для проверки
-                        fetch('/telegram_login', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(parsedData)
-                        })
-                        .then(response => response.json())
-                        .then(result => {
-                            if (result.success) {
-                                // Если авторизация успешна, закрываем WebApp и перенаправляем на главную страницу
-                                tg.close();
-                                window.location.href = '/';
-                            } else {
-                                // Если ошибка, отображаем сообщение
-                                document.getElementById('message').innerText = result.message;
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Ошибка при отправке данных авторизации:', error);
-                            document.getElementById('message').innerText = 'Произошла ошибка при авторизации.';
-                        });
-                    } else {
-                        document.getElementById('message').innerText = 'Некорректные данные авторизации.';
-                    }
+            // Отправляем данные на сервер через AJAX
+            fetch('/telegram_login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(user)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    // Перенаправляем пользователя на главную страницу внутри Web App
+                    window.location.href = result.redirect_url;
                 } else {
-                    document.getElementById('message').innerText = 'Данные авторизации отсутствуют.';
+                    // Отображаем сообщение об ошибке
+                    document.getElementById('message').innerText = result.message;
                 }
-            } else {
-                document.getElementById('message').innerText = 'Telegram Web App не доступен.';
-            }
+            })
+            .catch(error => {
+                console.error('Ошибка при отправке данных авторизации:', error);
+                document.getElementById('message').innerText = 'Произошла ошибка при авторизации.';
+            });
+        }
 
-            /**
-             * Функция для парсинга данных авторизации от Telegram
-             * @param {string} authData - Данные авторизации в виде JSON-строки
-             * @returns {object|null} - Распарсенные данные или null в случае ошибки
-             */
-            function parseTelegramAuthData(authData) {
-                try {
-                    const decodedData = decodeURIComponent(authData);
-                    const jsonData = JSON.parse(decodedData);
-                    return jsonData;
-                } catch (error) {
-                    console.error('Ошибка при парсинге данных авторизации:', error);
-                    return null;
-                }
-            }
-        });
+        // Переопределение глобальной функции onTelegramAuth
+        window.onTelegramAuth = onTelegramAuth;
     </script>
 </body>
 </html>
