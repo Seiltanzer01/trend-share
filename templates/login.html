@@ -36,6 +36,8 @@
             color: red;
         }
     </style>
+    <!-- Подключение CSS jQuery UI -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 </head>
 <body>
     <div class="auth-container">
@@ -46,37 +48,39 @@
                 data-telegram-login="TrendShare_bot" <!-- Замените на юзернейм вашего бота -->
                 data-size="large"
                 data-userpic="false"
-                data-auth-url="/telegram_login"
+                data-auth-url="{{ url_for('telegram_login', _external=True) }}"
                 data-request-access="write">
         </script>
         <div id="message"></div>
     </div>
+    <!-- Подключение jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Подключение JS jQuery UI -->
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
     <script type="text/javascript">
         // Функция для обработки успешной авторизации
         function onTelegramAuth(user) {
             console.log('Authorization data:', user); // Логирование данных авторизации
 
             // Отправляем данные на сервер через AJAX
-            fetch('/telegram_login', {
+            $.ajax({
+                url: '/telegram_login',
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+                contentType: 'application/json',
+                data: JSON.stringify(user),
+                success: function(response) {
+                    if (response.success) {
+                        // Перенаправляем пользователя на главную страницу внутри Web App
+                        window.location.href = response.redirect_url;
+                    } else {
+                        // Отображаем сообщение об ошибке
+                        $('#message').text(response.message);
+                    }
                 },
-                body: JSON.stringify(user)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    // Перенаправляем пользователя на главную страницу внутри Web App
-                    window.location.href = result.redirect_url;
-                } else {
-                    // Отображаем сообщение об ошибке
-                    document.getElementById('message').innerText = result.message;
+                error: function(xhr, status, error) {
+                    console.error('Ошибка при отправке данных авторизации:', error);
+                    $('#message').text('Произошла ошибка при авторизации.');
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка при отправке данных авторизации:', error);
-                document.getElementById('message').innerText = 'Произошла ошибка при авторизации.';
             });
         }
 
