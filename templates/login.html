@@ -60,32 +60,42 @@
         if (!initData) {
             showError('Не удалось получить данные авторизации.');
         } else {
-            // Отправка данных на сервер для обработки авторизации
-            fetch('/telegram_login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(JSON.parse(decodeURIComponent(initData)))
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.url) {
-                    // Перенаправление пользователя на указанный URL
-                    window.Telegram.WebApp.close();
-                    window.location.href = data.url;
-                } else if (data.message) {
-                    // Отображение сообщения об ошибке
-                    showError(data.message);
-                } else {
-                    // Обработка неизвестных ошибок
-                    showError('Произошла неизвестная ошибка при авторизации.');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка при отправке данных авторизации:', error);
-                showError('Произошла ошибка при отправке данных авторизации.');
-            });
+            let parsedData;
+            try {
+                parsedData = JSON.parse(decodeURIComponent(initData));
+            } catch (e) {
+                console.error('Ошибка при парсинге initData:', e);
+                showError('Некорректные данные авторизации.');
+            }
+
+            if (parsedData) {
+                // Отправка данных на сервер для обработки авторизации
+                fetch('/telegram_login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(parsedData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.url) {
+                        // Перенаправление пользователя на указанный URL
+                        window.Telegram.WebApp.close();
+                        window.location.href = data.url;
+                    } else if (data.message) {
+                        // Отображение сообщения об ошибке
+                        showError(data.message);
+                    } else {
+                        // Обработка неизвестных ошибок
+                        showError('Произошла неизвестная ошибка при авторизации.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при отправке данных авторизации:', error);
+                    showError('Произошла ошибка при отправке данных авторизации.');
+                });
+            }
         }
     </script>
 </body>
