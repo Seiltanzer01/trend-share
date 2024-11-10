@@ -11,13 +11,12 @@ from models import db, User, Trade, Setup, Criterion, CriterionCategory, Criteri
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from flask_migrate import Migrate, upgrade
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 import requests
 import secrets  # Для генерации токенов
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
-import urllib.parse  # Для декодирования URL-энкодированных данных
 import hashlib
 import hmac
 import json
@@ -31,7 +30,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # Настройка CORS
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "https://trend-share.onrender.com"}})  # Замените на ваш домен
+# Замените 'https://trend-share.onrender.com' на ваш фактический домен Web App
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "https://trend-share.onrender.com"}})
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG)  # Установите на DEBUG для детального логирования
@@ -58,7 +58,7 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
     raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
 
 # Настройки сессии
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Изменено с 'Lax' на 'None' для поддержки кросс-доменных сессий
 app.config['SESSION_COOKIE_SECURE'] = True  # Убедитесь, что используете HTTPS
 
 # Инициализация SQLAlchemy
@@ -682,7 +682,7 @@ def edit_trade(trade_id):
 
                 db.session.commit()
                 flash('Сделка успешно обновлена.', 'success')
-                logger.info(f"Сделка ID {trade.id} обновлёна пользователем ID {user_id}.")
+                logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
                 return redirect(url_for('index'))
             except Exception as e:
                 db.session.rollback()
