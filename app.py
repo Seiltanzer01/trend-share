@@ -22,9 +22,13 @@ import hashlib
 import hmac
 import json
 import time  # Добавлено для работы с временем
+from flask_cors import CORS  # Добавлено для CORS
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
+
+# Настройка CORS
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "https://trend-share.onrender.com"}})  # Замените на ваш домен
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG)  # Установите на DEBUG для детального логирования
@@ -49,6 +53,10 @@ app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_TOKEN', '').strip()
 if not app.config['TELEGRAM_BOT_TOKEN']:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
     raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
+
+# Настройки сессии
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = True  # Убедитесь, что используете HTTPS
 
 # Инициализация SQLAlchemy
 db.init_app(app)
@@ -378,7 +386,7 @@ def login():
 @app.route('/telegram_login', methods=['POST'])
 def telegram_login():
     """
-    Обработчик данных авторизации от Telegram Login Widget.
+    Обработчик данных авторизации от Telegram Web App.
     Принимает JSON с данными пользователя.
     """
     data = request.get_json()
@@ -435,7 +443,8 @@ def telegram_login():
     session['user_id'] = user.id
     session['telegram_id'] = user.telegram_id
 
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Login Widget.")
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
+    logger.debug(f"Текущая сессия: {session}")
 
     return jsonify({'success': True}), 200
 
