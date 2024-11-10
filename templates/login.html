@@ -62,12 +62,15 @@
         function onTelegramAuth(user) {
             console.log('Authorization data:', user); // Логирование данных авторизации
 
-            // Отправляем данные на сервер через AJAX
+            // Отправляем данные на сервер через AJAX с отправкой куки
             $.ajax({
                 url: '/telegram_login',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(user),
+                xhrFields: {
+                    withCredentials: true  // Отправка куки-сессии
+                },
                 success: function(response) {
                     if (response.success) {
                         // Перенаправляем пользователя на главную страницу внутри Web App
