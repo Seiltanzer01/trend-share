@@ -24,6 +24,9 @@ import json
 import time  # Добавлено для работы с временем
 from flask_cors import CORS  # Добавлено для CORS
 
+# Загрузка переменных окружения из .env файла (если используется)
+load_dotenv()
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -397,28 +400,38 @@ def telegram_login():
 
     if not data:
         logger.warning("Отсутствуют данные авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
-
-    # Проверка наличия обязательных полей
-    required_fields = ['id', 'auth_date', 'hash']
-    if not all(field in data for field in required_fields):
-        logger.warning("Некоторые обязательные поля отсутствуют в данных авторизации.")
-        return jsonify({'success': False, 'message': 'Некоторые обязательные поля отсутствуют.'}), 400
+        if request.is_json:
+            return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+        else:
+            flash('Отсутствуют данные для авторизации.', 'danger')
+            return redirect(url_for('login'))
 
     try:
         auth_date = int(data.get('auth_date', 0))
     except ValueError:
         logger.warning("Некорректное значение auth_date.")
-        return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
+        if request.is_json:
+            return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
+        else:
+            flash('Некорректное значение даты авторизации.', 'danger')
+            return redirect(url_for('login'))
 
     if time.time() - auth_date > 600:
         logger.warning("Время авторизации истекло.")
-        return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
+        if request.is_json:
+            return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
+        else:
+            flash('Время авторизации истекло.', 'danger')
+            return redirect(url_for('login'))
 
     check_hash = data.pop('hash', None)
     if not check_hash:
         logger.warning("Отсутствует hash в данных авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
+        if request.is_json:
+            return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
+        else:
+            flash('Отсутствует hash.', 'danger')
+            return redirect(url_for('login'))
 
     # Создание строки для проверки подписи
     data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
@@ -432,7 +445,11 @@ def telegram_login():
 
     if hmac_hash != check_hash:
         logger.warning("Неверная подпись данных.")
-        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+        if request.is_json:
+            return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+        else:
+            flash('Неверная подпись данных.', 'danger')
+            return redirect(url_for('login'))
 
     # Авторизация прошла успешно
     telegram_id = data.get('id')
@@ -466,6 +483,7 @@ def telegram_login():
         return jsonify({'success': True}), 200
     else:
         # Если запрос был через форму (Web App), перенаправляем на главную страницу
+        flash('Авторизация прошла успешно.', 'success')
         return redirect(url_for('index'))
 
 @app.route('/logout')
