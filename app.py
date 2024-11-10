@@ -995,7 +995,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Создание кнопки с Web App
-        web_app_url = f"https://{get_app_host()}/"
+        web_app_url = f"https://{get_app_host()}/login"
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1166,4 +1166,6 @@ if __name__ == '__main__':
 
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Запуск Flask-приложения на порту {port}")
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Используем Gunicorn для запуска приложения
+    from gunicorn.app.wsgiapp import run
+    run()
