@@ -386,17 +386,31 @@ def login():
 @app.route('/telegram_login', methods=['POST'])
 def telegram_login():
     """
-    Обработчик данных авторизации от Telegram Web App.
-    Принимает JSON с данными пользователя.
+    Обработчик данных авторизации от Telegram Web App и веб-версии.
+    Принимает данные через JSON или форму.
     """
-    data = request.get_json()
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form.to_dict()
     logger.debug(f"Получены данные для авторизации: {data}")
 
     if not data:
         logger.warning("Отсутствуют данные авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
-    auth_date = int(data.get('auth_date', 0))
+    # Проверка наличия обязательных полей
+    required_fields = ['id', 'auth_date', 'hash']
+    if not all(field in data for field in required_fields):
+        logger.warning("Некоторые обязательные поля отсутствуют в данных авторизации.")
+        return jsonify({'success': False, 'message': 'Некоторые обязательные поля отсутствуют.'}), 400
+
+    try:
+        auth_date = int(data.get('auth_date', 0))
+    except ValueError:
+        logger.warning("Некорректное значение auth_date.")
+        return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
+
     if time.time() - auth_date > 600:
         logger.warning("Время авторизации истекло.")
         return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
@@ -406,6 +420,7 @@ def telegram_login():
         logger.warning("Отсутствует hash в данных авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
 
+    # Создание строки для проверки подписи
     data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
     data_check_string = '\n'.join(data_check_arr)
     secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
@@ -443,10 +458,15 @@ def telegram_login():
     session['user_id'] = user.id
     session['telegram_id'] = user.telegram_id
 
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram.")
     logger.debug(f"Текущая сессия: {session}")
 
-    return jsonify({'success': True}), 200
+    # Если запрос был через JSON (веб-версия), возвращаем JSON ответ
+    if request.is_json:
+        return jsonify({'success': True}), 200
+    else:
+        # Если запрос был через форму (Web App), перенаправляем на главную страницу
+        return redirect(url_for('index'))
 
 @app.route('/logout')
 def logout():
