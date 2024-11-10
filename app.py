@@ -499,8 +499,10 @@ def health():
     return 'OK', 200
 
 # Главная страница — список сделок с фильтрацией
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET', 'HEAD'])
 def index():
+    if request.method == 'HEAD':
+        return '', 200  # Возвращаем 200 OK для HEAD-запросов
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
