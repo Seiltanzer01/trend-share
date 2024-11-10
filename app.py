@@ -46,6 +46,8 @@ CORS(app, supports_credentials=True, resources={
         ]
     }
 })
+# Настройка CORS для разрешения всех источников (только для тестирования)
+CORS(app, supports_credentials=True)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
