@@ -1,94 +1,75 @@
-<!-- templates/login.html -->
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <title>Авторизация через Telegram</title>
-    <style>
-        /* Простые стили для центровки контента */
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-        }
-        .auth-container {
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            width: 350px;
-        }
-        .auth-container h1 {
-            margin-bottom: 20px;
-            font-size: 24px;
-            color: #333;
-        }
-        .auth-container p {
-            color: #666;
-            margin-bottom: 20px;
-        }
-        .auth-container #message {
-            margin-top: 20px;
-            color: red;
-        }
-    </style>
-    <!-- Подключение CSS jQuery UI -->
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-</head>
-<body>
-    <div class="auth-container">
-        <h1>Авторизация через Telegram</h1>
-        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
-        <!-- Telegram Login Widget -->
-        <script async src="https://telegram.org/js/telegram-widget.js?15"
-                data-telegram-login="TrendShare_bot" <!-- Замените на юзернейм вашего бота -->
-                data-size="large"
-                data-userpic="false"
-                data-auth-url="{{ url_for('telegram_login', _external=True) }}"
-                data-request-access="write">
-        </script>
-        <div id="message"></div>
-    </div>
-    <!-- Подключение jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Подключение JS jQuery UI -->
-    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
-    <script type="text/javascript">
-        // Функция для обработки успешной авторизации
-        function onTelegramAuth(user) {
-            console.log('Authorization data:', user); // Логирование данных авторизации
+@app.route('/telegram_login', methods=['POST'])
+def telegram_login():
+    """
+    Обработчик данных авторизации от Telegram Login Widget.
+    Принимает данные через JSON.
+    """
+    if not request.is_json:
+        logger.warning("Некорректный тип запроса. Ожидается JSON.")
+        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
 
-            // Отправляем данные на сервер через AJAX с отправкой куки
-            $.ajax({
-                url: '/telegram_login',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(user),
-                xhrFields: {
-                    withCredentials: true  // Отправка куки-сессии
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Перенаправляем пользователя на главную страницу внутри Web App
-                        window.location.href = response.redirect_url;
-                    } else {
-                        // Отображаем сообщение об ошибке
-                        $('#message').text(response.message);
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Ошибка при отправке данных авторизации:', error);
-                    $('#message').text('Произошла ошибка при авторизации.');
-                }
-            });
-        }
+    data = request.get_json()
+    logger.debug(f"Получены данные для авторизации: {data}")
 
-        // Переопределение глобальной функции onTelegramAuth
-        window.onTelegramAuth = onTelegramAuth;
-    </script>
-</body>
-</html>
+    if not data:
+        logger.warning("Отсутствуют данные авторизации.")
+        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+
+    try:
+        auth_date = int(data.get('auth_date', 0))
+    except ValueError:
+        logger.warning("Некорректное значение auth_date.")
+        return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
+
+    if time.time() - auth_date > 600:
+        logger.warning("Время авторизации истекло.")
+        return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
+
+    check_hash = data.pop('hash', None)
+    if not check_hash:
+        logger.warning("Отсутствует hash в данных авторизации.")
+        return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
+
+    # Создание строки для проверки подписи
+    data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
+    data_check_string = '\n'.join(data_check_arr)
+    secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
+    hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    logger.debug(f"data_check_string: {data_check_string}")
+    logger.debug(f"hmac_hash: {hmac_hash}")
+    logger.debug(f"check_hash: {check_hash}")
+
+    if hmac_hash != check_hash:
+        logger.warning("Неверная подпись данных.")
+        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+
+    # Авторизация прошла успешно
+    telegram_id = data.get('id')
+    username = data.get('username')
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+
+    # Поиск или создание пользователя в базе данных
+    user = User.query.filter_by(telegram_id=telegram_id).first()
+    if not user:
+        user = User(
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            registered_at=datetime.utcnow()
+        )
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+
+    # Установка сессии пользователя
+    session['user_id'] = user.id
+    session['telegram_id'] = user.telegram_id
+
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram.")
+    logger.debug(f"Текущая сессия: {session}")
+
+    # Возвращаем правильный формат ответа для Telegram WebApp
+    return jsonify({'url': url_for('index', _external=True)}), 200
