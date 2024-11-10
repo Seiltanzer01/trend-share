@@ -38,8 +38,14 @@ load_dotenv()
 app = Flask(__name__)
 
 # Настройка CORS
-# Замените 'https://trend-share.onrender.com' на ваш фактический домен Web App
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "https://trend-share.onrender.com"}})
+CORS(app, supports_credentials=True, resources={
+    r"/*": {
+        "origins": [
+            "https://trend-share.onrender.com",  # Ваш основной домен
+            "https://oauth.telegram.org"          # Домен Telegram WebApp
+        ]
+    }
+})
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
