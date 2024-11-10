@@ -51,32 +51,25 @@
         function onTelegramAuth(user) {
             console.log('Authorization data:', user); // Логирование данных авторизации
 
-            // Отправляем данные на сервер для проверки и установки сессии
-            fetch('/telegram_login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include', // Важно для отправки и получения куки сессии
-                body: JSON.stringify(user)
-            })
-            .then(response => {
-                console.log('Response:', response); // Логирование ответа сервера
-                return response.json();
-            })
-            .then(data => {
-                console.log('Data:', data); // Логирование данных ответа
-                if (data.success) {
-                    // Перенаправляем пользователя на главную страницу
-                    window.location.href = '/';
-                } else {
-                    alert('Ошибка авторизации: ' + data.message);
+            // Создаём форму
+            var form = document.createElement("form");
+            form.method = "POST";
+            form.action = "/telegram_login";
+
+            // Добавляем данные пользователя как скрытые поля
+            for (var key in user) {
+                if (user.hasOwnProperty(key)) {
+                    var input = document.createElement("input");
+                    input.type = "hidden";
+                    input.name = key;
+                    input.value = user[key];
+                    form.appendChild(input);
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка при авторизации:', error);
-                alert('Произошла ошибка при авторизации.');
-            });
+            }
+
+            // Добавляем форму в тело документа и отправляем её
+            document.body.appendChild(form);
+            form.submit();
         }
     </script>
 </body>
