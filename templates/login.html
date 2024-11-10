@@ -1,5 +1,4 @@
 <!-- templates/login.html -->
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -42,7 +41,7 @@
         <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
         <!-- Telegram Login Widget -->
         <script async src="https://telegram.org/js/telegram-widget.js?15"
-                data-telegram-login="TrendShare_bot"
+                data-telegram-login="TrendShare_bot" <!-- Замените на юзернейм вашего бота -->
                 data-size="large"
                 data-userpic="false"
                 data-onauth="onTelegramAuth(user)">
@@ -50,16 +49,23 @@
     </div>
     <script type="text/javascript">
         function onTelegramAuth(user) {
+            console.log('Authorization data:', user); // Логирование данных авторизации
+
             // Отправляем данные на сервер для проверки и установки сессии
             fetch('/telegram_login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                credentials: 'include', // Важно для отправки и получения куки сессии
                 body: JSON.stringify(user)
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response:', response); // Логирование ответа сервера
+                return response.json();
+            })
             .then(data => {
+                console.log('Data:', data); // Логирование данных ответа
                 if (data.success) {
                     // Перенаправляем пользователя на главную страницу
                     window.location.href = '/';
