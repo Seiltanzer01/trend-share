@@ -389,49 +389,34 @@ def login():
 @app.route('/telegram_login', methods=['POST'])
 def telegram_login():
     """
-    Обработчик данных авторизации от Telegram Web App и веб-версии.
-    Принимает данные через JSON или форму.
+    Обработчик данных авторизации от Telegram Login Widget.
+    Принимает данные через JSON.
     """
-    if request.is_json:
-        data = request.get_json()
-    else:
-        data = request.form.to_dict()
+    if not request.is_json:
+        logger.warning("Некорректный тип запроса. Ожидается JSON.")
+        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
+
+    data = request.get_json()
     logger.debug(f"Получены данные для авторизации: {data}")
 
     if not data:
         logger.warning("Отсутствуют данные авторизации.")
-        if request.is_json:
-            return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
-        else:
-            flash('Отсутствуют данные для авторизации.', 'danger')
-            return redirect(url_for('login'))
+        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
     try:
         auth_date = int(data.get('auth_date', 0))
     except ValueError:
         logger.warning("Некорректное значение auth_date.")
-        if request.is_json:
-            return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
-        else:
-            flash('Некорректное значение даты авторизации.', 'danger')
-            return redirect(url_for('login'))
+        return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
 
     if time.time() - auth_date > 600:
         logger.warning("Время авторизации истекло.")
-        if request.is_json:
-            return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
-        else:
-            flash('Время авторизации истекло.', 'danger')
-            return redirect(url_for('login'))
+        return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
 
     check_hash = data.pop('hash', None)
     if not check_hash:
         logger.warning("Отсутствует hash в данных авторизации.")
-        if request.is_json:
-            return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
-        else:
-            flash('Отсутствует hash.', 'danger')
-            return redirect(url_for('login'))
+        return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
 
     # Создание строки для проверки подписи
     data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
@@ -439,18 +424,13 @@ def telegram_login():
     secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
     hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
-    # Дополнительное логирование для отладки
     logger.debug(f"data_check_string: {data_check_string}")
     logger.debug(f"hmac_hash: {hmac_hash}")
     logger.debug(f"check_hash: {check_hash}")
 
     if hmac_hash != check_hash:
         logger.warning("Неверная подпись данных.")
-        if request.is_json:
-            return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
-        else:
-            flash('Неверная подпись данных.', 'danger')
-            return redirect(url_for('login'))
+        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
 
     # Авторизация прошла успешно
     telegram_id = data.get('id')
@@ -479,13 +459,7 @@ def telegram_login():
     logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram.")
     logger.debug(f"Текущая сессия: {session}")
 
-    # Если запрос был через JSON (веб-версия), возвращаем JSON ответ
-    if request.is_json:
-        return jsonify({'success': True}), 200
-    else:
-        # Если запрос был через форму (Web App), перенаправляем на главную страницу
-        flash('Авторизация прошла успешно.', 'success')
-        return redirect(url_for('index'))
+    return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
 
 @app.route('/logout')
 def logout():
@@ -708,7 +682,9 @@ def edit_trade(trade_id):
 
                 db.session.commit()
                 flash('Сделка успешно обновлена.', 'success')
-                logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
+                logger.info(f"Сделка ID {trade.id} обновлён
+
+а пользователем ID {user_id}.")
                 return redirect(url_for('index'))
             except Exception as e:
                 db.session.rollback()
@@ -1105,7 +1081,6 @@ asyncio.run_coroutine_threadsafe(initialize_application(), loop)
 
 # **Flask Routes for Telegram Webhooks**
 
-# Маршрут для обработки вебхуков от Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook_route():
     """Обработчик вебхуков от Telegram."""
