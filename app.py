@@ -439,6 +439,7 @@ def telegram_login():
     secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
     hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
+    # Дополнительное логирование для отладки
     logger.debug(f"data_check_string: {data_check_string}")
     logger.debug(f"hmac_hash: {hmac_hash}")
     logger.debug(f"check_hash: {check_hash}")
