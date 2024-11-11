@@ -134,13 +134,20 @@ csp = {
         'https://web.telegram.org',
         'https://oauth.telegram.org'
     ],
+    'frame-ancestors': [  # Добавлено для разрешения фреймов от Telegram
+        '\'self\'',
+        'https://web.telegram.org',
+        'https://oauth.telegram.org',
+        'https://telegram.org'
+    ],
     # Добавьте другие директивы при необходимости
 }
 
 talisman = Talisman(
     app,
     content_security_policy=csp,
-    content_security_policy_nonce_in=['script-src']
+    content_security_policy_nonce_in=['script-src'],
+    frame_options=None  # Отключаем X-Frame-Options, чтобы использовать frame-ancestors в CSP
 )
 
 # Функция для создания предопределённых данных
