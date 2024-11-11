@@ -11,20 +11,15 @@ from datetime import datetime
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, upgrade
+from flask_wtf import FlaskForm
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
+from wtforms import StringField, SelectField, FloatField, DateField, TextAreaField, FileField, SubmitField, SelectMultipleField
+from wtforms.validators import DataRequired, Optional
 
-from forms import TradeForm, SetupForm
-from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
-
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    CommandHandler,
-    CallbackQueryHandler,
-)
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 
 import logging
 import requests
@@ -76,7 +71,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-с
 app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Инициализация SQLAlchemy
-db.init_app(app)
+db = SQLAlchemy(app)
 
 # Инициализация Flask-Migrate
 migrate = Migrate(app, db)
@@ -90,6 +85,112 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
+
+# Определение моделей
+
+# Ассоциативная таблица для связей между сделками и критериями
+trade_criteria = db.Table('trade_criteria',
+    db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+# Ассоциативная таблица для связей между сетапами и критериями
+setup_criteria = db.Table('setup_criteria',
+    db.Column('setup_id', db.Integer, db.ForeignKey('setup.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+class User(db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.Integer, unique=True, nullable=False)
+    username = db.Column(db.String(80))
+    first_name = db.Column(db.String(80))
+    last_name = db.Column(db.String(80))
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    trades = db.relationship('Trade', backref='user', lazy=True)
+    setups = db.relationship('Setup', backref='user', lazy=True)
+
+class InstrumentCategory(db.Model):
+    __tablename__ = 'instrument_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False, unique=True)
+    instruments = db.relationship('Instrument', backref='category', lazy=True)
+
+class Instrument(db.Model):
+    __tablename__ = 'instrument'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False, unique=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
+    trades = db.relationship('Trade', backref='instrument', lazy=True)
+
+class CriterionCategory(db.Model):
+    __tablename__ = 'criterion_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False, unique=True)
+    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
+
+class CriterionSubcategory(db.Model):
+    __tablename__ = 'criterion_subcategory'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
+    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
+
+class Criterion(db.Model):
+    __tablename__ = 'criterion'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
+    trades = db.relationship('Trade', secondary=trade_criteria, backref=db.backref('criteria', lazy='dynamic'))
+    setups = db.relationship('Setup', secondary=setup_criteria, backref=db.backref('criteria', lazy='dynamic'))
+
+class Trade(db.Model):
+    __tablename__ = 'trade'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
+    direction = db.Column(db.String(10), nullable=False)  # 'Buy' или 'Sell'
+    entry_price = db.Column(db.Float, nullable=False)
+    exit_price = db.Column(db.Float, nullable=True)
+    trade_open_time = db.Column(db.DateTime, nullable=False)
+    trade_close_time = db.Column(db.DateTime, nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
+    profit_loss = db.Column(db.Float, nullable=True)
+    profit_loss_percentage = db.Column(db.Float, nullable=True)
+    screenshot = db.Column(db.String(200), nullable=True)
+
+class Setup(db.Model):
+    __tablename__ = 'setup'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    setup_name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    screenshot = db.Column(db.String(200), nullable=True)
+    trades = db.relationship('Trade', backref='setup', lazy=True)
+
+# Определение форм
+
+class TradeForm(FlaskForm):
+    instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
+    direction = SelectField('Направление', choices=[('Buy', 'Buy'), ('Sell', 'Sell')], validators=[DataRequired()])
+    entry_price = FloatField('Цена входа', validators=[DataRequired()])
+    exit_price = FloatField('Цена выхода', validators=[Optional()])
+    trade_open_time = DateField('Дата открытия', format='%Y-%m-%d', validators=[DataRequired()])
+    trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
+    comment = TextAreaField('Комментарий', validators=[Optional()])
+    setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional()])
+    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    submit = SubmitField('Сохранить')
+
+class SetupForm(FlaskForm):
+    setup_name = StringField('Название сетапа', validators=[DataRequired()])
+    description = TextAreaField('Описание', validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional()])
+    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    submit = SubmitField('Сохранить')
 
 # Вспомогательная функция для получения хоста приложения
 def get_app_host():
@@ -143,59 +244,76 @@ def create_predefined_data():
         # Криптовалюты
         {'name': 'BTC/USDT', 'category': 'Криптовалюты'},
         {'name': 'ETH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BNB/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XRP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ADA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SOL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DOT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DOGE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'AVAX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SHIB/USDT', 'category': 'Криптовалюты'},
         {'name': 'LTC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'UNI/USDT', 'category': 'Криптовалюты'},
+        {'name': 'XRP/USDT', 'category': 'Криптовалюты'},
         {'name': 'BCH/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ADA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'DOT/USDT', 'category': 'Криптовалюты'},
         {'name': 'LINK/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ALGO/USDT', 'category': 'Криптовалюты'},
+        {'name': 'BNB/USDT', 'category': 'Криптовалюты'},
+        {'name': 'SOL/USDT', 'category': 'Криптовалюты'},
+        {'name': 'DOGE/USDT', 'category': 'Криптовалюты'},
         {'name': 'MATIC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ATOM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'VET/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FTT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'AVAX/USDT', 'category': 'Криптовалюты'},
         {'name': 'TRX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ETC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XLM/USDT', 'category': 'Криптовалюты'},
+        {'name': 'UNI/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ATOM/USDT', 'category': 'Криптовалюты'},
         {'name': 'FIL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'THETA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ALGO/USDT', 'category': 'Криптовалюты'},
         {'name': 'ICP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XMR/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ETC/USDT', 'category': 'Криптовалюты'},
+        {'name': 'VET/USDT', 'category': 'Криптовалюты'},
         {'name': 'EOS/USDT', 'category': 'Криптовалюты'},
         {'name': 'AAVE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'KSM/USDT', 'category': 'Криптовалюты'},
+        {'name': 'THETA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'XLM/USDT', 'category': 'Криптовалюты'},
         {'name': 'NEO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MKR/USDT', 'category': 'Криптовалюты'},
         {'name': 'DASH/USDT', 'category': 'Криптовалюты'},
+        {'name': 'KSM/USDT', 'category': 'Криптовалюты'},
+        {'name': 'BAT/USDT', 'category': 'Криптовалюты'},
         {'name': 'ZEC/USDT', 'category': 'Криптовалюты'},
+        {'name': 'MKR/USDT', 'category': 'Криптовалюты'},
         {'name': 'COMP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CAKE/USDT', 'category': 'Криптовалюты'},
         {'name': 'SNX/USDT', 'category': 'Криптовалюты'},
+        {'name': 'SUSHI/USDT', 'category': 'Криптовалюты'},
+        {'name': 'YFI/USDT', 'category': 'Криптовалюты'},
+        {'name': 'REN/USDT', 'category': 'Криптовалюты'},
+        {'name': 'UMA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ZRX/USDT', 'category': 'Криптовалюты'},
+        {'name': 'CRV/USDT', 'category': 'Криптовалюты'},
+        {'name': 'BNT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'LRC/USDT', 'category': 'Криптовалюты'},
+        {'name': 'BAL/USDT', 'category': 'Криптовалюты'},
+        {'name': 'MANA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'CHZ/USDT', 'category': 'Криптовалюты'},
+        {'name': 'FTT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'CELR/USDT', 'category': 'Криптовалюты'},
         {'name': 'ENJ/USDT', 'category': 'Криптовалюты'},
         {'name': 'GRT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SUSHI/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZIL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BAT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CHZ/USDT', 'category': 'Криптовалюты'},
-        {'name': 'RUNE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'QTUM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZEN/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ONT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'OMG/USDT', 'category': 'Криптовалюты'},
-        {'name': 'IOST/USDT', 'category': 'Криптовалюты'},
-        {'name': 'KAVA/USDT', 'category': 'Криптовалюты'},
         {'name': '1INCH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CELO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BTT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ANKR/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SC/USDT', 'category': 'Криптовалюты'},
+        {'name': 'SAND/USDT', 'category': 'Криптовалюты'},
+        {'name': 'AXS/USDT', 'category': 'Криптовалюты'},
+        {'name': 'FLOW/USDT', 'category': 'Криптовалюты'},
+        {'name': 'RUNE/USDT', 'category': 'Криптовалюты'},
+        {'name': 'GALA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'KAVA/USDT', 'category': 'Криптовалюты'},
+        {'name': 'QTUM/USDT', 'category': 'Криптовалюты'},
+        {'name': 'FTM/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ONT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'HNT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ICX/USDT', 'category': 'Криптовалюты'},
+        {'name': 'RLC/USDT', 'category': 'Криптовалюты'},
+        {'name': 'GNO/USDT', 'category': 'Криптовалюты'},
+        {'name': 'OMG/USDT', 'category': 'Криптовалюты'},
         {'name': 'DGB/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ZIL/USDT', 'category': 'Криптовалюты'},
+        {'name': 'TFUEL/USDT', 'category': 'Криптовалюты'},
+        {'name': 'BTS/USDT', 'category': 'Криптовалюты'},
+        {'name': 'NANO/USDT', 'category': 'Криптовалюты'},
+        {'name': 'XEM/USDT', 'category': 'Криптовалюты'},
+        {'name': 'ONT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'HOT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'MKR/USDT', 'category': 'Криптовалюты'},
         # Добавьте больше инструментов по необходимости
     ]
 
@@ -364,27 +482,33 @@ def create_predefined_data():
     }
 
     for category_name, subcategories in categories_data.items():
-        category = CriterionCategory(name=category_name)
-        db.session.add(category)
-        db.session.flush()
-        logger.info(f"Категория критерия '{category_name}' добавлена.")
+        category = CriterionCategory.query.filter_by(name=category_name).first()
+        if not category:
+            category = CriterionCategory(name=category_name)
+            db.session.add(category)
+            db.session.flush()
+            logger.info(f"Категория критерия '{category_name}' добавлена.")
 
         for subcategory_name, criteria_list in subcategories.items():
-            subcategory = CriterionSubcategory(
-                name=subcategory_name,
-                category_id=category.id
-            )
-            db.session.add(subcategory)
-            db.session.flush()
-            logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
+            subcategory = CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
+            if not subcategory:
+                subcategory = CriterionSubcategory(
+                    name=subcategory_name,
+                    category_id=category.id
+                )
+                db.session.add(subcategory)
+                db.session.flush()
+                logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
 
             for criterion_name in criteria_list:
-                criterion = Criterion(
-                    name=criterion_name,
-                    subcategory_id=subcategory.id
-                )
-                db.session.add(criterion)
-                logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
+                criterion = Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
+                if not criterion:
+                    criterion = Criterion(
+                        name=criterion_name,
+                        subcategory_id=subcategory.id
+                    )
+                    db.session.add(criterion)
+                    logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
 
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
@@ -408,92 +532,91 @@ def initialize():
 def login():
     return render_template('login.html')
 
-@app.route('/telegram_auth', methods=['GET', 'POST'])
+@app.route('/auth')
+def auth():
+    # Маршрут для редиректа после авторизации
+    return redirect(url_for('index'))
+
+@app.route('/telegram_auth', methods=['POST'])
 def telegram_auth():
     """
-    Обработчик авторизации через Telegram Web Apps.
-    GET: Отображает страницу авторизации.
-    POST: Обрабатывает данные авторизации.
+    Обработчик данных авторизации от Telegram Web Apps.
+    Принимает данные через POST-запрос.
     """
-    if request.method == 'GET':
-        if 'user_id' in session:
-            return redirect(url_for('index'))
-        return render_template('telegram_auth.html')
-    elif request.method == 'POST':
-        if not request.is_json:
-            logger.warning("Некорректный тип запроса. Ожидается JSON.")
-            return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
+    if not request.is_json:
+        logger.warning("Некорректный тип запроса. Ожидается JSON.")
+        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
 
-        data = request.get_json()
-        logger.debug(f"Получены данные для авторизации: {data}")
+    data = request.get_json()
+    logger.debug(f"Получены данные для авторизации: {data}")
 
-        auth_data = data.get('auth_data')
-        if not auth_data:
-            logger.warning("Отсутствуют данные авторизации.")
-            return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+    auth_data = data.get('auth_data')
+    if not auth_data:
+        logger.warning("Отсутствуют данные авторизации.")
+        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
-        try:
-            # Разбор параметров авторизации
-            params = dict(item.split('=') for item in auth_data.split('\n') if '=' in item)
-            hash_received = params.pop('hash', None)
-            auth_date = int(params.get('auth_date', 0))
+    try:
+        # Разбор параметров авторизации
+        params = dict(item.split('=') for item in auth_data.split('\n') if '=' in item)
+        hash_received = params.pop('hash', None)
+        auth_date = int(params.get('auth_date', 0))
 
-            # Проверка времени авторизации
-            if time.time() - auth_date > 600:
-                logger.warning("Время авторизации истекло.")
-                return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
+        # Проверка времени авторизации
+        if time.time() - auth_date > 600:
+            logger.warning("Время авторизации истекло.")
+            return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
 
-            # Создание строки для проверки подписи
-            sorted_params = sorted(params.items())
-            data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_params])
+        # Создание строки для проверки подписи
+        sorted_params = sorted(params.items())
+        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_params])
 
-            # Вычисление хеша
-            secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
-            hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+        # Вычисление хеша
+        secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
+        hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
-            logger.debug(f"data_check_string: {data_check_string}")
-            logger.debug(f"hmac_hash: {hmac_hash}")
-            logger.debug(f"hash_received: {hash_received}")
+        logger.debug(f"data_check_string: {data_check_string}")
+        logger.debug(f"hmac_hash: {hmac_hash}")
+        logger.debug(f"hash_received: {hash_received}")
 
-            if hmac_hash != hash_received:
-                logger.warning("Неверная подпись данных.")
-                return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+        if hmac_hash != hash_received:
+            logger.warning("Неверная подпись данных.")
+            return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
 
-            # Авторизация прошла успешно
-            telegram_id = params.get('id')
-            username = params.get('username')
-            first_name = params.get('first_name')
-            last_name = params.get('last_name')
-            photo_url = params.get('photo_url')
-            language_code = params.get('language_code')
+        # Авторизация прошла успешно
+        telegram_id = params.get('id')
+        username = params.get('username')
+        first_name = params.get('first_name')
+        last_name = params.get('last_name')
+        photo_url = params.get('photo_url')
+        language_code = params.get('language_code')
 
-            # Поиск или создание пользователя в базе данных
-            user = User.query.filter_by(telegram_id=telegram_id).first()
-            if not user:
-                user = User(
-                    telegram_id=telegram_id,
-                    username=username,
-                    first_name=first_name,
-                    last_name=last_name,
-                    registered_at=datetime.utcnow()
-                )
-                db.session.add(user)
-                db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+        # Поиск или создание пользователя в базе данных
+        user = User.query.filter_by(telegram_id=telegram_id).first()
+        if not user:
+            user = User(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                registered_at=datetime.utcnow()
+            )
+            db.session.add(user)
+            db.session.commit()
+            logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
 
-            # Установка сессии пользователя
-            session['user_id'] = user.id
-            session['telegram_id'] = user.telegram_id
+        # Установка сессии пользователя
+        session['user_id'] = user.id
+        session['telegram_id'] = user.telegram_id
 
-            logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
-            logger.debug(f"Текущая сессия: {session}")
+        logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
+        logger.debug(f"Текущая сессия: {session}")
 
-            return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
+        return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
 
-        except Exception as e:
-            logger.error(f"Ошибка при обработке данных авторизации: {e}")
-            logger.error(traceback.format_exc())
-            return jsonify({'success': False, 'message': 'Произошла ошибка при обработке данных авторизации.'}), 500
+    except Exception as e:
+        logger.error(f"Ошибка при обработке данных авторизации: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': 'Произошла ошибка при обработке данных авторизации.'}), 500
 
 @app.route('/logout')
 def logout():
@@ -1016,7 +1139,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Создание кнопки с Web App
-        web_app_url = f"https://{get_app_host()}/telegram_auth"
+        web_app_url = f"https://{get_app_host()}/login"
         keyboard = InlineKeyboardMarkup(
             [
                 [
