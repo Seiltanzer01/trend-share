@@ -7,6 +7,7 @@ import hmac
 import json
 import time
 from datetime import datetime
+from threading import Thread
 
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -43,7 +44,7 @@ CORS(app, supports_credentials=True, resources={
 })
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)  # Изменено на DEBUG для детального логирования
+logging.basicConfig(level=logging.DEBUG)  # Установлено на DEBUG для детальной отладки
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -60,15 +61,15 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Настройка APP_HOST для формирования ссылок авторизации
 app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
 
+# Настройки сессии
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
+app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
+
 # Настройка токена бота для использования в приложении
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_TOKEN', '').strip()
 if not app.config['TELEGRAM_BOT_TOKEN']:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
     raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
-
-# Настройки сессии
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
-app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
@@ -1220,17 +1221,25 @@ application.add_handler(CallbackQueryHandler(button_click))
 
 # **Flask Routes for Telegram Webhooks**
 
+def process_update_thread(update):
+    """
+    Функция для обработки обновлений Telegram в отдельном потоке.
+    """
+    try:
+        asyncio.run(application.process_update(update))
+    except Exception as e:
+        logger.error(f"Ошибка в процессе обработки обновления Telegram: {e}")
+        logger.error(traceback.format_exc())
+
 @app.route('/webhook', methods=['POST'])
 def webhook_route():
     """Обработчик вебхуков от Telegram."""
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            # Создание нового цикла событий для обработки обновления
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(application.process_update(update))
-            loop.close()
+            # Запускаем обработку обновления в отдельном потоке
+            thread = Thread(target=process_update_thread, args=(update,))
+            thread.start()
 
             logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
@@ -1283,4 +1292,8 @@ if __name__ == '__main__':
             logger.error(traceback.format_exc())
             exit(1)
     # Запуск Telegram бота через вебхуки уже настроен, поэтому не нужно запускать polling
+    # Используем gunicorn для запуска Flask-приложения
+    # Убедитесь, что gunicorn настроен на использование синхронных работников
+    # Например, в файле Procfile:
+    # web: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)  # Установите debug=False для продакшена
