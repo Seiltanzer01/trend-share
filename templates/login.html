@@ -64,7 +64,7 @@
             .then(data => {
                 if (data.success) {
                     // Перенаправляем пользователя на главную страницу
-                    window.location.href = '/';
+                    window.location.href = data.redirect_url;
                 } else {
                     document.getElementById('auth-message').innerText = 'Ошибка авторизации: ' + data.message;
                 }
@@ -100,7 +100,7 @@
                 .then(data => {
                     if (data.success) {
                         // Перенаправляем пользователя на главную страницу
-                        window.location.href = '/';
+                        window.location.href = data.redirect_url;
                     } else {
                         alert('Ошибка авторизации: ' + data.message);
                     }
