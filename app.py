@@ -43,7 +43,7 @@ CORS(app, supports_credentials=True, resources={
 })
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
+logging.basicConfig(level=logging.DEBUG)  # Изменено на DEBUG для детального логирования
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -556,8 +556,9 @@ def telegram_auth():
         return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
     try:
-        # Разбор параметров авторизации
-        params = dict(item.split('=') for item in auth_data.split('\n') if '=' in item)
+        # Разбор параметров авторизации с разделением только по первому '='
+        params = dict(item.split('=', 1) for item in auth_data.split('\n') if '=' in item)
+        logger.debug(f"Parsed params: {params}")
         hash_received = params.pop('hash', None)
         auth_date = int(params.get('auth_date', 0))
 
@@ -569,13 +570,12 @@ def telegram_auth():
         # Создание строки для проверки подписи
         sorted_params = sorted(params.items())
         data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_params])
+        logger.debug(f"data_check_string: {data_check_string}")
 
         # Вычисление хеша
         secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
         hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-        logger.debug(f"data_check_string: {data_check_string}")
-        logger.debug(f"hmac_hash: {hmac_hash}")
+        logger.debug(f"Computed HMAC hash: {hmac_hash}")
         logger.debug(f"hash_received: {hash_received}")
 
         if hmac_hash != hash_received:
@@ -583,7 +583,7 @@ def telegram_auth():
             return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
 
         # Авторизация прошла успешно
-        telegram_id = params.get('id')
+        telegram_id = int(params.get('id'))
         username = params.get('username')
         first_name = params.get('first_name')
         last_name = params.get('last_name')
@@ -1139,13 +1139,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Создание кнопки с Web App
-        web_app_url = f"https://{get_app_host()}/login"
+        web_app_url = "https://trend-share.onrender.com/login"  # Ваш URL для авторизации
         keyboard = InlineKeyboardMarkup(
             [
                 [
                     InlineKeyboardButton(
                         text="Открыть приложение",
-                        web_app=WebAppInfo(url="https://trend-share.onrender.com/login")
+                        web_app=WebAppInfo(url=web_app_url)
                     )
                 ]
             ]
@@ -1226,8 +1226,12 @@ def webhook_route():
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            # Обработка обновления
-            asyncio.run_coroutine_threadsafe(application.process_update(update), asyncio.get_event_loop())
+            # Создание нового цикла событий для обработки обновления
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(application.process_update(update))
+            loop.close()
+
             logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
         except Exception as e:
@@ -1279,4 +1283,4 @@ if __name__ == '__main__':
             logger.error(traceback.format_exc())
             exit(1)
     # Запуск Telegram бота через вебхуки уже настроен, поэтому не нужно запускать polling
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)  # Установите debug=False для продакшена
