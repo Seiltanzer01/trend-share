@@ -117,7 +117,7 @@ csp = {
         'https://telegram.org',
         'https://web.telegram.org',
         'https://oauth.telegram.org',
-        '\'unsafe-eval\'',  # Не рекомендуется, но необходимо для некоторых библиотек
+        # 'unsafe-eval' рекомендуется избегать, если это возможно
         "'nonce-{nonce}'"    # Поддержка nonce для инлайн-скриптов
     ],
     'style-src': [
@@ -472,16 +472,20 @@ def verify_telegram_webapp(init_data):
             logger.warning("Отсутствует поле 'hash' в initData.")
             return False
 
-        data_check_string = '\n'.join(sorted(f'{k}={v}' for k, v in parsed_data.items()))
+        # Сортировка ключей по алфавиту
+        sorted_items = sorted(parsed_data.items())
+        data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_items)
         hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
         logger.debug(f"data_check_string: {data_check_string}")
         logger.debug(f"Вычисленный hash: {hmac_hash}")
         logger.debug(f"Полученный hash: {hash_}")
 
-        return hmac_hash == hash_
+        # Используем compare_digest для безопасного сравнения
+        return hmac.compare_digest(hmac_hash, hash_)
     except Exception as e:
         logger.error(f"Ошибка при проверке подписи данных Telegram Web App: {e}")
+        logger.error(traceback.format_exc())
         return False
 
 # Маршруты аутентификации
@@ -532,7 +536,7 @@ def telegram_login():
     logger.debug(f"hmac_hash: {hmac_hash}")
     logger.debug(f"check_hash: {check_hash}")
 
-    if hmac_hash != check_hash:
+    if not hmac.compare_digest(hmac_hash, check_hash):
         logger.warning("Неверная подпись данных.")
         return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
 
