@@ -41,7 +41,8 @@
         <h1>Авторизация через Telegram</h1>
         <p id="auth-message">Пожалуйста, подождите...</p>
     </div>
-    <script type="text/javascript">
+    <!-- Добавляем nonce к инлайн-скрипту -->
+    <script type="text/javascript" nonce="{{ csp_nonce }}">
         if (window.Telegram.WebApp) {
             // Приложение запущено внутри Telegram Web App
             const tg = window.Telegram.WebApp;
@@ -75,7 +76,7 @@
         } else {
             // Приложение запущено в браузере
             document.getElementById('auth-message').innerText = 'Нажмите кнопку ниже, чтобы авторизоваться через Telegram.';
-            // Добавляем Telegram Login Widget
+            // Добавляем Telegram Login Widget с nonce
             const script = document.createElement('script');
             script.async = true;
             script.src = 'https://telegram.org/js/telegram-widget.js?15';
@@ -83,6 +84,7 @@
             script.setAttribute('data-size', 'large');
             script.setAttribute('data-userpic', 'false');
             script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+            script.setAttribute('nonce', '{{ csp_nonce }}'); // Добавляем nonce
             document.body.appendChild(script);
 
             function onTelegramAuth(user) {
