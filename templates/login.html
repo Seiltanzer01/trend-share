@@ -31,89 +31,37 @@
             color: #666;
             margin-bottom: 20px;
         }
-        .auth-container .telegram-login-button {
+        .auth-container .telegram-button {
             margin-top: 20px;
         }
+        #telegram-auth-button {
+            background-color: #0088cc;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #telegram-auth-button:hover {
+            background-color: #006699;
+        }
     </style>
-    <!-- Подключаем скрипт Telegram Web App -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="auth-container">
         <h1>Авторизация через Telegram</h1>
-        <p id="auth-message">Пожалуйста, подождите...</p>
+        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
+        <!-- Кнопка для открытия Telegram Web App -->
+        <button id="telegram-auth-button">Войти через Telegram</button>
     </div>
-    <!-- Добавляем nonce к инлайн-скрипту -->
-    <script type="text/javascript" nonce="{{ csp_nonce() }}">
-        if (window.Telegram.WebApp) {
-            // Приложение запущено внутри Telegram Web App
-            const tg = window.Telegram.WebApp;
-            const initData = tg.initData || '';
-            const initDataUnsafe = tg.initDataUnsafe || {};
-
-            // Отправляем данные на сервер для проверки и установки сессии
-            fetch('/telegram_webapp_login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    initData: initData,
-                    user: initDataUnsafe.user || null
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Перенаправляем пользователя на главную страницу
-                    window.location.href = data.redirect_url;
-                } else {
-                    document.getElementById('auth-message').innerText = 'Ошибка авторизации: ' + data.message;
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка при авторизации:', error);
-                document.getElementById('auth-message').innerText = 'Произошла ошибка при авторизации.';
+    <script type="text/javascript">
+        document.getElementById('telegram-auth-button').addEventListener('click', function() {
+            // Открытие Telegram Web App
+            Telegram.WebApp.openWebApp({
+                url: 'https://trend-share.onrender.com/telegram_auth'
             });
-        } else {
-            // Приложение запущено в браузере
-            document.getElementById('auth-message').innerText = 'Нажмите кнопку ниже, чтобы авторизоваться через Telegram.';
-            // Добавляем Telegram Login Widget с nonce
-            const script = document.createElement('script');
-            script.async = true;
-            script.src = 'https://telegram.org/js/telegram-widget.js?15';
-            script.setAttribute('data-telegram-login', 'TrendShare_bot'); // Замените на имя вашего бота
-            script.setAttribute('data-size', 'large');
-            script.setAttribute('data-userpic', 'false');
-            script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-            script.setAttribute('nonce', '{{ csp_nonce() }}'); // Добавляем nonce
-            document.body.appendChild(script);
-
-            function onTelegramAuth(user) {
-                // Отправляем данные на сервер для проверки и установки сессии
-                fetch('/telegram_login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(user)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Перенаправляем пользователя на главную страницу
-                        window.location.href = data.redirect_url;
-                    } else {
-                        alert('Ошибка авторизации: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка при авторизации:', error);
-                    alert('Произошла ошибка при авторизации.');
-                });
-            }
-            window.onTelegramAuth = onTelegramAuth;
-        }
+        });
     </script>
 </body>
 </html>
