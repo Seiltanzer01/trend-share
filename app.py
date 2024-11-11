@@ -32,7 +32,7 @@ import requests
 import asyncio
 from dotenv import load_dotenv
 
-# Добавьте импорт Flask-Talisman
+# Импорт Flask-Talisman
 from flask_talisman import Talisman
 
 # Загрузка переменных окружения из .env файла (если используется)
@@ -117,8 +117,8 @@ csp = {
         'https://telegram.org',
         'https://web.telegram.org',
         'https://oauth.telegram.org',
-        '\'unsafe-eval\'',
-        "'nonce-{nonce}'"  # Добавлено для поддержки nonce
+        '\'unsafe-eval\'',  # Не рекомендуется, но необходимо для некоторых библиотек
+        "'nonce-{nonce}'"    # Поддержка nonce для инлайн-скриптов
     ],
     'style-src': [
         '\'self\'',
@@ -134,7 +134,7 @@ csp = {
         'https://web.telegram.org',
         'https://oauth.telegram.org'
     ],
-    'frame-ancestors': [  # Добавлено для разрешения фреймов от Telegram
+    'frame-ancestors': [  # Разрешает встраивание в iframe с указанных доменов
         '\'self\'',
         'https://web.telegram.org',
         'https://oauth.telegram.org',
