@@ -42,7 +42,7 @@
         <p id="auth-message">Пожалуйста, подождите...</p>
     </div>
     <!-- Добавляем nonce к инлайн-скрипту -->
-    <script type="text/javascript" nonce="{{ csp_nonce }}">
+    <script type="text/javascript" nonce="{{ csp_nonce() }}">
         if (window.Telegram.WebApp) {
             // Приложение запущено внутри Telegram Web App
             const tg = window.Telegram.WebApp;
@@ -84,7 +84,7 @@
             script.setAttribute('data-size', 'large');
             script.setAttribute('data-userpic', 'false');
             script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-            script.setAttribute('nonce', '{{ csp_nonce }}'); // Добавляем nonce
+            script.setAttribute('nonce', '{{ csp_nonce() }}'); // Добавляем nonce
             document.body.appendChild(script);
 
             function onTelegramAuth(user) {
