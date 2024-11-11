@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import time
+import urllib.parse
 from datetime import datetime
 
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
@@ -42,12 +43,12 @@ CORS(app, supports_credentials=True, resources={
     r"/*": {
         "origins": [
             "https://trend-share.onrender.com",  # Ваш основной домен
-            "https://oauth.telegram.org"          # Домен Telegram WebApp
+            "https://oauth.telegram.org",        # Домен Telegram OAuth
+            "https://web.telegram.org",         # Домен Telegram WebApp
+            "https://telegram.org"              # Домен Telegram
         ]
     }
 })
-# Настройка CORS для разрешения всех источников (только для тестирования)
-CORS(app, supports_credentials=True)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
@@ -404,6 +405,31 @@ def initialize():
             logger.error(traceback.format_exc())
             exit(1)
 
+# Функция для проверки подписи данных из Telegram Web App
+def verify_telegram_webapp(init_data):
+    """
+    Проверяет подпись данных из Telegram Web App.
+
+    :param init_data: Строка initData из Telegram Web App
+    :return: True, если подпись корректна, иначе False
+    """
+    try:
+        TELEGRAM_BOT_TOKEN = app.config['TELEGRAM_BOT_TOKEN']
+        secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
+
+        parsed_data = dict(urllib.parse.parse_qsl(init_data))
+        hash_ = parsed_data.pop('hash', None)
+        if not hash_:
+            return False
+
+        data_check_string = '\n'.join(sorted(f'{k}={v}' for k, v in parsed_data.items()))
+        hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+        return hmac_hash == hash_
+    except Exception as e:
+        logger.error(f"Ошибка при проверке подписи данных Telegram Web App: {e}")
+        return False
+
 # Маршруты аутентификации
 
 @app.route('/login')
@@ -496,6 +522,58 @@ def logout():
 @app.route('/health', methods=['GET'])
 def health():
     return 'OK', 200
+
+# Маршрут для обработки авторизации из Telegram Web App
+@app.route('/telegram_webapp_login', methods=['POST'])
+def telegram_webapp_login():
+    """
+    Обработчик данных авторизации из Telegram Web App.
+    """
+    if not request.is_json:
+        logger.warning("Некорректный тип запроса. Ожидается JSON.")
+        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
+
+    data = request.get_json()
+    init_data = data.get('initData', '')
+    user_data = data.get('user')
+
+    if not init_data or not user_data:
+        logger.warning("Отсутствуют данные авторизации.")
+        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+
+    # Проверяем подлинность данных с помощью функции проверки Telegram
+    if not verify_telegram_webapp(init_data):
+        logger.warning("Неверная подпись данных.")
+        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+
+    # Авторизация прошла успешно
+    telegram_id = user_data.get('id')
+    username = user_data.get('username')
+    first_name = user_data.get('first_name')
+    last_name = user_data.get('last_name')
+
+    # Поиск или создание пользователя в базе данных
+    user = User.query.filter_by(telegram_id=telegram_id).first()
+    if not user:
+        user = User(
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            registered_at=datetime.utcnow()
+        )
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+
+    # Установка сессии пользователя
+    session['user_id'] = user.id
+    session['telegram_id'] = user.telegram_id
+
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
+    logger.debug(f"Текущая сессия: {session}")
+
+    return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
 
 # Главная страница — список сделок с фильтрацией
 @app.route('/', methods=['GET', 'HEAD'])
