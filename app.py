@@ -420,10 +420,15 @@ def verify_telegram_webapp(init_data):
         parsed_data = dict(urllib.parse.parse_qsl(init_data))
         hash_ = parsed_data.pop('hash', None)
         if not hash_:
+            logger.warning("Отсутствует поле 'hash' в initData.")
             return False
 
         data_check_string = '\n'.join(sorted(f'{k}={v}' for k, v in parsed_data.items()))
         hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+        logger.debug(f"data_check_string: {data_check_string}")
+        logger.debug(f"Вычисленный hash: {hmac_hash}")
+        logger.debug(f"Полученный hash: {hash_}")
 
         return hmac_hash == hash_
     except Exception as e:
@@ -447,7 +452,7 @@ def telegram_login():
         return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
 
     data = request.get_json()
-    logger.debug(f"Получены данные для авторизации: {data}")
+    logger.debug(f"Получены данные для авторизации через браузер: {data}")
 
     if not data:
         logger.warning("Отсутствуют данные авторизации.")
@@ -506,7 +511,7 @@ def telegram_login():
     session['user_id'] = user.id
     session['telegram_id'] = user.telegram_id
 
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram.")
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через браузер.")
     logger.debug(f"Текущая сессия: {session}")
 
     return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
@@ -536,6 +541,8 @@ def telegram_webapp_login():
     data = request.get_json()
     init_data = data.get('initData', '')
     user_data = data.get('user')
+
+    logger.debug(f"Получены данные для авторизации через Telegram Web App: initData={init_data}, user={user_data}")
 
     if not init_data or not user_data:
         logger.warning("Отсутствуют данные авторизации.")
