@@ -9,7 +9,10 @@ import time
 import urllib.parse
 from datetime import datetime
 
-from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
+from flask import (
+    Flask, render_template, redirect, url_for, flash,
+    request, send_from_directory, session, jsonify
+)
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, upgrade
 from flask_cors import CORS
@@ -17,14 +20,16 @@ from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 
 from forms import TradeForm, SetupForm
-from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
+from models import (
+    db, User, Trade, Setup, Criterion,
+    CriterionCategory, CriterionSubcategory,
+    Instrument, InstrumentCategory
+)
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    CommandHandler,
-    CallbackQueryHandler,
+    ApplicationBuilder, ContextTypes,
+    CommandHandler, CallbackQueryHandler
 )
 
 import logging
@@ -117,7 +122,7 @@ csp = {
         'https://telegram.org',
         'https://web.telegram.org',
         'https://oauth.telegram.org',
-        'nonce-{nonce}'    # Поддержка nonce для инлайн-скриптов без внешних кавычек
+        'nonce-{nonce}'    # Без внешних кавычек
     ],
     'style-src': [
         '\'self\'',
@@ -476,9 +481,11 @@ def verify_telegram_webapp(init_data):
         data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_items)
         hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
-        logger.debug(f"data_check_string: {data_check_string}")
-        logger.debug(f"Вычисленный hash: {hmac_hash}")
-        logger.debug(f"Полученный hash: {hash_}")
+        logger.debug("----- Проверка подписи данных Telegram -----")
+        logger.debug(f"Data Check String:\n{data_check_string}")
+        logger.debug(f"Вычисленный HMAC Hash: {hmac_hash}")
+        logger.debug(f"Полученный Hash: {hash_}")
+        logger.debug("--------------------------------------------")
 
         # Используем compare_digest для безопасного сравнения
         return hmac.compare_digest(hmac_hash, hash_)
