@@ -65,3 +65,4 @@ honcho
 uvicorn
 python-dotenv
 Flask-CORS==3.0.10
+telegram==0.0.1
