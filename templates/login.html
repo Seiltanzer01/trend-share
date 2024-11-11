@@ -31,20 +31,9 @@
             color: #666;
             margin-bottom: 20px;
         }
-        .auth-container .telegram-button {
-            margin-top: 20px;
-        }
-        #telegram-auth-button {
-            background-color: #0088cc;
-            color: #fff;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        #telegram-auth-button:hover {
-            background-color: #006699;
+        /* Стили для Telegram Login Widget */
+        .tg-login-button {
+            display: inline-block;
         }
     </style>
 </head>
@@ -52,16 +41,14 @@
     <div class="auth-container">
         <h1>Авторизация через Telegram</h1>
         <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
-        <!-- Кнопка для открытия Telegram Web App -->
-        <button id="telegram-auth-button">Войти через Telegram</button>
+        <!-- Telegram Login Widget -->
+        <script async src="https://telegram.org/js/telegram-widget.js?7"
+                data-telegram-login="YourBotUsername" <!-- Замените на имя вашего бота без @ -->
+                data-size="large"
+                data-userpic="false"
+                data-auth-url="{{ url_for('telegram_auth') }}"
+                data-button-color="#0088cc">
+        </script>
     </div>
-    <script type="text/javascript">
-        document.getElementById('telegram-auth-button').addEventListener('click', function() {
-            // Открытие Telegram Web App
-            Telegram.WebApp.openWebApp({
-                url: 'https://trend-share.onrender.com/telegram_auth'
-            });
-        });
-    </script>
 </body>
 </html>
