@@ -117,7 +117,8 @@ csp = {
         'https://telegram.org',
         'https://web.telegram.org',
         'https://oauth.telegram.org',
-        '\'unsafe-eval\''
+        '\'unsafe-eval\'',
+        "'nonce-{nonce}'"  # Добавлено для поддержки nonce
     ],
     'style-src': [
         '\'self\'',
