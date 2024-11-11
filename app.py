@@ -6,13 +6,9 @@ import hashlib
 import hmac
 import json
 import time
-import urllib.parse
 from datetime import datetime
 
-from flask import (
-    Flask, render_template, redirect, url_for, flash,
-    request, send_from_directory, session, jsonify
-)
+from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, upgrade
 from flask_cors import CORS
@@ -20,16 +16,14 @@ from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 
 from forms import TradeForm, SetupForm
-from models import (
-    db, User, Trade, Setup, Criterion,
-    CriterionCategory, CriterionSubcategory,
-    Instrument, InstrumentCategory
-)
+from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import (
-    ApplicationBuilder, ContextTypes,
-    CommandHandler, CallbackQueryHandler
+    ApplicationBuilder,
+    ContextTypes,
+    CommandHandler,
+    CallbackQueryHandler,
 )
 
 import logging
@@ -37,11 +31,8 @@ import requests
 import asyncio
 from dotenv import load_dotenv
 
-# Импорт Flask-Talisman для настройки CSP
-from flask_talisman import Talisman
-
 # Загрузка переменных окружения из .env файла (если используется)
-load_dotenv()
+# load_dotenv()  # Удалено, так как переменные установлены в Render
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -51,9 +42,7 @@ CORS(app, supports_credentials=True, resources={
     r"/*": {
         "origins": [
             "https://trend-share.onrender.com",  # Ваш основной домен
-            "https://oauth.telegram.org",        # Домен Telegram OAuth
-            "https://web.telegram.org",         # Домен Telegram WebApp
-            "https://telegram.org"              # Домен Telegram
+            "https://t.me"                        # Домен Telegram
         ]
     }
 })
@@ -84,7 +73,7 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
 
 # Настройки сессии
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
-app.config['SESSION_COOKIE_SECURE'] = True      # Требует HTTPS
+app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Инициализация SQLAlchemy
 db.init_app(app)
@@ -108,24 +97,6 @@ def get_app_host():
     Возвращает хост приложения для формирования ссылок авторизации.
     """
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
-
-# Настройка Content Security Policy с помощью Flask-Talisman
-# Определяем CSP как многострочную строку с правильным включением 'nonce-{nonce}'
-csp = """
-default-src 'self' https://telegram.org https://web.telegram.org https://oauth.telegram.org;
-script-src 'self' https://telegram.org https://web.telegram.org https://oauth.telegram.org 'nonce-{nonce}';
-style-src 'self' https://telegram.org https://web.telegram.org https://oauth.telegram.org 'unsafe-inline';
-img-src 'self' data: https://telegram.org https://web.telegram.org https://oauth.telegram.org;
-frame-ancestors 'self' https://web.telegram.org https://oauth.telegram.org https://telegram.org;
-"""
-
-# Инициализация Flask-Talisman с указанным CSP
-talisman = Talisman(
-    app,
-    content_security_policy=csp,
-    content_security_policy_nonce_in=['script-src'],
-    frame_options=None  # Отключаем X-Frame-Options, чтобы использовать frame-ancestors в CSP
-)
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -431,122 +402,98 @@ def initialize():
             logger.error(traceback.format_exc())
             exit(1)
 
-# Функция для проверки подписи данных из Telegram Web App
-def verify_telegram_webapp(init_data):
-    """
-    Проверяет подпись данных из Telegram Web App.
-
-    :param init_data: Строка initData из Telegram Web App
-    :return: True, если подпись корректна, иначе False
-    """
-    try:
-        TELEGRAM_BOT_TOKEN = app.config['TELEGRAM_BOT_TOKEN']
-        secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
-
-        parsed_data = dict(urllib.parse.parse_qsl(init_data))
-        hash_ = parsed_data.pop('hash', None)
-        if not hash_:
-            logger.warning("Отсутствует поле 'hash' в initData.")
-            return False
-
-        # Сортировка ключей по алфавиту
-        sorted_items = sorted(parsed_data.items())
-        data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_items)
-        hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-        logger.debug("----- Проверка подписи данных Telegram -----")
-        logger.debug(f"Data Check String:\n{data_check_string}")
-        logger.debug(f"Вычисленный HMAC Hash: {hmac_hash}")
-        logger.debug(f"Полученный Hash: {hash_}")
-        logger.debug("--------------------------------------------")
-
-        # Используем compare_digest для безопасного сравнения
-        return hmac.compare_digest(hmac_hash, hash_)
-    except Exception as e:
-        logger.error(f"Ошибка при проверке подписи данных Telegram Web App: {e}")
-        logger.error(traceback.format_exc())
-        return False
-
 # Маршруты аутентификации
 
 @app.route('/login')
 def login():
     return render_template('login.html')
 
-@app.route('/telegram_login', methods=['POST'])
-def telegram_login():
+@app.route('/telegram_auth', methods=['GET', 'POST'])
+def telegram_auth():
     """
-    Обработчик данных авторизации от Telegram Login Widget.
-    Принимает данные через JSON.
+    Обработчик авторизации через Telegram Web Apps.
+    GET: Отображает страницу авторизации.
+    POST: Обрабатывает данные авторизации.
     """
-    if not request.is_json:
-        logger.warning("Некорректный тип запроса. Ожидается JSON.")
-        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
+    if request.method == 'GET':
+        if 'user_id' in session:
+            return redirect(url_for('index'))
+        return render_template('telegram_auth.html')
+    elif request.method == 'POST':
+        if not request.is_json:
+            logger.warning("Некорректный тип запроса. Ожидается JSON.")
+            return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
 
-    data = request.get_json()
-    logger.debug(f"Получены данные для авторизации через браузер: {data}")
+        data = request.get_json()
+        logger.debug(f"Получены данные для авторизации: {data}")
 
-    if not data:
-        logger.warning("Отсутствуют данные авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+        auth_data = data.get('auth_data')
+        if not auth_data:
+            logger.warning("Отсутствуют данные авторизации.")
+            return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
-    try:
-        auth_date = int(data.get('auth_date', 0))
-    except ValueError:
-        logger.warning("Некорректное значение auth_date.")
-        return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
+        try:
+            # Разбор параметров авторизации
+            params = dict(item.split('=') for item in auth_data.split('\n') if '=' in item)
+            hash_received = params.pop('hash', None)
+            auth_date = int(params.get('auth_date', 0))
 
-    if time.time() - auth_date > 600:
-        logger.warning("Время авторизации истекло.")
-        return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
+            # Проверка времени авторизации
+            if time.time() - auth_date > 600:
+                logger.warning("Время авторизации истекло.")
+                return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
 
-    check_hash = data.pop('hash', None)
-    if not check_hash:
-        logger.warning("Отсутствует hash в данных авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
+            # Создание строки для проверки подписи
+            sorted_params = sorted(params.items())
+            data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_params])
 
-    # Создание строки для проверки подписи
-    data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
-    data_check_string = '\n'.join(data_check_arr)
-    secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
-    hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+            # Вычисление хеша
+            secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
+            hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
-    logger.debug(f"data_check_string: {data_check_string}")
-    logger.debug(f"hmac_hash: {hmac_hash}")
-    logger.debug(f"check_hash: {check_hash}")
+            logger.debug(f"data_check_string: {data_check_string}")
+            logger.debug(f"hmac_hash: {hmac_hash}")
+            logger.debug(f"hash_received: {hash_received}")
 
-    if not hmac.compare_digest(hmac_hash, check_hash):
-        logger.warning("Неверная подпись данных.")
-        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+            if hmac_hash != hash_received:
+                logger.warning("Неверная подпись данных.")
+                return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
 
-    # Авторизация прошла успешно
-    telegram_id = data.get('id')
-    username = data.get('username')
-    first_name = data.get('first_name')
-    last_name = data.get('last_name')
+            # Авторизация прошла успешно
+            telegram_id = params.get('id')
+            username = params.get('username')
+            first_name = params.get('first_name')
+            last_name = params.get('last_name')
+            photo_url = params.get('photo_url')
+            language_code = params.get('language_code')
 
-    # Поиск или создание пользователя в базе данных
-    user = User.query.filter_by(telegram_id=telegram_id).first()
-    if not user:
-        user = User(
-            telegram_id=telegram_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            registered_at=datetime.utcnow()
-        )
-        db.session.add(user)
-        db.session.commit()
-        logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+            # Поиск или создание пользователя в базе данных
+            user = User.query.filter_by(telegram_id=telegram_id).first()
+            if not user:
+                user = User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
 
-    # Установка сессии пользователя
-    session['user_id'] = user.id
-    session['telegram_id'] = user.telegram_id
+            # Установка сессии пользователя
+            session['user_id'] = user.id
+            session['telegram_id'] = user.telegram_id
 
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через браузер.")
-    logger.debug(f"Текущая сессия: {session}")
+            logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
+            logger.debug(f"Текущая сессия: {session}")
 
-    return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
+            return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
+
+        except Exception as e:
+            logger.error(f"Ошибка при обработке данных авторизации: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({'success': False, 'message': 'Произошла ошибка при обработке данных авторизации.'}), 500
 
 @app.route('/logout')
 def logout():
@@ -559,60 +506,6 @@ def logout():
 @app.route('/health', methods=['GET'])
 def health():
     return 'OK', 200
-
-# Маршрут для обработки авторизации из Telegram Web App
-@app.route('/telegram_webapp_login', methods=['POST'])
-def telegram_webapp_login():
-    """
-    Обработчик данных авторизации из Telegram Web App.
-    """
-    if not request.is_json:
-        logger.warning("Некорректный тип запроса. Ожидается JSON.")
-        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
-
-    data = request.get_json()
-    init_data = data.get('initData', '')
-    user_data = data.get('user')
-
-    logger.debug(f"Получены данные для авторизации через Telegram Web App: initData={init_data}, user={user_data}")
-
-    if not init_data or not user_data:
-        logger.warning("Отсутствуют данные авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
-
-    # Проверяем подлинность данных с помощью функции проверки Telegram
-    if not verify_telegram_webapp(init_data):
-        logger.warning("Неверная подпись данных.")
-        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
-
-    # Авторизация прошла успешно
-    telegram_id = user_data.get('id')
-    username = user_data.get('username')
-    first_name = user_data.get('first_name')
-    last_name = user_data.get('last_name')
-
-    # Поиск или создание пользователя в базе данных
-    user = User.query.filter_by(telegram_id=telegram_id).first()
-    if not user:
-        user = User(
-            telegram_id=telegram_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            registered_at=datetime.utcnow()
-        )
-        db.session.add(user)
-        db.session.commit()
-        logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
-
-    # Установка сессии пользователя
-    session['user_id'] = user.id
-    session['telegram_id'] = user.telegram_id
-
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
-    logger.debug(f"Текущая сессия: {session}")
-
-    return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
 
 # Главная страница — список сделок с фильтрацией
 @app.route('/', methods=['GET', 'HEAD'])
@@ -731,7 +624,7 @@ def new_trade():
                 screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 screenshot_file.save(screenshot_path)
                 trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
-                logger.info(f"Скриншот '{filename}' сохранён для сделки.")
+                logger.info(f"Скриншот '{filename}' сохранён для сделки ID {trade.id}.")
 
             db.session.add(trade)
             db.session.commit()
@@ -932,7 +825,7 @@ def add_setup():
                 screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 screenshot_file.save(screenshot_path)
                 setup.screenshot = filename
-                logger.info(f"Скриншот '{filename}' сохранён для сетапа.")
+                logger.info(f"Скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
 
             db.session.add(setup)
             db.session.commit()
@@ -1123,7 +1016,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Создание кнопки с Web App
-        web_app_url = f"https://{get_app_host()}/login"
+        web_app_url = f"https://{get_app_host()}/telegram_auth"
         keyboard = InlineKeyboardMarkup(
             [
                 [
