@@ -1145,7 +1145,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [
                     InlineKeyboardButton(
                         text="Открыть приложение",
-                        web_app=WebAppInfo(url=https://trend-share.onrender.com/login)
+                        web_app=WebAppInfo(url="https://trend-share.onrender.com/login")
                     )
                 ]
             ]
