@@ -1,56 +1,33 @@
 # app.py
 
 import os
+import asyncio
 import traceback
+import threading
+from dotenv import load_dotenv
+from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
+from forms import TradeForm, SetupForm
+from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
+from werkzeug.utils import secure_filename
+from werkzeug.datastructures import FileStorage
+from flask_migrate import Migrate, upgrade
+from datetime import datetime, timezone
+import logging
+import requests
+import secrets  # Для генерации токенов
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
+import urllib.parse  # Для декодирования URL-энкодированных данных
 import hashlib
 import hmac
 import json
-import time
-from datetime import datetime
-
-from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate, upgrade
-from flask_cors import CORS
-from werkzeug.utils import secure_filename
-from werkzeug.datastructures import FileStorage
-
-from forms import TradeForm, SetupForm
-from models import db, User, Trade, Setup, Criterion, CriterionCategory, CriterionSubcategory, Instrument, InstrumentCategory
-
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    CommandHandler,
-    CallbackQueryHandler,
-)
-
-import logging
-import requests
-import asyncio
-from dotenv import load_dotenv
-
-# Загрузка переменных окружения из .env файла (если используется)
-load_dotenv()
+import time  # Добавлено для работы с временем
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
-# Настройка CORS
-CORS(app, supports_credentials=True, resources={
-    r"/*": {
-        "origins": [
-            "https://trend-share.onrender.com",  # Ваш основной домен
-            "https://oauth.telegram.org"          # Домен Telegram WebApp
-        ]
-    }
-})
-# Настройка CORS для разрешения всех источников (только для тестирования)
-CORS(app, supports_credentials=True)
-
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)  # Измените на DEBUG для детального логирования
+logging.basicConfig(level=logging.DEBUG)  # Установите на DEBUG для детального логирования
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -72,10 +49,6 @@ app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_TOKEN', '').strip()
 if not app.config['TELEGRAM_BOT_TOKEN']:
     logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
     raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
-
-# Настройки сессии
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
-app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Инициализация SQLAlchemy
 db.init_app(app)
@@ -393,16 +366,8 @@ def create_predefined_data():
 
 # Вызываем функцию перед первым запросом
 @app.before_first_request
-def initialize():
-    with app.app_context():
-        try:
-            upgrade()  # Применение миграций
-            create_predefined_data()
-            logger.info("Миграции применены и предопределённые данные созданы.")
-        except Exception as e:
-            logger.error(f"Ошибка при применении миграций: {e}")
-            logger.error(traceback.format_exc())
-            exit(1)
+def setup_data():
+    create_predefined_data()
 
 # Маршруты аутентификации
 
@@ -414,12 +379,8 @@ def login():
 def telegram_login():
     """
     Обработчик данных авторизации от Telegram Login Widget.
-    Принимает данные через JSON.
+    Принимает JSON с данными пользователя.
     """
-    if not request.is_json:
-        logger.warning("Некорректный тип запроса. Ожидается JSON.")
-        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
-
     data = request.get_json()
     logger.debug(f"Получены данные для авторизации: {data}")
 
@@ -427,12 +388,7 @@ def telegram_login():
         logger.warning("Отсутствуют данные авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
 
-    try:
-        auth_date = int(data.get('auth_date', 0))
-    except ValueError:
-        logger.warning("Некорректное значение auth_date.")
-        return jsonify({'success': False, 'message': 'Некорректное значение auth_date.'}), 400
-
+    auth_date = int(data.get('auth_date', 0))
     if time.time() - auth_date > 600:
         logger.warning("Время авторизации истекло.")
         return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
@@ -442,7 +398,6 @@ def telegram_login():
         logger.warning("Отсутствует hash в данных авторизации.")
         return jsonify({'success': False, 'message': 'Отсутствует hash.'}), 400
 
-    # Создание строки для проверки подписи
     data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
     data_check_string = '\n'.join(data_check_arr)
     secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
@@ -480,10 +435,9 @@ def telegram_login():
     session['user_id'] = user.id
     session['telegram_id'] = user.telegram_id
 
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram.")
-    logger.debug(f"Текущая сессия: {session}")
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Login Widget.")
 
-    return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
+    return jsonify({'success': True}), 200
 
 @app.route('/logout')
 def logout():
@@ -498,10 +452,8 @@ def health():
     return 'OK', 200
 
 # Главная страница — список сделок с фильтрацией
-@app.route('/', methods=['GET', 'HEAD'])
+@app.route('/', methods=['GET'])
 def index():
-    if request.method == 'HEAD':
-        return '', 200  # Возвращаем 200 OK для HEAD-запросов
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
@@ -542,13 +494,7 @@ def index():
     trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
     logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
 
-    return render_template(
-        'index.html',
-        trades=trades,
-        categories=categories,
-        criteria_categories=criteria_categories,
-        selected_instrument_id=instrument_id
-    )
+    return render_template('index.html', trades=trades, categories=categories, criteria_categories=criteria_categories, selected_instrument_id=instrument_id)
 
 # Добавить новую сделку
 @app.route('/new_trade', methods=['GET', 'POST'])
@@ -577,55 +523,56 @@ def new_trade():
         form.criteria.data = []
 
     if form.validate_on_submit():
-        try:
-            trade = Trade(
-                user_id=user_id,
-                instrument_id=form.instrument.data,
-                direction=form.direction.data,
-                entry_price=form.entry_price.data,
-                exit_price=form.exit_price.data if form.exit_price.data else None,
-                trade_open_time=form.trade_open_time.data,
-                trade_close_time=form.trade_close_time.data if form.trade_close_time.data else None,
-                comment=form.comment.data,
-                setup_id=form.setup_id.data if form.setup_id.data != 0 else None
-            )
-            # Расчёт прибыли/убытка
-            if trade.exit_price:
-                trade.profit_loss = (trade.exit_price - trade.entry_price) * (1 if trade.direction == 'Buy' else -1)
-                trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
-            else:
-                trade.profit_loss = None
-                trade.profit_loss_percentage = None
+        with app.app_context():
+            try:
+                trade = Trade(
+                    user_id=user_id,
+                    instrument_id=form.instrument.data,
+                    direction=form.direction.data,
+                    entry_price=form.entry_price.data,
+                    exit_price=form.exit_price.data if form.exit_price.data else None,
+                    trade_open_time=form.trade_open_time.data,
+                    trade_close_time=form.trade_close_time.data if form.trade_close_time.data else None,
+                    comment=form.comment.data,
+                    setup_id=form.setup_id.data if form.setup_id.data != 0 else None
+                )
+                # Расчёт прибыли/убытка
+                if trade.exit_price:
+                    trade.profit_loss = (trade.exit_price - trade.entry_price) * (1 if trade.direction == 'Buy' else -1)
+                    trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
+                else:
+                    trade.profit_loss = None
+                    trade.profit_loss_percentage = None
 
-            # Обработка критериев
-            selected_criteria_ids = request.form.getlist('criteria')
-            for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        trade.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                # Обработка критериев
+                selected_criteria_ids = request.form.getlist('criteria')
+                for criterion_id in selected_criteria_ids:
+                    try:
+                        criterion = Criterion.query.get(int(criterion_id))
+                        if criterion:
+                            trade.criteria.append(criterion)
+                    except (ValueError, TypeError):
+                        logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
-            screenshot_file = form.screenshot.data
-            if screenshot_file and isinstance(screenshot_file, FileStorage):
-                filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                screenshot_file.save(screenshot_path)
-                trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
-                logger.info(f"Скриншот '{filename}' сохранён для сделки ID {trade.id}.")
+                # Обработка скриншота
+                screenshot_file = form.screenshot.data
+                if screenshot_file and isinstance(screenshot_file, FileStorage):
+                    filename = secure_filename(screenshot_file.filename)
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
+                    trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
+                    logger.info(f"Скриншот '{filename}' сохранён для сделки ID {trade.id}.")
 
-            db.session.add(trade)
-            db.session.commit()
-            flash('Сделка успешно добавлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} добавлена пользователем ID {user_id}.")
-            return redirect(url_for('index'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Произошла ошибка при добавлении сделки.', 'danger')
-            logger.error(f"Ошибка при добавлении сделки: {e}")
-            logger.error(traceback.format_exc())
+                db.session.add(trade)
+                db.session.commit()
+                flash('Сделка успешно добавлена.', 'success')
+                logger.info(f"Сделка ID {trade.id} добавлена пользователем ID {user_id}.")
+                return redirect(url_for('index'))
+            except Exception as e:
+                db.session.rollback()
+                flash('Произошла ошибка при добавлении сделки.', 'danger')
+                logger.error(f"Ошибка при добавлении сделки: {e}")
+                logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
@@ -665,58 +612,59 @@ def edit_trade(trade_id):
         form.setup_id.data = trade.setup_id if trade.setup_id else 0
 
     if form.validate_on_submit():
-        try:
-            trade.instrument_id = form.instrument.data
-            trade.direction = form.direction.data
-            trade.entry_price = form.entry_price.data
-            trade.exit_price = form.exit_price.data if form.exit_price.data else None
-            trade.trade_open_time = form.trade_open_time.data
-            trade.trade_close_time = form.trade_close_time.data if form.trade_close_time.data else None
-            trade.comment = form.comment.data
-            trade.setup_id = form.setup_id.data if form.setup_id.data != 0 else None
+        with app.app_context():
+            try:
+                trade.instrument_id = form.instrument.data
+                trade.direction = form.direction.data
+                trade.entry_price = form.entry_price.data
+                trade.exit_price = form.exit_price.data if form.exit_price.data else None
+                trade.trade_open_time = form.trade_open_time.data
+                trade.trade_close_time = form.trade_close_time.data if form.trade_close_time.data else None
+                trade.comment = form.comment.data
+                trade.setup_id = form.setup_id.data if form.setup_id.data != 0 else None
 
-            # Расчёт прибыли/убытка
-            if trade.exit_price:
-                trade.profit_loss = (trade.exit_price - trade.entry_price) * (1 if trade.direction == 'Buy' else -1)
-                trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
-            else:
-                trade.profit_loss = None
-                trade.profit_loss_percentage = None
+                # Расчёт прибыли/убытка
+                if trade.exit_price:
+                    trade.profit_loss = (trade.exit_price - trade.entry_price) * (1 if trade.direction == 'Buy' else -1)
+                    trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
+                else:
+                    trade.profit_loss = None
+                    trade.profit_loss_percentage = None
 
-            # Обработка критериев
-            trade.criteria.clear()
-            selected_criteria_ids = request.form.getlist('criteria')
-            for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        trade.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                # Обработка критериев
+                trade.criteria.clear()
+                selected_criteria_ids = request.form.getlist('criteria')
+                for criterion_id in selected_criteria_ids:
+                    try:
+                        criterion = Criterion.query.get(int(criterion_id))
+                        if criterion:
+                            trade.criteria.append(criterion)
+                    except (ValueError, TypeError):
+                        logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
-            screenshot_file = form.screenshot.data
-            if screenshot_file and isinstance(screenshot_file, FileStorage):
-                if trade.screenshot:
-                    old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trade.screenshot)
-                    if os.path.exists(old_filepath):
-                        os.remove(old_filepath)
-                        logger.info(f"Старый скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
-                filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                screenshot_file.save(screenshot_path)
-                trade.screenshot = filename
-                logger.info(f"Новый скриншот '{filename}' сохранён для сделки ID {trade.id}.")
+                # Обработка скриншота
+                screenshot_file = form.screenshot.data
+                if screenshot_file and isinstance(screenshot_file, FileStorage):
+                    if trade.screenshot:
+                        old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], trade.screenshot)
+                        if os.path.exists(old_filepath):
+                            os.remove(old_filepath)
+                            logger.info(f"Старый скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
+                    filename = secure_filename(screenshot_file.filename)
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
+                    trade.screenshot = filename
+                    logger.info(f"Новый скриншот '{filename}' сохранён для сделки ID {trade.id}.")
 
-            db.session.commit()
-            flash('Сделка успешно обновлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
-            return redirect(url_for('index'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Произошла ошибка при обновлении сделки.', 'danger')
-            logger.error(f"Ошибка при обновлении сделки ID {trade_id}: {e}")
-            logger.error(traceback.format_exc())
+                db.session.commit()
+                flash('Сделка успешно обновлена.', 'success')
+                logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
+                return redirect(url_for('index'))
+            except Exception as e:
+                db.session.rollback()
+                flash('Произошла ошибка при обновлении сделки.', 'danger')
+                logger.error(f"Ошибка при обновлении сделки ID {trade_id}: {e}")
+                logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
@@ -729,13 +677,7 @@ def edit_trade(trade_id):
     grouped_instruments = {}
     for category in InstrumentCategory.query.all():
         grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
-    return render_template(
-        'edit_trade.html',
-        form=form,
-        criteria_categories=criteria_categories,
-        trade=trade,
-        grouped_instruments=grouped_instruments
-    )
+    return render_template('edit_trade.html', form=form, criteria_categories=criteria_categories, trade=trade, grouped_instruments=grouped_instruments)
 
 # Удалить сделку
 @app.route('/delete_trade/<int:trade_id>', methods=['POST'])
@@ -750,15 +692,16 @@ def delete_trade(trade_id):
         logger.warning(f"Пользователь ID {user_id} попытался удалить сделку ID {trade_id}, которая ему не принадлежит.")
         return redirect(url_for('index'))
     try:
-        if trade.screenshot:
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], trade.screenshot)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                logger.info(f"Скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
-        db.session.delete(trade)
-        db.session.commit()
-        flash('Сделка успешно удалена.', 'success')
-        logger.info(f"Сделка ID {trade.id} удалена пользователем ID {user_id}.")
+        with app.app_context():
+            if trade.screenshot:
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], trade.screenshot)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    logger.info(f"Скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
+            db.session.delete(trade)
+            db.session.commit()
+            flash('Сделка успешно удалена.', 'success')
+            logger.info(f"Сделка ID {trade.id} удалена пользователем ID {user_id}.")
     except Exception as e:
         db.session.rollback()
         flash('Произошла ошибка при удалении сделки.', 'danger')
@@ -792,41 +735,42 @@ def add_setup():
         form.criteria.data = []
 
     if form.validate_on_submit():
-        try:
-            setup = Setup(
-                user_id=user_id,
-                setup_name=form.setup_name.data,
-                description=form.description.data
-            )
-            # Обработка критериев
-            selected_criteria_ids = request.form.getlist('criteria')
-            for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        setup.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+        with app.app_context():
+            try:
+                setup = Setup(
+                    user_id=user_id,
+                    setup_name=form.setup_name.data,
+                    description=form.description.data
+                )
+                # Обработка критериев
+                selected_criteria_ids = request.form.getlist('criteria')
+                for criterion_id in selected_criteria_ids:
+                    try:
+                        criterion = Criterion.query.get(int(criterion_id))
+                        if criterion:
+                            setup.criteria.append(criterion)
+                    except (ValueError, TypeError):
+                        logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
-            screenshot_file = form.screenshot.data
-            if screenshot_file and isinstance(screenshot_file, FileStorage):
-                filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                screenshot_file.save(screenshot_path)
-                setup.screenshot = filename
-                logger.info(f"Скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
+                # Обработка скриншота
+                screenshot_file = form.screenshot.data
+                if screenshot_file and isinstance(screenshot_file, FileStorage):
+                    filename = secure_filename(screenshot_file.filename)
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
+                    setup.screenshot = filename
+                    logger.info(f"Скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
 
-            db.session.add(setup)
-            db.session.commit()
-            flash('Сетап успешно добавлен.', 'success')
-            logger.info(f"Сетап ID {setup.id} добавлен пользователем ID {user_id}.")
-            return redirect(url_for('manage_setups'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Произошла ошибка при добавлении сетапа.', 'danger')
-            logger.error(f"Ошибка при добавлении сетапа: {e}")
-            logger.error(traceback.format_exc())
+                db.session.add(setup)
+                db.session.commit()
+                flash('Сетап успешно добавлен.', 'success')
+                logger.info(f"Сетап ID {setup.id} добавлен пользователем ID {user_id}.")
+                return redirect(url_for('manage_setups'))
+            except Exception as e:
+                db.session.rollback()
+                flash('Произошла ошибка при добавлении сетапа.', 'danger')
+                logger.error(f"Ошибка при добавлении сетапа: {e}")
+                logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
@@ -858,44 +802,45 @@ def edit_setup(setup_id):
         form.criteria.data = [criterion.id for criterion in setup.criteria]
 
     if form.validate_on_submit():
-        try:
-            setup.setup_name = form.setup_name.data
-            setup.description = form.description.data
+        with app.app_context():
+            try:
+                setup.setup_name = form.setup_name.data
+                setup.description = form.description.data
 
-            # Обработка критериев
-            setup.criteria.clear()
-            selected_criteria_ids = request.form.getlist('criteria')
-            for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        setup.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                # Обработка критериев
+                setup.criteria.clear()
+                selected_criteria_ids = request.form.getlist('criteria')
+                for criterion_id in selected_criteria_ids:
+                    try:
+                        criterion = Criterion.query.get(int(criterion_id))
+                        if criterion:
+                            setup.criteria.append(criterion)
+                    except (ValueError, TypeError):
+                        logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
-            screenshot_file = form.screenshot.data
-            if screenshot_file and isinstance(screenshot_file, FileStorage):
-                if setup.screenshot:
-                    old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], setup.screenshot)
-                    if os.path.exists(old_filepath):
-                        os.remove(old_filepath)
-                        logger.info(f"Старый скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
-                filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                screenshot_file.save(screenshot_path)
-                setup.screenshot = filename
-                logger.info(f"Новый скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
+                # Обработка скриншота
+                screenshot_file = form.screenshot.data
+                if screenshot_file and isinstance(screenshot_file, FileStorage):
+                    if setup.screenshot:
+                        old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], setup.screenshot)
+                        if os.path.exists(old_filepath):
+                            os.remove(old_filepath)
+                            logger.info(f"Старый скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
+                    filename = secure_filename(screenshot_file.filename)
+                    screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    screenshot_file.save(screenshot_path)
+                    setup.screenshot = filename
+                    logger.info(f"Новый скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
 
-            db.session.commit()
-            flash('Сетап успешно обновлён.', 'success')
-            logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {user_id}.")
-            return redirect(url_for('manage_setups'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Произошла ошибка при обновлении сетапа.', 'danger')
-            logger.error(f"Ошибка при обновлении сетапа ID {setup_id}: {e}")
-            logger.error(traceback.format_exc())
+                db.session.commit()
+                flash('Сетап успешно обновлён.', 'success')
+                logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {user_id}.")
+                return redirect(url_for('manage_setups'))
+            except Exception as e:
+                db.session.rollback()
+                flash('Произошла ошибка при обновлении сетапа.', 'danger')
+                logger.error(f"Ошибка при обновлении сетапа ID {setup_id}: {e}")
+                logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
             flash('Форма не валидна. Проверьте введённые данные.', 'danger')
@@ -908,13 +853,7 @@ def edit_setup(setup_id):
     grouped_instruments = {}
     for category in InstrumentCategory.query.all():
         grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
-    return render_template(
-        'edit_setup.html',
-        form=form,
-        criteria_categories=criteria_categories,
-        setup=setup,
-        grouped_instruments=grouped_instruments
-    )
+    return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup, grouped_instruments=grouped_instruments)
 
 # Удалить сетап
 @app.route('/delete_setup/<int:setup_id>', methods=['POST'])
@@ -929,15 +868,16 @@ def delete_setup(setup_id):
         logger.warning(f"Пользователь ID {user_id} попытался удалить сетап ID {setup_id}, который ему не принадлежит.")
         return redirect(url_for('manage_setups'))
     try:
-        if setup.screenshot:
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], setup.screenshot)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                logger.info(f"Скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
-        db.session.delete(setup)
-        db.session.commit()
-        flash('Сетап успешно удалён.', 'success')
-        logger.info(f"Сетап ID {setup.id} удалён пользователем ID {user_id}.")
+        with app.app_context():
+            if setup.screenshot:
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], setup.screenshot)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    logger.info(f"Скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
+            db.session.delete(setup)
+            db.session.commit()
+            flash('Сетап успешно удалён.', 'success')
+            logger.info(f"Сетап ID {setup.id} удалён пользователем ID {user_id}.")
     except Exception as e:
         db.session.rollback()
         flash('Произошла ошибка при удалении сетапа.', 'danger')
@@ -1006,7 +946,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Создание кнопки с Web App
-        web_app_url = f"https://{get_app_host()}/login"
+        web_app_url = f"https://{get_app_host()}/"
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1039,7 +979,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     try:
         await update.message.reply_text(help_text)
-        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
+        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username})")
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /help: {e}")
         logger.error(traceback.format_exc())
@@ -1050,7 +990,7 @@ async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
     try:
         await update.message.reply_text('Команда /test работает корректно!')
-        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
+        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username})")
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /test: {e}")
         logger.error(traceback.format_exc())
@@ -1075,7 +1015,10 @@ if not TOKEN:
     exit(1)
 
 # Инициализация бота и приложения Telegram
-application = ApplicationBuilder().token(TOKEN).build()
+builder = ApplicationBuilder().token(TOKEN)
+
+# Построение приложения
+application = builder.build()
 
 # Добавление обработчиков команд к приложению
 application.add_handler(CommandHandler('start', start_command))
@@ -1085,16 +1028,42 @@ application.add_handler(CommandHandler('test', test_command))
 # Добавление обработчика CallbackQueryHandler к приложению
 application.add_handler(CallbackQueryHandler(button_click))
 
+# Создание и запуск цикла событий в фоновом потоке
+loop = asyncio.new_event_loop()
+
+def start_background_loop(loop):
+    with app.app_context():
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
+background_thread = threading.Thread(target=start_background_loop, args=(loop,), daemon=True)
+background_thread.start()
+logger.info("Фоновый цикл событий asyncio запущен.")
+
+# Инициализация Telegram Application в фоновом цикле событий
+async def initialize_application():
+    try:
+        await application.initialize()
+        await application.start()
+        logger.info("Telegram Application успешно инициализировано и запущено.")
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации Telegram Application: {e}")
+        logger.error(traceback.format_exc())
+
+# Запускаем инициализацию приложения в фоновом цикле событий
+asyncio.run_coroutine_threadsafe(initialize_application(), loop)
+
 # **Flask Routes for Telegram Webhooks**
 
+# Маршрут для обработки вебхуков от Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook_route():
     """Обработчик вебхуков от Telegram."""
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            # Обработка обновления
-            asyncio.run_coroutine_threadsafe(application.process_update(update), asyncio.get_event_loop())
+            # Отправляем задачу в фоновый цикл событий
+            asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
             logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
         except Exception as e:
@@ -1135,7 +1104,7 @@ def set_webhook_route():
 # **Запуск Flask-приложения**
 
 if __name__ == '__main__':
-    # Для локальной разработки только
+    # Применение миграций и инициализация базы данных
     with app.app_context():
         try:
             upgrade()  # Применение миграций
@@ -1145,5 +1114,7 @@ if __name__ == '__main__':
             logger.error(f"Ошибка при применении миграций: {e}")
             logger.error(traceback.format_exc())
             exit(1)
-    # Запуск Telegram бота через вебхуки уже настроен, поэтому не нужно запускать polling
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+
+    port = int(os.environ.get('PORT', 5000))
+    logger.info(f"Запуск Flask-приложения на порту {port}")
+    app.run(host='0.0.0.0', port=port, debug=False)
