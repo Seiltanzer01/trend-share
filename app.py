@@ -19,12 +19,11 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 
-from forms import TradeForm, SetupForm
-from models import (
-    db, User, Trade, Setup, Criterion,
-    CriterionCategory, CriterionSubcategory,
-    Instrument, InstrumentCategory
-)
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField, SelectField, DecimalField, TextAreaField, DateTimeField, FileField, SelectMultipleField
+from wtforms.validators import DataRequired, Length, Optional
+
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import (
@@ -87,10 +86,15 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-с
 app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Инициализация SQLAlchemy
-db.init_app(app)
+db = SQLAlchemy(app)
 
 # Инициализация Flask-Migrate
 migrate = Migrate(app, db)
+
+# Инициализация Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'  # Название маршрута для страницы логина
 
 # Настройка папки для загрузки файлов
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -110,42 +114,13 @@ def get_app_host():
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
 
 # Настройка Content Security Policy с помощью Flask-Talisman
-csp = {
-    'default-src': [
-        '\'self\'',
-        'https://telegram.org',
-        'https://web.telegram.org',
-        'https://oauth.telegram.org'
-    ],
-    'script-src': [
-        '\'self\'',
-        'https://telegram.org',
-        'https://web.telegram.org',
-        'https://oauth.telegram.org',
-        'nonce-{nonce}'    # Без внешних кавычек
-    ],
-    'style-src': [
-        '\'self\'',
-        'https://telegram.org',
-        'https://web.telegram.org',
-        'https://oauth.telegram.org',
-        '\'unsafe-inline\''
-    ],
-    'img-src': [
-        '\'self\'',
-        'data:',
-        'https://telegram.org',
-        'https://web.telegram.org',
-        'https://oauth.telegram.org'
-    ],
-    'frame-ancestors': [  # Разрешает встраивание в iframe с указанных доменов
-        '\'self\'',
-        'https://web.telegram.org',
-        'https://oauth.telegram.org',
-        'https://telegram.org'
-    ],
-    # Добавьте другие директивы при необходимости
-}
+csp = """
+default-src 'self' https://telegram.org https://web.telegram.org https://oauth.telegram.org;
+script-src 'self' https://telegram.org https://web.telegram.org https://oauth.telegram.org 'nonce-{nonce}';
+style-src 'self' https://telegram.org https://web.telegram.org https://oauth.telegram.org 'unsafe-inline';
+img-src 'self' data: https://telegram.org https://web.telegram.org https://oauth.telegram.org;
+frame-ancestors 'self' https://web.telegram.org https://oauth.telegram.org https://telegram.org;
+"""
 
 talisman = Talisman(
     app,
@@ -154,7 +129,116 @@ talisman = Talisman(
     frame_options=None  # Отключаем X-Frame-Options, чтобы использовать frame-ancestors в CSP
 )
 
-# Функция для создания предопределённых данных
+# Определение моделей
+
+# Association table for many-to-many relationship between Trade and Criterion
+trade_criteria = db.Table('trade_criteria',
+    db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+# Association table for many-to-many relationship between Setup and Criterion
+setup_criteria = db.Table('setup_criteria',
+    db.Column('setup_id', db.Integer, db.ForeignKey('setup.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.Integer, unique=True, nullable=False)
+    username = db.Column(db.String(150))
+    first_name = db.Column(db.String(150))
+    last_name = db.Column(db.String(150))
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    trades = db.relationship('Trade', backref='user', lazy=True)
+    setups = db.relationship('Setup', backref='user', lazy=True)
+
+    def get_id(self):
+        return str(self.id)
+
+class InstrumentCategory(db.Model):
+    __tablename__ = 'instrument_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    instruments = db.relationship('Instrument', backref='category', lazy=True)
+
+class Instrument(db.Model):
+    __tablename__ = 'instrument'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
+    trades = db.relationship('Trade', backref='instrument', lazy=True)
+
+class CriterionCategory(db.Model):
+    __tablename__ = 'criterion_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
+
+class CriterionSubcategory(db.Model):
+    __tablename__ = 'criterion_subcategory'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
+    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
+
+class Criterion(db.Model):
+    __tablename__ = 'criterion'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
+    trades = db.relationship('Trade', secondary=trade_criteria, backref=db.backref('criteria', lazy='dynamic'))
+    setups = db.relationship('Setup', secondary=setup_criteria, backref=db.backref('criteria', lazy='dynamic'))
+
+class Trade(db.Model):
+    __tablename__ = 'trade'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
+    direction = db.Column(db.String(10), nullable=False)  # 'Buy' или 'Sell'
+    entry_price = db.Column(db.Float, nullable=False)
+    exit_price = db.Column(db.Float, nullable=True)
+    trade_open_time = db.Column(db.DateTime, nullable=False)
+    trade_close_time = db.Column(db.DateTime, nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
+    profit_loss = db.Column(db.Float, nullable=True)
+    profit_loss_percentage = db.Column(db.Float, nullable=True)
+    screenshot = db.Column(db.String(300), nullable=True)
+
+class Setup(db.Model):
+    __tablename__ = 'setup'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    setup_name = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    screenshot = db.Column(db.String(300), nullable=True)
+    trades = db.relationship('Trade', backref='setup', lazy=True)
+
+# Определение форм
+
+class TradeForm(FlaskForm):
+    instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
+    direction = SelectField('Направление', choices=[('Buy', 'Buy'), ('Sell', 'Sell')], validators=[DataRequired()])
+    entry_price = DecimalField('Цена входа', places=2, validators=[DataRequired()])
+    exit_price = DecimalField('Цена выхода', places=2, validators=[Optional()])
+    trade_open_time = DateTimeField('Время открытия сделки', format='%Y-%m-%d %H:%M', validators=[DataRequired()])
+    trade_close_time = DateTimeField('Время закрытия сделки', format='%Y-%m-%d %H:%M', validators=[Optional()])
+    comment = TextAreaField('Комментарий', validators=[Optional(), Length(max=500)])
+    setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
+    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional()])
+    submit = SubmitField('Сохранить')
+
+class SetupForm(FlaskForm):
+    setup_name = StringField('Название сетапа', validators=[DataRequired(), Length(max=150)])
+    description = TextAreaField('Описание', validators=[Optional(), Length(max=1000)])
+    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional()])
+    submit = SubmitField('Сохранить')
+
+# Функция загрузки предопределённых данных
 def create_predefined_data():
     # Проверяем, есть ли уже данные
     if InstrumentCategory.query.first():
@@ -207,51 +291,6 @@ def create_predefined_data():
         {'name': 'DOGE/USDT', 'category': 'Криптовалюты'},
         {'name': 'AVAX/USDT', 'category': 'Криптовалюты'},
         {'name': 'SHIB/USDT', 'category': 'Криптовалюты'},
-        {'name': 'LTC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'UNI/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BCH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'LINK/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ALGO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MATIC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ATOM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'VET/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FTT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'TRX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ETC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XLM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FIL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'THETA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ICP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XMR/USDT', 'category': 'Криптовалюты'},
-        {'name': 'EOS/USDT', 'category': 'Криптовалюты'},
-        {'name': 'AAVE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'KSM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'NEO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MKR/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DASH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZEC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'COMP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CAKE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SNX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ENJ/USDT', 'category': 'Криптовалюты'},
-        {'name': 'GRT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SUSHI/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZIL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BAT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CHZ/USDT', 'category': 'Криптовалюты'},
-        {'name': 'RUNE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'QTUM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZEN/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ONT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'OMG/USDT', 'category': 'Криптовалюты'},
-        {'name': 'IOST/USDT', 'category': 'Криптовалюты'},
-        {'name': 'KAVA/USDT', 'category': 'Криптовалюты'},
-        {'name': '1INCH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CELO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BTT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ANKR/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DGB/USDT', 'category': 'Криптовалюты'},
         # Добавьте больше инструментов по необходимости
     ]
 
@@ -420,27 +459,33 @@ def create_predefined_data():
     }
 
     for category_name, subcategories in categories_data.items():
-        category = CriterionCategory(name=category_name)
-        db.session.add(category)
-        db.session.flush()
-        logger.info(f"Категория критерия '{category_name}' добавлена.")
+        category = CriterionCategory.query.filter_by(name=category_name).first()
+        if not category:
+            category = CriterionCategory(name=category_name)
+            db.session.add(category)
+            db.session.flush()
+            logger.info(f"Категория критерия '{category_name}' добавлена.")
 
         for subcategory_name, criteria_list in subcategories.items():
-            subcategory = CriterionSubcategory(
-                name=subcategory_name,
-                category_id=category.id
-            )
-            db.session.add(subcategory)
-            db.session.flush()
-            logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
+            subcategory = CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
+            if not subcategory:
+                subcategory = CriterionSubcategory(
+                    name=subcategory_name,
+                    category_id=category.id
+                )
+                db.session.add(subcategory)
+                db.session.flush()
+                logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
 
             for criterion_name in criteria_list:
-                criterion = Criterion(
-                    name=criterion_name,
-                    subcategory_id=subcategory.id
-                )
-                db.session.add(criterion)
-                logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
+                criterion = Criterion.query.filter_by(name=criterion_name).first()
+                if not criterion:
+                    criterion = Criterion(
+                        name=criterion_name,
+                        subcategory_id=subcategory.id
+                    )
+                    db.session.add(criterion)
+                    logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
 
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
@@ -493,6 +538,11 @@ def verify_telegram_webapp(init_data):
         logger.error(f"Ошибка при проверке подписи данных Telegram Web App: {e}")
         logger.error(traceback.format_exc())
         return False
+
+# Загрузка пользователя для Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Маршруты аутентификации
 
@@ -567,23 +617,85 @@ def telegram_login():
         logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
 
     # Установка сессии пользователя
-    session['user_id'] = user.id
-    session['telegram_id'] = user.telegram_id
-
+    login_user(user)
     logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через браузер.")
+    logger.debug(f"Текущая сессия: {session}")
+
+    return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Вы успешно вышли из системы.', 'success')
+    logger.info("Пользователь вышел из системы.")
+    return redirect(url_for('login'))
+
+# Маршрут здоровья для проверки состояния приложения
+@app.route('/health', methods=['GET'])
+def health():
+    return 'OK', 200
+
+# Маршрут для обработки авторизации из Telegram Web App
+@app.route('/telegram_webapp_login', methods=['POST'])
+def telegram_webapp_login():
+    """
+    Обработчик данных авторизации из Telegram Web App.
+    """
+    if not request.is_json:
+        logger.warning("Некорректный тип запроса. Ожидается JSON.")
+        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
+
+    data = request.get_json()
+    init_data = data.get('initData', '')
+    user_data = data.get('user')
+
+    logger.debug(f"Получены данные для авторизации через Telegram Web App: initData={init_data}, user={user_data}")
+
+    if not init_data or not user_data:
+        logger.warning("Отсутствуют данные авторизации.")
+        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+
+    # Проверяем подлинность данных с помощью функции проверки Telegram
+    if not verify_telegram_webapp(init_data):
+        logger.warning("Неверная подпись данных.")
+        return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
+
+    # Авторизация прошла успешно
+    telegram_id = user_data.get('id')
+    username = user_data.get('username')
+    first_name = user_data.get('first_name')
+    last_name = user_data.get('last_name')
+
+    # Поиск или создание пользователя в базе данных
+    user = User.query.filter_by(telegram_id=telegram_id).first()
+    if not user:
+        user = User(
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            registered_at=datetime.utcnow()
+        )
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+
+    # Установка сессии пользователя
+    login_user(user)
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
     logger.debug(f"Текущая сессия: {session}")
 
     return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
 
 # Главная страница — список сделок с фильтрацией
 @app.route('/', methods=['GET', 'HEAD'])
+@login_required
 def index():
     if request.method == 'HEAD':
         return '', 200  # Возвращаем 200 OK для HEAD-запросов
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
 
-    user_id = session['user_id']
+    user_id = current_user.id
     categories = InstrumentCategory.query.all()
     criteria_categories = CriterionCategory.query.all()
 
@@ -630,11 +742,9 @@ def index():
 
 # Добавить новую сделку
 @app.route('/new_trade', methods=['GET', 'POST'])
+@login_required
 def new_trade():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
+    user_id = current_user.id
     form = TradeForm()
     # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
@@ -650,18 +760,14 @@ def new_trade():
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Инициализация form.criteria.data пустым списком, если оно None
-    if form.criteria.data is None:
-        form.criteria.data = []
-
     if form.validate_on_submit():
         try:
             trade = Trade(
                 user_id=user_id,
                 instrument_id=form.instrument.data,
                 direction=form.direction.data,
-                entry_price=form.entry_price.data,
-                exit_price=form.exit_price.data if form.exit_price.data else None,
+                entry_price=float(form.entry_price.data),
+                exit_price=float(form.exit_price.data) if form.exit_price.data else None,
                 trade_open_time=form.trade_open_time.data,
                 trade_close_time=form.trade_close_time.data if form.trade_close_time.data else None,
                 comment=form.comment.data,
@@ -676,14 +782,11 @@ def new_trade():
                 trade.profit_loss_percentage = None
 
             # Обработка критериев
-            selected_criteria_ids = request.form.getlist('criteria')
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        trade.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                criterion = Criterion.query.get(criterion_id)
+                if criterion:
+                    trade.criteria.append(criterion)
 
             # Обработка скриншота
             screenshot_file = form.screenshot.data
@@ -716,38 +819,33 @@ def new_trade():
 
 # Редактировать сделку
 @app.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
+@login_required
 def edit_trade(trade_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
-    if trade.user_id != user_id:
+    if trade.user_id != current_user.id:
         flash('У вас нет прав для редактирования этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался редактировать сделку ID {trade_id}, которая ему не принадлежит.")
+        logger.warning(f"Пользователь ID {current_user.id} попытался редактировать сделку ID {trade_id}, которая ему не принадлежит.")
         return redirect(url_for('index'))
 
     form = TradeForm(obj=trade)
     # Заполнение списка сетапов
-    setups = Setup.query.filter_by(user_id=user_id).all()
+    setups = Setup.query.filter_by(user_id=current_user.id).all()
     form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
     # Устанавливаем choices для поля instrument
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in Instrument.query.all()]
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in trade.criteria]
-        form.instrument.data = trade.instrument_id
         form.setup_id.data = trade.setup_id if trade.setup_id else 0
 
     if form.validate_on_submit():
         try:
             trade.instrument_id = form.instrument.data
             trade.direction = form.direction.data
-            trade.entry_price = form.entry_price.data
-            trade.exit_price = form.exit_price.data if form.exit_price.data else None
+            trade.entry_price = float(form.entry_price.data)
+            trade.exit_price = float(form.exit_price.data) if form.exit_price.data else None
             trade.trade_open_time = form.trade_open_time.data
             trade.trade_close_time = form.trade_close_time.data if form.trade_close_time.data else None
             trade.comment = form.comment.data
@@ -762,15 +860,12 @@ def edit_trade(trade_id):
                 trade.profit_loss_percentage = None
 
             # Обработка критериев
-            trade.criteria.clear()
-            selected_criteria_ids = request.form.getlist('criteria')
+            trade.criteria = []
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        trade.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                criterion = Criterion.query.get(criterion_id)
+                if criterion:
+                    trade.criteria.append(criterion)
 
             # Обработка скриншота
             screenshot_file = form.screenshot.data
@@ -788,7 +883,7 @@ def edit_trade(trade_id):
 
             db.session.commit()
             flash('Сделка успешно обновлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
+            logger.info(f"Сделка ID {trade.id} обновлёна пользователем ID {current_user.id}.")
             return redirect(url_for('index'))
         except Exception as e:
             db.session.rollback()
@@ -817,15 +912,12 @@ def edit_trade(trade_id):
 
 # Удалить сделку
 @app.route('/delete_trade/<int:trade_id>', methods=['POST'])
+@login_required
 def delete_trade(trade_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
-    if trade.user_id != user_id:
+    if trade.user_id != current_user.id:
         flash('У вас нет прав для удаления этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался удалить сделку ID {trade_id}, которая ему не принадлежит.")
+        logger.warning(f"Пользователь ID {current_user.id} попытался удалить сделку ID {trade_id}, которая ему не принадлежит.")
         return redirect(url_for('index'))
     try:
         if trade.screenshot:
@@ -836,7 +928,7 @@ def delete_trade(trade_id):
         db.session.delete(trade)
         db.session.commit()
         flash('Сделка успешно удалена.', 'success')
-        logger.info(f"Сделка ID {trade.id} удалена пользователем ID {user_id}.")
+        logger.info(f"Сделка ID {trade.id} удалена пользователем ID {current_user.id}.")
     except Exception as e:
         db.session.rollback()
         flash('Произошла ошибка при удалении сделки.', 'danger')
@@ -845,29 +937,21 @@ def delete_trade(trade_id):
 
 # Управление сетапами
 @app.route('/manage_setups')
+@login_required
 def manage_setups():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['user_id']
+    user_id = current_user.id
     setups = Setup.query.filter_by(user_id=user_id).all()
     logger.info(f"Пользователь ID {user_id} просматривает свои сетапы.")
     return render_template('manage_setups.html', setups=setups)
 
 # Добавить новый сетап
 @app.route('/add_setup', methods=['GET', 'POST'])
+@login_required
 def add_setup():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
+    user_id = current_user.id
     form = SetupForm()
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
-
-    # Инициализация form.criteria.data пустым списком, если оно None
-    if form.criteria.data is None:
-        form.criteria.data = []
 
     if form.validate_on_submit():
         try:
@@ -877,14 +961,11 @@ def add_setup():
                 description=form.description.data
             )
             # Обработка критериев
-            selected_criteria_ids = request.form.getlist('criteria')
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        setup.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                criterion = Criterion.query.get(criterion_id)
+                if criterion:
+                    setup.criteria.append(criterion)
 
             # Обработка скриншота
             screenshot_file = form.screenshot.data
@@ -917,21 +998,17 @@ def add_setup():
 
 # Редактировать сетап
 @app.route('/edit_setup/<int:setup_id>', methods=['GET', 'POST'])
+@login_required
 def edit_setup(setup_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
-    if setup.user_id != user_id:
+    if setup.user_id != current_user.id:
         flash('У вас нет прав для редактирования этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался редактировать сетап ID {setup_id}, который ему не принадлежит.")
+        logger.warning(f"Пользователь ID {current_user.id} попытался редактировать сетап ID {setup_id}, который ему не принадлежит.")
         return redirect(url_for('manage_setups'))
     form = SetupForm(obj=setup)
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in setup.criteria]
 
@@ -941,15 +1018,12 @@ def edit_setup(setup_id):
             setup.description = form.description.data
 
             # Обработка критериев
-            setup.criteria.clear()
-            selected_criteria_ids = request.form.getlist('criteria')
+            setup.criteria = []
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
-                try:
-                    criterion = Criterion.query.get(int(criterion_id))
-                    if criterion:
-                        setup.criteria.append(criterion)
-                except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                criterion = Criterion.query.get(criterion_id)
+                if criterion:
+                    setup.criteria.append(criterion)
 
             # Обработка скриншота
             screenshot_file = form.screenshot.data
@@ -967,7 +1041,7 @@ def edit_setup(setup_id):
 
             db.session.commit()
             flash('Сетап успешно обновлён.', 'success')
-            logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {user_id}.")
+            logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {current_user.id}.")
             return redirect(url_for('manage_setups'))
         except Exception as e:
             db.session.rollback()
@@ -982,29 +1056,16 @@ def edit_setup(setup_id):
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    # Группировка инструментов по категориям
-    grouped_instruments = {}
-    for category in InstrumentCategory.query.all():
-        grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
-    return render_template(
-        'edit_setup.html',
-        form=form,
-        criteria_categories=criteria_categories,
-        setup=setup,
-        grouped_instruments=grouped_instruments
-    )
+    return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
 
 # Удалить сетап
 @app.route('/delete_setup/<int:setup_id>', methods=['POST'])
+@login_required
 def delete_setup(setup_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
-    if setup.user_id != user_id:
+    if setup.user_id != current_user.id:
         flash('У вас нет прав для удаления этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался удалить сетап ID {setup_id}, который ему не принадлежит.")
+        logger.warning(f"Пользователь ID {current_user.id} попытался удалить сетап ID {setup_id}, который ему не принадлежит.")
         return redirect(url_for('manage_setups'))
     try:
         if setup.screenshot:
@@ -1015,7 +1076,7 @@ def delete_setup(setup_id):
         db.session.delete(setup)
         db.session.commit()
         flash('Сетап успешно удалён.', 'success')
-        logger.info(f"Сетап ID {setup.id} удалён пользователем ID {user_id}.")
+        logger.info(f"Сетап ID {setup.id} удалён пользователем ID {current_user.id}.")
     except Exception as e:
         db.session.rollback()
         flash('Произошла ошибка при удалении сетапа.', 'danger')
@@ -1024,36 +1085,31 @@ def delete_setup(setup_id):
 
 # Просмотр сделки
 @app.route('/view_trade/<int:trade_id>')
+@login_required
 def view_trade(trade_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
-    if trade.user_id != user_id:
+    if trade.user_id != current_user.id:
         flash('У вас нет прав для просмотра этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сделку ID {trade_id}, которая ему не принадлежит.")
+        logger.warning(f"Пользователь ID {current_user.id} попытался просмотреть сделку ID {trade_id}, которая ему не принадлежит.")
         return redirect(url_for('index'))
-    logger.info(f"Пользователь ID {user_id} просматривает сделку ID {trade_id}.")
+    logger.info(f"Пользователь ID {current_user.id} просматривает сделку ID {trade_id}.")
     return render_template('view_trade.html', trade=trade)
 
 # Просмотр сетапа
 @app.route('/view_setup/<int:setup_id>')
+@login_required
 def view_setup(setup_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
-    if setup.user_id != user_id:
+    if setup.user_id != current_user.id:
         flash('У вас нет прав для просмотра этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сетап ID {setup_id}, который ему не принадлежит.")
+        logger.warning(f"Пользователь ID {current_user.id} попытался просмотреть сетап ID {setup_id}, который ему не принадлежит.")
         return redirect(url_for('manage_setups'))
-    logger.info(f"Пользователь ID {user_id} просматривает сетап ID {setup_id}.")
+    logger.info(f"Пользователь ID {current_user.id} просматривает сетап ID {setup_id}.")
     return render_template('view_setup.html', setup=setup)
 
 # Обслуживание загруженных файлов
 @app.route('/uploads/<filename>')
+@login_required
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
