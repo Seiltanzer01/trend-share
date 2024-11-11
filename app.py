@@ -32,6 +32,9 @@ import requests
 import asyncio
 from dotenv import load_dotenv
 
+# Добавьте импорт Flask-Talisman
+from flask_talisman import Talisman
+
 # Загрузка переменных окружения из .env файла (если используется)
 load_dotenv()
 
@@ -100,6 +103,44 @@ def get_app_host():
     Возвращает хост приложения для формирования ссылок авторизации.
     """
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
+
+# Настройка Content Security Policy с помощью Flask-Talisman
+csp = {
+    'default-src': [
+        '\'self\'',
+        'https://telegram.org',
+        'https://web.telegram.org',
+        'https://oauth.telegram.org'
+    ],
+    'script-src': [
+        '\'self\'',
+        'https://telegram.org',
+        'https://web.telegram.org',
+        'https://oauth.telegram.org',
+        '\'unsafe-eval\''
+    ],
+    'style-src': [
+        '\'self\'',
+        'https://telegram.org',
+        'https://web.telegram.org',
+        'https://oauth.telegram.org',
+        '\'unsafe-inline\''
+    ],
+    'img-src': [
+        '\'self\'',
+        'data:',
+        'https://telegram.org',
+        'https://web.telegram.org',
+        'https://oauth.telegram.org'
+    ],
+    # Добавьте другие директивы при необходимости
+}
+
+talisman = Talisman(
+    app,
+    content_security_policy=csp,
+    content_security_policy_nonce_in=['script-src']
+)
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
