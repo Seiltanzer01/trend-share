@@ -1,101 +1,76 @@
+<!-- templates/login.html -->
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Авторизация через Telegram</title>
-    <!-- Подключение стилей (по желанию) -->
     <style>
+        /* Простые стили для центровки контента */
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f6f6f6;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
         }
-        #container {
-            background-color: #ffffff;
-            padding: 20px 30px;
+        .auth-container {
+            background-color: #fff;
+            padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
-        #loading {
-            margin-top: 20px;
-            font-size: 16px;
-            color: #555555;
+        .auth-container h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #333;
         }
-        #error-message {
+        .auth-container p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .auth-container .telegram-login-button {
             margin-top: 20px;
-            color: red;
-            display: none;
         }
     </style>
-    <!-- Подключение Telegram WebApp JavaScript SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-    <div id="container">
-        <h2>Авторизация</h2>
-        <p>Пожалуйста, подождите...</p>
-        <div id="loading">Идёт авторизация через Telegram...</div>
-        <div id="error-message"></div>
+    <div class="auth-container">
+        <h1>Авторизация через Telegram</h1>
+        <p>Нажмите кнопку ниже, чтобы авторизоваться через Telegram.</p>
+        <!-- Telegram Login Widget -->
+        <script async src="https://telegram.org/js/telegram-widget.js?15"
+                data-telegram-login="TrendShare_bot"
+                data-size="large"
+                data-userpic="false"
+                data-onauth="onTelegramAuth(user)">
+        </script>
     </div>
-
-    <script>
-        // Уведомляем Telegram, что WebApp готов к взаимодействию
-        window.Telegram.WebApp.ready();
-
-        // Функция для отображения сообщений об ошибках
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            document.getElementById('loading').style.display = 'none';
-        }
-
-        // Получение данных авторизации от Telegram WebApp
-        const initData = window.Telegram.WebApp.initData;
-
-        if (!initData) {
-            showError('Не удалось получить данные авторизации.');
-        } else {
-            let parsedData;
-            try {
-                parsedData = JSON.parse(decodeURIComponent(initData));
-            } catch (e) {
-                console.error('Ошибка при парсинге initData:', e);
-                showError('Некорректные данные авторизации.');
-            }
-
-            if (parsedData) {
-                // Отправка данных на сервер для обработки авторизации
-                fetch('/telegram_login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(parsedData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.url) {
-                        // Перенаправление пользователя на указанный URL
-                        window.Telegram.WebApp.close();
-                        window.location.href = data.url;
-                    } else if (data.message) {
-                        // Отображение сообщения об ошибке
-                        showError(data.message);
-                    } else {
-                        // Обработка неизвестных ошибок
-                        showError('Произошла неизвестная ошибка при авторизации.');
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка при отправке данных авторизации:', error);
-                    showError('Произошла ошибка при отправке данных авторизации.');
-                });
-            }
+    <script type="text/javascript">
+        function onTelegramAuth(user) {
+            // Отправляем данные на сервер для проверки и установки сессии
+            fetch('/telegram_login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(user)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Перенаправляем пользователя на главную страницу
+                    window.location.href = '/';
+                } else {
+                    alert('Ошибка авторизации: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при авторизации:', error);
+                alert('Произошла ошибка при авторизации.');
+            });
         }
     </script>
 </body>
