@@ -164,10 +164,11 @@
             const tg = window.Telegram.WebApp;
             const initData = tg.initData || tg.initDataUnsafe || '';
 
-            if (initData) {
+            if (initData && !sessionStorage.getItem('initDataProcessed')) {
                 // Перенаправляем на сервер с параметром initData
                 const url = new URL(window.location.href);
                 url.searchParams.set('initData', initData);
+                sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
                 window.location.href = url.toString();
             }
         })();
