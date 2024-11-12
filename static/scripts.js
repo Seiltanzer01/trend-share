@@ -16,7 +16,11 @@ $(document).ready(function() {
 
             console.log('initData:', initData);
             $('#debug').text('initData: ' + initData);
-            alert('initData: ' + initData); // Для быстрой отладки
+            if (initData === '') {
+                alert('initData отсутствует. Убедитесь, что вы открываете приложение через Telegram.');
+            } else {
+                alert('initData получено: ' + initData);
+            }
 
             if (initData && !sessionStorage.getItem('initDataProcessed')) {
                 console.log('Processing initData...');
@@ -28,7 +32,11 @@ $(document).ready(function() {
                 window.location.href = url.toString();
             } else {
                 console.log('No initData or already processed.');
-                alert('No initData or already processed.');
+                if (initData) {
+                    alert('initData уже обработано.');
+                } else {
+                    alert('initData отсутствует или уже обработано.');
+                }
                 tg.ready(); // Уведомляем Telegram, что Web App готов
             }
         } catch (error) {
