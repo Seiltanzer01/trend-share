@@ -1014,7 +1014,7 @@ def start_command(update, context):
                 [
                     InlineKeyboardButton(
                         text="Открыть приложение",
-                        web_app=WebAppInfo(url="https://trend-share.onrender.com")
+                        web_app=WebAppInfo(url="https://trend-share.onrender.com/")
                     )
                 ]
             ]
