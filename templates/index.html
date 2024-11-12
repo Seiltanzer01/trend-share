@@ -151,7 +151,27 @@
         <img class="modal-content" id="modal-img">
     </div>
 
+    <!-- Добавляем Telegram Web App JavaScript SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Подключаем jQuery и jQuery UI для datepicker -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+
     <script>
+        // Обработка Telegram Web App initData
+        (function() {
+            const tg = window.Telegram.WebApp;
+            const initData = tg.initData || tg.initDataUnsafe || '';
+
+            if (initData) {
+                // Перенаправляем на сервер с параметром initData
+                const url = new URL(window.location.href);
+                url.searchParams.set('initData', initData);
+                window.location.href = url.toString();
+            }
+        })();
+
         $(document).ready(function(){
             $('#toggle-filters').click(function(){
                 $('#filters').toggle();
