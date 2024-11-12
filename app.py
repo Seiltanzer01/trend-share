@@ -471,6 +471,9 @@ def index():
                 session['user_id'] = user.id
                 session['telegram_id'] = user.telegram_id
                 logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
+
+                # Перенаправляем на главную страницу без initData
+                return redirect(url_for('index'))
             else:
                 flash('Не удалось подтвердить подлинность данных Telegram.', 'danger')
                 logger.warning("Не удалось подтвердить подлинность данных Telegram.")
