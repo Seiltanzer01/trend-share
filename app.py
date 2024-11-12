@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta
 
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
-from flask_migrate import Migrate  # Удален импорт upgrade
+from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
@@ -24,8 +24,9 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 import logging
 import requests
 import threading
+import urllib.parse
 
-from models import db, User, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion, Trade, Setup, LoginToken
+from models import db, User, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion, Trade, Setup
 from forms import TradeForm, SetupForm
 
 # Инициализация Flask-приложения
@@ -56,7 +57,7 @@ app.secret_key = secret_key_env
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройка APP_HOST для формирования ссылок авторизации
+# Настройка APP_HOST для формирования ссылок
 app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
 
 # Настройки сессии
@@ -64,10 +65,10 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-с
 app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
 
 # Настройка токена бота для использования в приложении
-app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_TOKEN', '').strip()
+app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
 if not app.config['TELEGRAM_BOT_TOKEN']:
-    logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-    raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
+    logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
 
 # Инициализация SQLAlchemy
 db.init_app(app)
@@ -88,9 +89,21 @@ def inject_datetime():
 # Вспомогательная функция для получения хоста приложения
 def get_app_host():
     """
-    Возвращает хост приложения для формирования ссылок авторизации.
+    Возвращает хост приложения для формирования ссылок.
     """
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
+
+# Функция для проверки подлинности данных Telegram Web App
+def verify_telegram_auth(data_dict):
+    token = app.config['TELEGRAM_BOT_TOKEN']
+    secret_key = hashlib.sha256(token.encode('utf-8')).digest()
+
+    hash_to_check = data_dict.pop('hash', '')
+    data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
+
+    hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+
+    return hmac_hash == hash_to_check
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -404,63 +417,13 @@ def create_predefined_data():
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
-# Удаляем вызовы миграций из кода приложения
-# @app.before_first_request
-# def initialize():
-#     with app.app_context():
-#         try:
-#             upgrade()  # Применение миграций
-#             create_predefined_data()
-#             logger.info("Миграции применены и предопределённые данные созданы.")
-#         except Exception as e:
-#             logger.error(f"Ошибка при применении миграций: {e}")
-#             logger.error(traceback.format_exc())
-#             exit(1)
+# Инициализация данных при первом запуске
+@app.before_first_request
+def initialize():
+    with app.app_context():
+        create_predefined_data()
 
 # Маршруты аутентификации
-
-@app.route('/login')
-def login():
-    return render_template('login.html')
-
-@app.route('/auth')
-def auth():
-    token = request.args.get('token')
-    if not token:
-        flash('Отсутствует токен авторизации.', 'danger')
-        logger.warning("Пользователь попытался авторизоваться без токена.")
-        return redirect(url_for('login'))
-
-    with app.app_context():
-        login_token = LoginToken.query.filter_by(token=token, used=False).first()
-        if not login_token:
-            flash('Неверный или использованный токен.', 'danger')
-            logger.warning(f"Попытка авторизации с неверным токеном: {token}.")
-            return redirect(url_for('login'))
-
-        if login_token.is_expired():
-            flash('Срок действия токена истек.', 'danger')
-            logger.warning(f"Попытка авторизации с просроченным токеном: {token}.")
-            return redirect(url_for('login'))
-
-        # Пометить токен как использованный
-        login_token.used = True
-        db.session.commit()
-
-        # Получить пользователя
-        user = User.query.filter_by(telegram_id=login_token.telegram_id).first()
-        if not user:
-            flash('Пользователь не найден.', 'danger')
-            logger.error(f"Пользователь с Telegram ID {login_token.telegram_id} не найден.")
-            return redirect(url_for('login'))
-
-        # Установить сессию пользователя
-        session['user_id'] = user.id
-        session['telegram_id'] = user.telegram_id
-
-        logger.info(f"Пользователь ID {user.id} авторизовался через токен.")
-        flash('Вы успешно авторизовались.', 'success')
-        return redirect(url_for('index'))
 
 @app.route('/logout')
 def logout():
@@ -479,8 +442,42 @@ def health():
 def index():
     if request.method == 'HEAD':
         return '', 200  # Возвращаем 200 OK для HEAD-запросов
+
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        # Проверяем наличие данных авторизации из Telegram Web App
+        init_data = request.args.get('initData') or request.args.get('init_data')
+        if init_data:
+            data = dict(urllib.parse.parse_qsl(init_data))
+            if verify_telegram_auth(data):
+                telegram_id = int(data.get('id'))
+                first_name = data.get('first_name')
+                last_name = data.get('last_name')
+                username = data.get('username')
+
+                # Поиск или создание пользователя
+                user = User.query.filter_by(telegram_id=telegram_id).first()
+                if not user:
+                    user = User(
+                        telegram_id=telegram_id,
+                        username=username,
+                        first_name=first_name,
+                        last_name=last_name,
+                        registered_at=datetime.utcnow()
+                    )
+                    db.session.add(user)
+                    db.session.commit()
+
+                # Устанавливаем сессию пользователя
+                session['user_id'] = user.id
+                session['telegram_id'] = user.telegram_id
+                logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
+            else:
+                flash('Не удалось подтвердить подлинность данных Telegram.', 'danger')
+                logger.warning("Не удалось подтвердить подлинность данных Telegram.")
+                return redirect(url_for('login'))
+        else:
+            # Если данных нет, перенаправляем на страницу авторизации
+            return redirect(url_for('login'))
 
     user_id = session['user_id']
     categories = InstrumentCategory.query.all()
@@ -526,6 +523,13 @@ def index():
         criteria_categories=criteria_categories,
         selected_instrument_id=instrument_id
     )
+
+# Страница авторизации (можно оставить для пользователей, которые открывают приложение вне Telegram)
+@app.route('/login', methods=['GET'])
+def login():
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    return render_template('login.html')
 
 # Добавить новую сделку
 @app.route('/new_trade', methods=['GET', 'POST'])
@@ -747,7 +751,7 @@ def delete_trade(trade_id):
 def manage_setups():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user_id = session['user_id']
     setups = Setup.query.filter_by(user_id=user_id).all()
     logger.info(f"Пользователь ID {user_id} просматривает свои сетапы.")
@@ -833,7 +837,6 @@ def edit_setup(setup_id):
     # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in setup.criteria]
-        form.setup_id.data = setup.setup_id if setup.setup_id else 0
 
     if form.validate_on_submit():
         try:
@@ -962,7 +965,7 @@ def uploaded_file(filename):
 # Получение токена бота из переменных окружения
 TOKEN = app.config['TELEGRAM_BOT_TOKEN']
 if not TOKEN:
-    logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+    logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
     exit(1)
 
 # Инициализация бота и диспетчера
@@ -990,13 +993,13 @@ def start_command(update, context):
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
 
-        # Отправка сообщения пользователю с приветствием и инструкцией по авторизации
+        # Отправка сообщения с кнопкой Web App
         message_text = (
-            f"Привет, {user.first_name}! Чтобы воспользоваться приложением, отправьте команду /login."
+            f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
         )
 
-        # Создание кнопки с Web App (если нужно оставить)
-        web_app_url = f"https://{get_app_host()}/login"  # Ваш URL для авторизации
+        # Создание кнопки с Web App
+        web_app_url = f"https://{get_app_host()}/"  # Ваш URL приложения
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1024,10 +1027,9 @@ def help_command(update, context):
     logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
     help_text = (
         "Доступные команды:\n"
-        "/start - Начать общение с ботом и получить доступ к приложению\n"
+        "/start - Начать общение с ботом и открыть приложение\n"
         "/help - Получить справку\n"
         "/test - Тестовая команда для проверки работы бота\n"
-        "/login - Получить ссылку для авторизации в приложении"
     )
     try:
         context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
@@ -1046,54 +1048,6 @@ def test_command(update, context):
         logger.error(f"Ошибка при отправке ответа на /test: {e}")
         logger.error(traceback.format_exc())
 
-def login_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /login от пользователя {user.id} ({user.username})")
-    try:
-        with app.app_context():
-            # Поиск пользователя
-            user_record = User.query.filter_by(telegram_id=user.id).first()
-            if not user_record:
-                # Создать нового пользователя, если отсутствует
-                user_record = User(
-                    telegram_id=user.id,
-                    username=user.username,
-                    first_name=user.first_name,
-                    last_name=user.last_name,
-                    registered_at=datetime.utcnow()
-                )
-                db.session.add(user_record)
-                db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
-
-            # Генерация уникального токена
-            token = os.urandom(32).hex()
-            expires_at = datetime.utcnow() + timedelta(minutes=15)  # Токен действителен 15 минут
-
-            # Создание записи токена в базе данных
-            login_token = LoginToken(
-                token=token,
-                telegram_id=user_record.telegram_id,
-                expires_at=expires_at
-            )
-            db.session.add(login_token)
-            db.session.commit()
-
-            # Формирование ссылки для авторизации
-            login_link = f"https://{get_app_host()}/auth?token={token}"
-
-            # Отправка ссылки пользователю
-            message_text = (
-                f"Для авторизации перейдите по ссылке ниже:\n{login_link}\n"
-                f"Ссылка действительна в течение 15 минут."
-            )
-            context.bot.send_message(chat_id=update.effective_chat.id, text=message_text)
-            logger.info(f"Отправлен токен авторизации пользователю {user.id}.")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке команды /login: {e}")
-        logger.error(traceback.format_exc())
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при генерации ссылки для авторизации.")
-
 def button_click(update, context):
     query = update.callback_query
     query.answer()
@@ -1102,13 +1056,12 @@ def button_click(update, context):
     logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
 
     query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
-    logger.warning(f"Неизвестная или не нужная кнопка '{data}' от пользователя {user.id} ({user.username}).")
+    logger.warning(f"Неизвестная или ненужная кнопка '{data}' от пользователя {user.id} ({user.username}).")
 
 # Добавление обработчиков к диспетчеру
 dispatcher.add_handler(CommandHandler('start', start_command))
 dispatcher.add_handler(CommandHandler('help', help_command))
 dispatcher.add_handler(CommandHandler('test', test_command))
-dispatcher.add_handler(CommandHandler('login', login_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
 # Обработчик вебхуков
@@ -1142,6 +1095,5 @@ def set_webhook():
 # **Запуск Flask-приложения**
 
 if __name__ == '__main__':
-    # Для локальной разработки только
-    # Удаляем вызовы миграций и инициализации данных из кода приложения
+    # Запуск приложения
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
