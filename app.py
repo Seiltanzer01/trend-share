@@ -62,7 +62,8 @@ app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
 
 # Настройки сессии
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
-app.config['SESSION_COOKIE_SECURE'] = True  # Требует HTTPS
+app.config['SESSION_COOKIE_SECURE'] = True      # Требует HTTPS
+app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'  # Указание домена для куки
 
 # Настройка токена бота для использования в приложении
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
@@ -446,8 +447,10 @@ def index():
     if 'user_id' not in session:
         # Проверяем наличие данных авторизации из Telegram Web App
         init_data = request.args.get('initData') or request.args.get('init_data')
+        logger.debug(f"Получен initData: {init_data}")
         if init_data:
             data = dict(urllib.parse.parse_qsl(init_data))
+            logger.debug(f"Разобранные данные initData: {data}")
             if verify_telegram_auth(data):
                 telegram_id = int(data.get('id'))
                 first_name = data.get('first_name')
@@ -466,6 +469,7 @@ def index():
                     )
                     db.session.add(user)
                     db.session.commit()
+                    logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
 
                 # Устанавливаем сессию пользователя
                 session['user_id'] = user.id
@@ -480,8 +484,10 @@ def index():
                 return redirect(url_for('login'))
         else:
             # Если данных нет, перенаправляем на страницу авторизации
+            logger.debug("initData отсутствует в запросе.")
             return redirect(url_for('login'))
 
+    # Если пользователь уже авторизован, отображаем главную страницу
     user_id = session['user_id']
     categories = InstrumentCategory.query.all()
     criteria_categories = CriterionCategory.query.all()
@@ -973,7 +979,7 @@ if not TOKEN:
 
 # Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
+dispatcher = Dispatcher(bot, None, workers=1, use_context=True)  # Изменено workers=1
 
 # Обработчики команд
 
