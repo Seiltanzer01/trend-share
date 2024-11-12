@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta
 
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
-from flask_migrate import Migrate, upgrade
+from flask_migrate import Migrate  # Удален импорт upgrade
 from flask_cors import CORS
 from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
@@ -404,18 +404,18 @@ def create_predefined_data():
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
-# Вызываем функцию перед первым запросом
-@app.before_first_request
-def initialize():
-    with app.app_context():
-        try:
-            upgrade()  # Применение миграций
-            create_predefined_data()
-            logger.info("Миграции применены и предопределённые данные созданы.")
-        except Exception as e:
-            logger.error(f"Ошибка при применении миграций: {e}")
-            logger.error(traceback.format_exc())
-            exit(1)
+# Удаляем вызовы миграций из кода приложения
+# @app.before_first_request
+# def initialize():
+#     with app.app_context():
+#         try:
+#             upgrade()  # Применение миграций
+#             create_predefined_data()
+#             logger.info("Миграции применены и предопределённые данные созданы.")
+#         except Exception as e:
+#             logger.error(f"Ошибка при применении миграций: {e}")
+#             logger.error(traceback.format_exc())
+#             exit(1)
 
 # Маршруты аутентификации
 
@@ -833,6 +833,7 @@ def edit_setup(setup_id):
     # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in setup.criteria]
+        form.setup_id.data = setup.setup_id if setup.setup_id else 0
 
     if form.validate_on_submit():
         try:
@@ -1142,13 +1143,5 @@ def set_webhook():
 
 if __name__ == '__main__':
     # Для локальной разработки только
-    with app.app_context():
-        try:
-            upgrade()  # Применение миграций
-            create_predefined_data()
-            logger.info("Миграции применены и предопределённые данные созданы.")
-        except Exception as e:
-            logger.error(f"Ошибка при применении миграций: {e}")
-            logger.error(traceback.format_exc())
-            exit(1)
+    # Удаляем вызовы миграций и инициализации данных из кода приложения
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
