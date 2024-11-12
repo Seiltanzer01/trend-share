@@ -31,52 +31,25 @@
             color: #666;
             margin-bottom: 20px;
         }
+        .auth-container a {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0088cc;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .auth-container a:hover {
+            background-color: #005f99;
+        }
     </style>
 </head>
 <body>
     <div class="auth-container">
-        <h1>Авторизация...</h1>
-        <p>Пожалуйста, подождите.</p>
+        <h1>Авторизация</h1>
+        <p>Чтобы авторизоваться, отправьте команду <strong>/login</strong> вашему Telegram-боту.</p>
+        <p>После получения ссылки перейдите по ней для автоматической авторизации.</p>
+        <a href="{{ url_for('index') }}">Вернуться на главную</a>
     </div>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script type="text/javascript">
-        // Обработка данных после загрузки Web App
-        Telegram.WebApp.ready();
-
-        // Функция для отправки данных авторизации на сервер
-        (function(){
-            if (Telegram.WebApp.initDataUnsafe.user) {
-                const authData = Telegram.WebApp.initData;
-
-                fetch('/telegram_auth', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ auth_data: authData })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Закрытие Web App и перенаправление пользователя
-                        Telegram.WebApp.close();
-                        window.location.href = data.redirect_url;
-                    } else {
-                        alert('Ошибка авторизации: ' + data.message);
-                        Telegram.WebApp.close();
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка при авторизации:', error);
-                    alert('Произошла ошибка при авторизации.');
-                    Telegram.WebApp.close();
-                });
-            } else {
-                // Если нет данных авторизации, показать сообщение
-                document.querySelector('.auth-container h1').innerText = "Не удалось авторизоваться";
-                document.querySelector('.auth-container p').innerText = "Попробуйте снова.";
-            }
-        })();
-    </script>
 </body>
 </html>
