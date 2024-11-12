@@ -59,8 +59,20 @@ class Criterion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
-    trades = db.relationship('Trade', secondary=trade_criteria, backref=db.backref('criteria', lazy='dynamic'))
-    setups = db.relationship('Setup', secondary=setup_criteria, backref=db.backref('criteria', lazy='dynamic'))
+
+    # Отношение с Trade
+    trades = db.relationship(
+        'Trade',
+        secondary=trade_criteria,
+        back_populates='criteria'
+    )
+
+    # Отношение с Setup
+    setups = db.relationship(
+        'Setup',
+        secondary=setup_criteria,
+        back_populates='criteria'
+    )
 
 class Trade(db.Model):
     __tablename__ = 'trade'
@@ -78,6 +90,13 @@ class Trade(db.Model):
     profit_loss = db.Column(db.Float, nullable=True)
     profit_loss_percentage = db.Column(db.Float, nullable=True)
 
+    # Отношение с Criterion
+    criteria = db.relationship(
+        'Criterion',
+        secondary=trade_criteria,
+        back_populates='trades'
+    )
+
 class Setup(db.Model):
     __tablename__ = 'setup'
     id = db.Column(db.Integer, primary_key=True)
@@ -85,7 +104,14 @@ class Setup(db.Model):
     setup_name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     screenshot = db.Column(db.String(100), nullable=True)
-    criteria = db.relationship('Criterion', secondary=setup_criteria, backref='setups')
+
+    # Отношение с Criterion
+    criteria = db.relationship(
+        'Criterion',
+        secondary=setup_criteria,
+        back_populates='setups'
+    )
+
     trades = db.relationship('Trade', backref='setup', lazy=True)
 
 class LoginToken(db.Model):
