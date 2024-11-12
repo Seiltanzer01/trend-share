@@ -3,22 +3,38 @@
 $(document).ready(function() {
     // Обработка Telegram Web App initData
     (function() {
-        const tg = window.Telegram.WebApp;
-        const initData = tg.initData || tg.initDataUnsafe || '';
+        try {
+            const tg = window.Telegram.WebApp;
+            if (!tg) {
+                console.error('Telegram WebApp не найден');
+                alert('Telegram WebApp не найден');
+                $('#debug').text('Telegram WebApp не найден');
+                return;
+            }
 
-        console.log('initData:', initData);
-        $('#debug').text('initData: ' + initData);
+            const initData = tg.initData || tg.initDataUnsafe || '';
 
-        if (initData && !sessionStorage.getItem('initDataProcessed')) {
-            console.log('Processing initData...');
-            // Перенаправляем на сервер с параметром initData
-            const url = new URL(window.location.href);
-            url.searchParams.set('initData', initData);
-            sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
-            window.location.href = url.toString();
-        } else {
-            console.log('No initData or already processed.');
-            tg.ready(); // Уведомляем Telegram, что Web App готов
+            console.log('initData:', initData);
+            $('#debug').text('initData: ' + initData);
+            alert('initData: ' + initData); // Для быстрой отладки
+
+            if (initData && !sessionStorage.getItem('initDataProcessed')) {
+                console.log('Processing initData...');
+                alert('Processing initData...');
+                // Перенаправляем на сервер с параметром initData
+                const url = new URL(window.location.href);
+                url.searchParams.set('initData', initData);
+                sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
+                window.location.href = url.toString();
+            } else {
+                console.log('No initData or already processed.');
+                alert('No initData or already processed.');
+                tg.ready(); // Уведомляем Telegram, что Web App готов
+            }
+        } catch (error) {
+            console.error('Ошибка при обработке initData:', error);
+            alert('Ошибка при обработке initData: ' + error.message);
+            $('#debug').text('Ошибка при обработке initData: ' + error.message);
         }
     })();
 
