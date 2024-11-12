@@ -6,17 +6,17 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
-from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, upgrade
-from flask_wtf import FlaskForm
 from flask_cors import CORS
+from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from wtforms import StringField, SelectField, FloatField, DateField, TextAreaField, FileField, SubmitField, SelectMultipleField
 from wtforms.validators import DataRequired, Optional
+from flask_wtf.file import FileAllowed
 
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
@@ -24,6 +24,9 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 import logging
 import requests
 import threading
+
+from models import db, User, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion, Trade, Setup, LoginToken
+from forms import TradeForm, SetupForm
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -67,7 +70,7 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
     raise ValueError("TELEGRAM_TOKEN не установлен в переменных окружения.")
 
 # Инициализация SQLAlchemy
-db = SQLAlchemy(app)
+db.init_app(app)
 
 # Инициализация Flask-Migrate
 migrate = Migrate(app, db)
@@ -81,112 +84,6 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
-
-# Определение моделей
-
-# Ассоциативная таблица для связей между сделками и критериями
-trade_criteria = db.Table('trade_criteria',
-    db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
-    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
-)
-
-# Ассоциативная таблица для связей между сетапами и критериями
-setup_criteria = db.Table('setup_criteria',
-    db.Column('setup_id', db.Integer, db.ForeignKey('setup.id'), primary_key=True),
-    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
-)
-
-class User(db.Model):
-    __tablename__ = 'user'
-    id = db.Column(db.Integer, primary_key=True)
-    telegram_id = db.Column(db.Integer, unique=True, nullable=False)
-    username = db.Column(db.String(80))
-    first_name = db.Column(db.String(80))
-    last_name = db.Column(db.String(80))
-    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
-    trades = db.relationship('Trade', backref='user', lazy=True)
-    setups = db.relationship('Setup', backref='user', lazy=True)
-
-class InstrumentCategory(db.Model):
-    __tablename__ = 'instrument_category'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), nullable=False, unique=True)
-    instruments = db.relationship('Instrument', backref='category', lazy=True)
-
-class Instrument(db.Model):
-    __tablename__ = 'instrument'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), nullable=False, unique=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
-    trades = db.relationship('Trade', backref='instrument', lazy=True)
-
-class CriterionCategory(db.Model):
-    __tablename__ = 'criterion_category'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), nullable=False, unique=True)
-    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
-
-class CriterionSubcategory(db.Model):
-    __tablename__ = 'criterion_subcategory'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
-    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
-
-class Criterion(db.Model):
-    __tablename__ = 'criterion'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False, unique=True)
-    subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
-    trades = db.relationship('Trade', secondary=trade_criteria, backref=db.backref('criteria', lazy='dynamic'))
-    setups = db.relationship('Setup', secondary=setup_criteria, backref=db.backref('criteria', lazy='dynamic'))
-
-class Trade(db.Model):
-    __tablename__ = 'trade'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
-    direction = db.Column(db.String(10), nullable=False)  # 'Buy' или 'Sell'
-    entry_price = db.Column(db.Float, nullable=False)
-    exit_price = db.Column(db.Float, nullable=True)
-    trade_open_time = db.Column(db.DateTime, nullable=False)
-    trade_close_time = db.Column(db.DateTime, nullable=True)
-    comment = db.Column(db.Text, nullable=True)
-    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
-    profit_loss = db.Column(db.Float, nullable=True)
-    profit_loss_percentage = db.Column(db.Float, nullable=True)
-    screenshot = db.Column(db.String(200), nullable=True)
-
-class Setup(db.Model):
-    __tablename__ = 'setup'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    setup_name = db.Column(db.String(120), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    screenshot = db.Column(db.String(200), nullable=True)
-    trades = db.relationship('Trade', backref='setup', lazy=True)
-
-# Определение форм
-
-class TradeForm(FlaskForm):
-    instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
-    direction = SelectField('Направление', choices=[('Buy', 'Buy'), ('Sell', 'Sell')], validators=[DataRequired()])
-    entry_price = FloatField('Цена входа', validators=[DataRequired()])
-    exit_price = FloatField('Цена выхода', validators=[Optional()])
-    trade_open_time = DateField('Дата открытия', format='%Y-%m-%d', validators=[DataRequired()])
-    trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
-    comment = TextAreaField('Комментарий', validators=[Optional()])
-    setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional()])
-    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
-    submit = SubmitField('Сохранить')
-
-class SetupForm(FlaskForm):
-    setup_name = StringField('Название сетапа', validators=[DataRequired()])
-    description = TextAreaField('Описание', validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional()])
-    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
-    submit = SubmitField('Сохранить')
 
 # Вспомогательная функция для получения хоста приложения
 def get_app_host():
@@ -528,89 +425,42 @@ def login():
 
 @app.route('/auth')
 def auth():
-    # Маршрут для редиректа после авторизации
-    return redirect(url_for('index'))
+    token = request.args.get('token')
+    if not token:
+        flash('Отсутствует токен авторизации.', 'danger')
+        logger.warning("Пользователь попытался авторизоваться без токена.")
+        return redirect(url_for('login'))
 
-@app.route('/telegram_auth', methods=['POST'])
-def telegram_auth():
-    """
-    Обработчик данных авторизации от Telegram Web Apps.
-    Принимает данные через POST-запрос.
-    """
-    if not request.is_json:
-        logger.warning("Некорректный тип запроса. Ожидается JSON.")
-        return jsonify({'success': False, 'message': 'Некорректный тип запроса.'}), 400
+    with app.app_context():
+        login_token = LoginToken.query.filter_by(token=token, used=False).first()
+        if not login_token:
+            flash('Неверный или использованный токен.', 'danger')
+            logger.warning(f"Попытка авторизации с неверным токеном: {token}.")
+            return redirect(url_for('login'))
 
-    data = request.get_json()
-    logger.debug(f"Получены данные для авторизации: {data}")
+        if login_token.is_expired():
+            flash('Срок действия токена истек.', 'danger')
+            logger.warning(f"Попытка авторизации с просроченным токеном: {token}.")
+            return redirect(url_for('login'))
 
-    auth_data = data.get('auth_data')
-    if not auth_data:
-        logger.warning("Отсутствуют данные авторизации.")
-        return jsonify({'success': False, 'message': 'Отсутствуют данные для авторизации.'}), 400
+        # Пометить токен как использованный
+        login_token.used = True
+        db.session.commit()
 
-    try:
-        # Разбор параметров авторизации с разделением только по первому '='
-        params = dict(item.split('=', 1) for item in auth_data.split('\n') if '=' in item)
-        logger.debug(f"Parsed params: {params}")
-        hash_received = params.pop('hash', None)
-        auth_date = int(params.get('auth_date', 0))
-
-        # Проверка времени авторизации
-        if time.time() - auth_date > 86400:  # Увеличиваем время до 24 часов
-            logger.warning("Время авторизации истекло.")
-            return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
-
-        # Создание строки для проверки подписи
-        sorted_params = sorted(params.items())
-        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_params])
-        logger.debug(f"data_check_string: {data_check_string}")
-
-        # Вычисление хеша
-        secret_key = hashlib.sha256(app.config['TELEGRAM_BOT_TOKEN'].encode()).digest()
-        hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-        logger.debug(f"Computed HMAC hash: {hmac_hash}")
-        logger.debug(f"hash_received: {hash_received}")
-
-        if hmac_hash != hash_received:
-            logger.warning("Неверная подпись данных.")
-            return jsonify({'success': False, 'message': 'Неверная подпись данных.'}), 401
-
-        # Авторизация прошла успешно
-        telegram_id = int(params.get('id'))
-        username = params.get('username')
-        first_name = params.get('first_name')
-        last_name = params.get('last_name')
-        photo_url = params.get('photo_url')
-        language_code = params.get('language_code')
-
-        # Поиск или создание пользователя в базе данных
-        user = User.query.filter_by(telegram_id=telegram_id).first()
+        # Получить пользователя
+        user = User.query.filter_by(telegram_id=login_token.telegram_id).first()
         if not user:
-            user = User(
-                telegram_id=telegram_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                registered_at=datetime.utcnow()
-            )
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+            flash('Пользователь не найден.', 'danger')
+            logger.error(f"Пользователь с Telegram ID {login_token.telegram_id} не найден.")
+            return redirect(url_for('login'))
 
-        # Установка сессии пользователя
+        # Установить сессию пользователя
         session['user_id'] = user.id
         session['telegram_id'] = user.telegram_id
 
-        logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
-        logger.debug(f"Текущая сессия: {session}")
-
-        return jsonify({'success': True, 'redirect_url': url_for('index')}), 200
-
-    except Exception as e:
-        logger.error(f"Ошибка при обработке данных авторизации: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({'success': False, 'message': 'Произошла ошибка при обработке данных авторизации.'}), 500
+        logger.info(f"Пользователь ID {user.id} авторизовался через токен.")
+        flash('Вы успешно авторизовались.', 'success')
+        return redirect(url_for('index'))
 
 @app.route('/logout')
 def logout():
@@ -712,7 +562,7 @@ def new_trade():
                 entry_price=form.entry_price.data,
                 exit_price=form.exit_price.data if form.exit_price.data else None,
                 trade_open_time=form.trade_open_time.data,
-                trade_close_time=form.trade_close_time.data if form.trade_close_time.data else None,
+                trade_close_time=form.trade_close_time.data if form.exit_price.data else None,
                 comment=form.comment.data,
                 setup_id=form.setup_id.data if form.setup_id.data != 0 else None
             )
@@ -798,7 +648,7 @@ def edit_trade(trade_id):
             trade.entry_price = form.entry_price.data
             trade.exit_price = form.exit_price.data if form.exit_price.data else None
             trade.trade_open_time = form.trade_open_time.data
-            trade.trade_close_time = form.trade_close_time.data if form.trade_close_time.data else None
+            trade.trade_close_time = form.trade_close_time.data if form.exit_price.data else None
             trade.comment = form.comment.data
             trade.setup_id = form.setup_id.data if form.setup_id.data != 0 else None
 
@@ -1139,12 +989,12 @@ def start_command(update, context):
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
 
-        # Отправка сообщения пользователю с приветствием и ссылкой на веб-приложение
+        # Отправка сообщения пользователю с приветствием и инструкцией по авторизации
         message_text = (
-            f"Привет, {user.first_name}! Чтобы воспользоваться приложением, нажмите кнопку ниже."
+            f"Привет, {user.first_name}! Чтобы воспользоваться приложением, отправьте команду /login."
         )
 
-        # Создание кнопки с Web App
+        # Создание кнопки с Web App (если нужно оставить)
         web_app_url = f"https://{get_app_host()}/login"  # Ваш URL для авторизации
         keyboard = InlineKeyboardMarkup(
             [
@@ -1166,6 +1016,7 @@ def start_command(update, context):
     except Exception as e:
         logger.error(f"Ошибка при обработке команды /start: {e}")
         logger.error(traceback.format_exc())
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
 
 def help_command(update, context):
     user = update.effective_user
@@ -1174,7 +1025,8 @@ def help_command(update, context):
         "Доступные команды:\n"
         "/start - Начать общение с ботом и получить доступ к приложению\n"
         "/help - Получить справку\n"
-        "/test - Тестовая команда для проверки работы бота"
+        "/test - Тестовая команда для проверки работы бота\n"
+        "/login - Получить ссылку для авторизации в приложении"
     )
     try:
         context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
@@ -1193,6 +1045,54 @@ def test_command(update, context):
         logger.error(f"Ошибка при отправке ответа на /test: {e}")
         logger.error(traceback.format_exc())
 
+def login_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /login от пользователя {user.id} ({user.username})")
+    try:
+        with app.app_context():
+            # Поиск пользователя
+            user_record = User.query.filter_by(telegram_id=user.id).first()
+            if not user_record:
+                # Создать нового пользователя, если отсутствует
+                user_record = User(
+                    telegram_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user_record)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
+
+            # Генерация уникального токена
+            token = os.urandom(32).hex()
+            expires_at = datetime.utcnow() + timedelta(minutes=15)  # Токен действителен 15 минут
+
+            # Создание записи токена в базе данных
+            login_token = LoginToken(
+                token=token,
+                telegram_id=user_record.telegram_id,
+                expires_at=expires_at
+            )
+            db.session.add(login_token)
+            db.session.commit()
+
+            # Формирование ссылки для авторизации
+            login_link = f"https://{get_app_host()}/auth?token={token}"
+
+            # Отправка ссылки пользователю
+            message_text = (
+                f"Для авторизации перейдите по ссылке ниже:\n{login_link}\n"
+                f"Ссылка действительна в течение 15 минут."
+            )
+            context.bot.send_message(chat_id=update.effective_chat.id, text=message_text)
+            logger.info(f"Отправлен токен авторизации пользователю {user.id}.")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке команды /login: {e}")
+        logger.error(traceback.format_exc())
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при генерации ссылки для авторизации.")
+
 def button_click(update, context):
     query = update.callback_query
     query.answer()
@@ -1207,6 +1107,7 @@ def button_click(update, context):
 dispatcher.add_handler(CommandHandler('start', start_command))
 dispatcher.add_handler(CommandHandler('help', help_command))
 dispatcher.add_handler(CommandHandler('test', test_command))
+dispatcher.add_handler(CommandHandler('login', login_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
 # Обработчик вебхуков
