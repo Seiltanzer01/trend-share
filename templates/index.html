@@ -44,6 +44,16 @@
                             <button type="button" class="collapse-button">Технический анализ</button>
                             <div class="category-content" style="display: none;">
                                 <!-- Подкатегории и критерии -->
+                                {% for subcategory in criteria_categories %}
+                                    {% if subcategory.category.name == 'Технический анализ' %}
+                                        <fieldset>
+                                            <legend>{{ subcategory.name }}</legend>
+                                            {% for criterion in subcategory.criteria %}
+                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
+                                            {% endfor %}
+                                        </fieldset>
+                                    {% endif %}
+                                {% endfor %}
                             </div>
                         </div>
                         <!-- Добавьте остальные категории аналогично -->
@@ -137,9 +147,9 @@
     </div>
 
     <!-- Добавляем блок для отображения debug информации -->
-    <div id="debug" style="margin-top: 20px; color: red;"></div>
+    <div id="debug" style="margin-top: 20px; color: red; display: block;"></div>
 
     <!-- Подключаем внешний JavaScript файл -->
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <!-- Уже подключен в base.html -->
 </div>
 {% endblock %}
