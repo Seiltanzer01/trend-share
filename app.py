@@ -7,7 +7,6 @@ import hmac
 import json
 import time
 from datetime import datetime
-from threading import Thread
 
 from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -19,16 +18,12 @@ from werkzeug.datastructures import FileStorage
 from wtforms import StringField, SelectField, FloatField, DateField, TextAreaField, FileField, SubmitField, SelectMultipleField
 from wtforms.validators import DataRequired, Optional
 
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 import logging
 import requests
-import asyncio
-from dotenv import load_dotenv
-
-# Загрузка переменных окружения из .env файла (если используется)
-# load_dotenv()  # Удалено, так как переменные установлены в Render
+import threading
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -38,7 +33,7 @@ CORS(app, supports_credentials=True, resources={
     r"/*": {
         "origins": [
             "https://trend-share.onrender.com",  # Ваш основной домен
-            "https://t.me"                        # Домен Telegram
+            "https://t.me"                      # Домен Telegram
         ]
     }
 })
@@ -312,9 +307,7 @@ def create_predefined_data():
         {'name': 'BTS/USDT', 'category': 'Криптовалюты'},
         {'name': 'NANO/USDT', 'category': 'Криптовалюты'},
         {'name': 'XEM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ONT/USDT', 'category': 'Криптовалюты'},
         {'name': 'HOT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MKR/USDT', 'category': 'Криптовалюты'},
         # Добавьте больше инструментов по необходимости
     ]
 
@@ -564,7 +557,7 @@ def telegram_auth():
         auth_date = int(params.get('auth_date', 0))
 
         # Проверка времени авторизации
-        if time.time() - auth_date > 600:
+        if time.time() - auth_date > 86400:  # Увеличиваем время до 24 часов
             logger.warning("Время авторизации истекло.")
             return jsonify({'success': False, 'message': 'Время авторизации истекло.'}), 401
 
@@ -1113,26 +1106,38 @@ def view_setup(setup_id):
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# **Telegram Bot Handlers**
+# **Инициализация Telegram бота и обработчиков**
 
-# Команда /start
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Получение токена бота из переменных окружения
+TOKEN = app.config['TELEGRAM_BOT_TOKEN']
+if not TOKEN:
+    logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
+    exit(1)
+
+# Инициализация бота и диспетчера
+bot = Bot(token=TOKEN)
+dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
+
+# Обработчики команд
+
+def start_command(update, context):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
     try:
         # Поиск или создание пользователя в базе данных
-        user_record = User.query.filter_by(telegram_id=user.id).first()
-        if not user_record:
-            user_record = User(
-                telegram_id=user.id,
-                username=user.username,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                registered_at=datetime.utcnow()
-            )
-            db.session.add(user_record)
-            db.session.commit()
-            logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
+        with app.app_context():
+            user_record = User.query.filter_by(telegram_id=user.id).first()
+            if not user_record:
+                user_record = User(
+                    telegram_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user_record)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
 
         # Отправка сообщения пользователю с приветствием и ссылкой на веб-приложение
         message_text = (
@@ -1140,7 +1145,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Создание кнопки с Web App
-        web_app_url = "https://trend-share.onrender.com/login"  # Ваш URL для авторизации
+        web_app_url = f"https://{get_app_host()}/login"  # Ваш URL для авторизации
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1152,8 +1157,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         )
 
-        await update.message.reply_text(
-            message_text,
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message_text,
             reply_markup=keyboard
         )
         logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
@@ -1161,8 +1167,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка при обработке команды /start: {e}")
         logger.error(traceback.format_exc())
 
-# Команда /help
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def help_command(update, context):
     user = update.effective_user
     logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
     help_text = (
@@ -1172,75 +1177,45 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/test - Тестовая команда для проверки работы бота"
     )
     try:
-        await update.message.reply_text(help_text)
+        context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
         logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /help: {e}")
         logger.error(traceback.format_exc())
 
-# Команда /test
-async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def test_command(update, context):
     user = update.effective_user
     logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
     try:
-        await update.message.reply_text('Команда /test работает корректно!')
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
         logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
     except Exception as e:
         logger.error(f"Ошибка при отправке ответа на /test: {e}")
         logger.error(traceback.format_exc())
 
-# Обработчик кнопок CallbackQuery
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def button_click(update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     user = update.effective_user
     data = query.data
     logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
 
-    await query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
+    query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
     logger.warning(f"Неизвестная или не нужная кнопка '{data}' от пользователя {user.id} ({user.username}).")
 
-# **Инициализация Telegram бота и приложения**
+# Добавление обработчиков к диспетчеру
+dispatcher.add_handler(CommandHandler('start', start_command))
+dispatcher.add_handler(CommandHandler('help', help_command))
+dispatcher.add_handler(CommandHandler('test', test_command))
+dispatcher.add_handler(CallbackQueryHandler(button_click))
 
-# Получение токена бота из переменных окружения
-TOKEN = app.config['TELEGRAM_BOT_TOKEN']
-if not TOKEN:
-    logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-    exit(1)
-
-# Инициализация бота и приложения Telegram
-application = ApplicationBuilder().token(TOKEN).build()
-
-# Добавление обработчиков команд к приложению
-application.add_handler(CommandHandler('start', start_command))
-application.add_handler(CommandHandler('help', help_command))
-application.add_handler(CommandHandler('test', test_command))
-
-# Добавление обработчика CallbackQueryHandler к приложению
-application.add_handler(CallbackQueryHandler(button_click))
-
-# **Flask Routes for Telegram Webhooks**
-
-def process_update_thread(update):
-    """
-    Функция для обработки обновлений Telegram в отдельном потоке.
-    """
-    try:
-        asyncio.run(application.process_update(update))
-    except Exception as e:
-        logger.error(f"Ошибка в процессе обработки обновления Telegram: {e}")
-        logger.error(traceback.format_exc())
-
+# Обработчик вебхуков
 @app.route('/webhook', methods=['POST'])
-def webhook_route():
-    """Обработчик вебхуков от Telegram."""
-    if request.method == "POST":
+def webhook():
+    if request.method == 'POST':
         try:
-            update = Update.de_json(request.get_json(force=True), application.bot)
-            # Запускаем обработку обновления в отдельном потоке
-            thread = Thread(target=process_update_thread, args=(update,))
-            thread.start()
-
+            update = Update.de_json(request.get_json(force=True), bot)
+            dispatcher.process_update(update)
             logger.info(f"Получено обновление от Telegram: {update}")
             return 'OK', 200
         except Exception as e:
@@ -1252,31 +1227,15 @@ def webhook_route():
 
 # Маршрут для установки вебхука
 @app.route('/set_webhook', methods=['GET'])
-def set_webhook_route():
-    """Маршрут для установки вебхука Telegram."""
+def set_webhook():
     webhook_url = f"https://{get_app_host()}/webhook"
-    bot_token = app.config['TELEGRAM_BOT_TOKEN']
-    if not bot_token:
-        logger.error("TELEGRAM_TOKEN не установлен в переменных окружения.")
-        return "TELEGRAM_TOKEN не установлен", 500
-    set_webhook_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
-    try:
-        response = requests.post(set_webhook_url, data={"url": webhook_url})
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("ok"):
-                logger.info(f"Webhook успешно установлен на {webhook_url}")
-                return f"Webhook успешно установлен на {webhook_url}", 200
-            else:
-                logger.error(f"Не удалось установить webhook: {result}")
-                return f"Не удалось установить webhook: {result.get('description')}", 500
-        else:
-            logger.error(f"Ошибка HTTP при установке webhook: {response.status_code}")
-            return f"Ошибка HTTP: {response.status_code}", 500
-    except Exception as e:
-        logger.error(f"Ошибка при установке webhook: {e}")
-        logger.error(traceback.format_exc())
-        return "Произошла ошибка при установке webhook", 500
+    s = bot.set_webhook(webhook_url)
+    if s:
+        logger.info(f"Webhook успешно установлен на {webhook_url}")
+        return f"Webhook успешно установлен на {webhook_url}", 200
+    else:
+        logger.error(f"Не удалось установить webhook на {webhook_url}")
+        return f"Не удалось установить webhook", 500
 
 # **Запуск Flask-приложения**
 
@@ -1291,9 +1250,4 @@ if __name__ == '__main__':
             logger.error(f"Ошибка при применении миграций: {e}")
             logger.error(traceback.format_exc())
             exit(1)
-    # Запуск Telegram бота через вебхуки уже настроен, поэтому не нужно запускать polling
-    # Используем gunicorn для запуска Flask-приложения
-    # Убедитесь, что gunicorn настроен на использование синхронных работников
-    # Например, в файле Procfile:
-    # web: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)  # Установите debug=False для продакшена
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
