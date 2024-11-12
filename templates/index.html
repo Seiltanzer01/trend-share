@@ -40,28 +40,13 @@
                 <label>Критерии:</label>
                 <div class="criteria-filters">
                     <div class="criteria-section">
-                        {% for category in criteria_categories %}
-                            <div class="category">
-                                <button type="button" class="collapse-button">{{ category.name }}</button>
-                                <div class="category-content" style="display: none;">
-                                    {% for subcategory in category.subcategories %}
-                                        <div class="subcategory">
-                                            <button type="button" class="collapse-button">{{ subcategory.name }}</button>
-                                            <div class="subcategory-content" style="display: none;">
-                                                {% for criterion in subcategory.criteria %}
-                                                    <div class="criteria-item">
-                                                        <label>
-                                                            {{ criterion.name }}
-                                                            <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id|string in request.args.getlist('filter_criteria') %}checked{% endif %}>
-                                                        </label>
-                                                    </div>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
+                        <div class="category">
+                            <button type="button" class="collapse-button">Технический анализ</button>
+                            <div class="category-content" style="display: none;">
+                                <!-- Подкатегории и критерии -->
                             </div>
-                        {% endfor %}
+                        </div>
+                        <!-- Добавьте остальные категории аналогично -->
                     </div>
                 </div>
 
@@ -151,63 +136,10 @@
         <img class="modal-content" id="modal-img">
     </div>
 
-    <!-- Добавляем Telegram Web App JavaScript SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Подключаем jQuery и jQuery UI для datepicker -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+    <!-- Добавляем блок для отображения debug информации -->
+    <div id="debug" style="margin-top: 20px; color: red;"></div>
 
-    <script>
-        // Обработка Telegram Web App initData
-        (function() {
-            const tg = window.Telegram.WebApp;
-            const initData = tg.initData || tg.initDataUnsafe || '';
-
-            if (initData && !sessionStorage.getItem('initDataProcessed')) {
-                // Перенаправляем на сервер с параметром initData
-                const url = new URL(window.location.href);
-                url.searchParams.set('initData', initData);
-                sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
-                window.location.href = url.toString();
-            }
-        })();
-
-        $(document).ready(function(){
-            $('#toggle-filters').click(function(){
-                $('#filters').toggle();
-            });
-
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-
-            // Инициализация datepickers
-            $("input[type='text'][id$='date']").datepicker({
-                dateFormat: 'yy-mm-dd',
-                changeMonth: true,
-                changeYear: true
-            });
-
-            // Раскрывающиеся списки для категорий и подкатегорий
-            $('.collapse-button').click(function(){
-                $(this).next().toggle();
-            });
-        });
-    </script>
+    <!-- Подключаем внешний JavaScript файл -->
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </div>
 {% endblock %}
