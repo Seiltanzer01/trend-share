@@ -26,7 +26,8 @@
                     <a href="{{ url_for('manage_setups') }}">Управление Сетапами</a>
                     <a href="{{ url_for('logout') }}">Выйти</a>
                 {% else %}
-                    <a href="{{ url_for('login') }}">Войти через Telegram</a>
+                    <!-- Убираем ссылку на логин, так как авторизация происходит через Telegram Web App -->
+                    <a href="https://t.me/TrendShare_bot">Перейти к боту</a>
                 {% endif %}
             </nav>
         </header>
@@ -50,5 +51,22 @@
             &copy; {{ datetime.utcnow().year }} Trend Share
         </footer>
     </div>
+
+    <!-- Скрипт для обработки initData и авторизации -->
+    <script>
+        (function() {
+            const tg = window.Telegram.WebApp;
+            const initData = tg.initData || '';
+            if (initData) {
+                // Проверяем, авторизован ли пользователь
+                fetch('{{ url_for("auth") }}' + '?initData=' + encodeURIComponent(initData))
+                    .then(response => {
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        }
+                    });
+            }
+        })();
+    </script>
 </body>
 </html>
