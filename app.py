@@ -1082,7 +1082,7 @@ def webhook():
 
 # Маршрут для установки вебхука
 @app.route('/set_webhook', methods=['GET'])
-def set_webhook():
+def set_webhook_route():
     webhook_url = f"https://{get_app_host()}/webhook"
     s = bot.set_webhook(webhook_url)
     if s:
