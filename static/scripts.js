@@ -19,25 +19,18 @@ $(document).ready(function() {
             if (initData === '') {
                 alert('initData отсутствует. Убедитесь, что вы открываете приложение через Telegram.');
             } else {
-                alert('initData получено: ' + initData);
-            }
-
-            if (initData && !sessionStorage.getItem('initDataProcessed')) {
-                console.log('Processing initData...');
-                alert('Processing initData...');
                 // Перенаправляем на сервер с параметром initData
-                const url = new URL(window.location.href);
-                url.searchParams.set('initData', initData);
-                sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
-                window.location.href = url.toString();
-            } else {
-                console.log('No initData or already processed.');
-                if (initData) {
-                    alert('initData уже обработано.');
+                if (!sessionStorage.getItem('initDataProcessed')) {
+                    console.log('Processing initData...');
+                    sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
+                    // Закодировать initData для безопасной передачи в URL
+                    const encodedInitData = encodeURIComponent(initData);
+                    window.location.href = `/auth?initData=${encodedInitData}`;
                 } else {
-                    alert('initData отсутствует или уже обработано.');
+                    console.log('initData уже обработано.');
+                    $('#debug').text('initData уже обработано.');
+                    tg.ready(); // Уведомляем Telegram, что Web App готов
                 }
-                tg.ready(); // Уведомляем Telegram, что Web App готов
             }
         } catch (error) {
             console.error('Ошибка при обработке initData:', error);
@@ -80,7 +73,7 @@ $(document).ready(function() {
     });
 
     // Инициализация datepickers
-    $("#start_date, #end_date").datepicker({
+    $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
         changeYear: true
