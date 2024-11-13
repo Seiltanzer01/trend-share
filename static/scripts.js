@@ -17,15 +17,16 @@ $(document).ready(function() {
             console.log('initData:', initData);
             $('#debug').text('initData: ' + initData);
             if (initData === '') {
-                alert('initData отсутствует. Убедитесь, что вы открываете приложение через Telegram.');
+                // Инициализация Web App
+                tg.ready(); // Уведомляем Telegram, что Web App готов
             } else {
-                // Перенаправляем на сервер с параметром initData
+                // Перенаправляем на главную страницу с initData
                 if (!sessionStorage.getItem('initDataProcessed')) {
                     console.log('Processing initData...');
                     sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
                     // Закодировать initData для безопасной передачи в URL
                     const encodedInitData = encodeURIComponent(initData);
-                    window.location.href = `/auth?initData=${encodedInitData}`;
+                    window.location.href = `/init?initData=${encodedInitData}`;
                 } else {
                     console.log('initData уже обработано.');
                     $('#debug').text('initData уже обработано.');
