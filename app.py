@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import urllib.parse
+import base64
 from datetime import datetime
 
 from flask import (
@@ -100,59 +101,80 @@ def get_app_host():
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
 
 # Модели базы данных
+# (Предполагается, что модели определены в models.py и импортированы здесь)
+# Для целостности примера, приведены модели здесь.
 
-# Пользователи
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)
-    username = db.Column(db.String(150))
-    first_name = db.Column(db.String(150))
-    last_name = db.Column(db.String(150))
-    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
-    trades = db.relationship('Trade', backref='user', lazy=True)
-    setups = db.relationship('Setup', backref='user', lazy=True)
-
-# Категории инструментов
-class InstrumentCategory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    instruments = db.relationship('Instrument', backref='category', lazy=True)
-
-# Инструменты
-class Instrument(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
-    trades = db.relationship('Trade', backref='instrument', lazy=True)
-
-# Категории критериев
-class CriterionCategory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
-
-# Подкатегории критериев
-class CriterionSubcategory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
-    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
-
-# Критерии
-class Criterion(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
-    trades = db.relationship('Trade', secondary='trade_criteria', backref='criteria')
-
-# Вспомогательная таблица для связи сделок с критериями
 trade_criteria = db.Table('trade_criteria',
     db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
     db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
 )
 
-# Сделки
+setup_criteria = db.Table('setup_criteria',
+    db.Column('setup_id', db.Integer, db.ForeignKey('setup.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+class User(db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)  # Изменено на BigInteger
+    username = db.Column(db.String(80), unique=True, nullable=True)
+    first_name = db.Column(db.String(80), nullable=True)
+    last_name = db.Column(db.String(80), nullable=True)
+    auth_token = db.Column(db.String(64), unique=True, nullable=True)
+    auth_token_creation_time = db.Column(db.DateTime, nullable=True)
+    registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    trades = db.relationship('Trade', backref='user', lazy=True)
+    setups = db.relationship('Setup', backref='user', lazy=True)
+
+class InstrumentCategory(db.Model):
+    __tablename__ = 'instrument_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    instruments = db.relationship('Instrument', backref='category', lazy=True)
+
+class Instrument(db.Model):
+    __tablename__ = 'instrument'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
+    trades = db.relationship('Trade', backref='instrument', lazy=True)
+
+class CriterionCategory(db.Model):
+    __tablename__ = 'criterion_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
+
+class CriterionSubcategory(db.Model):
+    __tablename__ = 'criterion_subcategory'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
+    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
+
+class Criterion(db.Model):
+    __tablename__ = 'criterion'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
+
+    # Отношение с Trade
+    trades = db.relationship(
+        'Trade',
+        secondary=trade_criteria,
+        back_populates='criteria'
+    )
+
+    # Отношение с Setup
+    setups = db.relationship(
+        'Setup',
+        secondary=setup_criteria,
+        back_populates='criteria'
+    )
+
 class Trade(db.Model):
+    __tablename__ = 'trade'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
@@ -161,28 +183,51 @@ class Trade(db.Model):
     exit_price = db.Column(db.Float, nullable=True)
     trade_open_time = db.Column(db.Date, nullable=False)
     trade_close_time = db.Column(db.Date, nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
+    screenshot = db.Column(db.String(100), nullable=True)
     profit_loss = db.Column(db.Float, nullable=True)
     profit_loss_percentage = db.Column(db.Float, nullable=True)
-    comment = db.Column(db.Text, nullable=True)
-    screenshot = db.Column(db.String(300), nullable=True)
-    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
 
-# Сетапы
+    # Отношение с Criterion
+    criteria = db.relationship(
+        'Criterion',
+        secondary=trade_criteria,
+        back_populates='trades'
+    )
+
 class Setup(db.Model):
+    __tablename__ = 'setup'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    setup_name = db.Column(db.String(150), nullable=False)
+    setup_name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    screenshot = db.Column(db.String(300), nullable=True)
-    criteria = db.relationship('Criterion', secondary='setup_criteria', backref='setups')
+    screenshot = db.Column(db.String(100), nullable=True)
 
-# Вспомогательная таблица для связи сетапов с критериями
-setup_criteria = db.Table('setup_criteria',
-    db.Column('setup_id', db.Integer, db.ForeignKey('setup.id'), primary_key=True),
-    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
-)
+    # Отношение с Criterion
+    criteria = db.relationship(
+        'Criterion',
+        secondary=setup_criteria,
+        back_populates='setups'
+    )
+
+    trades = db.relationship('Trade', backref='setup', lazy=True)
+
+class LoginToken(db.Model):
+    __tablename__ = 'login_token'
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    telegram_id = db.Column(db.BigInteger, db.ForeignKey('user.telegram_id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
+    
+    def is_expired(self):
+        return datetime.utcnow() > self.expires_at
 
 # Формы
+# (Предполагается, что формы определены в forms.py и импортированы здесь)
+# Для целостности примера, приведены формы здесь.
 
 class TradeForm(FlaskForm):
     instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
@@ -192,48 +237,48 @@ class TradeForm(FlaskForm):
     trade_open_time = DateField('Дата открытия', format='%Y-%m-%d', validators=[DataRequired()])
     trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
     comment = TextAreaField('Комментарий', validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png'], 'Изображения только!')])
     setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
     submit = SubmitField('Сохранить')
 
 class SetupForm(FlaskForm):
-    setup_name = StringField('Название сетапа', validators=[DataRequired()])
+    setup_name = StringField('Название Сетапа', validators=[DataRequired()])
     description = TextAreaField('Описание', validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png'], 'Изображения только!')])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
     submit = SubmitField('Сохранить')
 
-# Функция для проверки подлинности данных Telegram Web App
+# Вспомогательная функция для проверки подлинности данных Telegram Web App
 def verify_telegram_auth(init_data):
     try:
         token = app.config['TELEGRAM_BOT_TOKEN']
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
-        # Разбиваем init_data на пары ключ-значение без декодирования значений
-        kv_pairs = init_data.split('&')
+        # Разбираем init_data без декодирования значений
+        params = urllib.parse.parse_qsl(init_data, keep_blank_values=True)
         data_dict = {}
         hash_to_check = ''
-        for kv in kv_pairs:
-            key_value = kv.split('=', 1)
-            if len(key_value) != 2:
-                continue
-            key, value = key_value
+        for key, value in params:
             if key == 'hash':
                 hash_to_check = value
             else:
-                data_dict[key] = value  # Не декодируем значения
+                data_dict[key] = value  # Не декодируем значение
+
+        if not hash_to_check:
+            logger.error("Параметр 'hash' отсутствует в initData.")
+            return False
 
         # Формируем data_check_string с недекодированными значениями
         sorted_params = sorted(data_dict.items())
-        data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_params)
+        data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted_params)
         logger.debug(f"Data check string:\n{data_check_string}")
 
         computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
         logger.debug(f"Computed hash: {computed_hash}")
-        logger.debug(f"Received hash: {hash_to_check.lower()}")
+        logger.debug(f"Received hash: {hash_to_check}")
 
-        return hmac.compare_digest(computed_hash, hash_to_check.lower())
+        return hmac.compare_digest(computed_hash, hash_to_check)
     except Exception as e:
         logger.error(f"Ошибка при проверке авторизации Telegram: {e}")
         logger.error(traceback.format_exc())
@@ -582,14 +627,24 @@ def index():
         init_data = init_data_list[0] if init_data_list else None
         logger.debug(f"Получен initData: {init_data}")
         if init_data:
-            if verify_telegram_auth(init_data):
+            try:
+                # Декодируем Base64 initData
+                decoded_init_data = base64.b64decode(init_data).decode('utf-8')
+                logger.debug(f"Декодированный initData: {decoded_init_data}")
+            except Exception as e:
+                logger.error(f"Ошибка при декодировании initData: {e}")
+                logger.error(traceback.format_exc())
+                flash('Некорректные данные аутентификации.', 'danger')
+                return redirect(url_for('login'))
+
+            if verify_telegram_auth(decoded_init_data):
                 # Разбираем initData только после успешной проверки хеша
-                kv_pairs = init_data.split('&')
+                params = urllib.parse.parse_qs(decoded_init_data)
                 data_dict = {}
-                for kv in kv_pairs:
-                    key, value = kv.split('=', 1)
+                for key, value in params.items():
                     if key != 'hash':
-                        data_dict[key] = urllib.parse.unquote_plus(value)
+                        # Берём первое значение из списка
+                        data_dict[key] = value[0]
 
                 telegram_id = int(data_dict.get('id'))
                 first_name = data_dict.get('first_name')
@@ -669,7 +724,8 @@ def index():
         trades=trades,
         categories=categories,
         criteria_categories=criteria_categories,
-        selected_instrument_id=instrument_id
+        selected_instrument_id=instrument_id,
+        selected_criteria=selected_criteria
     )
 
 # Страница авторизации (инструкции для пользователей, которые открывают приложение вне Telegram)
@@ -740,10 +796,12 @@ def new_trade():
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                # Убедитесь, что имя файла уникально, например, добавив временную метку
+                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 screenshot_file.save(screenshot_path)
-                trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
-                logger.info(f"Скриншот '{filename}' сохранён для сделки.")
+                trade.screenshot = unique_filename  # Добавляем поле screenshot в модели Trade
+                logger.info(f"Скриншот '{unique_filename}' сохранён для сделки.")
 
             db.session.add(trade)
             db.session.commit()
@@ -837,14 +895,16 @@ def edit_trade(trade_id):
                         os.remove(old_filepath)
                         logger.info(f"Старый скриншот '{trade.screenshot}' удалён для сделки ID {trade_id}.")
                 filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                # Убедитесь, что имя файла уникально
+                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 screenshot_file.save(screenshot_path)
-                trade.screenshot = filename
-                logger.info(f"Новый скриншот '{filename}' сохранён для сделки ID {trade.id}.")
+                trade.screenshot = unique_filename
+                logger.info(f"Новый скриншот '{unique_filename}' сохранён для сделки ID {trade.id}.")
 
             db.session.commit()
             flash('Сделка успешно обновлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
+            logger.info(f"Сделка ID {trade.id} обновлён пользователем ID {user_id}.")
             return redirect(url_for('index'))
         except Exception as e:
             db.session.rollback()
@@ -946,10 +1006,12 @@ def add_setup():
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                # Убедитесь, что имя файла уникально
+                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 screenshot_file.save(screenshot_path)
-                setup.screenshot = filename
-                logger.info(f"Скриншот '{filename}' сохранён для сетапа.")
+                setup.screenshot = unique_filename
+                logger.info(f"Скриншот '{unique_filename}' сохранён для сетапа.")
 
             db.session.add(setup)
             db.session.commit()
@@ -1016,10 +1078,12 @@ def edit_setup(setup_id):
                         os.remove(old_filepath)
                         logger.info(f"Старый скриншот '{setup.screenshot}' удалён для сетапа ID {setup_id}.")
                 filename = secure_filename(screenshot_file.filename)
-                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                # Убедитесь, что имя файла уникально
+                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 screenshot_file.save(screenshot_path)
-                setup.screenshot = filename
-                logger.info(f"Новый скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
+                setup.screenshot = unique_filename
+                logger.info(f"Новый скриншот '{unique_filename}' сохранён для сетапа ID {setup.id}.")
 
             db.session.commit()
             flash('Сетап успешно обновлён.', 'success')
@@ -1261,17 +1325,29 @@ def set_webhook_route():
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
-    init_data = data.get('initData')
-    logger.debug(f"Получен initData через AJAX: {init_data}")
-    if init_data:
+    init_data_base64 = data.get('initData')
+    logger.debug(f"Получен initData через AJAX: {init_data_base64}")
+    if init_data_base64:
+        try:
+            # Декодирование Base64 initData
+            init_data_decoded = base64.b64decode(init_data_base64).decode('utf-8')
+            # init_data_decoded содержит URL-кодированную строку
+            init_data = init_data_decoded
+            logger.debug(f"Декодированный initData: {init_data}")
+        except Exception as e:
+            logger.error(f"Ошибка при декодировании initData: {e}")
+            logger.error(traceback.format_exc())
+            flash('Некорректные данные аутентификации.', 'danger')
+            return jsonify({'status': 'failure', 'message': 'Invalid initData format'}), 400
+
         if verify_telegram_auth(init_data):
-            # Разбираем initData только после успешной проверки хеша
-            kv_pairs = init_data.split('&')
+            # Разбираем initData после успешной проверки подлинности
+            params = urllib.parse.parse_qs(init_data)
             data_dict = {}
-            for kv in kv_pairs:
-                key, value = kv.split('=', 1)
+            for key, value in params.items():
                 if key != 'hash':
-                    data_dict[key] = urllib.parse.unquote_plus(value)
+                    # Берём первое значение из списка
+                    data_dict[key] = value[0]
 
             telegram_id = int(data_dict.get('id'))
             first_name = data_dict.get('first_name')
