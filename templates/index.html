@@ -55,6 +55,21 @@
                                 {% endfor %}
                             </div>
                         </div>
+                        <div class="criteria-category">
+                            <button type="button" class="collapse-button">Фундаментальный анализ</button>
+                            <div class="category-content" style="display: none;">
+                                {% for subcategory in criteria_categories %}
+                                    {% if subcategory.category.name == 'Фундаментальный анализ' %}
+                                        <fieldset>
+                                            <legend>{{ subcategory.name }}</legend>
+                                            {% for criterion in subcategory.criteria %}
+                                                <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
+                                            {% endfor %}
+                                        </fieldset>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
                         <!-- Добавьте остальные категории аналогично -->
                     </div>
                 </div>
@@ -90,7 +105,7 @@
                     <td>{{ trade.id }}</td>
                     <td>
                         {% if trade.screenshot %}
-                            <img src="{{ url_for('uploaded_file', filename=trade.screenshot) }}" alt="Trade Screenshot" class="clickable-image">
+                            <img src="{{ url_for('uploaded_file', filename=trade.screenshot) }}" alt="Trade Screenshot" class="clickable-image" style="width: 100px; height: auto;">
                         {% else %}
                             -
                         {% endif %}
@@ -113,7 +128,7 @@
                         {% if trade.setup %}
                             <div class="setup-info">
                                 {% if trade.setup.screenshot %}
-                                    <img src="{{ url_for('uploaded_file', filename=trade.setup.screenshot) }}" alt="Setup Screenshot" class="setup-mini clickable-image">
+                                    <img src="{{ url_for('uploaded_file', filename=trade.setup.screenshot) }}" alt="Setup Screenshot" class="setup-mini clickable-image" style="width: 50px; height: auto;">
                                 {% endif %}
                                 {{ trade.setup.setup_name }}
                             </div>
