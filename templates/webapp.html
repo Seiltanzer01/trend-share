@@ -37,35 +37,41 @@
             const initData = tg.initData || tg.initDataUnsafe || '';
 
             if (initData) {
-                // Base64-кодируем initData
-                const initDataBase64 = btoa(initData);
+                try {
+                    // Base64-кодируем initData
+                    const initDataBase64 = btoa(initData);
 
-                // Отправляем Base64-кодированный initData на сервер через AJAX
-                fetch('/init', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',  // Позволяет отправлять куки-сессии
-                    body: JSON.stringify({ initData: initDataBase64 })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Успешная авторизация, можно перенаправить пользователя или обновить интерфейс
-                        window.Telegram.WebApp.close();  // Закрывает Web App и возвращает пользователя в Telegram
-                        window.location.href = '/';  // Перенаправляет на главную страницу приложения
-                    } else {
-                        // Ошибка авторизации
-                        alert('Ошибка авторизации: ' + data.message);
+                    // Отправляем Base64-кодированный initData на сервер через AJAX
+                    fetch('/init', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',  // Позволяет отправлять куки-сессии
+                        body: JSON.stringify({ initData: initDataBase64 })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // Успешная авторизация, можно перенаправить пользователя или обновить интерфейс
+                            window.Telegram.WebApp.close();  // Закрывает Web App и возвращает пользователя в Telegram
+                            window.location.href = '/';  // Перенаправляет на главную страницу приложения
+                        } else {
+                            // Ошибка авторизации
+                            alert('Ошибка авторизации: ' + data.message);
+                            window.Telegram.WebApp.close();  // Закрывает Web App
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при отправке initData:', error);
+                        alert('Произошла ошибка при авторизации.');
                         window.Telegram.WebApp.close();  // Закрывает Web App
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка при отправке initData:', error);
+                    });
+                } catch (error) {
+                    console.error('Ошибка при кодировании initData:', error);
                     alert('Произошла ошибка при авторизации.');
                     window.Telegram.WebApp.close();  // Закрывает Web App
-                });
+                }
             } else {
                 console.warn('initData отсутствует.');
                 alert('Не удалось получить данные авторизации.');
