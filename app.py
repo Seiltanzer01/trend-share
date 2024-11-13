@@ -5,7 +5,7 @@ import traceback
 import hashlib
 import hmac
 import json
-import time
+import urllib.parse
 from datetime import datetime, timedelta
 
 from flask import (
@@ -32,7 +32,6 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 import logging
 import requests
 import threading
-import urllib.parse
 
 from models import (
     db, User, InstrumentCategory, Instrument,
@@ -77,6 +76,11 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-с
 app.config['SESSION_COOKIE_SECURE'] = True      # Требует HTTPS
 app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'  # Указание домена для куки
 
+# Настройки загрузки файлов
+app.config['UPLOAD_FOLDER'] = 'uploads'
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
 # Настройка токена бота для использования в приложении
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
 if not app.config['TELEGRAM_BOT_TOKEN']:
@@ -88,11 +92,6 @@ db.init_app(app)
 
 # Инициализация Flask-Migrate
 migrate = Migrate(app, db)
-
-# Настройка папки для загрузки файлов
-app.config['UPLOAD_FOLDER'] = 'uploads'
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 # Контекстный процессор для предоставления datetime в шаблонах
 @app.context_processor
@@ -621,7 +620,7 @@ def new_trade():
                 screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 screenshot_file.save(screenshot_path)
                 trade.screenshot = filename  # Добавляем поле screenshot в модели Trade
-                logger.info(f"Скриншот '{filename}' сохранён для сделки ID {trade.id}.")
+                logger.info(f"Скриншот '{filename}' сохранён для сделки.")
 
             db.session.add(trade)
             db.session.commit()
@@ -827,7 +826,7 @@ def add_setup():
                 screenshot_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 screenshot_file.save(screenshot_path)
                 setup.screenshot = filename
-                logger.info(f"Скриншот '{filename}' сохранён для сетапа ID {setup.id}.")
+                logger.info(f"Скриншот '{filename}' сохранён для сетапа.")
 
             db.session.add(setup)
             db.session.commit()
@@ -1117,6 +1116,50 @@ def set_webhook_route():
     else:
         logger.error(f"Не удалось установить webhook на {webhook_url}")
         return f"Не удалось установить webhook", 500
+
+# **Обработка initData через основной маршрут**
+
+@app.route('/init', methods=['POST'])
+def init():
+    data = request.get_json()
+    init_data = data.get('initData')
+    logger.debug(f"Получен initData через AJAX: {init_data}")
+    if init_data:
+        data_dict = dict(urllib.parse.parse_qsl(init_data))
+        logger.debug(f"Разобранные данные initData через AJAX: {data_dict}")
+        if verify_telegram_auth(data_dict):
+            telegram_id = int(data_dict.get('id'))
+            first_name = data_dict.get('first_name')
+            last_name = data_dict.get('last_name')
+            username = data_dict.get('username')
+
+            # Поиск или создание пользователя
+            user = User.query.filter_by(telegram_id=telegram_id).first()
+            if not user:
+                user = User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+
+            # Устанавливаем сессию пользователя
+            session['user_id'] = user.id
+            session['telegram_id'] = user.telegram_id
+
+            logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
+
+            return jsonify({'status': 'success'}), 200
+        else:
+            logger.warning("Не удалось подтвердить подлинность данных Telegram через AJAX.")
+            return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
+    else:
+        logger.warning("initData отсутствует в AJAX-запросе.")
+        return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
 # **Запуск Flask-приложения**
 
