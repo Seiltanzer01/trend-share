@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from flask import (
     Flask, render_template, redirect, url_for, flash, request,
@@ -28,7 +28,7 @@ from flask_wtf.file import FileAllowed
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 )
-from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
+from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 
 import logging
 import requests
@@ -48,7 +48,7 @@ CORS(app, supports_credentials=True, resources={
 })
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)  # Установлено на DEBUG для детальной отладки
+logging.basicConfig(level=logging.INFO)  # Установлено на INFO для основных логов
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -1094,7 +1094,7 @@ if not TOKEN:
 
 # Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, workers=1, use_context=True)  # Изменено workers=1
+dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
 
 # Обработчики команд
 
@@ -1118,12 +1118,9 @@ def start_command(update, context):
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
 
         # Отправка сообщения с кнопкой Web App
-        message_text = (
-            f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
-        )
+        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
 
-        # Создание кнопки с Web App
-        web_app_url = f"https://{get_app_host()}/"  # Ваш URL приложения
+        web_app_url = f"https://{get_app_host()}/"
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1179,8 +1176,12 @@ def button_click(update, context):
     data = query.data
     logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
 
-    query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
-    logger.warning(f"Неизвестная или ненужная кнопка '{data}' от пользователя {user.id} ({user.username}).")
+    try:
+        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
+        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
+        logger.error(traceback.format_exc())
 
 # Добавление обработчиков к диспетчеру
 dispatcher.add_handler(CommandHandler('start', start_command))
@@ -1188,11 +1189,22 @@ dispatcher.add_handler(CommandHandler('help', help_command))
 dispatcher.add_handler(CommandHandler('test', test_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
+# Обработчики сообщений (если необходимо)
+# dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, some_function))
+
 # Обработчик вебхуков
 @app.route('/webhook', methods=['POST'])
 def webhook():
     if request.method == 'POST':
         try:
+            raw_data = request.get_data(as_text=True)
+            logger.debug(f"Raw request data: {raw_data}")
+
+            # Проверка, что данные присутствуют
+            if not raw_data:
+                logger.error("Empty request data received.")
+                return 'Bad Request', 400
+
             update = Update.de_json(request.get_json(force=True), bot)
             dispatcher.process_update(update)
             logger.info(f"Получено обновление от Telegram: {update}")
@@ -1208,13 +1220,18 @@ def webhook():
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook_route():
     webhook_url = f"https://{get_app_host()}/webhook"
-    s = bot.set_webhook(webhook_url)
-    if s:
-        logger.info(f"Webhook успешно установлен на {webhook_url}")
-        return f"Webhook успешно установлен на {webhook_url}", 200
-    else:
-        logger.error(f"Не удалось установить webhook на {webhook_url}")
-        return f"Не удалось установить webhook", 500
+    try:
+        s = bot.set_webhook(webhook_url)
+        if s:
+            logger.info(f"Webhook успешно установлен на {webhook_url}")
+            return f"Webhook успешно установлен на {webhook_url}", 200
+        else:
+            logger.error(f"Не удалось установить webhook на {webhook_url}")
+            return f"Не удалось установить webhook", 500
+    except Exception as e:
+        logger.error(f"Ошибка при установке вебхука: {e}")
+        logger.error(traceback.format_exc())
+        return f"Не удалось установить webhook: {e}", 500
 
 # Обработка initData через основной маршрут
 @app.route('/init', methods=['POST'])
@@ -1259,8 +1276,7 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-# **Запуск Flask-приложения**
-
+# Запуск Flask-приложения
 if __name__ == '__main__':
     # Запуск приложения
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
