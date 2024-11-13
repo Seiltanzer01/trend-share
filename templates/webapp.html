@@ -33,17 +33,21 @@
         // Проверяем, находится ли Web App внутри Telegram
         if (window.Telegram.WebApp) {
             // Получаем данные инициализации
-            const initData = window.Telegram.WebApp.initData;
+            const tg = window.Telegram.WebApp;
+            const initData = tg.initData || tg.initDataUnsafe || '';
 
             if (initData) {
-                // Отправляем initData на сервер через AJAX
+                // Base64-кодируем initData
+                const initDataBase64 = btoa(initData);
+
+                // Отправляем Base64-кодированный initData на сервер через AJAX
                 fetch('/init', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     credentials: 'include',  // Позволяет отправлять куки-сессии
-                    body: JSON.stringify({ initData: initData })
+                    body: JSON.stringify({ initData: initDataBase64 })
                 })
                 .then(response => response.json())
                 .then(data => {
