@@ -40,16 +40,15 @@
                 <label>Критерии:</label>
                 <div class="criteria-filters">
                     <div class="criteria-section">
-                        <div class="category">
+                        <div class="criteria-category">
                             <button type="button" class="collapse-button">Технический анализ</button>
                             <div class="category-content" style="display: none;">
-                                <!-- Подкатегории и критерии -->
                                 {% for subcategory in criteria_categories %}
                                     {% if subcategory.category.name == 'Технический анализ' %}
                                         <fieldset>
                                             <legend>{{ subcategory.name }}</legend>
                                             {% for criterion in subcategory.criteria %}
-                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
+                                                <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
                                             {% endfor %}
                                         </fieldset>
                                     {% endif %}
@@ -148,8 +147,5 @@
 
     <!-- Добавляем блок для отображения debug информации -->
     <div id="debug" style="margin-top: 20px; color: red; display: block;"></div>
-
-    <!-- Подключаем внешний JavaScript файл -->
-    <!-- Уже подключен в base.html -->
 </div>
 {% endblock %}
