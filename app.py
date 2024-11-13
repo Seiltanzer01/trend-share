@@ -210,7 +210,7 @@ def verify_telegram_auth(init_data):
         token = app.config['TELEGRAM_BOT_TOKEN']
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
-        # Разбиваем init_data на пары ключ-значение без декодирования значений
+        # Разбиваем init_data на пары ключ-значение
         kv_pairs = init_data.split('&')
         data_dict = {}
         hash_to_check = ''
@@ -222,9 +222,10 @@ def verify_telegram_auth(init_data):
             if key == 'hash':
                 hash_to_check = value
             else:
-                data_dict[key] = value
+                # Декодируем значения перед формированием data_check_string
+                data_dict[key] = urllib.parse.unquote_plus(value)
 
-        # Формируем data_check_string без декодирования значений
+        # Формируем data_check_string с декодированными значениями
         sorted_params = sorted(data_dict.items())
         data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_params)
         logger.debug(f"Data check string:\n{data_check_string}")
