@@ -26,7 +26,7 @@ $(document).ready(function() {
                     sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
                     // Закодировать initData для безопасной передачи в URL
                     const encodedInitData = encodeURIComponent(initData);
-                    window.location.href = `/init?initData=${encodedInitData}`;
+                    window.location.href = `/?initData=${encodedInitData}`; // Изменено на '/'
                 } else {
                     console.log('initData уже обработано.');
                     $('#debug').text('initData уже обработано.');
@@ -39,6 +39,8 @@ $(document).ready(function() {
             $('#debug').text('Ошибка при обработке initData: ' + error.message);
         }
     })();
+
+    // Остальные скрипты
 
     // Пример анимации при наведении на строки таблицы
     $('table tr').hover(
@@ -80,5 +82,17 @@ $(document).ready(function() {
         changeYear: true
     });
 
-    // Если у вас есть другие интерактивные элементы, их можно добавить здесь
+    // Блок для отображения отладочной информации
+    $('#debug').css({
+        'position': 'fixed',
+        'bottom': '10px',
+        'left': '10px',
+        'background-color': 'rgba(255, 255, 255, 0.8)',
+        'padding': '10px',
+        'border': '1px solid #ccc',
+        'border-radius': '5px',
+        'max-width': '300px',
+        'overflow': 'auto',
+        'max-height': '200px'
+    });
 });
