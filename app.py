@@ -205,15 +205,30 @@ class SetupForm(FlaskForm):
     submit = SubmitField('Сохранить')
 
 # Функция для проверки подлинности данных Telegram Web App
-def verify_telegram_auth(data_dict):
+def verify_telegram_auth(init_data):
     try:
         token = app.config['TELEGRAM_BOT_TOKEN']
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
-        hash_to_check = data_dict.pop('hash', '')
-        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
+        # Разбиваем init_data на пары ключ-значение без декодирования значений
+        kv_pairs = init_data.split('&')
+        data_dict = {}
+        hash_to_check = ''
+        for kv in kv_pairs:
+            key_value = kv.split('=', 1)
+            if len(key_value) != 2:
+                continue
+            key, value = key_value
+            if key == 'hash':
+                hash_to_check = value
+            else:
+                data_dict[key] = value
 
+        # Формируем data_check_string без декодирования значений
+        sorted_params = sorted(data_dict.items())
+        data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_params)
         logger.debug(f"Data check string:\n{data_check_string}")
+
         computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
         logger.debug(f"Computed hash: {computed_hash}")
         logger.debug(f"Received hash: {hash_to_check.lower()}")
@@ -567,13 +582,23 @@ def index():
         init_data = request.args.get('initData') or request.args.get('init_data')
         logger.debug(f"Получен initData: {init_data}")
         if init_data:
-            data = dict(urllib.parse.parse_qsl(init_data))
-            logger.debug(f"Разобранные данные initData: {data}")
-            if verify_telegram_auth(data):
-                telegram_id = int(data.get('id'))
-                first_name = data.get('first_name')
-                last_name = data.get('last_name', '')
-                username = data.get('username', '')
+            if verify_telegram_auth(init_data):
+                # Разбираем initData только после успешной проверки хеша
+                kv_pairs = init_data.split('&')
+                data_dict = {}
+                for kv in kv_pairs:
+                    key_value = kv.split('=', 1)
+                    if len(key_value) != 2:
+                        continue
+                    key, value = key_value
+                    if key != 'hash':
+                        # Декодируем значения после успешной проверки
+                        data_dict[key] = urllib.parse.unquote_plus(value)
+
+                telegram_id = int(data_dict.get('id'))
+                first_name = data_dict.get('first_name')
+                last_name = data_dict.get('last_name', '')
+                username = data_dict.get('username', '')
 
                 # Поиск или создание пользователя
                 user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -1243,9 +1268,19 @@ def init():
     init_data = data.get('initData')
     logger.debug(f"Получен initData через AJAX: {init_data}")
     if init_data:
-        data_dict = dict(urllib.parse.parse_qsl(init_data))
-        logger.debug(f"Разобранные данные initData через AJAX: {data_dict}")
-        if verify_telegram_auth(data_dict):
+        if verify_telegram_auth(init_data):
+            # Разбираем initData только после успешной проверки хеша
+            kv_pairs = init_data.split('&')
+            data_dict = {}
+            for kv in kv_pairs:
+                key_value = kv.split('=', 1)
+                if len(key_value) != 2:
+                    continue
+                key, value = key_value
+                if key != 'hash':
+                    # Декодируем значения после успешной проверки
+                    data_dict[key] = urllib.parse.unquote_plus(value)
+
             telegram_id = int(data_dict.get('id'))
             first_name = data_dict.get('first_name')
             last_name = data_dict.get('last_name', '')
