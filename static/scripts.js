@@ -20,13 +20,13 @@ $(document).ready(function() {
                 // Инициализация Web App
                 tg.ready(); // Уведомляем Telegram, что Web App готов
             } else {
-                // Перенаправляем на главную страницу с initData
+                // Перенаправляем на главную страницу с Base64-кодированным initData
                 if (!sessionStorage.getItem('initDataProcessed')) {
                     console.log('Processing initData...');
                     sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
-                    // Закодировать initData для безопасной передачи в URL
-                    const encodedInitData = encodeURIComponent(initData);
-                    window.location.href = `/?initData=${encodedInitData}`;
+                    // Base64-кодирование initData
+                    const initDataBase64 = btoa(initData);
+                    window.location.href = `/?initData=${initDataBase64}`;
                 } else {
                     console.log('initData уже обработано.');
                     $('#debug').text('initData уже обработано.');
