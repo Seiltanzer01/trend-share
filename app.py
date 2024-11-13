@@ -29,7 +29,7 @@ from flask_wtf.file import FileAllowed
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 )
-from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -617,40 +617,23 @@ def logout():
 def health():
     return 'OK', 200
 
-# Главная страница — список сделок с фильтрацией и обработкой initData
+# Главная страница — список сделок с обработкой initData из URL
 @app.route('/', methods=['GET'])
 def index():
     if 'user_id' not in session:
-        # Получаем необработанную строку запроса
-        raw_query = request.query_string.decode('utf-8')
-        parsed_qs = urllib.parse.parse_qs(raw_query)
-        init_data_list = parsed_qs.get('initData') or parsed_qs.get('init_data')
-        init_data = init_data_list[0] if init_data_list else None
+        # Получаем initData из параметров запроса
+        init_data = request.args.get('initData') or request.args.get('init_data')
         logger.debug(f"Получен initData: {init_data}")
         if init_data:
-            try:
-                # Декодируем Base64 initData
-                decoded_init_data = base64.b64decode(init_data).decode('utf-8')
-                init_data = decoded_init_data
-                logger.debug(f"Декодированный initData: {init_data}")
-            except Exception as e:
-                logger.error(f"Ошибка при декодировании initData: {e}")
-                logger.error(traceback.format_exc())
-                flash('Некорректные данные аутентификации.', 'danger')
-                return redirect(url_for('login'))
-
             if verify_telegram_auth(init_data):
                 # Разбираем initData после успешной проверки подлинности
-                params = urllib.parse.parse_qs(init_data)
-                data_dict = {}
-                for key, value in params.items():
-                    if key != 'hash':
-                        data_dict[key] = value[0]
+                params = dict(pair.split('=') for pair in init_data.split('&'))
+                data_dict = {k: v for k, v in params.items() if k != 'hash'}
 
                 user_data = data_dict.get('user')
                 if user_data:
                     try:
-                        user_info = json.loads(user_data)
+                        user_info = json.loads(urllib.parse.unquote(user_data))
                         telegram_id = int(user_info.get('id'))
                         first_name = user_info.get('first_name')
                         last_name = user_info.get('last_name', '')
@@ -1325,77 +1308,11 @@ def set_webhook_route():
         logger.error(traceback.format_exc())
         return f"Не удалось установить webhook: {e}", 500
 
-# Обработка initData через маршрут /init
-@app.route('/init', methods=['POST'])
-def init():
-    data = request.get_json()
-    init_data_base64 = data.get('initData')
-    logger.debug(f"Получен initData через AJAX: {init_data_base64}")
-    if init_data_base64:
-        try:
-            # Декодирование Base64 initData
-            init_data_decoded = base64.b64decode(init_data_base64).decode('utf-8')
-            init_data = init_data_decoded
-            logger.debug(f"Декодированный initData: {init_data}")
-        except Exception as e:
-            logger.error(f"Ошибка при декодировании initData: {e}")
-            logger.error(traceback.format_exc())
-            flash('Некорректные данные аутентификации.', 'danger')
-            return jsonify({'status': 'failure', 'message': 'Invalid initData format'}), 400
-
-        if verify_telegram_auth(init_data):
-            # Разбираем initData после успешной проверки подлинности
-            params = urllib.parse.parse_qs(init_data)
-            data_dict = {}
-            for key, value in params.items():
-                if key != 'hash':
-                    data_dict[key] = value[0]
-
-            user_data = data_dict.get('user')
-            if user_data:
-                try:
-                    user_info = json.loads(user_data)
-                    telegram_id = int(user_info.get('id'))
-                    first_name = user_info.get('first_name')
-                    last_name = user_info.get('last_name', '')
-                    username = user_info.get('username', '')
-                except json.JSONDecodeError as e:
-                    logger.error(f"Ошибка при разборе JSON user: {e}")
-                    flash('Некорректные данные пользователя.', 'danger')
-                    return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
-            else:
-                telegram_id = int(data_dict.get('id'))
-                first_name = data_dict.get('first_name')
-                last_name = data_dict.get('last_name', '')
-                username = data_dict.get('username', '')
-
-            # Поиск или создание пользователя
-            user = User.query.filter_by(telegram_id=telegram_id).first()
-            if not user:
-                user = User(
-                    telegram_id=telegram_id,
-                    username=username,
-                    first_name=first_name,
-                    last_name=last_name,
-                    registered_at=datetime.utcnow()
-                )
-                db.session.add(user)
-                db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
-
-            # Устанавливаем сессию пользователя
-            session['user_id'] = user.id
-            session['telegram_id'] = user.telegram_id
-
-            logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
-
-            return jsonify({'status': 'success'}), 200
-        else:
-            logger.warning("Не удалось подтвердить подлинность данных Telegram через AJAX.")
-            return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
-    else:
-        logger.warning("initData отсутствует в AJAX-запросе.")
-        return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
+# Обработка initData через маршрут /init (Удалён в соответствии с новыми рекомендациями)
+# Удаляем этот маршрут, так как теперь initData передаётся через URL параметры
+# @app.route('/init', methods=['POST'])
+# def init():
+#     ...
 
 # Отдельный маршрут для Web App
 @app.route('/webapp', methods=['GET'])
