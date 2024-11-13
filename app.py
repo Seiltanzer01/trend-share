@@ -48,7 +48,7 @@ CORS(app, supports_credentials=True, resources={
 })
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)  # Установлено на INFO для основных логов
+logging.basicConfig(level=logging.DEBUG)  # Установлено на DEBUG для детального логирования
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -62,7 +62,7 @@ app.secret_key = secret_key_env
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройка APP_HOST для формирования ссылок
+# Настройки APP_HOST для формирования ссылок
 app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
 
 # Настройки сессии
@@ -213,12 +213,12 @@ def verify_telegram_auth(data_dict):
         hash_to_check = data_dict.pop('hash', '')
         data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
 
-        hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        logger.debug(f"Data check string:\n{data_check_string}")
+        computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        logger.debug(f"Computed hash: {computed_hash}")
+        logger.debug(f"Received hash: {hash_to_check.lower()}")
 
-        logger.debug(f"Computed HMAC: {hmac_hash}")
-        logger.debug(f"Received HMAC: {hash_to_check.lower()}")
-
-        return hmac.compare_digest(hmac_hash, hash_to_check.lower())
+        return hmac.compare_digest(computed_hash, hash_to_check.lower())
     except Exception as e:
         logger.error(f"Ошибка при проверке авторизации Telegram: {e}")
         logger.error(traceback.format_exc())
@@ -564,7 +564,6 @@ def index():
 
     if 'user_id' not in session:
         # Проверяем наличие данных авторизации из Telegram Web App
-        # Проверяем наличие данных через GET-параметры или через AJAX-запрос
         init_data = request.args.get('initData') or request.args.get('init_data')
         logger.debug(f"Получен initData: {init_data}")
         if init_data:
