@@ -245,14 +245,12 @@ def verify_telegram_auth(init_data):
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
         # Разделение init_data на пары ключ=значение без декодирования
-        pairs = init_data.split('&')
         data_dict = {}
         hash_to_check = ''
 
-        for pair in pairs:
-            if '=' not in pair:
-                continue
-            key, value = pair.split('=', 1)
+        # Разбираем init_data без декодирования значений параметров
+        params = urllib.parse.parse_qsl(init_data, keep_blank_values=True, strict_parsing=True)
+        for key, value in params:
             if key == 'hash':
                 hash_to_check = value
             else:
@@ -265,7 +263,10 @@ def verify_telegram_auth(init_data):
         # Сортировка ключей
         sorted_keys = sorted(data_dict.keys())
         # Формирование data_check_string
-        data_check_arr = [f"{key}={data_dict[key]}" for key in sorted_keys]
+        data_check_arr = []
+        for key in sorted_keys:
+            value = data_dict[key]
+            data_check_arr.append(f"{key}={value}")
         data_check_string = '\n'.join(data_check_arr)
         logger.debug(f"Data check string:\n{data_check_string}")
 
