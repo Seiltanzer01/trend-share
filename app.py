@@ -215,6 +215,9 @@ def verify_telegram_auth(data_dict):
 
         hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
+        logger.debug(f"Computed HMAC: {hmac_hash}")
+        logger.debug(f"Received HMAC: {hash_to_check.lower()}")
+
         return hmac.compare_digest(hmac_hash, hash_to_check.lower())
     except Exception as e:
         logger.error(f"Ошибка при проверке авторизации Telegram: {e}")
@@ -561,6 +564,7 @@ def index():
 
     if 'user_id' not in session:
         # Проверяем наличие данных авторизации из Telegram Web App
+        # Проверяем наличие данных через GET-параметры или через AJAX-запрос
         init_data = request.args.get('initData') or request.args.get('init_data')
         logger.debug(f"Получен initData: {init_data}")
         if init_data:
@@ -569,8 +573,8 @@ def index():
             if verify_telegram_auth(data):
                 telegram_id = int(data.get('id'))
                 first_name = data.get('first_name')
-                last_name = data.get('last_name')
-                username = data.get('username')
+                last_name = data.get('last_name', '')
+                username = data.get('username', '')
 
                 # Поиск или создание пользователя
                 user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -1120,7 +1124,7 @@ def start_command(update, context):
         # Отправка сообщения с кнопкой Web App
         message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
 
-        web_app_url = f"https://{get_app_host()}/"
+        web_app_url = f"https://{get_app_host()}/webapp"  # Обновлённый URL Web App
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1233,7 +1237,7 @@ def set_webhook_route():
         logger.error(traceback.format_exc())
         return f"Не удалось установить webhook: {e}", 500
 
-# Обработка initData через основной маршрут
+# Обработка initData через маршрут /init
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
@@ -1245,8 +1249,8 @@ def init():
         if verify_telegram_auth(data_dict):
             telegram_id = int(data_dict.get('id'))
             first_name = data_dict.get('first_name')
-            last_name = data_dict.get('last_name')
-            username = data_dict.get('username')
+            last_name = data_dict.get('last_name', '')
+            username = data_dict.get('username', '')
 
             # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -1276,7 +1280,13 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-# Запуск Flask-приложения
+# Отдельный маршрут для Web App
+@app.route('/webapp', methods=['GET'])
+def webapp():
+    return render_template('webapp.html')
+
+# **Запуск Flask-приложения**
+
 if __name__ == '__main__':
     # Запуск приложения
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
