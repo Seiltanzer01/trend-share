@@ -15,7 +15,6 @@ from flask import (
     send_from_directory, session, jsonify
 )
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
@@ -81,9 +80,6 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
-
-# Инициализация Flask-Migrate
-migrate = Migrate(app, db)
 
 # Контекстный процессор для предоставления datetime в шаблонах
 @app.context_processor
@@ -248,24 +244,32 @@ def verify_telegram_auth(init_data):
         token = app.config['TELEGRAM_BOT_TOKEN']
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
-        # Разбираем init_data без декодирования значений
-        params = urllib.parse.parse_qsl(init_data, keep_blank_values=True)
-        data_check_arr = []
+        # Разделение init_data на пары ключ=значение без декодирования
+        pairs = init_data.split('&')
+        data_dict = {}
         hash_to_check = ''
-        for key, value in params:
+
+        for pair in pairs:
+            if '=' not in pair:
+                continue
+            key, value = pair.split('=', 1)
             if key == 'hash':
                 hash_to_check = value
             else:
-                data_check_arr.append(f"{key}={value}")
+                data_dict[key] = value
 
         if not hash_to_check:
             logger.error("Параметр 'hash' отсутствует в initData.")
             return False
 
-        data_check_arr.sort()
+        # Сортировка ключей
+        sorted_keys = sorted(data_dict.keys())
+        # Формирование data_check_string
+        data_check_arr = [f"{key}={data_dict[key]}" for key in sorted_keys]
         data_check_string = '\n'.join(data_check_arr)
         logger.debug(f"Data check string:\n{data_check_string}")
 
+        # Вычисление HMAC-SHA256
         computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
         logger.debug(f"Computed hash: {computed_hash}")
         logger.debug(f"Received hash: {hash_to_check}")
@@ -591,8 +595,13 @@ def create_predefined_data():
 # Инициализация данных при первом запуске
 @app.before_first_request
 def initialize():
-    with app.app_context():
+    try:
+        db.create_all()
+        logger.info("База данных создана или уже существует.")
         create_predefined_data()
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        logger.error(traceback.format_exc())
 
 # Маршруты аутентификации
 
