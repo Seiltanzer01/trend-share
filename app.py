@@ -8,17 +8,25 @@ import json
 import time
 from datetime import datetime, timedelta
 
-from flask import Flask, render_template, redirect, url_for, flash, request, send_from_directory, session, jsonify
+from flask import (
+    Flask, render_template, redirect, url_for, flash, request,
+    send_from_directory, session, jsonify
+)
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from wtforms import StringField, SelectField, FloatField, DateField, TextAreaField, FileField, SubmitField, SelectMultipleField
+from wtforms import (
+    StringField, SelectField, FloatField, DateField, TextAreaField,
+    FileField, SubmitField, SelectMultipleField
+)
 from wtforms.validators import DataRequired, Optional
 from flask_wtf.file import FileAllowed
 
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from telegram import (
+    Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+)
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 import logging
@@ -26,7 +34,11 @@ import requests
 import threading
 import urllib.parse
 
-from models import db, User, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion, Trade, Setup
+from models import (
+    db, User, InstrumentCategory, Instrument,
+    CriterionCategory, CriterionSubcategory, Criterion,
+    Trade, Setup, LoginToken
+)
 from forms import TradeForm, SetupForm
 
 # Инициализация Flask-приложения
@@ -96,15 +108,20 @@ def get_app_host():
 
 # Функция для проверки подлинности данных Telegram Web App
 def verify_telegram_auth(data_dict):
-    token = app.config['TELEGRAM_BOT_TOKEN']
-    secret_key = hashlib.sha256(token.encode('utf-8')).digest()
+    try:
+        token = app.config['TELEGRAM_BOT_TOKEN']
+        secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
-    hash_to_check = data_dict.pop('hash', '')
-    data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
+        hash_to_check = data_dict.pop('hash', '')
+        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
 
-    hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
-    return hmac_hash == hash_to_check
+        return hmac.compare_digest(hmac_hash, hash_to_check.lower())
+    except Exception as e:
+        logger.error(f"Ошибка при проверке авторизации Telegram: {e}")
+        logger.error(traceback.format_exc())
+        return False
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -438,6 +455,77 @@ def logout():
 def health():
     return 'OK', 200
 
+# Маршрут /auth для обработки initData
+@app.route('/auth', methods=['GET'])
+def auth():
+    init_data = request.args.get('initData') or request.args.get('init_data')
+    logger.debug(f"Получено initData: {init_data}")
+    if not init_data:
+        flash('initData отсутствует. Пожалуйста, откройте приложение через Telegram.', 'danger')
+        logger.warning("initData отсутствует в запросе.")
+        return redirect(url_for('login'))
+
+    # Парсинг initData
+    try:
+        data = dict(urllib.parse.parse_qsl(init_data))
+    except Exception as e:
+        flash('Ошибка при парсинге данных авторизации.', 'danger')
+        logger.error(f"Ошибка при парсинге initData: {e}")
+        return redirect(url_for('login'))
+
+    logger.debug(f"Разобранные данные initData: {data}")
+
+    # Проверка подлинности данных
+    if not verify_telegram_auth(data):
+        flash('Не удалось подтвердить подлинность данных Telegram.', 'danger')
+        logger.warning("Не удалось подтвердить подлинность данных Telegram.")
+        return redirect(url_for('login'))
+
+    # Проверка времени авторизации
+    auth_date = int(data.get('auth_date', 0))
+    if time.time() - auth_date > 300:  # 5 минут
+        flash('Время авторизации истекло. Пожалуйста, повторите попытку.', 'danger')
+        logger.warning("Время авторизации истекло.")
+        return redirect(url_for('login'))
+
+    # Извлечение информации о пользователе
+    try:
+        telegram_id = int(data.get('id'))
+    except (ValueError, TypeError):
+        logger.error("Некорректный Telegram ID.")
+        flash('Некорректные данные пользователя.', 'danger')
+        return redirect(url_for('login'))
+
+    username = data.get('username')
+    first_name = data.get('first_name')
+    last_name = data.get('last_name', '')
+    photo_url = data.get('photo_url')
+    language_code = data.get('language_code')
+
+    # Поиск или создание пользователя в базе данных
+    with app.app_context():
+        user = User.query.filter_by(telegram_id=telegram_id).first()
+        if not user:
+            user = User(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                registered_at=datetime.utcnow()
+            )
+            db.session.add(user)
+            db.session.commit()
+            logger.info(f"Создан новый пользователь: Telegram ID {telegram_id}.")
+
+    # Установка сессии пользователя
+    session['user_id'] = user.id
+    session['telegram_id'] = user.telegram_id
+
+    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
+
+    # Перенаправление на главную страницу
+    return redirect(url_for('index'))
+
 # Главная страница — список сделок с фильтрацией
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
@@ -445,47 +533,9 @@ def index():
         return '', 200  # Возвращаем 200 OK для HEAD-запросов
 
     if 'user_id' not in session:
-        # Проверяем наличие данных авторизации из Telegram Web App
-        init_data = request.args.get('initData') or request.args.get('init_data')
-        logger.debug(f"Получен initData: {init_data}")
-        if init_data:
-            data = dict(urllib.parse.parse_qsl(init_data))
-            logger.debug(f"Разобранные данные initData: {data}")
-            if verify_telegram_auth(data):
-                telegram_id = int(data.get('id'))
-                first_name = data.get('first_name')
-                last_name = data.get('last_name')
-                username = data.get('username')
-
-                # Поиск или создание пользователя
-                user = User.query.filter_by(telegram_id=telegram_id).first()
-                if not user:
-                    user = User(
-                        telegram_id=telegram_id,
-                        username=username,
-                        first_name=first_name,
-                        last_name=last_name,
-                        registered_at=datetime.utcnow()
-                    )
-                    db.session.add(user)
-                    db.session.commit()
-                    logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
-
-                # Устанавливаем сессию пользователя
-                session['user_id'] = user.id
-                session['telegram_id'] = user.telegram_id
-                logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
-
-                # Перенаправляем на главную страницу без initData
-                return redirect(url_for('index'))
-            else:
-                flash('Не удалось подтвердить подлинность данных Telegram.', 'danger')
-                logger.warning("Не удалось подтвердить подлинность данных Telegram.")
-                return redirect(url_for('login'))
-        else:
-            # Если данных нет, перенаправляем на страницу авторизации
-            logger.debug("initData отсутствует в запросе.")
-            return redirect(url_for('login'))
+        flash('Пожалуйста, авторизуйтесь через Telegram Web App.', 'warning')
+        logger.debug("Пользователь не авторизован, перенаправление на страницу авторизации.")
+        return redirect(url_for('login'))
 
     # Если пользователь уже авторизован, отображаем главную страницу
     user_id = session['user_id']
@@ -533,7 +583,7 @@ def index():
         selected_instrument_id=instrument_id
     )
 
-# Страница авторизации (можно оставить для пользователей, которые открывают приложение вне Telegram)
+# Страница авторизации (инструкции для пользователей, которые открывают приложение вне Telegram)
 @app.route('/login', methods=['GET'])
 def login():
     if 'user_id' in session:
@@ -624,7 +674,12 @@ def new_trade():
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    return render_template('new_trade.html', form=form, criteria_categories=criteria_categories, grouped_instruments=grouped_instruments)
+    return render_template(
+        'new_trade.html',
+        form=form,
+        criteria_categories=criteria_categories,
+        grouped_instruments=grouped_instruments
+    )
 
 # Редактировать сделку
 @app.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
@@ -894,16 +949,11 @@ def edit_setup(setup_id):
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    # Группировка инструментов по категориям
-    grouped_instruments = {}
-    for category in InstrumentCategory.query.all():
-        grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
     return render_template(
         'edit_setup.html',
         form=form,
         criteria_categories=criteria_categories,
-        setup=setup,
-        grouped_instruments=grouped_instruments
+        setup=setup
     )
 
 # Удалить сетап
@@ -1014,7 +1064,7 @@ def start_command(update, context):
                 [
                     InlineKeyboardButton(
                         text="Открыть приложение",
-                        web_app=WebAppInfo(url="https://trend-share.onrender.com/")
+                        web_app=WebAppInfo(url=web_app_url)
                     )
                 ]
             ]
