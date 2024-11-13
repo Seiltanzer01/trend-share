@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Trend Share Web App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        .loader {
+            border: 16px solid #f3f3f3; /* Light grey */
+            border-top: 16px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Авторизация...</h1>
+    <div class="loader"></div>
+    <script>
+        // Проверяем, находится ли Web App внутри Telegram
+        if (window.Telegram.WebApp) {
+            // Получаем данные инициализации
+            const initData = window.Telegram.WebApp.initData;
+
+            if (initData) {
+                // Отправляем initData на сервер через AJAX
+                fetch('/init', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',  // Позволяет отправлять куки-сессии
+                    body: JSON.stringify({ initData: initData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Успешная авторизация, можно перенаправить пользователя или обновить интерфейс
+                        window.Telegram.WebApp.close();  // Закрывает Web App и возвращает пользователя в Telegram
+                        window.location.href = '/';  // Перенаправляет на главную страницу приложения
+                    } else {
+                        // Ошибка авторизации
+                        alert('Ошибка авторизации: ' + data.message);
+                        window.Telegram.WebApp.close();  // Закрывает Web App
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при отправке initData:', error);
+                    alert('Произошла ошибка при авторизации.');
+                    window.Telegram.WebApp.close();  // Закрывает Web App
+                });
+            } else {
+                console.warn('initData отсутствует.');
+                alert('Не удалось получить данные авторизации.');
+                window.Telegram.WebApp.close();  // Закрывает Web App
+            }
+        } else {
+            console.warn('Web App не запущен внутри Telegram.');
+            alert('Это приложение доступно только через Telegram.');
+        }
+    </script>
+</body>
+</html>
