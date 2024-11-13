@@ -1,3 +1,5 @@
+<!-- webapp.html -->
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -30,42 +32,15 @@
     <h1>Авторизация...</h1>
     <div class="loader"></div>
     <script>
-        // Проверяем, находится ли Web App внутри Telegram
+        // Проверяем, что объект Telegram.WebApp доступен
         if (window.Telegram.WebApp) {
-            // Получаем данные инициализации
-            const tg = window.Telegram.WebApp;
-            const initData = tg.initData || tg.initDataUnsafe || '';
+            // Получаем initData
+            var initData = window.Telegram.WebApp.initData;
 
             if (initData) {
                 try {
-                    // Base64-кодируем initData
-                    const initDataBase64 = btoa(initData);
-
-                    // Отправляем Base64-кодированный initData на сервер через AJAX
-                    fetch('/init', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        credentials: 'include',  // Позволяет отправлять куки-сессии
-                        body: JSON.stringify({ initData: initDataBase64 })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            // Успешная авторизация, перенаправляем пользователя на главную страницу
-                            window.location.href = '/';
-                        } else {
-                            // Ошибка авторизации
-                            alert('Ошибка авторизации: ' + data.message);
-                            window.Telegram.WebApp.close();  // Закрывает Web App
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка при отправке initData:', error);
-                        alert('Произошла ошибка при авторизации.');
-                        window.Telegram.WebApp.close();  // Закрывает Web App
-                    });
+                    // Перенаправляем на сервер с initData как параметр URL
+                    window.location.href = "/?initData=" + encodeURIComponent(initData);
                 } catch (error) {
                     console.error('Ошибка при обработке initData:', error);
                     alert('Ошибка при обработке initData: ' + error.message);
