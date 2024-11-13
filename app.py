@@ -12,6 +12,7 @@ from flask import (
     Flask, render_template, redirect, url_for, flash, request,
     send_from_directory, session, jsonify
 )
+from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_wtf import FlaskForm
@@ -32,13 +33,6 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 import logging
 import requests
 import threading
-
-from models import (
-    db, User, InstrumentCategory, Instrument,
-    CriterionCategory, CriterionSubcategory, Criterion,
-    Trade, Setup, LoginToken
-)
-from forms import TradeForm, SetupForm
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -88,7 +82,7 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
 
 # Инициализация SQLAlchemy
-db.init_app(app)
+db = SQLAlchemy(app)
 
 # Инициализация Flask-Migrate
 migrate = Migrate(app, db)
@@ -104,6 +98,111 @@ def get_app_host():
     Возвращает хост приложения для формирования ссылок.
     """
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
+
+# Модели базы данных
+
+# Пользователи
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)
+    username = db.Column(db.String(150))
+    first_name = db.Column(db.String(150))
+    last_name = db.Column(db.String(150))
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    trades = db.relationship('Trade', backref='user', lazy=True)
+    setups = db.relationship('Setup', backref='user', lazy=True)
+
+# Категории инструментов
+class InstrumentCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    instruments = db.relationship('Instrument', backref='category', lazy=True)
+
+# Инструменты
+class Instrument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
+    trades = db.relationship('Trade', backref='instrument', lazy=True)
+
+# Категории критериев
+class CriterionCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
+
+# Подкатегории критериев
+class CriterionSubcategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
+    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
+
+# Критерии
+class Criterion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
+    trades = db.relationship('Trade', secondary='trade_criteria', backref='criteria')
+
+# Вспомогательная таблица для связи сделок с критериями
+trade_criteria = db.Table('trade_criteria',
+    db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+# Сделки
+class Trade(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
+    direction = db.Column(db.String(10), nullable=False)  # 'Buy' или 'Sell'
+    entry_price = db.Column(db.Float, nullable=False)
+    exit_price = db.Column(db.Float, nullable=True)
+    trade_open_time = db.Column(db.Date, nullable=False)
+    trade_close_time = db.Column(db.Date, nullable=True)
+    profit_loss = db.Column(db.Float, nullable=True)
+    profit_loss_percentage = db.Column(db.Float, nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    screenshot = db.Column(db.String(300), nullable=True)
+    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
+
+# Сетапы
+class Setup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    setup_name = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    screenshot = db.Column(db.String(300), nullable=True)
+    criteria = db.relationship('Criterion', secondary='setup_criteria', backref='setups')
+
+# Вспомогательная таблица для связи сетапов с критериями
+setup_criteria = db.Table('setup_criteria',
+    db.Column('setup_id', db.Integer, db.ForeignKey('setup.id'), primary_key=True),
+    db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
+)
+
+# Формы
+
+class TradeForm(FlaskForm):
+    instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
+    direction = SelectField('Направление', choices=[('Buy', 'Buy'), ('Sell', 'Sell')], validators=[DataRequired()])
+    entry_price = FloatField('Цена входа', validators=[DataRequired()])
+    exit_price = FloatField('Цена выхода', validators=[Optional()])
+    trade_open_time = DateField('Дата открытия', format='%Y-%m-%d', validators=[DataRequired()])
+    trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
+    comment = TextAreaField('Комментарий', validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png'], 'Изображения только!')])
+    setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
+    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    submit = SubmitField('Сохранить')
+
+class SetupForm(FlaskForm):
+    setup_name = StringField('Название сетапа', validators=[DataRequired()])
+    description = TextAreaField('Описание', validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png'], 'Изображения только!')])
+    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    submit = SubmitField('Сохранить')
 
 # Функция для проверки подлинности данных Telegram Web App
 def verify_telegram_auth(data_dict):
@@ -1117,8 +1216,7 @@ def set_webhook_route():
         logger.error(f"Не удалось установить webhook на {webhook_url}")
         return f"Не удалось установить webhook", 500
 
-# **Обработка initData через основной маршрут**
-
+# Обработка initData через основной маршрут
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
