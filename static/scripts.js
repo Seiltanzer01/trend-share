@@ -26,7 +26,7 @@ $(document).ready(function() {
                     sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
                     // Закодировать initData для безопасной передачи в URL
                     const encodedInitData = encodeURIComponent(initData);
-                    window.location.href = `/?initData=${encodedInitData}`; // Изменено на '/'
+                    window.location.href = `/?initData=${encodedInitData}`;
                 } else {
                     console.log('initData уже обработано.');
                     $('#debug').text('initData уже обработано.');
