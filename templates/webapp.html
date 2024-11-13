@@ -53,9 +53,8 @@
                     .then(response => response.json())
                     .then(data => {
                         if (data.status === 'success') {
-                            // Успешная авторизация, можно перенаправить пользователя или обновить интерфейс
-                            window.Telegram.WebApp.close();  // Закрывает Web App и возвращает пользователя в Telegram
-                            window.location.href = '/';  // Перенаправляет на главную страницу приложения
+                            // Успешная авторизация, перенаправляем пользователя на главную страницу
+                            window.location.href = '/';
                         } else {
                             // Ошибка авторизации
                             alert('Ошибка авторизации: ' + data.message);
@@ -68,8 +67,8 @@
                         window.Telegram.WebApp.close();  // Закрывает Web App
                     });
                 } catch (error) {
-                    console.error('Ошибка при кодировании initData:', error);
-                    alert('Произошла ошибка при авторизации.');
+                    console.error('Ошибка при обработке initData:', error);
+                    alert('Ошибка при обработке initData: ' + error.message);
                     window.Telegram.WebApp.close();  // Закрывает Web App
                 }
             } else {
