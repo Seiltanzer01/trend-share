@@ -210,7 +210,7 @@ def verify_telegram_auth(init_data):
         token = app.config['TELEGRAM_BOT_TOKEN']
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
 
-        # Разбиваем init_data на пары ключ-значение
+        # Разбиваем init_data на пары ключ-значение без декодирования значений
         kv_pairs = init_data.split('&')
         data_dict = {}
         hash_to_check = ''
@@ -222,10 +222,9 @@ def verify_telegram_auth(init_data):
             if key == 'hash':
                 hash_to_check = value
             else:
-                # Декодируем значения перед формированием data_check_string
-                data_dict[key] = urllib.parse.unquote_plus(value)
+                data_dict[key] = value  # Не декодируем значения
 
-        # Формируем data_check_string с декодированными значениями
+        # Формируем data_check_string с недекодированными значениями
         sorted_params = sorted(data_dict.items())
         data_check_string = '\n'.join(f'{k}={v}' for k, v in sorted_params)
         logger.debug(f"Data check string:\n{data_check_string}")
@@ -573,14 +572,14 @@ def health():
     return 'OK', 200
 
 # Главная страница — список сделок с фильтрацией и обработкой initData
-@app.route('/', methods=['GET', 'HEAD'])
+@app.route('/', methods=['GET'])
 def index():
-    if request.method == 'HEAD':
-        return '', 200  # Возвращаем 200 OK для HEAD-запросов
-
     if 'user_id' not in session:
-        # Проверяем наличие данных авторизации из Telegram Web App
-        init_data = request.args.get('initData') or request.args.get('init_data')
+        # Получаем необработанную строку запроса
+        raw_query = request.query_string.decode('utf-8')
+        parsed_qs = urllib.parse.parse_qs(raw_query)
+        init_data_list = parsed_qs.get('initData') or parsed_qs.get('init_data')
+        init_data = init_data_list[0] if init_data_list else None
         logger.debug(f"Получен initData: {init_data}")
         if init_data:
             if verify_telegram_auth(init_data):
@@ -588,12 +587,8 @@ def index():
                 kv_pairs = init_data.split('&')
                 data_dict = {}
                 for kv in kv_pairs:
-                    key_value = kv.split('=', 1)
-                    if len(key_value) != 2:
-                        continue
-                    key, value = key_value
+                    key, value = kv.split('=', 1)
                     if key != 'hash':
-                        # Декодируем значения после успешной проверки
                         data_dict[key] = urllib.parse.unquote_plus(value)
 
                 telegram_id = int(data_dict.get('id'))
@@ -1274,12 +1269,8 @@ def init():
             kv_pairs = init_data.split('&')
             data_dict = {}
             for kv in kv_pairs:
-                key_value = kv.split('=', 1)
-                if len(key_value) != 2:
-                    continue
-                key, value = key_value
+                key, value = kv.split('=', 1)
                 if key != 'hash':
-                    # Декодируем значения после успешной проверки
                     data_dict[key] = urllib.parse.unquote_plus(value)
 
             telegram_id = int(data_dict.get('id'))
@@ -1324,4 +1315,5 @@ def webapp():
 
 if __name__ == '__main__':
     # Запуск приложения
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
