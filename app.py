@@ -455,87 +455,54 @@ def logout():
 def health():
     return 'OK', 200
 
-# Маршрут /auth для обработки initData
-@app.route('/auth', methods=['GET'])
-def auth():
-    init_data = request.args.get('initData') or request.args.get('init_data')
-    logger.debug(f"Получено initData: {init_data}")
-    if not init_data:
-        flash('initData отсутствует. Пожалуйста, откройте приложение через Telegram.', 'danger')
-        logger.warning("initData отсутствует в запросе.")
-        return redirect(url_for('login'))
-
-    # Парсинг initData
-    try:
-        data = dict(urllib.parse.parse_qsl(init_data))
-    except Exception as e:
-        flash('Ошибка при парсинге данных авторизации.', 'danger')
-        logger.error(f"Ошибка при парсинге initData: {e}")
-        return redirect(url_for('login'))
-
-    logger.debug(f"Разобранные данные initData: {data}")
-
-    # Проверка подлинности данных
-    if not verify_telegram_auth(data):
-        flash('Не удалось подтвердить подлинность данных Telegram.', 'danger')
-        logger.warning("Не удалось подтвердить подлинность данных Telegram.")
-        return redirect(url_for('login'))
-
-    # Проверка времени авторизации
-    auth_date = int(data.get('auth_date', 0))
-    if time.time() - auth_date > 300:  # 5 минут
-        flash('Время авторизации истекло. Пожалуйста, повторите попытку.', 'danger')
-        logger.warning("Время авторизации истекло.")
-        return redirect(url_for('login'))
-
-    # Извлечение информации о пользователе
-    try:
-        telegram_id = int(data.get('id'))
-    except (ValueError, TypeError):
-        logger.error("Некорректный Telegram ID.")
-        flash('Некорректные данные пользователя.', 'danger')
-        return redirect(url_for('login'))
-
-    username = data.get('username')
-    first_name = data.get('first_name')
-    last_name = data.get('last_name', '')
-    photo_url = data.get('photo_url')
-    language_code = data.get('language_code')
-
-    # Поиск или создание пользователя в базе данных
-    with app.app_context():
-        user = User.query.filter_by(telegram_id=telegram_id).first()
-        if not user:
-            user = User(
-                telegram_id=telegram_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                registered_at=datetime.utcnow()
-            )
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"Создан новый пользователь: Telegram ID {telegram_id}.")
-
-    # Установка сессии пользователя
-    session['user_id'] = user.id
-    session['telegram_id'] = user.telegram_id
-
-    logger.info(f"Пользователь ID {user.id} (Telegram ID {telegram_id}) авторизовался через Telegram Web App.")
-
-    # Перенаправление на главную страницу
-    return redirect(url_for('index'))
-
-# Главная страница — список сделок с фильтрацией
+# Главная страница — список сделок с фильтрацией и обработкой initData
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
     if request.method == 'HEAD':
         return '', 200  # Возвращаем 200 OK для HEAD-запросов
 
     if 'user_id' not in session:
-        flash('Пожалуйста, авторизуйтесь через Telegram Web App.', 'warning')
-        logger.debug("Пользователь не авторизован, перенаправление на страницу авторизации.")
-        return redirect(url_for('login'))
+        # Проверяем наличие данных авторизации из Telegram Web App
+        init_data = request.args.get('initData') or request.args.get('init_data')
+        logger.debug(f"Получен initData: {init_data}")
+        if init_data:
+            data = dict(urllib.parse.parse_qsl(init_data))
+            logger.debug(f"Разобранные данные initData: {data}")
+            if verify_telegram_auth(data):
+                telegram_id = int(data.get('id'))
+                first_name = data.get('first_name')
+                last_name = data.get('last_name')
+                username = data.get('username')
+
+                # Поиск или создание пользователя
+                user = User.query.filter_by(telegram_id=telegram_id).first()
+                if not user:
+                    user = User(
+                        telegram_id=telegram_id,
+                        username=username,
+                        first_name=first_name,
+                        last_name=last_name,
+                        registered_at=datetime.utcnow()
+                    )
+                    db.session.add(user)
+                    db.session.commit()
+                    logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+
+                # Устанавливаем сессию пользователя
+                session['user_id'] = user.id
+                session['telegram_id'] = user.telegram_id
+                logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
+
+                # Перенаправляем на главную страницу без initData
+                return redirect(url_for('index'))
+            else:
+                flash('Не удалось подтвердить подлинность данных Telegram.', 'danger')
+                logger.warning("Не удалось подтвердить подлинность данных Telegram.")
+                return redirect(url_for('login'))
+        else:
+            # Если данных нет, отображаем страницу авторизации
+            logger.debug("initData отсутствует в запросе.")
+            return redirect(url_for('login'))
 
     # Если пользователь уже авторизован, отображаем главную страницу
     user_id = session['user_id']
