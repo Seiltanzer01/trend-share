@@ -1,12 +1,13 @@
 # app.py
 
 import os
+import logging
 import traceback
+import json
 import hashlib
 import hmac
-import json
-import urllib.parse
 import base64
+import urllib.parse
 from datetime import datetime
 
 from flask import (
@@ -30,10 +31,6 @@ from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 )
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
-
-import logging
-import requests
-import threading
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -101,8 +98,6 @@ def get_app_host():
     return app.config.get('APP_HOST', 'trend-share.onrender.com')
 
 # Модели базы данных
-# (Предполагается, что модели определены в models.py и импортированы здесь)
-# Для целостности примера, приведены модели здесь.
 
 trade_criteria = db.Table('trade_criteria',
     db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
@@ -226,8 +221,6 @@ class LoginToken(db.Model):
         return datetime.utcnow() > self.expires_at
 
 # Формы
-# (Предполагается, что формы определены в forms.py и импортированы здесь)
-# Для целостности примера, приведены формы здесь.
 
 class TradeForm(FlaskForm):
     instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
@@ -238,8 +231,8 @@ class TradeForm(FlaskForm):
     trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
     comment = TextAreaField('Комментарий', validators=[Optional()])
     setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     submit = SubmitField('Сохранить')
 
 class SetupForm(FlaskForm):
@@ -257,21 +250,20 @@ def verify_telegram_auth(init_data):
 
         # Разбираем init_data без декодирования значений
         params = urllib.parse.parse_qsl(init_data, keep_blank_values=True)
-        data_dict = {}
+        data_check_arr = []
         hash_to_check = ''
         for key, value in params:
             if key == 'hash':
                 hash_to_check = value
             else:
-                data_dict[key] = value  # Не декодируем значение
+                data_check_arr.append(f"{key}={value}")
 
         if not hash_to_check:
             logger.error("Параметр 'hash' отсутствует в initData.")
             return False
 
-        # Формируем data_check_string с недекодированными значениями
-        sorted_params = sorted(data_dict.items())
-        data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted_params)
+        data_check_arr.sort()
+        data_check_string = '\n'.join(data_check_arr)
         logger.debug(f"Data check string:\n{data_check_string}")
 
         computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -630,26 +622,39 @@ def index():
             try:
                 # Декодируем Base64 initData
                 decoded_init_data = base64.b64decode(init_data).decode('utf-8')
-                logger.debug(f"Декодированный initData: {decoded_init_data}")
+                init_data = decoded_init_data
+                logger.debug(f"Декодированный initData: {init_data}")
             except Exception as e:
                 logger.error(f"Ошибка при декодировании initData: {e}")
                 logger.error(traceback.format_exc())
                 flash('Некорректные данные аутентификации.', 'danger')
                 return redirect(url_for('login'))
 
-            if verify_telegram_auth(decoded_init_data):
-                # Разбираем initData только после успешной проверки хеша
-                params = urllib.parse.parse_qs(decoded_init_data)
+            if verify_telegram_auth(init_data):
+                # Разбираем initData после успешной проверки подлинности
+                params = urllib.parse.parse_qs(init_data)
                 data_dict = {}
                 for key, value in params.items():
                     if key != 'hash':
-                        # Берём первое значение из списка
                         data_dict[key] = value[0]
 
-                telegram_id = int(data_dict.get('id'))
-                first_name = data_dict.get('first_name')
-                last_name = data_dict.get('last_name', '')
-                username = data_dict.get('username', '')
+                user_data = data_dict.get('user')
+                if user_data:
+                    try:
+                        user_info = json.loads(user_data)
+                        telegram_id = int(user_info.get('id'))
+                        first_name = user_info.get('first_name')
+                        last_name = user_info.get('last_name', '')
+                        username = user_info.get('username', '')
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Ошибка при разборе JSON user: {e}")
+                        flash('Некорректные данные пользователя.', 'danger')
+                        return redirect(url_for('login'))
+                else:
+                    telegram_id = int(data_dict.get('id'))
+                    first_name = data_dict.get('first_name')
+                    last_name = data_dict.get('last_name', '')
+                    username = data_dict.get('username', '')
 
                 # Поиск или создание пользователя
                 user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -748,10 +753,6 @@ def new_trade():
     form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
     # Заполнение списка инструментов
     instruments = Instrument.query.all()
-    # Группировка инструментов по категориям
-    grouped_instruments = {}
-    for category in InstrumentCategory.query.all():
-        grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
     # Устанавливаем choices для поля instrument
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in Instrument.query.all()]
     # Заполнение списка критериев
@@ -770,7 +771,7 @@ def new_trade():
                 entry_price=form.entry_price.data,
                 exit_price=form.exit_price.data if form.exit_price.data else None,
                 trade_open_time=form.trade_open_time.data,
-                trade_close_time=form.trade_close_time.data if form.exit_price.data else None,
+                trade_close_time=form.trade_close_time.data if form.trade_close_time.data else None,
                 comment=form.comment.data,
                 setup_id=form.setup_id.data if form.setup_id.data != 0 else None
             )
@@ -824,8 +825,7 @@ def new_trade():
     return render_template(
         'new_trade.html',
         form=form,
-        criteria_categories=criteria_categories,
-        grouped_instruments=grouped_instruments
+        criteria_categories=criteria_categories
     )
 
 # Редактировать сделку
@@ -863,7 +863,7 @@ def edit_trade(trade_id):
             trade.entry_price = form.entry_price.data
             trade.exit_price = form.exit_price.data if form.exit_price.data else None
             trade.trade_open_time = form.trade_open_time.data
-            trade.trade_close_time = form.trade_close_time.data if form.exit_price.data else None
+            trade.trade_close_time = form.trade_close_time.data if form.trade_close_time.data else None
             trade.comment = form.comment.data
             trade.setup_id = form.setup_id.data if form.setup_id.data != 0 else None
 
@@ -904,7 +904,7 @@ def edit_trade(trade_id):
 
             db.session.commit()
             flash('Сделка успешно обновлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} обновлён пользователем ID {user_id}.")
+            logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
             return redirect(url_for('index'))
         except Exception as e:
             db.session.rollback()
@@ -919,16 +919,11 @@ def edit_trade(trade_id):
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    # Группировка инструментов по категориям
-    grouped_instruments = {}
-    for category in InstrumentCategory.query.all():
-        grouped_instruments[category.name] = Instrument.query.filter_by(category_id=category.id).all()
     return render_template(
         'edit_trade.html',
         form=form,
         criteria_categories=criteria_categories,
-        trade=trade,
-        grouped_instruments=grouped_instruments
+        trade=trade
     )
 
 # Удалить сделку
@@ -1331,7 +1326,6 @@ def init():
         try:
             # Декодирование Base64 initData
             init_data_decoded = base64.b64decode(init_data_base64).decode('utf-8')
-            # init_data_decoded содержит URL-кодированную строку
             init_data = init_data_decoded
             logger.debug(f"Декодированный initData: {init_data}")
         except Exception as e:
@@ -1346,13 +1340,25 @@ def init():
             data_dict = {}
             for key, value in params.items():
                 if key != 'hash':
-                    # Берём первое значение из списка
                     data_dict[key] = value[0]
 
-            telegram_id = int(data_dict.get('id'))
-            first_name = data_dict.get('first_name')
-            last_name = data_dict.get('last_name', '')
-            username = data_dict.get('username', '')
+            user_data = data_dict.get('user')
+            if user_data:
+                try:
+                    user_info = json.loads(user_data)
+                    telegram_id = int(user_info.get('id'))
+                    first_name = user_info.get('first_name')
+                    last_name = user_info.get('last_name', '')
+                    username = user_info.get('username', '')
+                except json.JSONDecodeError as e:
+                    logger.error(f"Ошибка при разборе JSON user: {e}")
+                    flash('Некорректные данные пользователя.', 'danger')
+                    return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
+            else:
+                telegram_id = int(data_dict.get('id'))
+                first_name = data_dict.get('first_name')
+                last_name = data_dict.get('last_name', '')
+                username = data_dict.get('username', '')
 
             # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
