@@ -27,7 +27,7 @@
                     <a href="{{ url_for('manage_setups') }}">Управление Сетапами</a>
                     <a href="{{ url_for('logout') }}">Выйти</a>
                 {% else %}
-                    <!-- Убираем ссылку на логин, так как авторизация происходит через Telegram Web App -->
+                    <a href="{{ url_for('login') }}">Авторизоваться</a>
                     <a href="https://t.me/TrendShare_bot">Перейти к боту</a>
                 {% endif %}
             </nav>
@@ -53,6 +53,10 @@
         </footer>
     </div>
 
-    <!-- Удалённый скрипт для обработки initData и авторизации -->
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
 </body>
 </html>
