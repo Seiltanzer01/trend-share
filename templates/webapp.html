@@ -37,11 +37,13 @@
             // Получаем данные инициализации
             const tg = window.Telegram.WebApp;
             const initData = tg.initData || tg.initDataUnsafe || '';
+            console.log('Получен initData:', initData);
 
             if (initData) {
                 try {
                     // Base64-кодируем initData
                     const initDataBase64 = btoa(initData);
+                    console.log('Base64-кодированный initData:', initDataBase64);
 
                     // Отправляем Base64-кодированный initData на сервер через AJAX
                     fetch('/init', {
@@ -54,6 +56,7 @@
                     })
                     .then(response => response.json())
                     .then(data => {
+                        console.log('Ответ от сервера:', data);
                         if (data.status === 'success') {
                             // Успешная авторизация, перенаправляем пользователя на главную страницу
                             window.location.href = '/';
@@ -71,12 +74,12 @@
                 } catch (error) {
                     console.error('Ошибка при обработке initData:', error);
                     alert('Ошибка при обработке initData: ' + error.message);
-                    window.Telegram.WebApp.close();  # Закрывает Web App
+                    window.Telegram.WebApp.close();  // Закрывает Web App
                 }
             } else {
                 console.warn('initData отсутствует.');
                 alert('Не удалось получить данные авторизации.');
-                window.Telegram.WebApp.close();  # Закрывает Web App
+                window.Telegram.WebApp.close();  // Закрывает Web App
             }
         } else {
             console.warn('Web App не запущен внутри Telegram.');
