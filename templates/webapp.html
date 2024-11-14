@@ -11,14 +11,6 @@
     <script>
         const tg = window.Telegram.WebApp;
 
-        /**
-         * Функция для корректного Base64-кодирования Unicode строк.
-         * Браузерная функция btoa не поддерживает Unicode напрямую, поэтому используется этот обходной путь.
-         */
-        function base64EncodeUnicode(str) {
-            return btoa(unescape(encodeURIComponent(str)));
-        }
-
         // Отправка initData через AJAX POST запрос на маршрут /init
         fetch('/init', {
             method: 'POST',
@@ -26,7 +18,7 @@
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                initData: base64EncodeUnicode(tg.initData) // Base64-кодированное initData
+                initData: tg.initData // Инициализационные данные от Telegram
             })
         })
         .then(response => response.json())
