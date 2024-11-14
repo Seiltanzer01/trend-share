@@ -31,6 +31,8 @@ from telegram import (
 )
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
+from urllib.parse import unquote
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -667,12 +669,13 @@ def init():
             user_data = data_dict.get('user')
             if user_data:
                 try:
-                    user_info = json.loads(user_data)
+                    # Декодирование user параметра перед парсингом JSON
+                    user_info = json.loads(unquote(user_data))
                     telegram_id = int(user_info.get('id'))
                     first_name = user_info.get('first_name')
                     last_name = user_info.get('last_name', '')
                     username = user_info.get('username', '')
-                except json.JSONDecodeError as e:
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.error(f"Ошибка при разборе JSON user: {e}")
                     return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
             else:
