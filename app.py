@@ -4,10 +4,7 @@ import os
 import logging
 import traceback
 import json
-import hashlib
-import hmac
 import base64
-import urllib.parse
 from datetime import datetime
 
 from flask import (
@@ -33,8 +30,8 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from urllib.parse import unquote
 
-# Добавленный импорт
-from telegram_widget_auth import verify_authentication
+# Импорт из telegram-webapp-auth
+from telegram_webapp_auth import TelegramWebAppAuth
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -84,7 +81,13 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
 
 # Логирование токена бота (для отладки; удалить в продакшене)
-logger.debug(f"TELEGRAM_BOT_TOKEN: {app.config['TELEGRAM_BOT_TOKEN']}")
+# logger.debug(f"TELEGRAM_BOT_TOKEN: {app.config['TELEGRAM_BOT_TOKEN']}")  # Рекомендуется закомментировать
+
+# Инициализация TelegramWebAppAuth
+telegram_auth = TelegramWebAppAuth(
+    bot_token=app.config['TELEGRAM_BOT_TOKEN'],
+    secret=app.secret_key
+)
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
@@ -583,40 +586,23 @@ def logout():
 def health():
     return 'OK', 200
 
-# Обработка initData через маршрут /init с использованием библиотеки python-telegram-widget-auth
+# Обработка initData через маршрут /init с использованием telegram-webapp-auth
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
-    init_data_base64 = data.get('initData')
-    logger.debug(f"Получен initData через AJAX: {init_data_base64}")
-    if init_data_base64:
+    init_data = data.get('initData')
+    logger.debug(f"Получен initData через AJAX: {init_data}")
+    if init_data:
         try:
-            # Декодирование Base64 initData
-            init_data_decoded = base64.b64decode(init_data_base64).decode('utf-8')
-            init_data = init_data_decoded
-            logger.debug(f"Декодированный initData: {init_data}")
-        except Exception as e:
-            logger.error(f"Ошибка при декодировании initData: {e}")
-            logger.error(traceback.format_exc())
-            return jsonify({'status': 'failure', 'message': 'Invalid initData format'}), 400
+            # Верификация initData с использованием telegram-webapp-auth
+            user_data = telegram_auth.verify(init_data)
+            logger.debug(f"Верифицированные данные пользователя: {user_data}")
 
-        # Верификация initData с использованием библиотеки
-        is_valid, auth_data = verify_authentication(init_data, app.config['TELEGRAM_BOT_TOKEN'])
-        if is_valid:
-            # Извлечение данных пользователя из auth_data
-            user_info = auth_data.get('user')
-            if user_info:
-                try:
-                    telegram_id = int(user_info.get('id'))
-                    first_name = user_info.get('first_name')
-                    last_name = user_info.get('last_name', '')
-                    username = user_info.get('username', '')
-                except (TypeError, ValueError) as e:
-                    logger.error(f"Ошибка при извлечении данных пользователя: {e}")
-                    return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
-            else:
-                logger.error("Отсутствуют данные пользователя в auth_data.")
-                return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
+            # Извлечение данных пользователя из user_data
+            telegram_id = int(user_data.get('id'))
+            first_name = user_data.get('first_name')
+            last_name = user_data.get('last_name', '')
+            username = user_data.get('username', '')
 
             # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -638,12 +624,15 @@ def init():
 
             logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
             return jsonify({'status': 'success'}), 200
-        else:
-            logger.warning("Не удалось подтвердить подлинность данных Telegram через AJAX.")
+        except Exception as e:
+            logger.error(f"Ошибка при верификации initData: {e}")
+            logger.error(traceback.format_exc())
             return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
     else:
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
+
+# Остальная часть вашего кода остается без изменений
 
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
