@@ -32,24 +32,51 @@
     <h1>Авторизация...</h1>
     <div class="loader"></div>
     <script>
-        // Проверяем, что объект Telegram.WebApp доступен
+        // Проверяем, находится ли Web App внутри Telegram
         if (window.Telegram.WebApp) {
-            // Получаем initData
-            var initData = window.Telegram.WebApp.initData;
+            // Получаем данные инициализации
+            const tg = window.Telegram.WebApp;
+            const initData = tg.initData || tg.initDataUnsafe || '';
 
             if (initData) {
                 try {
-                    // Перенаправляем на сервер с initData как параметр URL
-                    window.location.href = "/?initData=" + encodeURIComponent(initData);
+                    // Base64-кодируем initData
+                    const initDataBase64 = btoa(initData);
+
+                    // Отправляем Base64-кодированный initData на сервер через AJAX
+                    fetch('/init', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',  // Позволяет отправлять куки-сессии
+                        body: JSON.stringify({ initData: initDataBase64 })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // Успешная авторизация, перенаправляем пользователя на главную страницу
+                            window.location.href = '/';
+                        } else {
+                            // Ошибка авторизации
+                            alert('Ошибка авторизации: ' + data.message);
+                            window.Telegram.WebApp.close();  // Закрывает Web App
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при отправке initData:', error);
+                        alert('Произошла ошибка при авторизации.');
+                        window.Telegram.WebApp.close();  // Закрывает Web App
+                    });
                 } catch (error) {
                     console.error('Ошибка при обработке initData:', error);
                     alert('Ошибка при обработке initData: ' + error.message);
-                    window.Telegram.WebApp.close();  // Закрывает Web App
+                    window.Telegram.WebApp.close();  # Закрывает Web App
                 }
             } else {
                 console.warn('initData отсутствует.');
                 alert('Не удалось получить данные авторизации.');
-                window.Telegram.WebApp.close();  // Закрывает Web App
+                window.Telegram.WebApp.close();  # Закрывает Web App
             }
         } else {
             console.warn('Web App не запущен внутри Telegram.');
