@@ -30,8 +30,8 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from urllib.parse import unquote
 
-# Импорт функции верификации initData из telegram-webapp-auth
-from telegram_webapp_auth import verify_init_data
+# Импорт класса TelegramWebAppAuth из telegram-webapp-auth
+from telegram_webapp_auth import TelegramWebAppAuth
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -83,11 +83,11 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
 # Логирование токена бота (для отладки; удалить в продакшене)
 # logger.debug(f"TELEGRAM_BOT_TOKEN: {app.config['TELEGRAM_BOT_TOKEN']}")  # Рекомендуется закомментировать
 
-# Удаление инициализации TelegramWebAppAuth, так как используем функцию verify_init_data
-# telegram_auth = TelegramWebAppAuth(
-#     bot_token=app.config['TELEGRAM_BOT_TOKEN'],
-#     secret=app.secret_key
-# )
+# Инициализация TelegramWebAppAuth
+telegram_auth = TelegramWebAppAuth(
+    bot_token=app.config['TELEGRAM_BOT_TOKEN'],
+    secret=app.secret_key
+)
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
@@ -586,7 +586,7 @@ def logout():
 def health():
     return 'OK', 200
 
-# Обработка initData через маршрут /init с использованием telegram-webapp-auth
+# Обработка initData через маршрут /init с использованием TelegramWebAppAuth
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
@@ -594,8 +594,8 @@ def init():
     logger.debug(f"Получен initData через AJAX: {init_data}")
     if init_data:
         try:
-            # Верификация initData с использованием telegram-webapp-auth
-            user_data = verify_init_data(init_data)
+            # Верификация initData с использованием TelegramWebAppAuth
+            user_data = telegram_auth.verify(init_data)
             logger.debug(f"Верифицированные данные пользователя: {user_data}")
 
             # Извлечение данных пользователя из user_data
@@ -631,6 +631,8 @@ def init():
     else:
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
+
+# Остальная часть вашего кода остается без изменений
 
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
