@@ -30,8 +30,8 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from urllib.parse import unquote
 
-# Импорт из telegram-webapp-auth
-from telegram_webapp_auth import TelegramWebAppAuth
+# Импорт функции верификации initData из telegram-webapp-auth
+from telegram_webapp_auth import verify_init_data
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -83,11 +83,11 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
 # Логирование токена бота (для отладки; удалить в продакшене)
 # logger.debug(f"TELEGRAM_BOT_TOKEN: {app.config['TELEGRAM_BOT_TOKEN']}")  # Рекомендуется закомментировать
 
-# Инициализация TelegramWebAppAuth
-telegram_auth = TelegramWebAppAuth(
-    bot_token=app.config['TELEGRAM_BOT_TOKEN'],
-    secret=app.secret_key
-)
+# Удаление инициализации TelegramWebAppAuth, так как используем функцию verify_init_data
+# telegram_auth = TelegramWebAppAuth(
+#     bot_token=app.config['TELEGRAM_BOT_TOKEN'],
+#     secret=app.secret_key
+# )
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
@@ -595,7 +595,7 @@ def init():
     if init_data:
         try:
             # Верификация initData с использованием telegram-webapp-auth
-            user_data = telegram_auth.verify(init_data)
+            user_data = verify_init_data(init_data)
             logger.debug(f"Верифицированные данные пользователя: {user_data}")
 
             # Извлечение данных пользователя из user_data
@@ -631,8 +631,6 @@ def init():
     else:
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
-
-# Остальная часть вашего кода остается без изменений
 
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
