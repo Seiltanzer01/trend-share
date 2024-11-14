@@ -20,13 +20,36 @@ $(document).ready(function() {
                 // Инициализация Web App
                 tg.ready(); // Уведомляем Telegram, что Web App готов
             } else {
-                // Перенаправляем на главную страницу с Base64-кодированным initData
+                // Отправка initData на сервер через AJAX POST запрос
                 if (!sessionStorage.getItem('initDataProcessed')) {
-                    console.log('Processing initData...');
-                    sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторного перенаправления
-                    // Base64-кодирование initData
-                    const initDataBase64 = btoa(initData);
-                    window.location.href = `/?initData=${initDataBase64}`;
+                    console.log('Отправка initData на сервер...');
+                    sessionStorage.setItem('initDataProcessed', 'true'); // Флаг, чтобы избежать повторной отправки
+
+                    fetch('/init', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            initData: btoa(initData) // Base64-кодирование initData
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.status === 'success') {
+                            console.log('Авторизация успешна');
+                            tg.close(); // Закрыть Web App после успешной авторизации
+                        } else {
+                            console.error('Ошибка авторизации:', data.message);
+                            alert('Ошибка авторизации: ' + data.message);
+                            $('#debug').text('Ошибка авторизации: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при отправке initData:', error);
+                        alert('Произошла ошибка при авторизации.');
+                        $('#debug').text('Ошибка при отправке initData: ' + error.message);
+                    });
                 } else {
                     console.log('initData уже обработано.');
                     $('#debug').text('initData уже обработано.');
