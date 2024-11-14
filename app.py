@@ -3,8 +3,6 @@
 import os
 import logging
 import traceback
-import json
-import base64
 from datetime import datetime
 
 from flask import (
@@ -30,8 +28,8 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from urllib.parse import unquote
 
-# Импорт класса TelegramWebAppAuth из telegram-webapp-auth
-from telegram_webapp_auth import TelegramWebAppAuth
+# Импорт класса TelegramAuth из teleapp-auth
+from teleapp_auth import TelegramAuth
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -80,11 +78,8 @@ if not app.config['TELEGRAM_BOT_TOKEN']:
     logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
 
-# Логирование токена бота (для отладки; удалить в продакшене)
-# logger.debug(f"TELEGRAM_BOT_TOKEN: {app.config['TELEGRAM_BOT_TOKEN']}")  # Рекомендуется закомментировать
-
-# Инициализация TelegramWebAppAuth
-telegram_auth = TelegramWebAppAuth(
+# Инициализация TelegramAuth
+telegram_auth = TelegramAuth(
     bot_token=app.config['TELEGRAM_BOT_TOKEN'],
     secret=app.secret_key
 )
@@ -586,7 +581,7 @@ def logout():
 def health():
     return 'OK', 200
 
-# Обработка initData через маршрут /init с использованием TelegramWebAppAuth
+# Обработка initData через маршрут /init с использованием teleapp-auth
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
@@ -594,7 +589,7 @@ def init():
     logger.debug(f"Получен initData через AJAX: {init_data}")
     if init_data:
         try:
-            # Верификация initData с использованием TelegramWebAppAuth
+            # Верификация initData с использованием teleapp-auth
             user_data = telegram_auth.verify(init_data)
             logger.debug(f"Верифицированные данные пользователя: {user_data}")
 
