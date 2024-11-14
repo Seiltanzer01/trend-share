@@ -40,37 +40,23 @@
                 <label>Критерии:</label>
                 <div class="criteria-filters">
                     <div class="criteria-section">
-                        <div class="criteria-category">
-                            <button type="button" class="collapse-button">Технический анализ</button>
-                            <div class="category-content" style="display: none;">
-                                {% for subcategory in criteria_categories %}
-                                    {% if subcategory.category.name == 'Технический анализ' %}
-                                        <fieldset>
-                                            <legend>{{ subcategory.name }}</legend>
-                                            {% for criterion in subcategory.criteria %}
-                                                <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
-                                            {% endfor %}
-                                        </fieldset>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                        <div class="criteria-category">
-                            <button type="button" class="collapse-button">Фундаментальный анализ</button>
-                            <div class="category-content" style="display: none;">
-                                {% for subcategory in criteria_categories %}
-                                    {% if subcategory.category.name == 'Фундаментальный анализ' %}
-                                        <fieldset>
-                                            <legend>{{ subcategory.name }}</legend>
-                                            {% for criterion in subcategory.criteria %}
-                                                <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
-                                            {% endfor %}
-                                        </fieldset>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                        <!-- Добавьте остальные категории аналогично -->
+                        {% for category in criteria_categories %}
+                            {% if category.name == 'Технический анализ' or category.name == 'Фундаментальный анализ' or category.name == 'Психологические факторы' or category.name == 'Рыночная структура' or category.name == 'Психология рынка' %}
+                                <div class="criteria-category">
+                                    <button type="button" class="collapse-button">{{ category.name }}</button>
+                                    <div class="category-content" style="display: none;">
+                                        {% for subcategory in category.subcategories %}
+                                            <fieldset>
+                                                <legend>{{ subcategory.name }}</legend>
+                                                {% for criterion in subcategory.criteria %}
+                                                    <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
+                                                {% endfor %}
+                                            </fieldset>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
 
