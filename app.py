@@ -28,8 +28,8 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from urllib.parse import unquote
 
-# Импорт класса TelegramAuth из teleapp-auth
-from teleapp_auth import TelegramAuth
+# Импорт функций из teleapp-auth
+from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -77,12 +77,6 @@ app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').stri
 if not app.config['TELEGRAM_BOT_TOKEN']:
     logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
-
-# Инициализация TelegramAuth
-telegram_auth = TelegramAuth(
-    bot_token=app.config['TELEGRAM_BOT_TOKEN'],
-    secret=app.secret_key
-)
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
@@ -590,14 +584,25 @@ def init():
     if init_data:
         try:
             # Верификация initData с использованием teleapp-auth
-            user_data = telegram_auth.verify(init_data)
-            logger.debug(f"Верифицированные данные пользователя: {user_data}")
+            webapp_data = parse_webapp_data(init_data)
+            logger.debug(f"Parsed WebAppInitData: {webapp_data}")
 
-            # Извлечение данных пользователя из user_data
-            telegram_id = int(user_data.get('id'))
-            first_name = user_data.get('first_name')
-            last_name = user_data.get('last_name', '')
-            username = user_data.get('username', '')
+            # Получаем секретный ключ из телеграм-бота
+            secret_key = get_secret_key(app.config['TELEGRAM_BOT_TOKEN'])
+
+            # Валидация данных
+            is_valid = validate_webapp_data(webapp_data, secret_key)
+            logger.debug(f"Validation result: {is_valid}")
+
+            if not is_valid:
+                logger.warning("Невалидные данные авторизации.")
+                return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
+
+            # Извлечение данных пользователя из webapp_data
+            telegram_id = int(webapp_data.user.id)
+            first_name = webapp_data.user.first_name
+            last_name = webapp_data.user.last_name or ''
+            username = webapp_data.user.username or ''
 
             # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
