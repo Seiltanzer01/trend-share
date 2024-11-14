@@ -11,11 +11,11 @@
             text-align: center;
             margin-top: 50px;
         }
+        /* Можно удалить или оставить пустым блок main-app, так как он будет заменён перенаправлением */
         #main-app {
             display: none;
             padding: 20px;
         }
-        /* Добавьте свои стили для основного приложения */
     </style>
 </head>
 <body>
@@ -25,20 +25,18 @@
 
     <div id="main-app">
         <h1>Добро пожаловать в Журнал Сделок</h1>
-        <!-- Здесь разместите основной функционал вашего журнала -->
-        <!-- Например, формы, таблицы и т.д. -->
+        <!-- Здесь разместите основной функционал вашего журнала, если необходимо -->
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
 
         /**
-         * Функция для отображения основной части приложения после авторизации
+         * Функция для перенаправления на главную страницу приложения после авторизации
          */
-        function showMainApp() {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('main-app').style.display = 'block';
-            tg.ready(); // Уведомляем Telegram, что Web App готов
+        function redirectToMainApp() {
+            // Вы можете использовать window.location.href для перенаправления
+            window.location.href = '/';
         }
 
         /**
@@ -61,8 +59,8 @@
         .then(response => response.json())
         .then(data => {
             if(data.status === 'success') {
-                // Авторизация прошла успешно, отображаем основное приложение
-                showMainApp();
+                // Авторизация прошла успешно, перенаправляем на главную страницу приложения
+                redirectToMainApp();
             } else {
                 // Ошибка при авторизации
                 showError(data.message || 'Неизвестная ошибка при авторизации.');
