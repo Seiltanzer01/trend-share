@@ -31,6 +31,8 @@ from telegram import (
 )
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
+from urllib.parse import unquote
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -247,7 +249,7 @@ def verify_telegram_auth(init_data):
         data_dict = {}
         hash_to_check = ''
 
-        # Разделение init_data на пары ключ=значение без декодирования
+        # Разделение init_data на пары ключ=значение
         pairs = init_data.split('&')
         for pair in pairs:
             if '=' not in pair:
@@ -256,7 +258,8 @@ def verify_telegram_auth(init_data):
             if key == 'hash':
                 hash_to_check = value
             else:
-                data_dict[key] = value
+                # Декодирование значения параметра
+                data_dict[key] = unquote(value)
 
         if not hash_to_check:
             logger.error("Параметр 'hash' отсутствует в initData.")
