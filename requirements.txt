@@ -67,4 +67,4 @@ python-dotenv
 Flask-CORS==3.0.10
 telegram==0.0.1
 cryptography
-telegram-webapp-auth==2.0.1
+teleapp_auth
