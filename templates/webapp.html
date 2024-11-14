@@ -1,90 +1,38 @@
-<!-- webapp.html -->
-
+<!-- templates/webapp.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Trend Share Web App</title>
+    <title>Telegram Web App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
-        }
-        .loader {
-            border: 16px solid #f3f3f3; /* Light grey */
-            border-top: 16px solid #3498db; /* Blue */
-            border-radius: 50%;
-            width: 120px;
-            height: 120px;
-            animation: spin 2s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
 </head>
 <body>
-    <h1>Авторизация...</h1>
-    <div class="loader"></div>
+    <h1>Добро пожаловать в Web App</h1>
     <script>
-        // Проверяем, находится ли Web App внутри Telegram
-        if (window.Telegram.WebApp) {
-            // Получаем данные инициализации
-            const tg = window.Telegram.WebApp;
-            const initData = tg.initData || tg.initDataUnsafe || '';
-            console.log('Получен initData:', initData);
+        const tg = window.Telegram.WebApp;
 
-            if (initData) {
-                try {
-                    // Base64-кодируем initData
-                    const initDataBase64 = btoa(initData);
-                    console.log('Base64-кодированный initData:', initDataBase64);
-
-                    // Отправляем Base64-кодированный initData на сервер через AJAX
-                    fetch('/init', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        credentials: 'include',  // Позволяет отправлять куки-сессии
-                        body: JSON.stringify({ initData: initDataBase64 })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Ответ от сервера:', data);
-                        if (data.status === 'success') {
-                            // Успешная авторизация, перенаправляем пользователя на главную страницу
-                            window.location.href = '/';
-                        } else {
-                            // Ошибка авторизации
-                            alert('Ошибка авторизации: ' + data.message);
-                            window.Telegram.WebApp.close();  // Закрывает Web App
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка при отправке initData:', error);
-                        alert('Произошла ошибка при авторизации.');
-                        window.Telegram.WebApp.close();  // Закрывает Web App
-                    });
-                } catch (error) {
-                    console.error('Ошибка при обработке initData:', error);
-                    alert('Ошибка при обработке initData: ' + error.message);
-                    window.Telegram.WebApp.close();  // Закрывает Web App
-                }
+        // Отправка initData через AJAX POST запрос на маршрут /init
+        fetch('/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                initData: tg.initData // Инициализационные данные от Telegram
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success') {
+                tg.close(); // Закрыть Web App после успешной авторизации
             } else {
-                console.warn('initData отсутствует.');
-                alert('Не удалось получить данные авторизации.');
-                window.Telegram.WebApp.close();  // Закрывает Web App
+                alert(data.message);
             }
-        } else {
-            console.warn('Web App не запущен внутри Telegram.');
-            alert('Это приложение доступно только через Telegram.');
-        }
+        })
+        .catch(error => {
+            console.error('Ошибка при отправке initData:', error);
+            alert('Произошла ошибка при авторизации.');
+        });
     </script>
 </body>
 </html>
