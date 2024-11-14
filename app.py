@@ -274,7 +274,28 @@ def verify_telegram_auth(init_data):
         logger.debug(f"Computed hash: {computed_hash}")
         logger.debug(f"Received hash: {hash_to_check}")
 
-        return hmac.compare_digest(computed_hash, hash_to_check)
+        comparison_result = hmac.compare_digest(computed_hash, hash_to_check)
+        logger.debug(f"Hash comparison result: {comparison_result}")
+
+        # Дополнительная проверка auth_date
+        auth_date_str = data_dict.get('auth_date')
+        if auth_date_str:
+            try:
+                auth_date = int(auth_date_str)
+                current_time = int(datetime.utcnow().timestamp())
+                # Проверяем, что разница не более 86400 секунд (1 день)
+                if current_time - auth_date > 86400:
+                    logger.warning("Данные авторизации устарели.")
+                    return False
+                logger.debug(f"auth_date: {auth_date}, current_time: {current_time}, difference: {current_time - auth_date} секунд.")
+            except ValueError:
+                logger.error(f"Некорректный формат auth_date: {auth_date_str}")
+                return False
+        else:
+            logger.warning("Параметр 'auth_date' отсутствует в initData.")
+            return False
+
+        return comparison_result
     except Exception as e:
         logger.error(f"Ошибка при проверке авторизации Telegram: {e}")
         logger.error(traceback.format_exc())
@@ -654,10 +675,14 @@ def init():
                     logger.error(f"Ошибка при разборе JSON user: {e}")
                     return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
             else:
-                telegram_id = int(data_dict.get('id'))
-                first_name = data_dict.get('first_name')
-                last_name = data_dict.get('last_name', '')
-                username = data_dict.get('username', '')
+                try:
+                    telegram_id = int(data_dict.get('id'))
+                    first_name = data_dict.get('first_name')
+                    last_name = data_dict.get('last_name', '')
+                    username = data_dict.get('username', '')
+                except (TypeError, ValueError) as e:
+                    logger.error(f"Ошибка при извлечении данных пользователя: {e}")
+                    return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
 
             # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
