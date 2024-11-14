@@ -7,16 +7,15 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         /* Базовые стили для скрытия/показа различных секций */
-        #auth-section {
-            display: none;
-        }
-        #main-app {
-            display: none;
-        }
         #loading {
             text-align: center;
             margin-top: 50px;
         }
+        #main-app {
+            display: none;
+            padding: 20px;
+        }
+        /* Добавьте свои стили для основного приложения */
     </style>
 </head>
 <body>
@@ -24,15 +23,10 @@
         <h1>Авторизация...</h1>
     </div>
 
-    <div id="auth-section">
-        <h1>Добро пожаловать в Web App</h1>
-        <p>Авторизация прошла успешно. Добро пожаловать!</p>
-    </div>
-
     <div id="main-app">
+        <h1>Добро пожаловать в Журнал Сделок</h1>
         <!-- Здесь разместите основной функционал вашего журнала -->
-        <h2>Ваш Журнал Сделок</h2>
-        <!-- Пример: таблица сделок, формы добавления и т.д. -->
+        <!-- Например, формы, таблицы и т.д. -->
     </div>
 
     <script>
@@ -43,7 +37,6 @@
          */
         function showMainApp() {
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('auth-section').style.display = 'block';
             document.getElementById('main-app').style.display = 'block';
             tg.ready(); // Уведомляем Telegram, что Web App готов
         }
