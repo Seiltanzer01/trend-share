@@ -33,6 +33,9 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from urllib.parse import unquote
 
+# Добавленный импорт
+from telegram_widget_auth import verify_authentication
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -79,6 +82,9 @@ app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').stri
 if not app.config['TELEGRAM_BOT_TOKEN']:
     logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
+
+# Логирование токена бота (для отладки; удалить в продакшене)
+logger.debug(f"TELEGRAM_BOT_TOKEN: {app.config['TELEGRAM_BOT_TOKEN']}")
 
 # Инициализация SQLAlchemy
 db = SQLAlchemy(app)
@@ -239,70 +245,6 @@ class SetupForm(FlaskForm):
     screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
     submit = SubmitField('Сохранить')
-
-# Вспомогательная функция для проверки подлинности данных Telegram Web App
-def verify_telegram_auth(init_data):
-    try:
-        token = app.config['TELEGRAM_BOT_TOKEN']
-        secret_key = hashlib.sha256(token.encode('utf-8')).digest()
-
-        data_dict = {}
-        hash_to_check = ''
-
-        # Разделение init_data на пары ключ=значение
-        pairs = init_data.split('&')
-        for pair in pairs:
-            if '=' not in pair:
-                continue
-            key, value = pair.split('=', 1)
-            if key == 'hash':
-                hash_to_check = value
-            else:
-                # Используем необработанные значения без декодирования
-                data_dict[key] = value
-
-        if not hash_to_check:
-            logger.error("Параметр 'hash' отсутствует в initData.")
-            return False
-
-        # Сортировка ключей
-        sorted_keys = sorted(data_dict.keys())
-        # Формирование data_check_string
-        data_check_arr = [f"{key}={data_dict[key]}" for key in sorted_keys]
-        data_check_string = '\n'.join(data_check_arr)
-        logger.debug(f"Data check string:\n{data_check_string}")
-
-        # Вычисление HMAC-SHA256
-        computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-        logger.debug(f"Computed hash: {computed_hash}")
-        logger.debug(f"Received hash: {hash_to_check}")
-
-        comparison_result = hmac.compare_digest(computed_hash, hash_to_check)
-        logger.debug(f"Hash comparison result: {comparison_result}")
-
-        # Дополнительная проверка auth_date
-        auth_date_str = data_dict.get('auth_date')
-        if auth_date_str:
-            try:
-                auth_date = int(auth_date_str)
-                current_time = int(datetime.utcnow().timestamp())
-                # Проверяем, что разница не более 86400 секунд (1 день)
-                if current_time - auth_date > 86400:
-                    logger.warning("Данные авторизации устарели.")
-                    return False
-                logger.debug(f"auth_date: {auth_date}, current_time: {current_time}, difference: {current_time - auth_date} секунд.")
-            except ValueError:
-                logger.error(f"Некорректный формат auth_date: {auth_date_str}")
-                return False
-        else:
-            logger.warning("Параметр 'auth_date' отсутствует в initData.")
-            return False
-
-        return comparison_result
-    except Exception as e:
-        logger.error(f"Ошибка при проверке авторизации Telegram: {e}")
-        logger.error(traceback.format_exc())
-        return False
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -641,7 +583,7 @@ def logout():
 def health():
     return 'OK', 200
 
-# Обработка initData через маршрут /init
+# Обработка initData через маршрут /init с использованием библиотеки python-telegram-widget-auth
 @app.route('/init', methods=['POST'])
 def init():
     data = request.get_json()
@@ -658,35 +600,23 @@ def init():
             logger.error(traceback.format_exc())
             return jsonify({'status': 'failure', 'message': 'Invalid initData format'}), 400
 
-        if verify_telegram_auth(init_data):
-            # Разбираем initData после успешной проверки подлинности
-            params = urllib.parse.parse_qs(init_data)
-            data_dict = {}
-            for key, value in params.items():
-                if key != 'hash':
-                    data_dict[key] = value[0]
-
-            user_data = data_dict.get('user')
-            if user_data:
+        # Верификация initData с использованием библиотеки
+        is_valid, auth_data = verify_authentication(init_data, app.config['TELEGRAM_BOT_TOKEN'])
+        if is_valid:
+            # Извлечение данных пользователя из auth_data
+            user_info = auth_data.get('user')
+            if user_info:
                 try:
-                    # Декодирование user параметра перед парсингом JSON
-                    user_info = json.loads(unquote(user_data))
                     telegram_id = int(user_info.get('id'))
                     first_name = user_info.get('first_name')
                     last_name = user_info.get('last_name', '')
                     username = user_info.get('username', '')
-                except (json.JSONDecodeError, TypeError, ValueError) as e:
-                    logger.error(f"Ошибка при разборе JSON user: {e}")
-                    return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
-            else:
-                try:
-                    telegram_id = int(data_dict.get('id'))
-                    first_name = data_dict.get('first_name')
-                    last_name = data_dict.get('last_name', '')
-                    username = data_dict.get('username', '')
                 except (TypeError, ValueError) as e:
                     logger.error(f"Ошибка при извлечении данных пользователя: {e}")
                     return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
+            else:
+                logger.error("Отсутствуют данные пользователя в auth_data.")
+                return jsonify({'status': 'failure', 'message': 'Invalid user data'}), 400
 
             # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -707,7 +637,6 @@ def init():
             session['telegram_id'] = user.telegram_id
 
             logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
-
             return jsonify({'status': 'success'}), 200
         else:
             logger.warning("Не удалось подтвердить подлинность данных Telegram через AJAX.")
@@ -1203,7 +1132,7 @@ def view_setup(setup_id):
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# **Инициализация Telegram бота и обработчиков**
+# Инициализация Telegram бота и обработчиков
 
 # Получение токена бота из переменных окружения
 TOKEN = app.config['TELEGRAM_BOT_TOKEN']
