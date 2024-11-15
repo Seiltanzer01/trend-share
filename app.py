@@ -578,6 +578,11 @@ def health():
 # Обработка initData через маршрут /init с использованием teleapp-auth
 @app.route('/init', methods=['POST'])
 def init():
+    # **Добавлена проверка, авторизован ли уже пользователь**
+    if 'user_id' in session:
+        logger.info(f"Пользователь ID {session['user_id']} уже авторизован.")
+        return jsonify({'status': 'success'}), 200
+
     data = request.get_json()
     init_data = data.get('initData')
     logger.debug(f"Получен initData через AJAX: {init_data}")
@@ -632,7 +637,7 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-# Остальная часть вашего кода остается без изменений
+# Остальная часть вашего кода остаётся без изменений
 
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
