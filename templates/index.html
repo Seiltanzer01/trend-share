@@ -41,7 +41,7 @@
                 <div class="criteria-filters">
                     <div class="criteria-section">
                         {% for category in criteria_categories %}
-                            {% if category.name == 'Технический анализ' or category.name == 'Фундаментальный анализ' or category.name == 'Психологические факторы' or category.name == 'Рыночная структура' or category.name == 'Психология рынка' %}
+                            {% if category.name in ['Технический анализ', 'Фундаментальный анализ', 'Психологические факторы', 'Рыночная структура', 'Психология рынка'] %}
                                 <div class="criteria-category">
                                     <button type="button" class="collapse-button">{{ category.name }}</button>
                                     <div class="category-content" style="display: none;">
@@ -145,8 +145,5 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <!-- Удалите блок debug, так как он больше не нужен -->
-    <!-- <div id="debug" style="margin-top: 20px; color: red; display: block;"></div> -->
 </div>
 {% endblock %}
