@@ -29,7 +29,7 @@ $(document).ready(function() {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            initData: initData // Отправляем как есть, без Base64-кодирования
+                            initData: initData // Отправляем без Base64-кодирования
                         }),
                         credentials: 'include' // Включает куки в запрос
                     })
@@ -42,11 +42,13 @@ $(document).ready(function() {
                         } else {
                             console.error('Ошибка авторизации:', data.message);
                             alert('Ошибка авторизации: ' + data.message);
+                            tg.close(); // Закрыть Web App в случае ошибки
                         }
                     })
                     .catch(error => {
                         console.error('Ошибка при отправке initData:', error);
                         alert('Произошла ошибка при авторизации.');
+                        tg.close(); // Закрыть Web App в случае ошибки
                     });
                 } else {
                     console.log('initData уже обработано.');
@@ -56,6 +58,7 @@ $(document).ready(function() {
         } catch (error) {
             console.error('Ошибка при обработке initData:', error);
             alert('Ошибка при обработке initData: ' + error.message);
+            tg.close(); // Закрыть Web App в случае ошибки
         }
     })();
 
