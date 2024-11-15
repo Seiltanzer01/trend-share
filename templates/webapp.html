@@ -5,7 +5,7 @@
     <title>Telegram Web App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Базовые стили для скрытия/показа различных секций */
+        /* Стили для скрытия/показа различных секций */
         #loading {
             text-align: center;
             margin-top: 50px;
@@ -23,8 +23,9 @@
     </div>
     <div id="main-content">
         <!-- Здесь будет отображаться основное содержимое приложения -->
-        <h1>Добро пожаловать, {{ user_first_name }}!</h1>
+        <h1>Добро пожаловать, <span id="user-name"></span>!</h1>
         <!-- Добавьте остальные элементы интерфейса -->
+        <button onclick="logout()">Выйти</button>
     </div>
 
     <script>
@@ -37,13 +38,7 @@
             document.getElementById('loading').style.display = 'none';
             const mainContent = document.getElementById('main-content');
             mainContent.style.display = 'block';
-            mainContent.innerHTML = `
-                <h1>Добро пожаловать, ${userFirstName}!</h1>
-                <!-- Добавьте остальные элементы интерфейса здесь -->
-                <p>Вы успешно авторизованы.</p>
-                <!-- Пример кнопки выхода -->
-                <button onclick="logout()">Выйти</button>
-            `;
+            document.getElementById('user-name').textContent = userFirstName;
         }
 
         /**
