@@ -1,55 +1,23 @@
+<!-- templates/webapp.html -->
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Telegram Web App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <style>
+        /* Базовые стили для страницы авторизации Web App */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 100px;
+        }
+    </style>
 </head>
 <body>
-    <script>
-        const tg = window.Telegram.WebApp;
-
-        /**
-         * Функция для обработки успешной авторизации
-         */
-        function handleSuccess() {
-            // Перенаправляем на главную страницу приложения
-            window.location.href = '/';
-        }
-
-        /**
-         * Функция для обработки ошибок авторизации
-         */
-        function handleError(message) {
-            alert(`Ошибка при авторизации: ${message}`);
-            tg.close(); // Закрывает Web App
-        }
-
-        /**
-         * Отправка initData через AJAX POST запрос на маршрут /init
-         */
-        fetch('/init', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                initData: tg.initData // Инициализационные данные от Telegram
-            }),
-            credentials: 'include' // Включает куки в запрос
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'success') {
-                handleSuccess();
-            } else {
-                handleError(data.message || 'Неизвестная ошибка при авторизации.');
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка при отправке initData:', error);
-            handleError('Произошла ошибка при авторизации.');
-        });
-    </script>
+    <h1>Авторизация через Telegram Web App</h1>
+    <!-- Здесь можно добавить индикатор загрузки или другие элементы, если необходимо -->
 </body>
 </html>
