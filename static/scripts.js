@@ -1,6 +1,8 @@
 // static/scripts.js
 
 $(document).ready(function() {
+    console.log("scripts.js загружен"); // Отладочное сообщение
+
     // Обработка Telegram Web App initData
     (function() {
         try {
@@ -8,6 +10,7 @@ $(document).ready(function() {
             if (!tg) {
                 console.error('Telegram WebApp не найден');
                 alert('Telegram WebApp не найден');
+                // Убедитесь, что элемент с id="debug" существует в webapp.html
                 $('#debug').text('Telegram WebApp не найден');
                 return;
             }
@@ -18,6 +21,7 @@ $(document).ready(function() {
             $('#debug').text('initData: ' + initData);
             if (initData === '') {
                 // Инициализация Web App
+                console.log('initData пустое, вызываем tg.ready()');
                 tg.ready(); // Уведомляем Telegram, что Web App готов
             } else {
                 // Отправка initData на сервер через AJAX POST запрос
@@ -31,14 +35,20 @@ $(document).ready(function() {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            initData: btoa(initData) // Base64-кодирование initData
-                        })
+                            initData: initData // Отправляем без Base64-кодирования
+                        }),
+                        credentials: 'include' // Включает куки в запрос
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        console.log('Получен ответ от сервера:', response);
+                        return response.json();
+                    })
                     .then(data => {
+                        console.log('Данные от сервера:', data);
                         if(data.status === 'success') {
                             console.log('Авторизация успешна');
-                            tg.close(); // Закрыть Web App после успешной авторизации
+                            // Автоматическое перенаправление на главную страницу
+                            window.location.href = '/';
                         } else {
                             console.error('Ошибка авторизации:', data.message);
                             alert('Ошибка авторизации: ' + data.message);
