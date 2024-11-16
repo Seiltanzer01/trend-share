@@ -644,9 +644,6 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-
-# Остальная часть вашего кода остаётся без изменений
-
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
 def index():
