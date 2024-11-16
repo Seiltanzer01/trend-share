@@ -10,7 +10,6 @@ $(document).ready(function() {
             if (!tg) {
                 console.error('Telegram WebApp не найден');
                 alert('Telegram WebApp не найден');
-                // Убедитесь, что элемент с id="debug" существует в webapp.html
                 $('#debug').text('Telegram WebApp не найден');
                 return;
             }
@@ -73,6 +72,12 @@ $(document).ready(function() {
         }
     })();
 
+    // Раскрывающиеся списки для категорий и подкатегорий
+    $('.collapse-button').click(function(){
+        console.log("Нажата кнопка:", $(this).text());
+        $(this).next().slideToggle();
+    });
+
     // Остальные скрипты
 
     // Пример анимации при наведении на строки таблицы
@@ -103,12 +108,12 @@ $(document).ready(function() {
         }
     });
 
-    // Раскрывающиеся списки для категорий и подкатегорий
+    // Раскрывающиеся списки для категорий и подкатегорий в формах
     $('.collapse-button').click(function(){
-        $(this).next().toggle();
+        $(this).next().slideToggle();
     });
 
-    // Инициализация datepickers
+    // Инициализация datepickers (если необходимо)
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
