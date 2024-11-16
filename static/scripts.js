@@ -1,6 +1,8 @@
 // static/scripts.js
 
 $(document).ready(function() {
+    console.log("scripts.js загружен"); // Отладочное сообщение
+
     // Обработка Telegram Web App initData
     (function() {
         try {
@@ -12,10 +14,11 @@ $(document).ready(function() {
             }
 
             const initData = tg.initData || tg.initDataUnsafe || '';
-
             console.log('initData:', initData);
+
             if (initData === '') {
                 // Инициализация Web App
+                console.log('initData пустое, вызываем tg.ready()');
                 tg.ready(); // Уведомляем Telegram, что Web App готов
             } else {
                 // Отправка initData на сервер через AJAX POST запрос
@@ -33,8 +36,12 @@ $(document).ready(function() {
                         }),
                         credentials: 'include' // Включает куки в запрос
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        console.log('Получен ответ от сервера:', response);
+                        return response.json();
+                    })
                     .then(data => {
+                        console.log('Данные от сервера:', data);
                         if(data.status === 'success') {
                             console.log('Авторизация успешна');
                             // Автоматическое перенаправление на главную страницу
