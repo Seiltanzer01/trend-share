@@ -578,17 +578,10 @@ def health():
 # Обработка initData через маршрут /init с использованием teleapp-auth
 @app.route('/init', methods=['POST'])
 def init():
-    # Проверка, авторизован ли уже пользователь
+    # **Добавлена проверка, авторизован ли уже пользователь**
     if 'user_id' in session:
         logger.info(f"Пользователь ID {session['user_id']} уже авторизован.")
-        user = User.query.get(session['user_id'])
-        if user:
-            return jsonify({'status': 'success', 'user_first_name': user.first_name}), 200
-        else:
-            # Если пользователь не найден в базе данных, очистите сессию
-            session.clear()
-            logger.warning(f"Пользователь ID {session['user_id']} не найден в базе данных. Сессия очищена.")
-            return jsonify({'status': 'failure', 'message': 'User not found'}), 400
+        return jsonify({'status': 'success'}), 200
 
     data = request.get_json()
     init_data = data.get('initData')
@@ -635,7 +628,7 @@ def init():
             session['telegram_id'] = user.telegram_id
 
             logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
-            return jsonify({'status': 'success', 'user_first_name': user.first_name}), 200
+            return jsonify({'status': 'success'}), 200
         except Exception as e:
             logger.error(f"Ошибка при верификации initData: {e}")
             logger.error(traceback.format_exc())
@@ -643,6 +636,8 @@ def init():
     else:
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
+
+# Остальная часть вашего кода остаётся без изменений
 
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
