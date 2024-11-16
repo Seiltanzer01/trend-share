@@ -1,28 +1,75 @@
 <!-- templates/webapp.html -->
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Telegram Web App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
     <style>
-        /* Базовые стили для страницы авторизации Web App */
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin-top: 100px;
-        }
+        /* Базовые стили для скрытия/показа различных секций */
         #loading {
-            font-size: 24px;
-            color: #333;
+            text-align: center;
+            margin-top: 50px;
+        }
+        /* Можно удалить или оставить пустым блок main-app, так как он будет заменён перенаправлением */
+        #main-app {
+            display: none;
+            padding: 20px;
         }
     </style>
 </head>
 <body>
     <div id="loading">
-        <h1>Авторизация через Telegram Web App...</h1>
+        <h1>Авторизация...</h1>
     </div>
+
+    <div id="main-app">
+        <h1>Добро пожаловать в Журнал Сделок</h1>
+        <!-- Здесь разместите основной функционал вашего журнала, если необходимо -->
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+
+        /**
+         * Функция для перенаправления на главную страницу приложения после авторизации
+         */
+        function redirectToMainApp() {
+            // Вы можете использовать window.location.href для перенаправления
+            window.location.href = '/';
+        }
+
+        /**
+         * Функция для отображения ошибок
+         */
+        function showError(message) {
+            document.getElementById('loading').innerHTML = `<h1>Ошибка: ${message}</h1>`;
+        }
+
+        // Отправка initData через AJAX POST запрос на маршрут /init
+        fetch('/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                initData: tg.initData // Инициализационные данные от Telegram
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success') {
+                // Авторизация прошла успешно, перенаправляем на главную страницу приложения
+                redirectToMainApp();
+            } else {
+                // Ошибка при авторизации
+                showError(data.message || 'Неизвестная ошибка при авторизации.');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка при отправке initData:', error);
+            showError('Произошла ошибка при авторизации.');
+        });
+    </script>
 </body>
 </html>
