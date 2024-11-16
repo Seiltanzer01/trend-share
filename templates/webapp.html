@@ -1,3 +1,4 @@
+<!-- templates/webapp.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -10,40 +11,22 @@
             text-align: center;
             margin-top: 50px;
         }
-        #main-content {
-            display: none;
-            /* Добавьте стили для основной части приложения */
-            padding: 20px;
-        }
     </style>
 </head>
 <body>
     <div id="loading">
         <h1>Авторизация...</h1>
     </div>
-    <div id="main-content">
-        <!-- Здесь будет отображаться основное содержимое приложения -->
-        <h1>Добро пожаловать, {{ user_first_name }}!</h1>
-        <!-- Добавьте остальные элементы интерфейса -->
-    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
 
         /**
-         * Функция для отображения основной части приложения после авторизации
+         * Функция для перенаправления на главную страницу приложения после авторизации
          */
-        function showMainContent(userFirstName) {
-            document.getElementById('loading').style.display = 'none';
-            const mainContent = document.getElementById('main-content');
-            mainContent.style.display = 'block';
-            mainContent.innerHTML = `
-                <h1>Добро пожаловать, ${userFirstName}!</h1>
-                <!-- Добавьте остальные элементы интерфейса здесь -->
-                <p>Вы успешно авторизованы.</p>
-                <!-- Пример кнопки выхода -->
-                <button onclick="logout()">Выйти</button>
-            `;
+        function redirectToMainApp() {
+            // Вы можете использовать window.location.href для перенаправления
+            window.location.href = '/';
         }
 
         /**
@@ -51,27 +34,6 @@
          */
         function showError(message) {
             document.getElementById('loading').innerHTML = `<h1>Ошибка: ${message}</h1>`;
-        }
-
-        /**
-         * Функция для выхода из системы
-         */
-        function logout() {
-            fetch('/logout', {
-                method: 'GET',
-                credentials: 'include'
-            })
-            .then(response => {
-                if (response.ok) {
-                    tg.close(); // Закрывает Web App
-                } else {
-                    alert('Ошибка при выходе из системы.');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка при выходе:', error);
-                alert('Произошла ошибка при выходе из системы.');
-            });
         }
 
         // Отправка initData через AJAX POST запрос на маршрут /init
@@ -82,14 +44,13 @@
             },
             body: JSON.stringify({
                 initData: tg.initData // Инициализационные данные от Telegram
-            }),
-            credentials: 'include' // Включает куки в запрос
+            })
         })
         .then(response => response.json())
         .then(data => {
             if(data.status === 'success') {
-                // Авторизация прошла успешно, отображаем основную часть приложения
-                showMainContent(data.user_first_name);
+                // Авторизация прошла успешно, перенаправляем на главную страницу приложения
+                redirectToMainApp();
             } else {
                 // Ошибка при авторизации
                 showError(data.message || 'Неизвестная ошибка при авторизации.');
