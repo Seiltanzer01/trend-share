@@ -292,32 +292,68 @@ span.criterion {
     animation: fadeIn 1s ease-in;
 }
 
-/* Адаптивность */
-@media screen and (max-width: 768px) {
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    /* Общие изменения */
+    body {
+        padding: 5px;
+    }
+
     .container {
         padding: 0 5px;
     }
 
-    nav a {
-        margin: 5px 0;
-        font-size: 0.8em;
-    }
-
     header h1 {
         font-size: 1.2em;
+        text-align: center;
+        text-shadow: 1px 1px #FF0000;
     }
 
+    nav {
+        float: none;
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    nav a {
+        display: inline-block;
+        margin: 5px 2px;
+        padding: 8px 12px;
+        font-size: 1em;
+    }
+
+    /* Увеличиваем размеры кнопок и полей ввода */
+    button, input[type="submit"] {
+        padding: 10px 20px;
+        font-size: 1em;
+    }
+
+    input, select, textarea {
+        padding: 10px;
+        font-size: 1em;
+    }
+
+    /* Улучшение таблиц для мобильных */
     table, thead, tbody, th, td, tr {
         display: block;
     }
+
     tr {
         margin-bottom: 15px;
     }
-    th, td {
-        text-align: left;
-        position: relative;
-        padding: 4px;
+
+    th {
+        display: none; /* Скрываем заголовки таблиц */
     }
+
+    td {
+        position: relative;
+        padding-left: 50%;
+        text-align: left;
+        border: none;
+        border-bottom: 1px solid #ddd;
+    }
+
     td::before {
         content: attr(data-label);
         position: absolute;
@@ -327,14 +363,81 @@ span.criterion {
         font-weight: bold;
         text-align: left;
     }
-    td {
-        padding-left: 50%;
+
+    /* Оптимизация изображений */
+    img.setup-mini {
+        width: 50px;
+        height: 50px;
     }
-    button, input[type="submit"] {
-        font-size: 0.7em;
+
+    img.clickable-image {
+        width: 100px;
     }
-    input, select, textarea {
-        font-size: 0.7em;
+
+    /* Увеличиваем размеры модального окна */
+    .modal-content {
+        max-width: 90%;
+        max-height: 80%;
+    }
+
+    /* Улучшение навигации */
+    nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: #000080;
+        padding: 10px 0;
+        box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+    }
+
+    nav a {
+        flex: 1;
+        text-align: center;
+        margin: 0;
+        padding: 10px 0;
+        font-size: 1em;
+    }
+
+    main {
+        padding-bottom: 60px; /* Отступ для фиксированной навигации */
+    }
+
+    /* Плавные переходы для раскрывающихся блоков */
+    .category-content, .subcategory-content {
+        transition: all 0.3s ease;
+    }
+
+    /* Плавное появление модального окна */
+    .modal {
+        transition: opacity 0.3s ease;
+    }
+
+    /* Увеличение межстрочного интервала для лучшей читаемости */
+    th, td {
+        font-size: 1em;
+        padding: 8px;
+    }
+
+    /* Увеличение размеров критериев */
+    span.criterion {
+        font-size: 0.9em;
+        padding: 4px 8px;
+    }
+
+    /* Улучшение размеров чекбоксов */
+    .criteria-item input[type="checkbox"] {
+        transform: scale(1.2);
+    }
+
+    /* Увеличение размеров изображений */
+    img.setup-mini {
+        width: 50px;
+        height: 50px;
+    }
+
+    img.clickable-image {
+        width: 100px;
     }
 }
 
