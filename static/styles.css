@@ -318,18 +318,18 @@ span.criterion {
     nav a {
         display: inline-block;
         margin: 5px 2px;
-        padding: 8px 12px;
+        padding: 12px 16px; /* Увеличенные отступы */
         font-size: 1em;
     }
 
     /* Увеличиваем размеры кнопок и полей ввода */
     button, input[type="submit"] {
-        padding: 10px 20px;
+        padding: 12px 24px; /* Увеличенные размеры */
         font-size: 1em;
     }
 
     input, select, textarea {
-        padding: 10px;
+        padding: 12px;
         font-size: 1em;
     }
 
@@ -393,7 +393,7 @@ span.criterion {
     /* Увеличение межстрочного интервала для лучшей читаемости */
     th, td {
         font-size: 1em;
-        padding: 8px;
+        padding: 12px;
     }
 
     /* Увеличение размеров критериев */
@@ -416,7 +416,7 @@ span.criterion {
     img.clickable-image {
         width: 100px;
     }
-    
+
     /* Удаляем фиксацию навигации внизу */
     /* 
     nav {
