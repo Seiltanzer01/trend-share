@@ -80,8 +80,10 @@ $(document).ready(function() {
 
     // Раскрывающиеся списки для категорий и подкатегорий
     $('.collapse-button').click(function(){
-        console.log("Нажата кнопка:", $(this).text());
-        $(this).next().slideToggle();
+        // Проверяем, есть ли следующий элемент для раскрытия
+        if($(this).next().length > 0){
+            $(this).next().slideToggle();
+        }
     });
 
     // Пример анимации при наведении на строки таблицы
