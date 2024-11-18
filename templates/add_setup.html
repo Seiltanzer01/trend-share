@@ -49,13 +49,10 @@
         {{ form.submit }}
     </form>
 
-    <script>
-        $(document).ready(function(){
-            // Раскрывающиеся списки для категорий и подкатегорий
-            $('.collapse-button').click(function(){
-                $(this).next().toggle();
-            });
-        });
-    </script>
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
+    </div>
 </div>
 {% endblock %}
