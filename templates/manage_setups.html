@@ -14,6 +14,7 @@
                 <tr>
                     <th>ID</th>
                     <th>Название</th>
+                    <th>Описание</th> <!-- Новая колонка -->
                     <th>Скриншот</th>
                     <th>Критерии</th>
                     <th>Действия</th>
@@ -24,6 +25,7 @@
                 <tr>
                     <td>{{ setup.id }}</td>
                     <td>{{ setup.setup_name }}</td>
+                    <td>{{ setup.description }}</td> <!-- Отображение описания -->
                     <td>
                         {% if setup.screenshot %}
                             <img src="{{ url_for('uploaded_file', filename=setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="100">
@@ -55,26 +57,6 @@
         <img class="modal-content" id="modal-img">
     </div>
 
-    <script>
-        $(document).ready(function(){
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-        });
-    </script>
+    <!-- Удалён дублирующийся скрипт -->
 </div>
 {% endblock %}
