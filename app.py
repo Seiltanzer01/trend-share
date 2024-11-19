@@ -3,7 +3,10 @@
 import os
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
+
+import boto3
+from botocore.exceptions import ClientError
 
 from flask import (
     Flask, render_template, redirect, url_for, flash, request,
@@ -26,14 +29,7 @@ from telegram import (
 )
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
-from urllib.parse import unquote
-
-# Импорт функций из teleapp-auth
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
-
-# Импорт boto3 для работы с AWS S3
-import boto3
-from botocore.exceptions import ClientError
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -71,16 +67,17 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-с
 app.config['SESSION_COOKIE_SECURE'] = True      # Требует HTTPS
 app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'  # Указание домена для куки
 
-# Настройки AWS S3
+# Настройки Amazon S3
 app.config['AWS_ACCESS_KEY_ID'] = os.environ.get('AWS_ACCESS_KEY_ID', '').strip()
 app.config['AWS_SECRET_ACCESS_KEY'] = os.environ.get('AWS_SECRET_ACCESS_KEY', '').strip()
 app.config['AWS_S3_BUCKET'] = os.environ.get('AWS_S3_BUCKET', '').strip()
 app.config['AWS_S3_REGION'] = os.environ.get('AWS_S3_REGION', 'us-east-1').strip()
 
-# Проверка наличия необходимых настроек AWS S3
-if not all([app.config['AWS_ACCESS_KEY_ID'], app.config['AWS_SECRET_ACCESS_KEY'], app.config['AWS_S3_BUCKET']]):
-    logger.error("Некоторые переменные окружения для AWS S3 не установлены.")
-    raise ValueError("Некоторые переменные окружения для AWS S3 не установлены.")
+# Проверка наличия необходимых AWS настроек
+if not all([app.config['AWS_ACCESS_KEY_ID'], app.config['AWS_SECRET_ACCESS_KEY'],
+            app.config['AWS_S3_BUCKET'], app.config['AWS_S3_REGION']]):
+    logger.error("Некоторые AWS настройки отсутствуют в переменных окружения.")
+    raise ValueError("Некоторые AWS настройки отсутствуют в переменных окружения.")
 
 # Инициализация клиента S3
 s3_client = boto3.client(
@@ -98,59 +95,59 @@ db = SQLAlchemy(app)
 def inject_datetime():
     return {'datetime': datetime}
 
-# Вспомогательная функция для получения хоста приложения
-def get_app_host():
-    """
-    Возвращает хост приложения для формирования ссылок.
-    """
-    return app.config.get('APP_HOST', 'trend-share.onrender.com')
+# Вспомогательные функции для работы с S3
 
-# Вспомогательная функция для загрузки файлов в S3
-def upload_file_to_s3(file, filename, bucket, acl='public-read'):
+def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     """
-    Загружает файл в указанный S3 бакет.
-    
-    :param file: Файл, который нужно загрузить
-    :param filename: Имя файла в S3
-    :param bucket: Название S3 бакета
-    :param acl: Уровень доступа (по умолчанию публичный)
-    :return: URL файла в S3 или None в случае ошибки
+    Загружает файл в S3.
+    :param file: FileStorage объект.
+    :param filename: Имя файла в S3.
+    :return: True при успешной загрузке, False иначе.
     """
     try:
         s3_client.upload_fileobj(
             file,
-            bucket,
+            app.config['AWS_S3_BUCKET'],
             filename,
             ExtraArgs={
-                'ACL': acl,
-                'ContentType': file.content_type
+                "ACL": "public-read",  # Доступен для чтения всем
+                "ContentType": file.content_type
             }
         )
-        s3_url = generate_s3_url(filename, bucket, app.config['AWS_S3_REGION'])
         logger.info(f"Файл '{filename}' успешно загружен в S3.")
-        return s3_url
+        return True
     except ClientError as e:
-        logger.error(f"Ошибка при загрузке файла в S3: {e}")
-        logger.error(traceback.format_exc())
-        return None
+        logger.error(f"Ошибка при загрузке файла '{filename}' в S3: {e}")
+        return False
 
-# Вспомогательная функция для генерации публичного URL из S3
-def generate_s3_url(filename, bucket, region):
+def delete_file_from_s3(filename: str) -> bool:
+    """
+    Удаляет файл из S3.
+    :param filename: Имя файла в S3.
+    :return: True при успешном удалении, False иначе.
+    """
+    try:
+        s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=filename)
+        logger.info(f"Файл '{filename}' успешно удалён из S3.")
+        return True
+    except ClientError as e:
+        logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
+        return False
+
+def generate_s3_url(filename: str) -> str:
     """
     Генерирует публичный URL для файла в S3.
-    
-    :param filename: Имя файла в S3
-    :param bucket: Название S3 бакета
-    :param region: Регион S3 бакета
-    :return: Публичный URL файла
+    :param filename: Имя файла в S3.
+    :return: URL файла.
     """
-    return f"https://{bucket}.s3.{region}.amazonaws.com/{filename}"
+    url = f"https://{app.config['AWS_S3_BUCKET']}.s3.{app.config['AWS_S3_REGION']}.amazonaws.com/{filename}"
+    return url
 
-# Регистрация фильтра Jinja для генерации S3 URL
+# Фильтр для генерации URL изображений
 @app.template_filter('image_url')
 def image_url_filter(filename):
     if filename:
-        return generate_s3_url(filename, app.config['AWS_S3_BUCKET'], app.config['AWS_S3_REGION'])
+        return generate_s3_url(filename)
     return ''
 
 # Модели базы данных
@@ -744,13 +741,16 @@ def index():
     # Генерация S3 URL для скриншотов
     for trade in trades:
         if trade.screenshot:
-            trade.screenshot_url = generate_s3_url(
-                trade.screenshot,
-                app.config['AWS_S3_BUCKET'],
-                app.config['AWS_S3_REGION']
-            )
+            trade.screenshot_url = generate_s3_url(trade.screenshot)
         else:
             trade.screenshot_url = None
+
+    # Генерация S3 URL для скриншотов сетапов
+    for trade in trades:
+        if trade.setup and trade.setup.screenshot:
+            trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+        else:
+            trade.setup.screenshot_url = None
 
     return render_template(
         'index.html',
@@ -826,14 +826,9 @@ def new_trade():
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
                 # Убедитесь, что имя файла уникально, например, добавив временную метку
-                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
-                # Загрузка файла в S3
-                s3_url = upload_file_to_s3(
-                    screenshot_file,
-                    unique_filename,
-                    app.config['AWS_S3_BUCKET']
-                )
-                if s3_url:
+                unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                upload_success = upload_file_to_s3(screenshot_file, unique_filename)
+                if upload_success:
                     trade.screenshot = unique_filename  # Сохраняем имя файла для формирования URL
                 else:
                     flash('Ошибка при загрузке скриншота.', 'danger')
@@ -927,21 +922,16 @@ def edit_trade(trade_id):
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 if trade.screenshot:
                     # Удаление старого файла из S3
-                    try:
-                        s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=trade.screenshot)
-                        logger.info(f"Старый скриншот '{trade.screenshot}' удалён из S3 для сделки ID {trade_id}.")
-                    except ClientError as e:
-                        logger.error(f"Ошибка при удалении старого скриншота из S3: {e}")
+                    delete_success = delete_file_from_s3(trade.screenshot)
+                    if not delete_success:
+                        flash('Ошибка при удалении старого скриншота.', 'danger')
+                        logger.error("Не удалось удалить старый скриншот из S3.")
+                        return redirect(url_for('edit_trade', trade_id=trade_id))
                 filename = secure_filename(screenshot_file.filename)
                 # Убедитесь, что имя файла уникально
-                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
-                # Загрузка файла в S3
-                s3_url = upload_file_to_s3(
-                    screenshot_file,
-                    unique_filename,
-                    app.config['AWS_S3_BUCKET']
-                )
-                if s3_url:
+                unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                upload_success = upload_file_to_s3(screenshot_file, unique_filename)
+                if upload_success:
                     trade.screenshot = unique_filename
                 else:
                     flash('Ошибка при загрузке нового скриншота.', 'danger')
@@ -987,11 +977,10 @@ def delete_trade(trade_id):
     try:
         if trade.screenshot:
             # Удаление файла из S3
-            try:
-                s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=trade.screenshot)
-                logger.info(f"Скриншот '{trade.screenshot}' удалён из S3 для сделки ID {trade_id}.")
-            except ClientError as e:
-                logger.error(f"Ошибка при удалении скриншота из S3: {e}")
+            delete_success = delete_file_from_s3(trade.screenshot)
+            if not delete_success:
+                flash('Ошибка при удалении скриншота.', 'danger')
+                logger.error("Не удалось удалить скриншот из S3.")
         db.session.delete(trade)
         db.session.commit()
         flash('Сделка успешно удалена.', 'success')
@@ -1050,14 +1039,9 @@ def add_setup():
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
                 # Убедитесь, что имя файла уникально
-                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
-                # Загрузка файла в S3
-                s3_url = upload_file_to_s3(
-                    screenshot_file,
-                    unique_filename,
-                    app.config['AWS_S3_BUCKET']
-                )
-                if s3_url:
+                unique_filename = f"setup_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                upload_success = upload_file_to_s3(screenshot_file, unique_filename)
+                if upload_success:
                     setup.screenshot = unique_filename
                 else:
                     flash('Ошибка при загрузке скриншота.', 'danger')
@@ -1125,21 +1109,16 @@ def edit_setup(setup_id):
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 if setup.screenshot:
                     # Удаление старого файла из S3
-                    try:
-                        s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=setup.screenshot)
-                        logger.info(f"Старый скриншот '{setup.screenshot}' удалён из S3 для сетапа ID {setup_id}.")
-                    except ClientError as e:
-                        logger.error(f"Ошибка при удалении старого скриншота из S3: {e}")
+                    delete_success = delete_file_from_s3(setup.screenshot)
+                    if not delete_success:
+                        flash('Ошибка при удалении старого скриншота.', 'danger')
+                        logger.error("Не удалось удалить старый скриншот из S3.")
+                        return redirect(url_for('edit_setup', setup_id=setup_id))
                 filename = secure_filename(screenshot_file.filename)
                 # Убедитесь, что имя файла уникально
-                unique_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
-                # Загрузка файла в S3
-                s3_url = upload_file_to_s3(
-                    screenshot_file,
-                    unique_filename,
-                    app.config['AWS_S3_BUCKET']
-                )
-                if s3_url:
+                unique_filename = f"setup_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
+                upload_success = upload_file_to_s3(screenshot_file, unique_filename)
+                if upload_success:
                     setup.screenshot = unique_filename
                 else:
                     flash('Ошибка при загрузке нового скриншота.', 'danger')
@@ -1185,11 +1164,10 @@ def delete_setup(setup_id):
     try:
         if setup.screenshot:
             # Удаление файла из S3
-            try:
-                s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=setup.screenshot)
-                logger.info(f"Скриншот '{setup.screenshot}' удалён из S3 для сетапа ID {setup_id}.")
-            except ClientError as e:
-                logger.error(f"Ошибка при удалении скриншота из S3: {e}")
+            delete_success = delete_file_from_s3(setup.screenshot)
+            if not delete_success:
+                flash('Ошибка при удалении скриншота.', 'danger')
+                logger.error("Не удалось удалить скриншот из S3.")
         db.session.delete(setup)
         db.session.commit()
         flash('Сетап успешно удалён.', 'success')
@@ -1216,13 +1194,15 @@ def view_trade(trade_id):
 
     # Генерация S3 URL для скриншота, если он есть
     if trade.screenshot:
-        trade.screenshot_url = generate_s3_url(
-            trade.screenshot,
-            app.config['AWS_S3_BUCKET'],
-            app.config['AWS_S3_REGION']
-        )
+        trade.screenshot_url = generate_s3_url(trade.screenshot)
     else:
         trade.screenshot_url = None
+
+    # Генерация S3 URL для скриншота сетапа, если он есть
+    if trade.setup and trade.setup.screenshot:
+        trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+    else:
+        trade.setup.screenshot_url = None
 
     return render_template('view_trade.html', trade=trade)
 
@@ -1242,18 +1222,11 @@ def view_setup(setup_id):
 
     # Генерация S3 URL для скриншота, если он есть
     if setup.screenshot:
-        setup.screenshot_url = generate_s3_url(
-            setup.screenshot,
-            app.config['AWS_S3_BUCKET'],
-            app.config['AWS_S3_REGION']
-        )
+        setup.screenshot_url = generate_s3_url(setup.screenshot)
     else:
         setup.screenshot_url = None
 
     return render_template('view_setup.html', setup=setup)
-
-# **Удаление маршрута для локального обслуживания файлов**
-# Маршрут для обслуживания файлов больше не нужен, так как файлы хранятся на S3 и доступны через публичные URL
 
 # Инициализация Telegram бота и обработчиков
 
