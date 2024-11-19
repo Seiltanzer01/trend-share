@@ -14,16 +14,10 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileAllowed
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from wtforms import (
-    StringField, SelectField, FloatField, DateField, TextAreaField,
-    SubmitField, SelectMultipleField
-)
 from wtforms.validators import DataRequired, Optional
-from flask_wtf.file import FileAllowed
 
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
@@ -34,6 +28,9 @@ from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
+
+# Настройка CSRF защиты
+csrf = CSRFProtect(app)
 
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
@@ -150,6 +147,10 @@ def image_url_filter(filename):
     if filename:
         return generate_s3_url(filename)
     return ''
+
+# Функция для получения APP_HOST
+def get_app_host():
+    return app.config['APP_HOST']
 
 # Модели базы данных
 
@@ -270,31 +271,12 @@ class LoginToken(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False)
-    
+        
     def is_expired(self):
         return datetime.utcnow() > self.expires_at
 
-# Формы
-
-class TradeForm(FlaskForm):
-    instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
-    direction = SelectField('Направление', choices=[('Buy', 'Buy'), ('Sell', 'Sell')], validators=[DataRequired()])
-    entry_price = FloatField('Цена входа', validators=[DataRequired()])
-    exit_price = FloatField('Цена выхода', validators=[Optional()])
-    trade_open_time = DateField('Дата открытия', format='%Y-%m-%d', validators=[DataRequired()])
-    trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
-    comment = TextAreaField('Комментарий', validators=[Optional()])
-    setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
-    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
-    submit = SubmitField('Сохранить')
-
-class SetupForm(FlaskForm):
-    setup_name = StringField('Название Сетапа', validators=[DataRequired()])
-    description = TextAreaField('Описание', validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
-    criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
-    submit = SubmitField('Сохранить')
+# Импорт форм из forms.py
+from forms import TradeForm, SetupForm
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -1232,6 +1214,7 @@ def view_setup(setup_id):
 # Инициализация Telegram бота и обработчиков
 
 # Получение токена бота из переменных окружения
+app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
 TOKEN = app.config['TELEGRAM_BOT_TOKEN']
 if not TOKEN:
     logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
@@ -1334,9 +1317,6 @@ dispatcher.add_handler(CommandHandler('help', help_command))
 dispatcher.add_handler(CommandHandler('test', test_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
-# Обработчики сообщений (если необходимо)
-# dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, some_function))
-
 # Обработчик вебхуков
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -1389,3 +1369,4 @@ if __name__ == '__main__':
     # Запуск приложения
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
