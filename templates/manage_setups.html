@@ -14,7 +14,7 @@
                 <tr>
                     <th>ID</th>
                     <th>Название</th>
-                    <th>Описание</th> <!-- Новая колонка -->
+                    <th>Описание</th>
                     <th>Скриншот</th>
                     <th>Критерии</th>
                     <th>Действия</th>
@@ -25,10 +25,10 @@
                 <tr>
                     <td>{{ setup.id }}</td>
                     <td>{{ setup.setup_name }}</td>
-                    <td>{{ setup.description }}</td> <!-- Отображение описания -->
+                    <td>{{ setup.description or '-' }}</td>
                     <td>
-                        {% if setup.screenshot %}
-                            <img src="{{ url_for('uploaded_file', filename=setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="100">
+                        {% if setup.screenshot_url %}
+                            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" style="width: 100px; height: auto;">
                         {% else %}
                             -
                         {% endif %}
@@ -56,7 +56,5 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <!-- Удалён дублирующийся скрипт -->
 </div>
 {% endblock %}
