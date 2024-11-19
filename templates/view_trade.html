@@ -18,8 +18,8 @@
     <p><strong>Сетап:</strong>
         {% if trade.setup %}
             <div class="setup-info">
-                {% if trade.setup.screenshot %}
-                    <img src="{{ url_for('uploaded_file', filename=trade.setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="100">
+                {% if trade.setup.screenshot_url %}
+                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" style="width: 100px; height: auto;">
                 {% endif %}
                 {{ trade.setup.setup_name }}
             </div>
@@ -34,8 +34,8 @@
         {% endfor %}
     </p>
     <p><strong>Скриншот:</strong><br>
-        {% if trade.screenshot %}
-            <img src="{{ url_for('uploaded_file', filename=trade.screenshot) }}" alt="Trade Screenshot" class="clickable-image" width="400">
+        {% if trade.screenshot_url %}
+            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" style="max-width: 100%; height: auto;">
         {% else %}
             -
         {% endif %}
