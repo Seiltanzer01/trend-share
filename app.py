@@ -616,9 +616,9 @@ def health():
     return 'OK', 200
 
 # Обработка initData через маршрут /init с использованием teleapp-auth
+@csrf.exempt  # Исключаем из CSRF-защиты
 @app.route('/init', methods=['POST'])
 def init():
-    # **Добавлена проверка, авторизован ли уже пользователь**
     if 'user_id' in session:
         logger.info(f"Пользователь ID {session['user_id']} уже авторизован.")
         return jsonify({'status': 'success'}), 200
@@ -683,7 +683,6 @@ def index():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    # Если пользователь уже авторизован, отображаем главную страницу
     user_id = session['user_id']
     categories = InstrumentCategory.query.all()
     criteria_categories = CriterionCategory.query.all()
@@ -764,8 +763,7 @@ def new_trade():
     form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
     # Заполнение списка инструментов
     instruments = Instrument.query.all()
-    # Устанавливаем choices для поля instrument
-    form.instrument.choices = [(instrument.id, instrument.name) for instrument in Instrument.query.all()]
+    form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
@@ -808,7 +806,7 @@ def new_trade():
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
-                # Убедитесь, что имя файла уникально, например, добавив временную метку
+                # Убедитесь, что имя файла уникально
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
@@ -859,8 +857,9 @@ def edit_trade(trade_id):
     # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
     form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
-    # Устанавливаем choices для поля instrument
-    form.instrument.choices = [(instrument.id, instrument.name) for instrument in Instrument.query.all()]
+    # Заполнение списка инструментов
+    instruments = Instrument.query.all()
+    form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
@@ -1318,6 +1317,7 @@ dispatcher.add_handler(CommandHandler('test', test_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
 # Обработчик вебхуков
+@csrf.exempt  # Исключаем из CSRF-защиты
 @app.route('/webhook', methods=['POST'])
 def webhook():
     if request.method == 'POST':
@@ -1369,4 +1369,3 @@ if __name__ == '__main__':
     # Запуск приложения
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
