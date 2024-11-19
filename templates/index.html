@@ -41,7 +41,7 @@
                 <div class="criteria-filters">
                     <div class="criteria-section">
                         {% for category in criteria_categories %}
-                            {% if category.name == 'Технический анализ' or category.name == 'Фундаментальный анализ' or category.name == 'Психологические факторы' or category.name == 'Рыночная структура' or category.name == 'Психология рынка' %}
+                            {% if category.name in ['Технический анализ', 'Фундаментальный анализ', 'Психологические факторы', 'Рыночная структура', 'Психология рынка'] %}
                                 <div class="criteria-category">
                                     <button type="button" class="collapse-button">{{ category.name }}</button>
                                     <div class="category-content" style="display: none;">
@@ -90,8 +90,8 @@
                 <tr>
                     <td>{{ trade.id }}</td>
                     <td>
-                        {% if trade.screenshot %}
-                            <img src="{{ url_for('uploaded_file', filename=trade.screenshot) }}" alt="Trade Screenshot" class="clickable-image" style="width: 100px; height: auto;">
+                        {% if trade.screenshot_url %}
+                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" style="width: 100px; height: auto;">
                         {% else %}
                             -
                         {% endif %}
@@ -113,8 +113,8 @@
                     <td>
                         {% if trade.setup %}
                             <div class="setup-info">
-                                {% if trade.setup.screenshot %}
-                                    <img src="{{ url_for('uploaded_file', filename=trade.setup.screenshot) }}" alt="Setup Screenshot" class="setup-mini clickable-image" style="width: 50px; height: auto;">
+                                {% if trade.setup.screenshot_url %}
+                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image" style="width: 50px; height: auto;">
                                 {% endif %}
                                 {{ trade.setup.setup_name }}
                             </div>
@@ -145,8 +145,5 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <!-- Удалён блок debug, так как он больше не нужен -->
-    <!-- <div id="debug" style="margin-top: 20px; color: red; display: block;"></div> -->
 </div>
 {% endblock %}
