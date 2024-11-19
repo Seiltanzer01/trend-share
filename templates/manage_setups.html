@@ -42,7 +42,7 @@
                         <a href="{{ url_for('view_setup', setup_id=setup.id) }}">Просмотр</a><br>
                         <a href="{{ url_for('edit_setup', setup_id=setup.id) }}">Редактировать</a><br>
                         <form action="{{ url_for('delete_setup', setup_id=setup.id) }}" method="post" style="display:inline;">
-                            {{ form.hidden_tag() }}
+                            {{ csrf_token() }}
                             <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить этот сетап?');">Удалить</button>
                         </form>
                     </td>
@@ -57,27 +57,36 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <script>
-        $(document).ready(function(){
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-        });
-    </script>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Открытие модального окна при клике на изображение
+    document.addEventListener('DOMContentLoaded', function() {
+        var modal = document.getElementById('modal');
+        var modalImg = document.getElementById('modal-img');
+        var closeBtn = document.getElementsByClassName('close')[0];
+
+        var images = document.getElementsByClassName('clickable-image');
+        for (var i = 0; i < images.length; i++) {
+            images[i].onclick = function() {
+                modal.style.display = 'block';
+                modalImg.src = this.src;
+            }
+        }
+
+        // Закрытие модального окна
+        closeBtn.onclick = function() {
+            modal.style.display = 'none';
+        }
+
+        // Закрытие модального окна при клике вне изображения
+        modal.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+    });
+</script>
 {% endblock %}
