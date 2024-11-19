@@ -14,8 +14,8 @@ class TradeForm(FlaskForm):
     trade_close_time = DateField('Дата закрытия', format='%Y-%m-%d', validators=[Optional()])
     comment = TextAreaField('Комментарий', validators=[Optional()])
     setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     submit = SubmitField('Сохранить')
 
 class SetupForm(FlaskForm):
@@ -24,3 +24,4 @@ class SetupForm(FlaskForm):
     screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
     submit = SubmitField('Сохранить')
+
