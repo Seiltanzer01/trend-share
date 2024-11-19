@@ -15,6 +15,7 @@ from flask import (
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileAllowed
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from wtforms import (
