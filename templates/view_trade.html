@@ -13,8 +13,8 @@
     <p><strong>Цена выхода:</strong> {{ trade.exit_price or '-' }}</p>
     <p><strong>Дата открытия:</strong> {{ trade.trade_open_time.strftime('%Y-%m-%d') }}</p>
     <p><strong>Дата закрытия:</strong> {{ trade.trade_close_time.strftime('%Y-%m-%d') if trade.trade_close_time else '-' }}</p>
-    <p><strong>Прибыль/Убыток:</strong> {{ "{:.2f}".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</p>
-    <p><strong>% Прибыли/Убытка:</strong> {{ "{:.2f}%".format(trade.profit_loss_percentage) if trade.profit_loss_percentage is not none else '-' }}</p>
+    <p><strong>Прибыль/Убыток:</strong> {{ "%.2f".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</p>
+    <p><strong>% Прибыли/Убытка:</strong> {{ "%.2f%%".format(trade.profit_loss_percentage) if trade.profit_loss_percentage is not none else '-' }}</p>
     <p><strong>Сетап:</strong>
         {% if trade.setup %}
             <div class="setup-info">
