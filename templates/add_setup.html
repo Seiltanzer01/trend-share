@@ -81,6 +81,11 @@
                     $(this).css('display', 'none');
                 }
             });
+
+            // Обработчики для раскрывающихся списков критериев
+            $('.collapse-button').on('click', function() {
+                $(this).next().slideToggle();
+            });
         });
     </script>
 </div>
