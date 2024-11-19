@@ -15,8 +15,8 @@
         {% endfor %}
     </p>
     <p><strong>Скриншот:</strong><br>
-        {% if setup.screenshot %}
-            <img src="{{ url_for('uploaded_file', filename=setup.screenshot) }}" alt="Setup Screenshot" class="clickable-image" width="400">
+        {% if setup.screenshot_url %}
+            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" style="max-width: 100%; height: auto;">
         {% else %}
             -
         {% endif %}
