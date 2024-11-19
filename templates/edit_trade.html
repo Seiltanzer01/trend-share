@@ -118,6 +118,15 @@
                     $(this).css('display', 'none');
                 }
             });
+
+            // Обработчики для раскрывающихся списков критериев
+            $('.collapse-button').on('click', function() {
+                $(this).next().slideToggle();
+            });
+
+            // Инициализация Datepicker
+            $('#trade_open_time').datepicker({ dateFormat: 'yy-mm-dd' });
+            $('#trade_close_time').datepicker({ dateFormat: 'yy-mm-dd' });
         });
     </script>
 </div>
