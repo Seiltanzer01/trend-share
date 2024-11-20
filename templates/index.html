@@ -131,7 +131,7 @@
                         <a href="{{ url_for('view_trade', trade_id=trade.id) }}">Просмотр</a><br>
                         <a href="{{ url_for('edit_trade', trade_id=trade.id) }}">Редактировать</a><br>
                         <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
-                            {{ csrf_token() }}
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');">Удалить</button>
                         </form>
                     </td>
