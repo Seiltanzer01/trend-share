@@ -858,6 +858,12 @@ def edit_trade(trade_id):
         logger.warning(f"Пользователь ID {user_id} попытался редактировать сделку ID {trade_id}, которая ему не принадлежит.")
         return redirect(url_for('index'))
 
+    # Генерация S3 URL для скриншота, если он есть
+    if trade.screenshot:
+        trade.screenshot_url = generate_s3_url(trade.screenshot)
+    else:
+        trade.screenshot_url = None
+
     form = TradeForm(obj=trade)
     # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
@@ -1089,6 +1095,13 @@ def edit_setup(setup_id):
         flash('У вас нет прав для редактирования этого сетапа.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался редактировать сетап ID {setup_id}, который ему не принадлежит.")
         return redirect(url_for('manage_setups'))
+
+    # Генерация S3 URL для скриншота, если он есть
+    if setup.screenshot:
+        setup.screenshot_url = generate_s3_url(setup.screenshot)
+    else:
+        setup.screenshot_url = None
+
     form = SetupForm(obj=setup)
     # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
