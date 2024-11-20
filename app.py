@@ -108,7 +108,8 @@ def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
             app.config['AWS_S3_BUCKET'],
             filename,
             ExtraArgs={
-                "ContentType": file.content_type
+                "ContentType": file.content_type,
+                "ACL": "public-read"  # Устанавливаем публичный доступ на объект
             }
         )
         logger.info(f"Файл '{filename}' успешно загружен в S3.")
@@ -725,7 +726,7 @@ def index():
     trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
     logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
 
-    # Генерация S3 URL для скриншотов
+    # Генерация S3 URL для скриншотов сделок
     for trade in trades:
         if trade.screenshot:
             trade.screenshot_url = generate_s3_url(trade.screenshot)
@@ -734,10 +735,12 @@ def index():
 
     # Генерация S3 URL для скриншотов сетапов
     for trade in trades:
-        if trade.setup and trade.setup.screenshot:
-            trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
-        else:
-            trade.setup.screenshot_url = None
+        if trade.setup:
+            if trade.setup.screenshot:
+                trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+            else:
+                trade.setup.screenshot_url = None
+        # Если trade.setup равно None, ничего не делаем
 
     return render_template(
         'index.html',
@@ -1194,10 +1197,14 @@ def view_trade(trade_id):
         trade.screenshot_url = None
 
     # Генерация S3 URL для скриншота сетапа, если он есть
-    if trade.setup and trade.setup.screenshot:
-        trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+    if trade.setup:
+        if trade.setup.screenshot:
+            trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+        else:
+            trade.setup.screenshot_url = None
     else:
-        trade.setup.screenshot_url = None
+        # Если trade.setup равно None, ничего не делаем
+        pass
 
     return render_template('view_trade.html', trade=trade)
 
