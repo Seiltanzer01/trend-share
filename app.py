@@ -108,8 +108,7 @@ def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
             app.config['AWS_S3_BUCKET'],
             filename,
             ExtraArgs={
-                "ContentType": file.content_type,
-                "ACL": "public-read"  # Устанавливаем публичный доступ на объект
+                "ContentType": file.content_type
             }
         )
         logger.info(f"Файл '{filename}' успешно загружен в S3.")
