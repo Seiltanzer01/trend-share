@@ -108,7 +108,8 @@ def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
             app.config['AWS_S3_BUCKET'],
             filename,
             ExtraArgs={
-                "ContentType": file.content_type
+                "ContentType": file.content_type,
+                "ACL": "public-read"  # Устанавливаем публичный доступ на объект
             }
         )
         logger.info(f"Файл '{filename}' успешно загружен в S3.")
@@ -137,7 +138,13 @@ def generate_s3_url(filename: str) -> str:
     :param filename: Имя файла в S3.
     :return: URL файла.
     """
-    url = f"https://{app.config['AWS_S3_BUCKET']}.s3.{app.config['AWS_S3_REGION']}.amazonaws.com/{filename}"
+    bucket_name = app.config['AWS_S3_BUCKET']
+    region = app.config['AWS_S3_REGION']
+
+    if region == 'us-east-1':
+        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+    else:
+        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
     return url
 
 # Фильтр для генерации URL изображений
@@ -270,7 +277,7 @@ class LoginToken(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False)
-        
+    
     def is_expired(self):
         return datetime.utcnow() > self.expires_at
 
@@ -981,6 +988,14 @@ def manage_setups():
     user_id = session['user_id']
     setups = Setup.query.filter_by(user_id=user_id).all()
     logger.info(f"Пользователь ID {user_id} просматривает свои сетапы.")
+
+    # Генерация S3 URL для скриншотов сетапов
+    for setup in setups:
+        if setup.screenshot:
+            setup.screenshot_url = generate_s3_url(setup.screenshot)
+        else:
+            setup.screenshot_url = None
+
     return render_template('manage_setups.html', setups=setups)
 
 # Добавить новый сетап
