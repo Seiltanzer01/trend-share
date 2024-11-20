@@ -26,6 +26,8 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 
+from forms import TradeForm, SetupForm  # Импорт обновленных форм
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -240,7 +242,7 @@ class Trade(db.Model):
     trade_close_time = db.Column(db.Date, nullable=True)
     comment = db.Column(db.Text, nullable=True)
     setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=True)
-    screenshot = db.Column(db.String(100), nullable=True)
+    screenshot = db.Column(db.String(255), nullable=True)  # Увеличена длина до 255
     profit_loss = db.Column(db.Float, nullable=True)
     profit_loss_percentage = db.Column(db.Float, nullable=True)
 
@@ -257,7 +259,7 @@ class Setup(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     setup_name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    screenshot = db.Column(db.String(100), nullable=True)
+    screenshot = db.Column(db.String(255), nullable=True)  # Увеличена длина до 255
 
     # Отношение с Criterion
     criteria = db.relationship(
@@ -279,9 +281,6 @@ class LoginToken(db.Model):
     
     def is_expired(self):
         return datetime.utcnow() > self.expires_at
-
-# Импорт форм из forms.py
-from forms import TradeForm, SetupForm
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -739,7 +738,6 @@ def index():
                 trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
             else:
                 trade.setup.screenshot_url = None
-        # Если trade.setup равно None, ничего не делаем
 
     return render_template(
         'index.html',
@@ -800,7 +798,7 @@ def new_trade():
                 trade.profit_loss_percentage = None
 
             # Обработка критериев
-            selected_criteria_ids = request.form.getlist('criteria')
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
                 try:
                     criterion = Criterion.query.get(int(criterion_id))
@@ -897,7 +895,7 @@ def edit_trade(trade_id):
 
             # Обработка критериев
             trade.criteria.clear()
-            selected_criteria_ids = request.form.getlist('criteria')
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
                 try:
                     criterion = Criterion.query.get(int(criterion_id))
@@ -906,25 +904,39 @@ def edit_trade(trade_id):
                 except (ValueError, TypeError):
                     logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
+            # Обработка удаления текущего изображения
+            if form.remove_image.data:
+                if trade.screenshot:
+                    delete_success = delete_file_from_s3(trade.screenshot)
+                    if delete_success:
+                        trade.screenshot = None
+                        flash('Изображение удалено.', 'success')
+                        logger.info(f"Изображение сделки ID {trade_id} удалено пользователем ID {user_id}.")
+                    else:
+                        flash('Ошибка при удалении изображения.', 'danger')
+                        logger.error(f"Не удалось удалить изображение сделки ID {trade_id} из S3.")
+                        return redirect(url_for('edit_trade', trade_id=trade_id))
+
+            # Обработка загрузки нового изображения
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
+                # Если уже существует изображение и пользователь не решил удалить его, удалим старое
                 if trade.screenshot:
-                    # Удаление старого файла из S3
                     delete_success = delete_file_from_s3(trade.screenshot)
                     if not delete_success:
-                        flash('Ошибка при удалении старого скриншота.', 'danger')
-                        logger.error("Не удалось удалить старый скриншот из S3.")
+                        flash('Ошибка при удалении старого изображения.', 'danger')
+                        logger.error(f"Не удалось удалить старое изображение сделки ID {trade_id} из S3.")
                         return redirect(url_for('edit_trade', trade_id=trade_id))
                 filename = secure_filename(screenshot_file.filename)
-                # Убедитесь, что имя файла уникально
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
                     trade.screenshot = unique_filename
+                    flash('Изображение успешно обновлено.', 'success')
+                    logger.info(f"Изображение сделки ID {trade_id} обновлено пользователем ID {user_id}.")
                 else:
-                    flash('Ошибка при загрузке нового скриншота.', 'danger')
-                    logger.error("Не удалось загрузить новый скриншот в S3.")
+                    flash('Ошибка при загрузке нового изображения.', 'danger')
+                    logger.error(f"Не удалось загрузить новое изображение сделки ID {trade_id} в S3.")
                     return redirect(url_for('edit_trade', trade_id=trade_id))
 
             db.session.commit()
@@ -1022,7 +1034,7 @@ def add_setup():
                 description=form.description.data
             )
             # Обработка критериев
-            selected_criteria_ids = request.form.getlist('criteria')
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
                 try:
                     criterion = Criterion.query.get(int(criterion_id))
@@ -1092,7 +1104,7 @@ def edit_setup(setup_id):
 
             # Обработка критериев
             setup.criteria.clear()
-            selected_criteria_ids = request.form.getlist('criteria')
+            selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
                 try:
                     criterion = Criterion.query.get(int(criterion_id))
@@ -1101,25 +1113,39 @@ def edit_setup(setup_id):
                 except (ValueError, TypeError):
                     logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
+            # Обработка удаления текущего изображения
+            if form.remove_image.data:
+                if setup.screenshot:
+                    delete_success = delete_file_from_s3(setup.screenshot)
+                    if delete_success:
+                        setup.screenshot = None
+                        flash('Изображение удалено.', 'success')
+                        logger.info(f"Изображение сетапа ID {setup_id} удалено пользователем ID {user_id}.")
+                    else:
+                        flash('Ошибка при удалении изображения.', 'danger')
+                        logger.error(f"Не удалось удалить изображение сетапа ID {setup_id} из S3.")
+                        return redirect(url_for('edit_setup', setup_id=setup_id))
+
+            # Обработка загрузки нового изображения
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
+                # Если уже существует изображение и пользователь не решил удалить его, удалим старое
                 if setup.screenshot:
-                    # Удаление старого файла из S3
                     delete_success = delete_file_from_s3(setup.screenshot)
                     if not delete_success:
-                        flash('Ошибка при удалении старого скриншота.', 'danger')
-                        logger.error("Не удалось удалить старый скриншот из S3.")
+                        flash('Ошибка при удалении старого изображения.', 'danger')
+                        logger.error(f"Не удалось удалить старое изображение сетапа ID {setup_id} из S3.")
                         return redirect(url_for('edit_setup', setup_id=setup_id))
                 filename = secure_filename(screenshot_file.filename)
-                # Убедитесь, что имя файла уникально
                 unique_filename = f"setup_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
                     setup.screenshot = unique_filename
+                    flash('Изображение успешно обновлено.', 'success')
+                    logger.info(f"Изображение сетапа ID {setup_id} обновлено пользователем ID {user_id}.")
                 else:
-                    flash('Ошибка при загрузке нового скриншота.', 'danger')
-                    logger.error("Не удалось загрузить новый скриншот в S3.")
+                    flash('Ошибка при загрузке нового изображения.', 'danger')
+                    logger.error(f"Не удалось загрузить новое изображение сетапа ID {setup_id} в S3.")
                     return redirect(url_for('edit_setup', setup_id=setup_id))
 
             db.session.commit()
@@ -1336,7 +1362,7 @@ dispatcher.add_handler(CommandHandler('test', test_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
 # Обработчик вебхуков
-@csrf.exempt  # Исключаем из CSRF-защиты
+@csrf.exempt  # Исключаем из CSRF-защиты только этот маршрут
 @app.route('/webhook', methods=['POST'])
 def webhook():
     if request.method == 'POST':
