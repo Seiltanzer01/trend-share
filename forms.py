@@ -1,7 +1,7 @@
 # forms.py
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField, FloatField, TextAreaField, DateField, FileField, SelectMultipleField
+from wtforms import StringField, SubmitField, SelectField, FloatField, TextAreaField, DateField, FileField, SelectMultipleField, BooleanField
 from wtforms.validators import DataRequired, Optional
 from flask_wtf.file import FileAllowed
 
@@ -16,12 +16,13 @@ class TradeForm(FlaskForm):
     setup_id = SelectField('Сетап', coerce=int, validators=[Optional()])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
     screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
+    remove_image = BooleanField('Удалить текущее изображение')  # Новое поле
     submit = SubmitField('Сохранить')
 
 class SetupForm(FlaskForm):
     setup_name = StringField('Название Сетапа', validators=[DataRequired()])
     description = TextAreaField('Описание', validators=[Optional()])
-    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     criteria = SelectMultipleField('Критерии', coerce=int, validators=[Optional()])
+    screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
+    remove_image = BooleanField('Удалить текущее изображение')  # Новое поле
     submit = SubmitField('Сохранить')
-
