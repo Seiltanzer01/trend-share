@@ -78,11 +78,14 @@ $(document).ready(function() {
         }
     });
 
-    // Раскрывающиеся списки для категорий и подкатегорий
-    $('.collapse-button').click(function(){
+    // Раскрывающиеся списки для категорий и подкатегорий критериев
+    $('.criteria-header').click(function(){
         // Проверяем, есть ли следующий элемент для раскрытия
-        if($(this).next().length > 0){
-            $(this).next().slideToggle();
+        const criteriaList = $(this).next('.criteria-list');
+        if(criteriaList.length > 0){
+            criteriaList.slideToggle();
+            // Поворот стрелки
+            $(this).find('.toggle-arrow').toggleClass('rotated');
         }
     });
 
