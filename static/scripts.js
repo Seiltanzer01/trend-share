@@ -66,7 +66,7 @@ $(document).ready(function() {
         }
     })();
 
-    // Обработчик для кнопки "Показать/Скрыть Фильтры"
+    // Обработчик для кнопки "Показать/Скрыть Фильтры" (если используется)
     $('#toggle-filters').click(function(){
         $('#filters').slideToggle();
         const buttonText = $(this).text();
