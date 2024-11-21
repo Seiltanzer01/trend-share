@@ -2,7 +2,7 @@
 
 /* Основные стили */
 body {
-    background-color: #C0C0C0;
+    background-color: #C0C0C0; /* Серебристый фон */
     font-family: 'Courier New', Courier, monospace;
     color: #000000;
     margin: 0;
@@ -21,62 +21,86 @@ body {
 }
 
 header {
-    background-color: #000080;
+    background-color: #000080; /* Тёмно-синий */
     color: white;
     padding: 10px 0;
     text-align: center;
-    border-bottom: 3px solid #FFD700;
+    border-bottom: 3px solid #FFD700; /* Золотая граница */
+    position: relative;
 }
 
 header h1 {
     margin: 0;
     font-size: 1.5em;
-    text-shadow: 2px 2px #FF0000;
+    text-shadow: 2px 2px #FF0000; /* Красная тень */
+    animation: headerAnimation 5s infinite; /* Анимация заголовка */
+}
+
+@keyframes headerAnimation {
+    0% { color: white; text-shadow: 2px 2px #FF0000; }
+    50% { color: #FFD700; text-shadow: 2px 2px #FF4500; }
+    100% { color: white; text-shadow: 2px 2px #FF0000; }
 }
 
 nav {
     margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
 }
 
 nav a {
     color: white;
-    margin: 0 5px;
+    margin: 5px 10px;
     text-decoration: none;
     font-weight: bold;
     transition: color 0.3s ease;
     font-size: 0.9em;
+    position: relative;
+    padding: 8px 12px;
+    border-radius: 4px;
 }
 
 nav a:hover {
     color: #FFD700;
+    background-color: rgba(255, 215, 0, 0.2); /* Полупрозрачный золотой фон при наведении */
 }
 
 .flashes {
     list-style-type: none;
     padding: 0;
+    margin: 10px 0;
 }
 
 .flashes li {
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
+    font-size: 0.9em;
 }
 
 .flashes .success {
-    background-color: #90EE90;
+    background-color: #90EE90; /* Светло-зелёный */
+    color: #006400;
 }
 
 .flashes .danger {
-    background-color: #FF6347;
+    background-color: #FF6347; /* Томатный */
+    color: #8B0000;
 }
 
 main {
-    background-color: #FFFFFF;
-    padding: 10px;
+    background-color: #FFFFFF; /* Белый фон */
+    padding: 15px;
     border: 2px solid #000080;
     border-radius: 10px;
-    box-shadow: 5px 5px #A9A9A9;
+    box-shadow: 5px 5px #A9A9A9; /* Тень */
     animation: fadeIn 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 footer {
@@ -85,6 +109,7 @@ footer {
     margin-top: 20px;
     border-top: 1px solid #000080;
     font-size: 0.8em;
+    color: #000080;
 }
 
 /* Стили для таблиц */
@@ -105,26 +130,25 @@ table {
 
 th, td {
     border: 1px solid #000080;
-    padding: 4px;
+    padding: 8px;
     text-align: center;
-    font-size: 0.7em;
+    font-size: 0.8em;
     vertical-align: top;
+    white-space: nowrap;
 }
 
 th {
     background-color: #000080;
     color: white;
-    font-size: 0.7em;
-    white-space: nowrap;
-    text-align: center;
+    font-size: 0.8em;
 }
 
 td {
     white-space: normal;
-    word-break: normal;
+    word-break: break-word;
     overflow-wrap: break-word;
-    padding: 4px;
-    font-size: 0.7em;
+    padding: 8px;
+    font-size: 0.8em;
 }
 
 /* Центрирование изображений внутри ячеек */
@@ -133,50 +157,79 @@ td img {
     height: auto;
     display: block;
     margin: 0 auto;
+    cursor: pointer;
+    border: 1px solid #000;
+    border-radius: 4px;
+    transition: transform 0.3s ease;
+}
+
+td img:hover {
+    transform: scale(1.1);
 }
 
 /* Стили для кнопок */
 button, input[type="submit"] {
-    background-color: #000080;
+    background-color: #000080; /* Тёмно-синий */
     color: white;
     border: none;
-    padding: 6px 12px;
+    padding: 8px 16px;
     cursor: pointer;
     font-family: 'Courier New', Courier, monospace;
-    transition: background-color 0.3s ease;
+    transition: background-color 0.3s ease, transform 0.2s ease;
     margin-bottom: 5px;
-    width: 100%;
+    width: auto;
     box-sizing: border-box;
-    font-size: 0.8em;
+    font-size: 0.9em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
 }
 
 button:hover, input[type="submit"]:hover {
-    background-color: #0000CD;
+    background-color: #0000CD; /* Ярко-синий при наведении */
+    transform: translateY(-2px);
+}
+
+button:active, input[type="submit"]:active {
+    transform: translateY(0);
+    background-color: #000080;
 }
 
 /* Стили для форм */
 input, select, textarea {
-    padding: 5px;
+    padding: 8px;
     margin-bottom: 10px;
     width: 100%;
     box-sizing: border-box;
     font-family: 'Courier New', Courier, monospace;
     border: 1px solid #000080;
     border-radius: 4px;
-    font-size: 0.8em;
+    font-size: 0.9em;
 }
 
 select[multiple] {
     height: 100px;
 }
 
+label {
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
 /* Стили для мини-изображений сетапов */
 img.setup-mini {
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     object-fit: cover;
     border: 1px solid #000;
     border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+img.setup-mini:hover {
+    transform: scale(1.1);
 }
 
 /* Общие стили для изображений */
@@ -187,27 +240,32 @@ img {
 
 /* Стили для критериев */
 span.criterion {
-    background-color: #E6E6FA;
-    padding: 2px 4px;
+    background-color: #E6E6FA; /* Светло-лавандовый */
+    padding: 4px 8px;
     border-radius: 3px;
-    font-size: 0.7em;
+    font-size: 0.8em;
     display: inline-block;
-    margin-right: 2px;
-    margin-bottom: 2px;
+    margin-right: 4px;
+    margin-bottom: 4px;
 }
 
 /* Структура категорий и подкатегорий */
 .category {
-    margin-bottom: 5px;
+    margin-bottom: 10px;
 }
 
 .subcategory {
-    margin-left: 10px;
+    margin-left: 20px;
+    margin-bottom: 5px;
 }
 
 .category-content, .subcategory-content {
     margin-left: 10px;
     display: none;
+    background-color: #F0F8FF; /* AliceBlue */
+    padding: 10px;
+    border-left: 3px solid #000080;
+    border-radius: 4px;
 }
 
 /* Стили для кнопок раскрытия */
@@ -217,46 +275,43 @@ span.criterion {
     color: #000080;
     font-weight: bold;
     cursor: pointer;
-    font-size: 0.9em;
-    padding: 0;
+    font-size: 1em;
+    padding: 8px 0;
     text-align: left;
     width: 100%;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.collapse-button .toggle-arrow {
+    margin-left: auto;
+    transition: transform 0.3s ease;
+}
+
+.collapse-button.rotated .toggle-arrow {
+    transform: rotate(90deg);
 }
 
 .collapse-button:hover {
     text-decoration: underline;
 }
 
-/* Стили для чекбоксов критериев */
-.criteria-section {
-    margin-top: 5px;
-}
-
-.criteria-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 5px;
-}
-
-.criteria-item label {
-    flex: 1;
-    text-align: left;
-    margin-right: 10px;
-    font-size: 0.8em;
-}
-
-.criteria-item input[type="checkbox"] {
-    flex: 0 0 auto;
-    margin-left: auto;
-    transform: scale(0.8);
+/* Иконки для кнопок "Просмотр" и "Редактировать" */
+.button-icon {
+    margin-right: 5px;
+    font-size: 1em;
+    display: inline-block;
+    width: 1em;
+    text-align: center;
 }
 
 /* Стили для модального окна */
 .modal {
     display: none;
     position: fixed;
-    z-index: 100;
+    z-index: 1000;
+    padding-top: 60px;
     left: 0;
     top: 0;
     width: 100%;
@@ -266,30 +321,52 @@ span.criterion {
 }
 
 .modal-content {
-    display: block;
     margin: auto;
-    max-width: 90%;
+    display: block;
+    max-width: 80%;
     max-height: 80%;
+    border: 3px solid #FFD700;
+    border-radius: 8px;
 }
 
 .close {
     position: absolute;
-    top: 20px;
-    right: 35px;
-    color: #fff;
+    top: 30px;
+    right: 45px;
+    color: #ffffff;
     font-size: 40px;
     font-weight: bold;
     cursor: pointer;
+    transition: color 0.3s ease;
 }
 
-/* Анимации */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+.close:hover,
+.close:focus {
+    color: #FFD700;
+    text-decoration: none;
+    cursor: pointer;
 }
 
-.fade-in {
-    animation: fadeIn 1s ease-in;
+/* Ретро-анимация для заголовка */
+@keyframes retroGlow {
+    0% { text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700; }
+    50% { text-shadow: 0 0 20px #FFD700, 0 0 30px #FFD700; }
+    100% { text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700; }
+}
+
+header h1 {
+    animation: retroGlow 2s infinite;
+}
+
+/* Добавление иконок к кнопкам "Просмотр" и "Редактировать" */
+.view-button::before {
+    content: "\1F50D"; /* Лупа Unicode */
+    margin-right: 5px;
+}
+
+.edit-button::before {
+    content: "\270E"; /* Карандаш Unicode */
+    margin-right: 5px;
 }
 
 /* Адаптивность для мобильных устройств */
@@ -310,15 +387,17 @@ span.criterion {
     }
 
     nav {
-        float: none;
-        text-align: center;
+        flex-direction: column;
+        align-items: center;
         margin-top: 10px;
     }
 
     nav a {
-        display: inline-block;
-        margin: 5px 2px;
-        padding: 12px 16px; /* Увеличенные отступы */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 5px 0;
+        padding: 12px 20px; /* Увеличенные отступы */
         font-size: 1em;
     }
 
@@ -362,6 +441,7 @@ span.criterion {
         padding-left: 15px;
         font-weight: bold;
         text-align: left;
+        white-space: nowrap;
     }
 
     /* Оптимизация изображений */
@@ -407,38 +487,42 @@ span.criterion {
         transform: scale(1.2);
     }
 
-    /* Увеличение размеров изображений */
-    img.setup-mini {
-        width: 50px;
-        height: 50px;
-    }
-
-    img.clickable-image {
-        width: 100px;
-    }
-
-    /* Удаляем фиксацию навигации внизу */
-    /* 
-    nav {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background-color: #000080;
-        padding: 10px 0;
-        box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
-    }
-
+    /* Улучшение навигации */
     nav a {
-        flex: 1;
-        text-align: center;
-        margin: 0;
-        padding: 10px 0;
         font-size: 1em;
     }
+}
 
-    main {
-        padding-bottom: 60px; /* Отступ для фиксированной навигации */
-    } 
-    */
+/* Ретро-функции и декоративные элементы */
+
+/* Пиксельная рамка вокруг кнопок */
+button, input[type="submit"] {
+    border: 2px solid #FFD700; /* Золотая рамка */
+}
+
+/* Пиксельные границы для таблиц */
+table, th, td {
+    border-style: solid;
+    border-width: 2px;
+    border-color: #000080;
+}
+
+/* Ретро-тени для кнопок */
+button, input[type="submit"] {
+    box-shadow: 2px 2px #A9A9A9; /* Серые тени */
+}
+
+/* Добавление градиента на кнопки */
+button, input[type="submit"] {
+    background-image: linear-gradient(to bottom, #0000CD, #000080);
+}
+
+/* Стрелки для раскрывающихся кнопок */
+.collapse-button .toggle-arrow {
+    font-size: 1em;
+    transition: transform 0.3s ease;
+}
+
+.collapse-button.rotated .toggle-arrow {
+    transform: rotate(90deg);
 }
