@@ -19,7 +19,7 @@
         {% if trade.setup %}
             <div class="setup-info">
                 {% if trade.setup.screenshot_url %}
-                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" style="width: 100px; height: auto;">
+                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image">
                 {% endif %}
                 {{ trade.setup.setup_name }}
             </div>
@@ -41,34 +41,12 @@
         {% endif %}
     </p>
 
-    <a href="{{ url_for('index') }}" class="action-button view-button"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
+    <a href="{{ url_for('index') }}" class="btn-add"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
 
     <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <script>
-        $(document).ready(function(){
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-        });
-    </script>
 </div>
 {% endblock %}
