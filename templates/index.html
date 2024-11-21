@@ -6,9 +6,7 @@
 <div class="container">
     <h2>Журнал Сделок</h2>
 
-    <button id="toggle-filters" class="btn btn-primary" style="margin-bottom: 15px;">
-        <span class="icon">🔽</span> Показать Фильтры
-    </button>
+    <button id="toggle-filters">Показать/Скрыть Фильтры</button>
 
     <div id="filters" style="display: none;">
         <form method="GET">
@@ -54,11 +52,7 @@
                                             <fieldset>
                                                 <legend>{{ subcategory.name }}</legend>
                                                 {% for criterion in subcategory.criteria %}
-                                                    <div class="criteria-item">
-                                                        <label>
-                                                            <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}
-                                                        </label>
-                                                    </div>
+                                                    <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
                                                 {% endfor %}
                                             </fieldset>
                                         {% endfor %}
@@ -69,7 +63,7 @@
                     </div>
                 </div>
 
-                <input type="submit" value="Применить фильтры" class="btn btn-secondary">
+                <input type="submit" value="Применить фильтры">
             </fieldset>
         </form>
     </div>
@@ -100,7 +94,7 @@
                     <td data-label="ID">{{ trade.id }}</td>
                     <td data-label="Скриншот">
                         {% if trade.screenshot_url %}
-                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" style="width: 100px; height: auto;">
+                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image">
                         {% else %}
                             -
                         {% endif %}
@@ -137,17 +131,11 @@
                         {% endfor %}
                     </td>
                     <td data-label="Действия">
-                        <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="btn view-btn" style="margin-bottom: 5px;">
-                            <span class="icon">🔍</span> Просмотр
-                        </a><br>
-                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="btn edit-btn" style="margin-bottom: 5px;">
-                            <span class="icon">✏️</span> Редактировать
-                        </a><br>
+                        <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="action-button view-button"><i class="fas fa-eye"></i> Просмотр</a><br>
+                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="action-button edit-button"><i class="fas fa-edit"></i> Редактировать</a><br>
                         <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');">
-                                <span class="icon">🗑️</span> Удалить
-                            </button>
+                            <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');"><i class="fas fa-trash-alt"></i> Удалить</button>
                         </form>
                     </td>
                 </tr>
