@@ -22,34 +22,12 @@
         {% endif %}
     </p>
 
-    <a href="{{ url_for('manage_setups') }}" class="action-button view-button"><i class="fas fa-arrow-left"></i> Вернуться к списку сетапов</a>
+    <a href="{{ url_for('manage_setups') }}" class="btn-add"><i class="fas fa-arrow-left"></i> Вернуться к списку сетапов</a>
 
     <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <script>
-        $(document).ready(function(){
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-        });
-    </script>
 </div>
 {% endblock %}
