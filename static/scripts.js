@@ -80,7 +80,7 @@ $(document).ready(function() {
 
     // Обработчик для кнопок раскрытия критериев
     $('.collapse-button').click(function(){
-        $(this).next().slideToggle();
+        $(this).next('.category-content, .subcategory-content').slideToggle();
         // Переключаем класс для вращения стрелки
         $(this).toggleClass('rotated');
     });
