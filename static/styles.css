@@ -23,25 +23,22 @@ body {
 header {
     background-color: #000080;
     color: white;
-    padding: 20px 0;
+    padding: 10px 0;
     text-align: center;
     border-bottom: 3px solid #FFD700;
     position: relative;
-    overflow: hidden;
 }
 
 header h1 {
     margin: 0;
     font-size: 2em;
     text-shadow: 2px 2px #FF0000;
-    animation: flicker 3s infinite;
-    display: inline-block;
+    animation: retroFadeIn 2s ease-in-out infinite alternate;
 }
 
-@keyframes flicker {
-    0% { opacity: 1; }
-    50% { opacity: 0.8; }
-    100% { opacity: 1; }
+@keyframes retroFadeIn {
+    from { opacity: 0.8; }
+    to { opacity: 1; }
 }
 
 nav {
@@ -56,17 +53,17 @@ nav a {
     margin: 5px 10px;
     text-decoration: none;
     font-weight: bold;
-    transition: color 0.3s ease, transform 0.3s ease;
+    transition: color 0.3s ease, transform 0.2s ease;
     font-size: 1em;
-    position: relative;
     padding: 8px 12px;
     border-radius: 4px;
+    position: relative;
 }
 
 nav a:hover {
     color: #FFD700;
-    transform: scale(1.1);
     background-color: rgba(255, 215, 0, 0.2);
+    transform: scale(1.05);
 }
 
 .flashes {
@@ -79,7 +76,7 @@ nav a:hover {
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    font-size: 0.9em;
+    font-size: 1em;
 }
 
 .flashes .success {
@@ -101,17 +98,13 @@ main {
     animation: fadeIn 1s ease-in-out;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
 footer {
     text-align: center;
     padding: 10px 0;
     margin-top: 20px;
     border-top: 1px solid #000080;
     font-size: 0.8em;
+    background-color: #F0F0F0;
 }
 
 /* Стили для таблиц */
@@ -141,14 +134,14 @@ th, td {
 th {
     background-color: #000080;
     color: white;
-    font-size: 1em;
+    font-size: 0.9em;
     white-space: nowrap;
     text-align: center;
 }
 
 td {
     white-space: normal;
-    word-break: normal;
+    word-break: break-word;
     overflow-wrap: break-word;
     padding: 8px;
     font-size: 0.9em;
@@ -160,6 +153,8 @@ td img {
     height: auto;
     display: block;
     margin: 0 auto;
+    border: 2px solid #000;
+    border-radius: 5px;
 }
 
 /* Стили для кнопок */
@@ -170,43 +165,24 @@ button, input[type="submit"] {
     padding: 10px 20px;
     cursor: pointer;
     font-family: 'Courier New', Courier, monospace;
-    transition: background-color 0.3s ease, transform 0.3s ease;
+    transition: background-color 0.3s ease, transform 0.2s ease;
     margin-bottom: 5px;
     width: auto;
     box-sizing: border-box;
     font-size: 1em;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
 }
 
 button:hover, input[type="submit"]:hover {
     background-color: #0000CD;
-    transform: scale(1.05);
+    transform: translateY(-2px);
 }
 
-/* Иконки для кнопок */
-button .icon, a .icon {
+/* Добавление иконок к кнопкам через Font Awesome */
+button .fa, input[type="submit"] .fa {
     margin-right: 5px;
-    width: 16px;
-    height: 16px;
-}
-
-button.view-btn, a.view-btn {
-    background-color: #228B22; /* Зеленый */
-}
-
-button.edit-btn, a.edit-btn {
-    background-color: #FFA500; /* Оранжевый */
-}
-
-button.view-btn:hover, a.view-btn:hover {
-    background-color: #32CD32;
-}
-
-button.edit-btn:hover, a.edit-btn:hover {
-    background-color: #FF8C00;
 }
 
 /* Стили для форм */
@@ -230,7 +206,7 @@ img.setup-mini {
     width: 50px;
     height: 50px;
     object-fit: cover;
-    border: 1px solid #000;
+    border: 2px solid #000;
     border-radius: 5px;
 }
 
@@ -249,6 +225,7 @@ span.criterion {
     display: inline-block;
     margin-right: 4px;
     margin-bottom: 4px;
+    white-space: nowrap;
 }
 
 /* Структура категорий и подкатегорий */
@@ -261,8 +238,9 @@ span.criterion {
 }
 
 .category-content, .subcategory-content {
-    margin-left: 10px;
+    margin-left: 20px;
     display: none;
+    transition: all 0.3s ease;
 }
 
 /* Стили для кнопок раскрытия */
@@ -273,20 +251,20 @@ span.criterion {
     font-weight: bold;
     cursor: pointer;
     font-size: 1em;
-    padding: 5px 0;
+    padding: 8px 0;
     text-align: left;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    position: relative;
 }
 
 .collapse-button:hover {
     text-decoration: underline;
 }
 
-/* Стрелки для раскрытия */
+/* Добавление стрелок для кнопок раскрытия */
 .collapse-button .toggle-arrow {
+    position: absolute;
+    right: 0;
     transition: transform 0.3s ease;
 }
 
@@ -310,12 +288,11 @@ span.criterion {
     flex: 1;
     text-align: left;
     margin-right: 10px;
-    font-size: 0.9em;
+    font-size: 1em;
 }
 
 .criteria-item input[type="checkbox"] {
     flex: 0 0 auto;
-    margin-left: auto;
     transform: scale(1.2);
 }
 
@@ -323,39 +300,36 @@ span.criterion {
 .modal {
     display: none;
     position: fixed;
-    z-index: 100;
+    z-index: 1000;
+    padding-top: 100px;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
     background-color: rgba(0,0,0,0.8);
-    align-items: center;
-    justify-content: center;
-    display: flex;
+    animation: fadeInModal 0.5s ease-in-out;
+}
+
+@keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .modal-content {
-    display: block;
     margin: auto;
-    max-width: 90%;
+    display: block;
+    max-width: 80%;
     max-height: 80%;
-    border: 5px solid #FFD700;
-    border-radius: 8px;
-    box-shadow: 0 0 20px #FFD700;
-    animation: zoomIn 0.5s ease-in-out;
-}
-
-@keyframes zoomIn {
-    from { transform: scale(0.5); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    border: 4px solid #FFD700;
+    border-radius: 10px;
 }
 
 .close {
     position: absolute;
-    top: 20px;
-    right: 35px;
-    color: #fff;
+    top: 30px;
+    right: 40px;
+    color: #ffffff;
     font-size: 40px;
     font-weight: bold;
     cursor: pointer;
@@ -370,17 +344,13 @@ span.criterion {
 }
 
 /* Анимации */
-@keyframes retroGlow {
-    0%, 100% {
-        text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700, 0 0 20px #FFD700, 0 0 30px #FFD700, 0 0 40px #FFD700, 0 0 50px #FFD700, 0 0 75px #FFD700;
-    }
-    50% {
-        text-shadow: 0 0 10px #FFD700, 0 0 20px #FFD700, 0 0 30px #FFD700, 0 0 40px #FFD700, 0 0 50px #FFD700, 0 0 60px #FFD700, 0 0 85px #FFD700;
-    }
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-header h1 {
-    animation: retroGlow 2s infinite alternate;
+.fade-in {
+    animation: fadeIn 1s ease-in;
 }
 
 /* Адаптивность для мобильных устройств */
@@ -403,27 +373,22 @@ header h1 {
     nav {
         flex-direction: column;
         align-items: center;
-        margin-top: 10px;
     }
 
     nav a {
-        display: flex;
-        align-items: center;
-        justify-content: center;
         margin: 5px 0;
         padding: 12px 20px; /* Увеличенные отступы */
-        font-size: 1em;
-        width: 90%;
+        font-size: 1.1em;
     }
 
     /* Увеличиваем размеры кнопок и полей ввода */
     button, input[type="submit"] {
-        padding: 14px 28px; /* Увеличенные размеры */
+        padding: 14px 24px; /* Увеличенные размеры */
         font-size: 1.1em;
     }
 
     input, select, textarea {
-        padding: 12px;
+        padding: 14px;
         font-size: 1.1em;
     }
 
@@ -470,8 +435,8 @@ header h1 {
 
     /* Увеличиваем размеры модального окна */
     .modal-content {
-        max-width: 95%;
-        max-height: 85%;
+        max-width: 90%;
+        max-height: 80%;
     }
 
     /* Плавные переходы для раскрывающихся блоков */
@@ -487,7 +452,7 @@ header h1 {
     /* Увеличение межстрочного интервала для лучшей читаемости */
     th, td {
         font-size: 1em;
-        padding: 14px;
+        padding: 12px;
     }
 
     /* Увеличение размеров критериев */
@@ -496,33 +461,142 @@ header h1 {
         padding: 6px 12px;
     }
 
-    /* Увеличение размеров чекбоксов */
+    /* Улучшение размеров чекбоксов */
     .criteria-item input[type="checkbox"] {
         transform: scale(1.5);
     }
 
-    /* Иконки внутри кнопок */
-    button .icon, a .icon {
-        margin-right: 8px;
-        width: 20px;
-        height: 20px;
+    /* Увеличение размеров изображений */
+    img.setup-mini {
+        width: 60px;
+        height: 60px;
     }
+
+    img.clickable-image {
+        width: 120px;
+    }
+
+    /* Удаляем фиксированную навигацию */
+    /* 
+    nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: #000080;
+        padding: 10px 0;
+        box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+    }
+
+    nav a {
+        flex: 1;
+        text-align: center;
+        margin: 0;
+        padding: 10px 0;
+        font-size: 1em;
+    }
+
+    main {
+        padding-bottom: 60px; /* Отступ для фиксированной навигации */
+    } 
+    */
 }
 
-/* Ретро-иконки (используем встроенные SVG или Unicode) */
-/* Пример с использованием Unicode символов для стрелок */
-button.view-btn::before, a.view-btn::before {
-    content: "\1F50D"; /* Unicode для увеличительного стекла */
+/* Ретро стилизация кнопок "Просмотр" и "Редактировать" */
+a[href*="view"], a[href*="edit"] {
+    background-color: #FF4500;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    font-size: 1em;
+    margin-bottom: 5px;
+}
+
+a[href*="view"] .fa, a[href*="edit"] .fa {
     margin-right: 5px;
 }
 
-button.edit-btn::before, a.edit-btn::before {
-    content: "\270E"; /* Unicode для карандаша */
-    margin-right: 5px;
+a[href*="view"]:hover {
+    background-color: #FF6347;
+    transform: scale(1.05);
 }
 
-/* Обеспечиваем, что слова не разрываются */
-body, h1, h2, h3, h4, h5, h6, p, a, label, span, button, input, select, textarea {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
+a[href*="edit"]:hover {
+    background-color: #FF7F50;
+    transform: scale(1.05);
+}
+
+/* Избегаем разрывов слов */
+body, h1, h2, h3, h4, h5, h6, p, label, span, a {
+    word-break: keep-all;
+    overflow-wrap: normal;
+}
+
+/* Улучшение ссылок внутри таблиц */
+td a {
+    background-color: #000080;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    font-size: 0.9em;
+}
+
+td a:hover {
+    background-color: #0000CD;
+    transform: scale(1.05);
+}
+
+/* Улучшение формы добавления и редактирования */
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+form div {
+    margin-bottom: 15px;
+}
+
+legend {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+/* Улучшение кнопок формы */
+form button, form input[type="submit"] {
+    width: auto;
+    padding: 10px 20px;
+    font-size: 1em;
+    border-radius: 4px;
+}
+
+/* Улучшение кнопок добавления и управления */
+a.btn-add {
+    background-color: #32CD32;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    font-size: 1em;
+}
+
+a.btn-add:hover {
+    background-color: #3CB371;
+    transform: scale(1.05);
+}
+
+/* Добавление эффектов при наведении */
+.nav-button:hover, .flashes li:hover, .criterion:hover {
+    filter: brightness(1.1);
 }
