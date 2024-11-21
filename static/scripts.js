@@ -81,6 +81,8 @@ $(document).ready(function() {
     // Обработчик для кнопок раскрытия критериев
     $('.collapse-button').click(function(){
         $(this).next().slideToggle();
+        // Опционально: добавить вращение стрелки
+        $(this).find('.toggle-arrow').toggleClass('rotated');
     });
 
     // Пример анимации при наведении на строки таблицы
