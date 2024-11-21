@@ -49,21 +49,12 @@
                                     </button>
                                     <div class="category-content" style="display: none;">
                                         {% for subcategory in category.subcategories %}
-                                            <div class="subcategory">
-                                                <button type="button" class="collapse-button">
-                                                    {{ subcategory.name }}
-                                                    <span class="toggle-arrow">▶</span>
-                                                </button>
-                                                <div class="subcategory-content" style="display: none;">
-                                                    {% for criterion in subcategory.criteria %}
-                                                        <div class="criteria-item">
-                                                            <label>
-                                                                <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}
-                                                            </label>
-                                                        </div>
-                                                    {% endfor %}
-                                                </div>
-                                            </div>
+                                            <fieldset>
+                                                <legend>{{ subcategory.name }}</legend>
+                                                {% for criterion in subcategory.criteria %}
+                                                    <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
+                                                {% endfor %}
+                                            </fieldset>
                                         {% endfor %}
                                     </div>
                                 </div>
