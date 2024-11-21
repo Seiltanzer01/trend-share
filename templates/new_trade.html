@@ -91,36 +91,5 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <script>
-        $(document).ready(function(){
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-
-            // Обработчики для раскрывающихся списков критериев
-            $('.collapse-button').on('click', function() {
-                $(this).next().slideToggle();
-            });
-
-            // Инициализация Datepicker
-            $('#trade_open_time').datepicker({ dateFormat: 'yy-mm-dd' });
-            $('#trade_close_time').datepicker({ dateFormat: 'yy-mm-dd' });
-        });
-    </script>
 </div>
 {% endblock %}
