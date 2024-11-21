@@ -6,7 +6,9 @@
 <div class="container">
     <h2>Журнал Сделок</h2>
 
-    <button id="toggle-filters">Показать/Скрыть Фильтры</button>
+    <button id="toggle-filters" class="btn btn-primary" style="margin-bottom: 15px;">
+        <span class="icon">🔽</span> Показать Фильтры
+    </button>
 
     <div id="filters" style="display: none;">
         <form method="GET">
@@ -43,13 +45,20 @@
                         {% for category in criteria_categories %}
                             {% if category.name in ['Технический анализ', 'Фундаментальный анализ', 'Психологические факторы', 'Рыночная структура', 'Психология рынка'] %}
                                 <div class="criteria-category">
-                                    <button type="button" class="collapse-button">{{ category.name }}</button>
+                                    <button type="button" class="collapse-button">
+                                        {{ category.name }}
+                                        <span class="toggle-arrow">▶</span>
+                                    </button>
                                     <div class="category-content" style="display: none;">
                                         {% for subcategory in category.subcategories %}
                                             <fieldset>
                                                 <legend>{{ subcategory.name }}</legend>
                                                 {% for criterion in subcategory.criteria %}
-                                                    <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
+                                                    <div class="criteria-item">
+                                                        <label>
+                                                            <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}
+                                                        </label>
+                                                    </div>
                                                 {% endfor %}
                                             </fieldset>
                                         {% endfor %}
@@ -60,7 +69,7 @@
                     </div>
                 </div>
 
-                <input type="submit" value="Применить фильтры">
+                <input type="submit" value="Применить фильтры" class="btn btn-secondary">
             </fieldset>
         </form>
     </div>
@@ -88,33 +97,33 @@
             <tbody>
                 {% for trade in trades %}
                 <tr>
-                    <td>{{ trade.id }}</td>
-                    <td>
+                    <td data-label="ID">{{ trade.id }}</td>
+                    <td data-label="Скриншот">
                         {% if trade.screenshot_url %}
                             <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" style="width: 100px; height: auto;">
                         {% else %}
                             -
                         {% endif %}
                     </td>
-                    <td>{{ trade.instrument.name }}</td>
-                    <td>{{ trade.direction }}</td>
-                    <td>{{ trade.entry_price }}</td>
-                    <td>{{ trade.exit_price or '-' }}</td>
-                    <td>{{ trade.trade_open_time.strftime('%Y-%m-%d') }}</td>
-                    <td>{{ trade.trade_close_time.strftime('%Y-%m-%d') if trade.trade_close_time else '-' }}</td>
-                    <td>{{ "{:.2f}".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</td>
-                    <td>
+                    <td data-label="Инструмент">{{ trade.instrument.name }}</td>
+                    <td data-label="Направление">{{ trade.direction }}</td>
+                    <td data-label="Цена входа">{{ trade.entry_price }}</td>
+                    <td data-label="Цена выхода">{{ trade.exit_price or '-' }}</td>
+                    <td data-label="Дата открытия">{{ trade.trade_open_time.strftime('%Y-%m-%d') }}</td>
+                    <td data-label="Дата закрытия">{{ trade.trade_close_time.strftime('%Y-%m-%d') if trade.trade_close_time else '-' }}</td>
+                    <td data-label="Прибыль/Убыток">{{ "{:.2f}".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</td>
+                    <td data-label="% Прибыли/Убытка">
                         {% if trade.profit_loss_percentage is not none %}
                             {{ "{:.2f}%".format(trade.profit_loss_percentage) }}
                         {% else %}
                             -
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Сетап">
                         {% if trade.setup %}
                             <div class="setup-info">
                                 {% if trade.setup.screenshot_url %}
-                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image" style="width: 50px; height: auto;">
+                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image">
                                 {% endif %}
                                 {{ trade.setup.setup_name }}
                             </div>
@@ -122,29 +131,29 @@
                             -
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Критерии">
                         {% for criterion in trade.criteria %}
                             <span class="criterion">{{ criterion.name }}</span>
                         {% endfor %}
                     </td>
-                    <td>
-                        <a href="{{ url_for('view_trade', trade_id=trade.id) }}">Просмотр</a><br>
-                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}">Редактировать</a><br>
+                    <td data-label="Действия">
+                        <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="btn view-btn" style="margin-bottom: 5px;">
+                            <span class="icon">🔍</span> Просмотр
+                        </a><br>
+                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="btn edit-btn" style="margin-bottom: 5px;">
+                            <span class="icon">✏️</span> Редактировать
+                        </a><br>
                         <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');">Удалить</button>
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');">
+                                <span class="icon">🗑️</span> Удалить
+                            </button>
                         </form>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-
-    <!-- Модальное окно для отображения изображений -->
-    <div id="modal" class="modal">
-        <span class="close">&times;</span>
-        <img class="modal-content" id="modal-img">
     </div>
 </div>
 {% endblock %}
