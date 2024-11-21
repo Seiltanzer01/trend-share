@@ -6,7 +6,7 @@
 <div class="container">
     <h2>Журнал Сделок</h2>
 
-    <button id="toggle-filters">Показать Фильтры</button>
+    <button id="toggle-filters">Показать Фильтры <i class="fas fa-filter"></i></button>
 
     <div id="filters" style="display: none;">
         <form method="GET">
@@ -49,12 +49,21 @@
                                     </button>
                                     <div class="category-content" style="display: none;">
                                         {% for subcategory in category.subcategories %}
-                                            <fieldset>
-                                                <legend>{{ subcategory.name }}</legend>
-                                                {% for criterion in subcategory.criteria %}
-                                                    <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}<br>
-                                                {% endfor %}
-                                            </fieldset>
+                                            <div class="subcategory">
+                                                <button type="button" class="collapse-button">
+                                                    {{ subcategory.name }}
+                                                    <span class="toggle-arrow">▶</span>
+                                                </button>
+                                                <div class="subcategory-content" style="display: none;">
+                                                    {% for criterion in subcategory.criteria %}
+                                                        <div class="criteria-item">
+                                                            <label>
+                                                                <input type="checkbox" name="filter_criteria" value="{{ criterion.id }}" {% if criterion.id in selected_criteria %}checked{% endif %}> {{ criterion.name }}
+                                                            </label>
+                                                        </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
                                         {% endfor %}
                                     </div>
                                 </div>
@@ -63,7 +72,7 @@
                     </div>
                 </div>
 
-                <input type="submit" value="Применить Фильтры">
+                <input type="submit" value="Применить фильтры">
             </fieldset>
         </form>
     </div>
