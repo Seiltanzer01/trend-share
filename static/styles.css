@@ -2,7 +2,7 @@
 
 /* Основные стили */
 body {
-    background-color: #C0C0C0; /* Серебристый фон */
+    background-color: #C0C0C0;
     font-family: 'Courier New', Courier, monospace;
     color: #000000;
     margin: 0;
@@ -21,25 +21,27 @@ body {
 }
 
 header {
-    background-color: #000080; /* Тёмно-синий */
+    background-color: #000080;
     color: white;
-    padding: 10px 0;
+    padding: 20px 0;
     text-align: center;
-    border-bottom: 3px solid #FFD700; /* Золотая граница */
+    border-bottom: 3px solid #FFD700;
     position: relative;
+    overflow: hidden;
 }
 
 header h1 {
     margin: 0;
-    font-size: 1.5em;
-    text-shadow: 2px 2px #FF0000; /* Красная тень */
-    animation: headerAnimation 5s infinite; /* Анимация заголовка */
+    font-size: 2em;
+    text-shadow: 2px 2px #FF0000;
+    animation: flicker 3s infinite;
+    display: inline-block;
 }
 
-@keyframes headerAnimation {
-    0% { color: white; text-shadow: 2px 2px #FF0000; }
-    50% { color: #FFD700; text-shadow: 2px 2px #FF4500; }
-    100% { color: white; text-shadow: 2px 2px #FF0000; }
+@keyframes flicker {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
 }
 
 nav {
@@ -54,8 +56,8 @@ nav a {
     margin: 5px 10px;
     text-decoration: none;
     font-weight: bold;
-    transition: color 0.3s ease;
-    font-size: 0.9em;
+    transition: color 0.3s ease, transform 0.3s ease;
+    font-size: 1em;
     position: relative;
     padding: 8px 12px;
     border-radius: 4px;
@@ -63,7 +65,8 @@ nav a {
 
 nav a:hover {
     color: #FFD700;
-    background-color: rgba(255, 215, 0, 0.2); /* Полупрозрачный золотой фон при наведении */
+    transform: scale(1.1);
+    background-color: rgba(255, 215, 0, 0.2);
 }
 
 .flashes {
@@ -80,21 +83,21 @@ nav a:hover {
 }
 
 .flashes .success {
-    background-color: #90EE90; /* Светло-зелёный */
+    background-color: #90EE90;
     color: #006400;
 }
 
 .flashes .danger {
-    background-color: #FF6347; /* Томатный */
+    background-color: #FF6347;
     color: #8B0000;
 }
 
 main {
-    background-color: #FFFFFF; /* Белый фон */
-    padding: 15px;
+    background-color: #FFFFFF;
+    padding: 20px;
     border: 2px solid #000080;
     border-radius: 10px;
-    box-shadow: 5px 5px #A9A9A9; /* Тень */
+    box-shadow: 5px 5px #A9A9A9;
     animation: fadeIn 1s ease-in-out;
 }
 
@@ -109,7 +112,6 @@ footer {
     margin-top: 20px;
     border-top: 1px solid #000080;
     font-size: 0.8em;
-    color: #000080;
 }
 
 /* Стили для таблиц */
@@ -132,23 +134,24 @@ th, td {
     border: 1px solid #000080;
     padding: 8px;
     text-align: center;
-    font-size: 0.8em;
+    font-size: 0.9em;
     vertical-align: top;
-    white-space: nowrap;
 }
 
 th {
     background-color: #000080;
     color: white;
-    font-size: 0.8em;
+    font-size: 1em;
+    white-space: nowrap;
+    text-align: center;
 }
 
 td {
     white-space: normal;
-    word-break: break-word;
+    word-break: normal;
     overflow-wrap: break-word;
     padding: 8px;
-    font-size: 0.8em;
+    font-size: 0.9em;
 }
 
 /* Центрирование изображений внутри ячеек */
@@ -157,29 +160,21 @@ td img {
     height: auto;
     display: block;
     margin: 0 auto;
-    cursor: pointer;
-    border: 1px solid #000;
-    border-radius: 4px;
-    transition: transform 0.3s ease;
-}
-
-td img:hover {
-    transform: scale(1.1);
 }
 
 /* Стили для кнопок */
 button, input[type="submit"] {
-    background-color: #000080; /* Тёмно-синий */
+    background-color: #000080;
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 10px 20px;
     cursor: pointer;
     font-family: 'Courier New', Courier, monospace;
-    transition: background-color 0.3s ease, transform 0.2s ease;
+    transition: background-color 0.3s ease, transform 0.3s ease;
     margin-bottom: 5px;
     width: auto;
     box-sizing: border-box;
-    font-size: 0.9em;
+    font-size: 1em;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -187,34 +182,47 @@ button, input[type="submit"] {
 }
 
 button:hover, input[type="submit"]:hover {
-    background-color: #0000CD; /* Ярко-синий при наведении */
-    transform: translateY(-2px);
+    background-color: #0000CD;
+    transform: scale(1.05);
 }
 
-button:active, input[type="submit"]:active {
-    transform: translateY(0);
-    background-color: #000080;
+/* Иконки для кнопок */
+button .icon, a .icon {
+    margin-right: 5px;
+    width: 16px;
+    height: 16px;
+}
+
+button.view-btn, a.view-btn {
+    background-color: #228B22; /* Зеленый */
+}
+
+button.edit-btn, a.edit-btn {
+    background-color: #FFA500; /* Оранжевый */
+}
+
+button.view-btn:hover, a.view-btn:hover {
+    background-color: #32CD32;
+}
+
+button.edit-btn:hover, a.edit-btn:hover {
+    background-color: #FF8C00;
 }
 
 /* Стили для форм */
 input, select, textarea {
-    padding: 8px;
+    padding: 10px;
     margin-bottom: 10px;
     width: 100%;
     box-sizing: border-box;
     font-family: 'Courier New', Courier, monospace;
     border: 1px solid #000080;
     border-radius: 4px;
-    font-size: 0.9em;
+    font-size: 1em;
 }
 
 select[multiple] {
     height: 100px;
-}
-
-label {
-    font-weight: bold;
-    font-size: 0.9em;
 }
 
 /* Стили для мини-изображений сетапов */
@@ -224,12 +232,6 @@ img.setup-mini {
     object-fit: cover;
     border: 1px solid #000;
     border-radius: 5px;
-    cursor: pointer;
-    transition: transform 0.3s ease;
-}
-
-img.setup-mini:hover {
-    transform: scale(1.1);
 }
 
 /* Общие стили для изображений */
@@ -240,10 +242,10 @@ img {
 
 /* Стили для критериев */
 span.criterion {
-    background-color: #E6E6FA; /* Светло-лавандовый */
+    background-color: #E6E6FA;
     padding: 4px 8px;
     border-radius: 3px;
-    font-size: 0.8em;
+    font-size: 0.9em;
     display: inline-block;
     margin-right: 4px;
     margin-bottom: 4px;
@@ -256,16 +258,11 @@ span.criterion {
 
 .subcategory {
     margin-left: 20px;
-    margin-bottom: 5px;
 }
 
 .category-content, .subcategory-content {
     margin-left: 10px;
     display: none;
-    background-color: #F0F8FF; /* AliceBlue */
-    padding: 10px;
-    border-left: 3px solid #000080;
-    border-radius: 4px;
 }
 
 /* Стили для кнопок раскрытия */
@@ -276,16 +273,20 @@ span.criterion {
     font-weight: bold;
     cursor: pointer;
     font-size: 1em;
-    padding: 8px 0;
+    padding: 5px 0;
     text-align: left;
     width: 100%;
-    position: relative;
     display: flex;
     align-items: center;
+    justify-content: space-between;
 }
 
+.collapse-button:hover {
+    text-decoration: underline;
+}
+
+/* Стрелки для раскрытия */
 .collapse-button .toggle-arrow {
-    margin-left: auto;
     transition: transform 0.3s ease;
 }
 
@@ -293,47 +294,68 @@ span.criterion {
     transform: rotate(90deg);
 }
 
-.collapse-button:hover {
-    text-decoration: underline;
+/* Стили для чекбоксов критериев */
+.criteria-section {
+    margin-top: 5px;
 }
 
-/* Иконки для кнопок "Просмотр" и "Редактировать" */
-.button-icon {
-    margin-right: 5px;
-    font-size: 1em;
-    display: inline-block;
-    width: 1em;
-    text-align: center;
+.criteria-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.criteria-item label {
+    flex: 1;
+    text-align: left;
+    margin-right: 10px;
+    font-size: 0.9em;
+}
+
+.criteria-item input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-left: auto;
+    transform: scale(1.2);
 }
 
 /* Стили для модального окна */
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
-    padding-top: 60px;
+    z-index: 100;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
     background-color: rgba(0,0,0,0.8);
+    align-items: center;
+    justify-content: center;
+    display: flex;
 }
 
 .modal-content {
-    margin: auto;
     display: block;
-    max-width: 80%;
+    margin: auto;
+    max-width: 90%;
     max-height: 80%;
-    border: 3px solid #FFD700;
+    border: 5px solid #FFD700;
     border-radius: 8px;
+    box-shadow: 0 0 20px #FFD700;
+    animation: zoomIn 0.5s ease-in-out;
+}
+
+@keyframes zoomIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 .close {
     position: absolute;
-    top: 30px;
-    right: 45px;
-    color: #ffffff;
+    top: 20px;
+    right: 35px;
+    color: #fff;
     font-size: 40px;
     font-weight: bold;
     cursor: pointer;
@@ -347,26 +369,18 @@ span.criterion {
     cursor: pointer;
 }
 
-/* Ретро-анимация для заголовка */
+/* Анимации */
 @keyframes retroGlow {
-    0% { text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700; }
-    50% { text-shadow: 0 0 20px #FFD700, 0 0 30px #FFD700; }
-    100% { text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700; }
+    0%, 100% {
+        text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700, 0 0 20px #FFD700, 0 0 30px #FFD700, 0 0 40px #FFD700, 0 0 50px #FFD700, 0 0 75px #FFD700;
+    }
+    50% {
+        text-shadow: 0 0 10px #FFD700, 0 0 20px #FFD700, 0 0 30px #FFD700, 0 0 40px #FFD700, 0 0 50px #FFD700, 0 0 60px #FFD700, 0 0 85px #FFD700;
+    }
 }
 
 header h1 {
-    animation: retroGlow 2s infinite;
-}
-
-/* Добавление иконок к кнопкам "Просмотр" и "Редактировать" */
-.view-button::before {
-    content: "\1F50D"; /* Лупа Unicode */
-    margin-right: 5px;
-}
-
-.edit-button::before {
-    content: "\270E"; /* Карандаш Unicode */
-    margin-right: 5px;
+    animation: retroGlow 2s infinite alternate;
 }
 
 /* Адаптивность для мобильных устройств */
@@ -381,7 +395,7 @@ header h1 {
     }
 
     header h1 {
-        font-size: 1.2em;
+        font-size: 1.5em;
         text-align: center;
         text-shadow: 1px 1px #FF0000;
     }
@@ -399,17 +413,18 @@ header h1 {
         margin: 5px 0;
         padding: 12px 20px; /* Увеличенные отступы */
         font-size: 1em;
+        width: 90%;
     }
 
     /* Увеличиваем размеры кнопок и полей ввода */
     button, input[type="submit"] {
-        padding: 12px 24px; /* Увеличенные размеры */
-        font-size: 1em;
+        padding: 14px 28px; /* Увеличенные размеры */
+        font-size: 1.1em;
     }
 
     input, select, textarea {
         padding: 12px;
-        font-size: 1em;
+        font-size: 1.1em;
     }
 
     /* Улучшение таблиц для мобильных */
@@ -441,23 +456,22 @@ header h1 {
         padding-left: 15px;
         font-weight: bold;
         text-align: left;
-        white-space: nowrap;
     }
 
     /* Оптимизация изображений */
     img.setup-mini {
-        width: 50px;
-        height: 50px;
+        width: 60px;
+        height: 60px;
     }
 
     img.clickable-image {
-        width: 100px;
+        width: 120px;
     }
 
     /* Увеличиваем размеры модального окна */
     .modal-content {
-        max-width: 90%;
-        max-height: 80%;
+        max-width: 95%;
+        max-height: 85%;
     }
 
     /* Плавные переходы для раскрывающихся блоков */
@@ -473,56 +487,42 @@ header h1 {
     /* Увеличение межстрочного интервала для лучшей читаемости */
     th, td {
         font-size: 1em;
-        padding: 12px;
+        padding: 14px;
     }
 
     /* Увеличение размеров критериев */
     span.criterion {
-        font-size: 0.9em;
-        padding: 4px 8px;
-    }
-
-    /* Улучшение размеров чекбоксов */
-    .criteria-item input[type="checkbox"] {
-        transform: scale(1.2);
-    }
-
-    /* Улучшение навигации */
-    nav a {
         font-size: 1em;
+        padding: 6px 12px;
+    }
+
+    /* Увеличение размеров чекбоксов */
+    .criteria-item input[type="checkbox"] {
+        transform: scale(1.5);
+    }
+
+    /* Иконки внутри кнопок */
+    button .icon, a .icon {
+        margin-right: 8px;
+        width: 20px;
+        height: 20px;
     }
 }
 
-/* Ретро-функции и декоративные элементы */
-
-/* Пиксельная рамка вокруг кнопок */
-button, input[type="submit"] {
-    border: 2px solid #FFD700; /* Золотая рамка */
+/* Ретро-иконки (используем встроенные SVG или Unicode) */
+/* Пример с использованием Unicode символов для стрелок */
+button.view-btn::before, a.view-btn::before {
+    content: "\1F50D"; /* Unicode для увеличительного стекла */
+    margin-right: 5px;
 }
 
-/* Пиксельные границы для таблиц */
-table, th, td {
-    border-style: solid;
-    border-width: 2px;
-    border-color: #000080;
+button.edit-btn::before, a.edit-btn::before {
+    content: "\270E"; /* Unicode для карандаша */
+    margin-right: 5px;
 }
 
-/* Ретро-тени для кнопок */
-button, input[type="submit"] {
-    box-shadow: 2px 2px #A9A9A9; /* Серые тени */
-}
-
-/* Добавление градиента на кнопки */
-button, input[type="submit"] {
-    background-image: linear-gradient(to bottom, #0000CD, #000080);
-}
-
-/* Стрелки для раскрывающихся кнопок */
-.collapse-button .toggle-arrow {
-    font-size: 1em;
-    transition: transform 0.3s ease;
-}
-
-.collapse-button.rotated .toggle-arrow {
-    transform: rotate(90deg);
+/* Обеспечиваем, что слова не разрываются */
+body, h1, h2, h3, h4, h5, h6, p, a, label, span, button, input, select, textarea {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
