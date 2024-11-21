@@ -23,26 +23,27 @@ body {
 header {
     background-color: #000080;
     color: white;
-    padding: 10px 0;
+    padding: 15px 0;
     text-align: center;
-    border-bottom: 3px solid #FFD700;
+    border-bottom: 4px solid #FFD700;
     position: relative;
+    overflow: hidden;
 }
 
 header h1 {
     margin: 0;
-    font-size: 2em;
-    text-shadow: 2px 2px #FF0000;
-    animation: retroFadeIn 2s ease-in-out infinite alternate;
+    font-size: 2.5em;
+    text-shadow: 3px 3px #FF0000;
+    animation: retroGlow 3s infinite alternate;
 }
 
-@keyframes retroFadeIn {
-    from { opacity: 0.8; }
-    to { opacity: 1; }
+@keyframes retroGlow {
+    from { text-shadow: 3px 3px #FF0000; }
+    to { text-shadow: 5px 5px #FF4500; }
 }
 
 nav {
-    margin-top: 10px;
+    margin-top: 15px;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
@@ -53,11 +54,17 @@ nav a {
     margin: 5px 10px;
     text-decoration: none;
     font-weight: bold;
-    transition: color 0.3s ease, transform 0.2s ease;
-    font-size: 1em;
-    padding: 12px 16px;
-    border-radius: 4px;
+    transition: color 0.3s ease, transform 0.2s ease, background-color 0.3s ease;
+    font-size: 1.1em;
+    padding: 12px 20px;
+    border-radius: 6px;
     position: relative;
+    display: flex;
+    align-items: center;
+}
+
+nav a i {
+    margin-right: 8px;
 }
 
 nav a:hover {
@@ -69,14 +76,14 @@ nav a:hover {
 .flashes {
     list-style-type: none;
     padding: 0;
-    margin: 10px 0;
+    margin: 15px 0;
 }
 
 .flashes li {
-    padding: 10px;
-    margin-bottom: 10px;
-    border-radius: 5px;
-    font-size: 1em;
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+    font-size: 1.1em;
 }
 
 .flashes .success {
@@ -91,19 +98,19 @@ nav a:hover {
 
 main {
     background-color: #FFFFFF;
-    padding: 20px;
-    border: 2px solid #000080;
-    border-radius: 10px;
-    box-shadow: 5px 5px #A9A9A9;
-    animation: fadeIn 1s ease-in-out;
+    padding: 25px;
+    border: 3px solid #000080;
+    border-radius: 12px;
+    box-shadow: 8px 8px #A9A9A9;
+    animation: fadeIn 1.2s ease-in-out;
 }
 
 footer {
     text-align: center;
-    padding: 10px 0;
-    margin-top: 20px;
-    border-top: 1px solid #000080;
-    font-size: 0.8em;
+    padding: 12px 0;
+    margin-top: 25px;
+    border-top: 2px solid #000080;
+    font-size: 0.9em;
     background-color: #F0F0F0;
 }
 
@@ -116,34 +123,40 @@ footer {
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
-    table-layout: fixed;
+    margin-top: 15px;
+    table-layout: auto;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
 }
 
 th, td {
     border: 1px solid #000080;
-    padding: 12px;
+    padding: 10px;
     text-align: center;
-    font-size: 0.9em;
+    font-size: 1em;
     vertical-align: top;
-    word-wrap: break-word;
 }
 
 th {
     background-color: #000080;
     color: white;
-    font-size: 0.9em;
+    font-size: 1em;
     white-space: nowrap;
+    text-align: center;
 }
 
 td {
     white-space: normal;
     word-break: break-word;
     overflow-wrap: break-word;
+    padding: 10px;
+    font-size: 1em;
 }
 
+/* Центрирование изображений внутри ячеек */
 td img {
-    max-width: 100%;
+    max-width: 60px;
     height: auto;
     display: block;
     margin: 0 auto;
@@ -156,44 +169,44 @@ button, input[type="submit"] {
     background-color: #000080;
     color: white;
     border: none;
-    padding: 12px 20px;
+    padding: 14px 26px;
     cursor: pointer;
     font-family: 'Courier New', Courier, monospace;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
     width: auto;
     box-sizing: border-box;
-    font-size: 1em;
+    font-size: 1.1em;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 120px;
+    border-radius: 6px;
 }
 
 button:hover, input[type="submit"]:hover {
     background-color: #0000CD;
-    transform: translateY(-2px);
+    transform: translateY(-3px);
 }
 
 /* Добавление иконок к кнопкам через Font Awesome */
 button .fa, input[type="submit"] .fa {
-    margin-right: 5px;
+    margin-right: 8px;
 }
 
 /* Стили для форм */
 input, select, textarea {
-    padding: 12px;
-    margin-bottom: 15px;
+    padding: 14px;
+    margin-bottom: 12px;
     width: 100%;
     box-sizing: border-box;
     font-family: 'Courier New', Courier, monospace;
-    border: 1px solid #000080;
-    border-radius: 4px;
-    font-size: 1em;
+    border: 2px solid #000080;
+    border-radius: 6px;
+    font-size: 1.1em;
 }
 
 select[multiple] {
-    height: 100px;
+    height: 120px;
 }
 
 /* Стили для мини-изображений сетапов */
@@ -202,7 +215,7 @@ img.setup-mini {
     height: 60px;
     object-fit: cover;
     border: 2px solid #000;
-    border-radius: 5px;
+    border-radius: 6px;
 }
 
 /* Общие стили для изображений */
@@ -215,25 +228,25 @@ img {
 span.criterion {
     background-color: #E6E6FA;
     padding: 6px 12px;
-    border-radius: 3px;
+    border-radius: 4px;
     font-size: 1em;
     display: inline-block;
-    margin-right: 4px;
-    margin-bottom: 4px;
+    margin-right: 6px;
+    margin-bottom: 6px;
     white-space: nowrap;
 }
 
 /* Структура категорий и подкатегорий */
 .category {
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 .subcategory {
-    margin-left: 20px;
+    margin-left: 25px;
 }
 
 .category-content, .subcategory-content {
-    margin-left: 20px;
+    margin-left: 25px;
     display: none;
     transition: all 0.3s ease;
 }
@@ -245,8 +258,8 @@ span.criterion {
     color: #000080;
     font-weight: bold;
     cursor: pointer;
-    font-size: 1em;
-    padding: 12px 0;
+    font-size: 1.1em;
+    padding: 10px 0;
     text-align: left;
     width: 100%;
     position: relative;
@@ -269,7 +282,7 @@ span.criterion {
 
 /* Стили для чекбоксов критериев */
 .criteria-section {
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
 .criteria-item {
@@ -282,8 +295,8 @@ span.criterion {
 .criteria-item label {
     flex: 1;
     text-align: left;
-    margin-right: 10px;
-    font-size: 1em;
+    margin-right: 12px;
+    font-size: 1.1em;
 }
 
 .criteria-item input[type="checkbox"] {
@@ -317,7 +330,7 @@ span.criterion {
     max-width: 80%;
     max-height: 80%;
     border: 4px solid #FFD700;
-    border-radius: 10px;
+    border-radius: 12px;
 }
 
 .close {
@@ -345,7 +358,7 @@ span.criterion {
 }
 
 .fade-in {
-    animation: fadeIn 1s ease-in;
+    animation: fadeIn 1.2s ease-in;
 }
 
 /* Адаптивность для мобильных устройств */
@@ -360,9 +373,9 @@ span.criterion {
     }
 
     header h1 {
-        font-size: 1.5em;
+        font-size: 1.8em;
         text-align: center;
-        text-shadow: 1px 1px #FF0000;
+        text-shadow: 2px 2px #FF0000;
     }
 
     nav {
@@ -371,21 +384,20 @@ span.criterion {
     }
 
     nav a {
-        margin: 5px 0;
-        padding: 14px 20px; /* Увеличенные отступы */
-        font-size: 1.2em;
+        margin: 8px 0;
+        padding: 14px 24px; /* Увеличенные отступы */
+        font-size: 1.3em;
     }
 
     /* Увеличиваем размеры кнопок и полей ввода */
     button, input[type="submit"] {
-        padding: 16px 24px; /* Увеличенные размеры */
-        font-size: 1.2em;
-        min-width: 140px;
+        padding: 18px 30px; /* Увеличенные размеры */
+        font-size: 1.3em;
     }
 
     input, select, textarea {
-        padding: 16px;
-        font-size: 1.2em;
+        padding: 18px;
+        font-size: 1.3em;
     }
 
     /* Улучшение таблиц для мобильных */
@@ -394,7 +406,7 @@ span.criterion {
     }
 
     tr {
-        margin-bottom: 15px;
+        margin-bottom: 20px;
     }
 
     th {
@@ -403,30 +415,30 @@ span.criterion {
 
     td {
         position: relative;
-        padding-left: 50%;
+        padding-left: 60%;
         text-align: left;
         border: none;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 2px solid #ddd;
     }
 
     td::before {
         content: attr(data-label);
         position: absolute;
         left: 0;
-        width: 45%;
-        padding-left: 15px;
+        width: 50%;
+        padding-left: 20px;
         font-weight: bold;
         text-align: left;
     }
 
     /* Оптимизация изображений */
     img.setup-mini {
-        width: 80px;
-        height: 80px;
+        width: 70px;
+        height: 70px;
     }
 
     img.clickable-image {
-        width: 160px;
+        width: 140px;
     }
 
     /* Увеличиваем размеры модального окна */
@@ -464,32 +476,12 @@ span.criterion {
 
     /* Увеличение размеров изображений */
     img.setup-mini {
-        width: 80px;
-        height: 80px;
+        width: 70px;
+        height: 70px;
     }
 
     img.clickable-image {
-        width: 160px;
-    }
-
-    /* Изменение размеров текста в таблицах */
-    table th, table td {
-        font-size: 1em;
-    }
-
-    /* Согласованный дизайн критериев в формах */
-    .criteria-section {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .criteria-category, .subcategory {
-        margin-bottom: 10px;
-    }
-
-    .criteria-category button, .subcategory button {
-        font-size: 1em;
-        padding: 10px 0;
+        width: 140px;
     }
 }
 
@@ -498,14 +490,13 @@ a[href*="view"], a[href*="edit"] {
     background-color: #FF4500;
     color: white;
     padding: 10px 16px;
-    border-radius: 4px;
+    border-radius: 6px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    font-size: 1em;
-    margin-bottom: 5px;
-    min-width: 140px;
+    font-size: 1.1em;
+    margin-bottom: 8px;
 }
 
 a[href*="view"] .fa, a[href*="edit"] .fa {
@@ -514,12 +505,12 @@ a[href*="view"] .fa, a[href*="edit"] .fa {
 
 a[href*="view"]:hover {
     background-color: #FF6347;
-    transform: scale(1.05);
+    transform: scale(1.07);
 }
 
 a[href*="edit"]:hover {
     background-color: #FF7F50;
-    transform: scale(1.05);
+    transform: scale(1.07);
 }
 
 /* Избегаем разрывов слов */
@@ -532,19 +523,18 @@ body, h1, h2, h3, h4, h5, h6, p, label, span, a {
 td a {
     background-color: #000080;
     color: white;
-    padding: 8px 14px;
-    border-radius: 4px;
+    padding: 8px 12px;
+    border-radius: 6px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     transition: background-color 0.3s ease, transform 0.2s ease;
     font-size: 1em;
-    min-width: 140px;
 }
 
 td a:hover {
     background-color: #0000CD;
-    transform: scale(1.05);
+    transform: scale(1.07);
 }
 
 /* Улучшение формы добавления и редактирования */
@@ -558,36 +548,35 @@ form div {
 }
 
 legend {
-    font-size: 1.2em;
+    font-size: 1.3em;
     font-weight: bold;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 /* Улучшение кнопок формы */
 form button, form input[type="submit"] {
     width: auto;
-    padding: 12px 24px;
-    font-size: 1em;
-    border-radius: 4px;
+    padding: 14px 26px;
+    font-size: 1.2em;
+    border-radius: 6px;
 }
 
 /* Улучшение кнопок добавления и управления */
 a.btn-add {
     background-color: #32CD32;
     color: white;
-    padding: 12px 24px;
-    border-radius: 4px;
+    padding: 14px 26px;
+    border-radius: 6px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    font-size: 1.1em;
-    margin-bottom: 20px;
+    font-size: 1.2em;
 }
 
 a.btn-add:hover {
     background-color: #3CB371;
-    transform: scale(1.05);
+    transform: scale(1.07);
 }
 
 /* Добавление эффектов при наведении */
