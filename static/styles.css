@@ -55,15 +55,9 @@ nav a {
     font-weight: bold;
     transition: color 0.3s ease, transform 0.2s ease;
     font-size: 1em;
-    padding: 8px 12px;
+    padding: 12px 16px;
     border-radius: 4px;
     position: relative;
-    display: flex;
-    align-items: center;
-}
-
-nav a i {
-    margin-right: 5px;
 }
 
 nav a:hover {
@@ -123,18 +117,16 @@ table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 10px;
-    table-layout: auto;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    max-width: 100%;
+    table-layout: fixed;
 }
 
 th, td {
     border: 1px solid #000080;
-    padding: 8px;
+    padding: 12px;
     text-align: center;
     font-size: 0.9em;
     vertical-align: top;
+    word-wrap: break-word;
 }
 
 th {
@@ -142,20 +134,16 @@ th {
     color: white;
     font-size: 0.9em;
     white-space: nowrap;
-    text-align: center;
 }
 
 td {
     white-space: normal;
     word-break: break-word;
     overflow-wrap: break-word;
-    padding: 8px;
-    font-size: 0.9em;
 }
 
-/* Центрирование изображений внутри ячеек */
 td img {
-    max-width: 60px;
+    max-width: 100%;
     height: auto;
     display: block;
     margin: 0 auto;
@@ -168,7 +156,7 @@ button, input[type="submit"] {
     background-color: #000080;
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 12px 20px;
     cursor: pointer;
     font-family: 'Courier New', Courier, monospace;
     transition: background-color 0.3s ease, transform 0.2s ease;
@@ -179,11 +167,7 @@ button, input[type="submit"] {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
-}
-
-button i, input[type="submit"] i {
-    margin-right: 5px;
+    min-width: 120px;
 }
 
 button:hover, input[type="submit"]:hover {
@@ -198,8 +182,8 @@ button .fa, input[type="submit"] .fa {
 
 /* Стили для форм */
 input, select, textarea {
-    padding: 10px;
-    margin-bottom: 10px;
+    padding: 12px;
+    margin-bottom: 15px;
     width: 100%;
     box-sizing: border-box;
     font-family: 'Courier New', Courier, monospace;
@@ -214,8 +198,8 @@ select[multiple] {
 
 /* Стили для мини-изображений сетапов */
 img.setup-mini {
-    width: 50px;
-    height: 50px;
+    width: 60px;
+    height: 60px;
     object-fit: cover;
     border: 2px solid #000;
     border-radius: 5px;
@@ -230,9 +214,9 @@ img {
 /* Стили для критериев */
 span.criterion {
     background-color: #E6E6FA;
-    padding: 4px 8px;
+    padding: 6px 12px;
     border-radius: 3px;
-    font-size: 0.9em;
+    font-size: 1em;
     display: inline-block;
     margin-right: 4px;
     margin-bottom: 4px;
@@ -262,7 +246,7 @@ span.criterion {
     font-weight: bold;
     cursor: pointer;
     font-size: 1em;
-    padding: 8px 0;
+    padding: 12px 0;
     text-align: left;
     width: 100%;
     position: relative;
@@ -285,14 +269,14 @@ span.criterion {
 
 /* Стили для чекбоксов критериев */
 .criteria-section {
-    margin-top: 5px;
+    margin-top: 10px;
 }
 
 .criteria-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
 }
 
 .criteria-item label {
@@ -304,7 +288,7 @@ span.criterion {
 
 .criteria-item input[type="checkbox"] {
     flex: 0 0 auto;
-    transform: scale(1.2);
+    transform: scale(1.5);
 }
 
 /* Стили для модального окна */
@@ -388,19 +372,20 @@ span.criterion {
 
     nav a {
         margin: 5px 0;
-        padding: 12px 20px; /* Увеличенные отступы */
-        font-size: 1.1em;
+        padding: 14px 20px; /* Увеличенные отступы */
+        font-size: 1.2em;
     }
 
     /* Увеличиваем размеры кнопок и полей ввода */
     button, input[type="submit"] {
-        padding: 14px 24px; /* Увеличенные размеры */
-        font-size: 1.1em;
+        padding: 16px 24px; /* Увеличенные размеры */
+        font-size: 1.2em;
+        min-width: 140px;
     }
 
     input, select, textarea {
-        padding: 14px;
-        font-size: 1.1em;
+        padding: 16px;
+        font-size: 1.2em;
     }
 
     /* Улучшение таблиц для мобильных */
@@ -436,12 +421,12 @@ span.criterion {
 
     /* Оптимизация изображений */
     img.setup-mini {
-        width: 60px;
-        height: 60px;
+        width: 80px;
+        height: 80px;
     }
 
     img.clickable-image {
-        width: 120px;
+        width: 160px;
     }
 
     /* Увеличиваем размеры модального окна */
@@ -462,50 +447,49 @@ span.criterion {
 
     /* Увеличение межстрочного интервала для лучшей читаемости */
     th, td {
-        font-size: 1em;
-        padding: 12px;
+        font-size: 1.1em;
+        padding: 16px;
     }
 
     /* Увеличение размеров критериев */
     span.criterion {
-        font-size: 1em;
-        padding: 6px 12px;
+        font-size: 1.1em;
+        padding: 8px 16px;
     }
 
     /* Улучшение размеров чекбоксов */
     .criteria-item input[type="checkbox"] {
-        transform: scale(1.5);
+        transform: scale(1.8);
     }
 
     /* Увеличение размеров изображений */
     img.setup-mini {
-        width: 60px;
-        height: 60px;
+        width: 80px;
+        height: 80px;
     }
 
     img.clickable-image {
-        width: 120px;
+        width: 160px;
     }
 
-    /* Ровные кнопки в колонке действий */
-    td .action-button {
-        width: 100%;
-        margin-bottom: 5px;
+    /* Изменение размеров текста в таблицах */
+    table th, table td {
+        font-size: 1em;
     }
 
-    /* Улучшение списка критериев при добавлении/редактировании */
+    /* Согласованный дизайн критериев в формах */
     .criteria-section {
         display: flex;
         flex-direction: column;
     }
 
-    .criteria-category {
+    .criteria-category, .subcategory {
         margin-bottom: 10px;
     }
 
-    .subcategory-content {
-        display: flex;
-        flex-direction: column;
+    .criteria-category button, .subcategory button {
+        font-size: 1em;
+        padding: 10px 0;
     }
 }
 
@@ -513,7 +497,7 @@ span.criterion {
 a[href*="view"], a[href*="edit"] {
     background-color: #FF4500;
     color: white;
-    padding: 8px 12px;
+    padding: 10px 16px;
     border-radius: 4px;
     display: inline-flex;
     align-items: center;
@@ -521,10 +505,11 @@ a[href*="view"], a[href*="edit"] {
     transition: background-color 0.3s ease, transform 0.2s ease;
     font-size: 1em;
     margin-bottom: 5px;
+    min-width: 140px;
 }
 
 a[href*="view"] .fa, a[href*="edit"] .fa {
-    margin-right: 5px;
+    margin-right: 8px;
 }
 
 a[href*="view"]:hover {
@@ -547,13 +532,14 @@ body, h1, h2, h3, h4, h5, h6, p, label, span, a {
 td a {
     background-color: #000080;
     color: white;
-    padding: 6px 10px;
+    padding: 8px 14px;
     border-radius: 4px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    font-size: 0.9em;
+    font-size: 1em;
+    min-width: 140px;
 }
 
 td a:hover {
@@ -568,19 +554,19 @@ form {
 }
 
 form div {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 legend {
-    font-size: 1.1em;
+    font-size: 1.2em;
     font-weight: bold;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 /* Улучшение кнопок формы */
 form button, form input[type="submit"] {
     width: auto;
-    padding: 10px 20px;
+    padding: 12px 24px;
     font-size: 1em;
     border-radius: 4px;
 }
@@ -589,13 +575,14 @@ form button, form input[type="submit"] {
 a.btn-add {
     background-color: #32CD32;
     color: white;
-    padding: 10px 20px;
+    padding: 12px 24px;
     border-radius: 4px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    font-size: 1em;
+    font-size: 1.1em;
+    margin-bottom: 20px;
 }
 
 a.btn-add:hover {
@@ -606,13 +593,4 @@ a.btn-add:hover {
 /* Добавление эффектов при наведении */
 .nav-button:hover, .flashes li:hover, .criterion:hover {
     filter: brightness(1.1);
-}
-
-/* Стилизация кнопок удаления */
-form button[type="submit"] {
-    background-color: #FF6347;
-}
-
-form button[type="submit"]:hover {
-    background-color: #FF4500;
 }
