@@ -54,10 +54,10 @@
             {{ form.screenshot() }}<br>
         </div>
 
-        {% if setup and setup.screenshot_url %}
+        {% if trade and trade.screenshot_url %}
             <div>
                 <label>Текущее изображение:</label><br>
-                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini" style="width: 200px; height: auto;"><br>
+                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" width="200"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
@@ -67,11 +67,17 @@
         <div class="criteria-section">
             {% for category in criteria_categories %}
                 <div class="category">
-                    <button type="button" class="collapse-button">{{ category.name }}</button>
+                    <button type="button" class="collapse-button">
+                        {{ category.name }}
+                        <span class="toggle-arrow">▶</span>
+                    </button>
                     <div class="category-content" style="display: none;">
                         {% for subcategory in category.subcategories %}
                             <div class="subcategory">
-                                <button type="button" class="collapse-button">{{ subcategory.name }}</button>
+                                <button type="button" class="collapse-button">
+                                    {{ subcategory.name }}
+                                    <span class="toggle-arrow">▶</span>
+                                </button>
                                 <div class="subcategory-content" style="display: none;">
                                     {% for criterion in subcategory.criteria %}
                                         <div class="criteria-item">
@@ -94,11 +100,5 @@
             {{ form.submit(class="btn btn-primary") }}
         </div>
     </form>
-
-    <!-- Модальное окно для отображения изображений -->
-    <div id="modal" class="modal">
-        <span class="close">&times;</span>
-        <img class="modal-content" id="modal-img">
-    </div>
 </div>
 {% endblock %}
