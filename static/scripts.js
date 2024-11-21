@@ -66,7 +66,7 @@ $(document).ready(function() {
         }
     })();
 
-    // Обработчик для кнопки "Показать/Скрыть Фильтры" (если используется)
+    // Обработчик для кнопки "Показать/Скрыть Фильтры"
     $('#toggle-filters').click(function(){
         $('#filters').slideToggle();
         const buttonText = $(this).text();
@@ -78,15 +78,9 @@ $(document).ready(function() {
         }
     });
 
-    // Раскрывающиеся списки для категорий и подкатегорий критериев
-    $('.criteria-header').click(function(){
-        // Проверяем, есть ли следующий элемент для раскрытия
-        const criteriaList = $(this).next('.criteria-list');
-        if(criteriaList.length > 0){
-            criteriaList.slideToggle();
-            // Поворот стрелки
-            $(this).find('.toggle-arrow').toggleClass('rotated');
-        }
+    // Обработчик для кнопок раскрытия критериев
+    $('.collapse-button').click(function(){
+        $(this).next('.category-content').slideToggle();
     });
 
     // Пример анимации при наведении на строки таблицы
