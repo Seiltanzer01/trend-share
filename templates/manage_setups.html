@@ -6,7 +6,9 @@
 <div class="container">
     <h2>Управление Сетапами</h2>
 
-    <a href="{{ url_for('add_setup') }}">Добавить Сетап</a>
+    <a href="{{ url_for('add_setup') }}" class="btn btn-primary" style="margin-bottom: 15px;">
+        <span class="icon">➕</span> Добавить Сетап
+    </a>
 
     <div class="table-responsive">
         <table class="setup-table">
@@ -28,7 +30,7 @@
                     <td>{{ setup.description or '-' }}</td>
                     <td>
                         {% if setup.screenshot_url %}
-                            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" style="width: 100px; height: auto;">
+                            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini">
                         {% else %}
                             -
                         {% endif %}
@@ -39,11 +41,17 @@
                         {% endfor %}
                     </td>
                     <td>
-                        <a href="{{ url_for('view_setup', setup_id=setup.id) }}">Просмотр</a><br>
-                        <a href="{{ url_for('edit_setup', setup_id=setup.id) }}">Редактировать</a><br>
+                        <a href="{{ url_for('view_setup', setup_id=setup.id) }}" class="btn view-btn" style="margin-bottom: 5px;">
+                            <span class="icon">🔍</span> Просмотр
+                        </a><br>
+                        <a href="{{ url_for('edit_setup', setup_id=setup.id) }}" class="btn edit-btn" style="margin-bottom: 5px;">
+                            <span class="icon">✏️</span> Редактировать
+                        </a><br>
                         <form action="{{ url_for('delete_setup', setup_id=setup.id) }}" method="post" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить этот сетап?');">Удалить</button>
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите удалить этот сетап?');">
+                                <span class="icon">🗑️</span> Удалить
+                            </button>
                         </form>
                     </td>
                 </tr>
@@ -51,42 +59,5 @@
             </tbody>
         </table>
     </div>
-
-    <!-- Модальное окно для отображения изображений -->
-    <div id="modal" class="modal">
-        <span class="close">&times;</span>
-        <img class="modal-content" id="modal-img">
-    </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Открытие модального окна при клике на изображение
-    document.addEventListener('DOMContentLoaded', function() {
-        var modal = document.getElementById('modal');
-        var modalImg = document.getElementById('modal-img');
-        var closeBtn = document.getElementsByClassName('close')[0];
-
-        var images = document.getElementsByClassName('clickable-image');
-        for (var i = 0; i < images.length; i++) {
-            images[i].onclick = function() {
-                modal.style.display = 'block';
-                modalImg.src = this.src;
-            }
-        }
-
-        // Закрытие модального окна
-        closeBtn.onclick = function() {
-            modal.style.display = 'none';
-        }
-
-        // Закрытие модального окна при клике вне изображения
-        modal.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
-    });
-</script>
 {% endblock %}
