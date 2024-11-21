@@ -58,6 +58,12 @@ nav a {
     padding: 8px 12px;
     border-radius: 4px;
     position: relative;
+    display: flex;
+    align-items: center;
+}
+
+nav a i {
+    margin-right: 5px;
 }
 
 nav a:hover {
@@ -173,6 +179,11 @@ button, input[type="submit"] {
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 4px;
+}
+
+button i, input[type="submit"] i {
+    margin-right: 5px;
 }
 
 button:hover, input[type="submit"]:hover {
@@ -476,30 +487,26 @@ span.criterion {
         width: 120px;
     }
 
-    /* Удаляем фиксированную навигацию */
-    /* 
-    nav {
-        position: fixed;
-        bottom: 0;
-        left: 0;
+    /* Ровные кнопки в колонке действий */
+    td .action-button {
         width: 100%;
-        background-color: #000080;
-        padding: 10px 0;
-        box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+        margin-bottom: 5px;
     }
 
-    nav a {
-        flex: 1;
-        text-align: center;
-        margin: 0;
-        padding: 10px 0;
-        font-size: 1em;
+    /* Улучшение списка критериев при добавлении/редактировании */
+    .criteria-section {
+        display: flex;
+        flex-direction: column;
     }
 
-    main {
-        padding-bottom: 60px; /* Отступ для фиксированной навигации */
-    } 
-    */
+    .criteria-category {
+        margin-bottom: 10px;
+    }
+
+    .subcategory-content {
+        display: flex;
+        flex-direction: column;
+    }
 }
 
 /* Ретро стилизация кнопок "Просмотр" и "Редактировать" */
@@ -599,4 +606,13 @@ a.btn-add:hover {
 /* Добавление эффектов при наведении */
 .nav-button:hover, .flashes li:hover, .criterion:hover {
     filter: brightness(1.1);
+}
+
+/* Стилизация кнопок удаления */
+form button[type="submit"] {
+    background-color: #FF6347;
+}
+
+form button[type="submit"]:hover {
+    background-color: #FF4500;
 }
