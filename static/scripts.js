@@ -80,12 +80,12 @@ $(document).ready(function() {
 
     // Обработчик для кнопок раскрытия критериев
     $('.collapse-button').click(function(){
-        $(this).next('.category-content, .subcategory-content').slideToggle();
+        $(this).next().slideToggle();
         // Переключаем класс для вращения стрелки
         $(this).toggleClass('rotated');
     });
 
-    // Пример анимации при наведении на строки таблицы
+    // Анимация при наведении на строки таблицы
     $('table tr').hover(
         function() {
             $(this).css('background-color', '#F0F8FF'); // AliceBlue
@@ -113,10 +113,12 @@ $(document).ready(function() {
         }
     });
 
-    // Инициализация datepickers (если необходимо)
+    // Инициализация datepickers
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
-        changeYear: true
+        changeYear: true,
+        showAnim: "fadeIn",
+        showOptions: { direction: "up" }
     });
 });
