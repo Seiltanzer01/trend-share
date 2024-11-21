@@ -50,46 +50,43 @@
         </div>
 
         <div>
-            <label>Критерии:</label><br>
-            <div class="criteria-section">
-                {% for category in criteria_categories %}
-                    <div class="category">
-                        <button type="button" class="collapse-button">{{ category.name }}</button>
-                        <div class="category-content" style="display: none;">
-                            {% for subcategory in category.subcategories %}
-                                <div class="subcategory">
-                                    <button type="button" class="collapse-button">{{ subcategory.name }}</button>
-                                    <div class="subcategory-content" style="display: none;">
-                                        {% for criterion in subcategory.criteria %}
-                                            <div class="criteria-item">
-                                                <label>
-                                                    <input type="checkbox" name="criteria" value="{{ criterion.id }}" {% if criterion.id in form.criteria.data %}checked{% endif %}> {{ criterion.name }}
-                                                </label>
-                                            </div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <br>
-
-        <div>
             {{ form.screenshot.label }}<br>
             {{ form.screenshot() }}<br>
         </div>
 
-        {% if trade.screenshot_url %}
+        {% if setup and setup.screenshot_url %}
             <div>
                 <label>Текущее изображение:</label><br>
-                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" width="200"><br>
+                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini" style="width: 200px; height: auto;"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
+
+        <br>
+        <label>Критерии:</label>
+        <div class="criteria-section">
+            {% for category in criteria_categories %}
+                <div class="category">
+                    <button type="button" class="collapse-button">{{ category.name }}</button>
+                    <div class="category-content" style="display: none;">
+                        {% for subcategory in category.subcategories %}
+                            <div class="subcategory">
+                                <button type="button" class="collapse-button">{{ subcategory.name }}</button>
+                                <div class="subcategory-content" style="display: none;">
+                                    {% for criterion in subcategory.criteria %}
+                                        <div class="criteria-item">
+                                            <label>
+                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}" {% if criterion.id in form.criteria.data %}checked{% endif %}> {{ criterion.name }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
 
         <br>
 
@@ -103,36 +100,5 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
     </div>
-
-    <script>
-        $(document).ready(function(){
-            // Открытие модального окна при клике на изображение
-            $('.clickable-image').on('click', function() {
-                $('#modal').css('display', 'block');
-                $('#modal-img').attr('src', $(this).attr('src'));
-            });
-
-            // Закрытие модального окна
-            $('.close').on('click', function() {
-                $('#modal').css('display', 'none');
-            });
-
-            // Закрытие модального окна при клике вне изображения
-            $('#modal').on('click', function(event) {
-                if (!$(event.target).is('#modal-img')) {
-                    $(this).css('display', 'none');
-                }
-            });
-
-            // Обработчики для раскрывающихся списков критериев
-            $('.collapse-button').on('click', function() {
-                $(this).next().slideToggle();
-            });
-
-            // Инициализация Datepicker
-            $('#trade_open_time').datepicker({ dateFormat: 'yy-mm-dd' });
-            $('#trade_close_time').datepicker({ dateFormat: 'yy-mm-dd' });
-        });
-    </script>
 </div>
 {% endblock %}
