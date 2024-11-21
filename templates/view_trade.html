@@ -19,7 +19,7 @@
         {% if trade.setup %}
             <div class="setup-info">
                 {% if trade.setup.screenshot_url %}
-                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini">
+                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" style="width: 100px; height: auto;">
                 {% endif %}
                 {{ trade.setup.setup_name }}
             </div>
@@ -41,7 +41,7 @@
         {% endif %}
     </p>
 
-    <a href="{{ url_for('index') }}" class="btn-add"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
+    <a href="{{ url_for('index') }}" class="action-button view-button"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
 
     <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
