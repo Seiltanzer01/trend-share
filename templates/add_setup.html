@@ -24,6 +24,14 @@
             {{ form.screenshot() }}<br>
         </div>
 
+        {% if setup and setup.screenshot_url %}
+            <div>
+                <label>Текущее изображение:</label><br>
+                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini" style="width: 200px; height: auto;"><br>
+                {{ form.remove_image() }} {{ form.remove_image.label }}
+            </div>
+        {% endif %}
+
         <br>
         <label>Критерии:</label>
         <div class="criteria-section">
