@@ -54,6 +54,14 @@
             {{ form.screenshot() }}<br>
         </div>
 
+        {% if trade and trade.screenshot_url %}
+            <div>
+                <label>Текущее изображение:</label><br>
+                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" style="width: 200px; height: auto;"><br>
+                {{ form.remove_image() }} {{ form.remove_image.label }}
+            </div>
+        {% endif %}
+
         <br>
         <label>Критерии:</label>
         <div class="criteria-section">
