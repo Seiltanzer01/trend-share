@@ -85,7 +85,7 @@ $(document).ready(function() {
         $(this).toggleClass('rotated');
     });
 
-    // Анимация при наведении на строки таблицы
+    // Пример анимации при наведении на строки таблицы
     $('table tr').hover(
         function() {
             $(this).css('background-color', '#F0F8FF'); // AliceBlue
@@ -113,12 +113,12 @@ $(document).ready(function() {
         }
     });
 
-    // Инициализация datepickers
+    // Инициализация datepickers (если необходимо)
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
         changeYear: true,
-        showAnim: "fadeIn",
-        showOptions: { direction: "up" }
+        showAnim: "slideDown", // Добавлена анимация
+        showButtonPanel: true
     });
 });
