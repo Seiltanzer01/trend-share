@@ -80,7 +80,7 @@ $(document).ready(function() {
 
     // Обработчик для кнопок раскрытия критериев
     $('.collapse-button').click(function(){
-        $(this).next('.category-content').slideToggle();
+        $(this).next().slideToggle();
     });
 
     // Пример анимации при наведении на строки таблицы
