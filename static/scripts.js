@@ -69,24 +69,23 @@ $(document).ready(function() {
     // Обработчик для кнопки "Показать/Скрыть Фильтры"
     $('#toggle-filters').click(function(){
         $('#filters').slideToggle();
-        const buttonText = $(this).text();
-        // Обновляем текст кнопки
-        if (buttonText.includes('Показать')) {
-            $(this).text('Скрыть Фильтры');
+        const button = $(this);
+        if (button.text().includes('Показать')) {
+            button.html('<i class="fas fa-filter"></i> Скрыть Фильтры');
         } else {
-            $(this).text('Показать Фильтры');
+            button.html('<i class="fas fa-filter"></i> Показать Фильтры');
         }
     });
 
     // Обработчик для кнопок раскрытия критериев
     $('.collapse-button').click(function(){
-        $(this).next().slideToggle();
+        $(this).next('.category-content, .subcategory-content').slideToggle();
         // Переключаем класс для вращения стрелки
         $(this).toggleClass('rotated');
     });
 
-    // Пример анимации при наведении на строки таблицы
-    $('table tr').hover(
+    // Анимация при наведении на строки таблиц
+    $('table tbody tr').hover(
         function() {
             $(this).css('background-color', '#F0F8FF'); // AliceBlue
         },
@@ -97,28 +96,28 @@ $(document).ready(function() {
 
     // Открытие модального окна при клике на изображение
     $('.clickable-image').on('click', function() {
-        $('#modal').css('display', 'block');
+        $('#modal').fadeIn();
         $('#modal-img').attr('src', $(this).attr('src'));
     });
 
     // Закрытие модального окна
     $('.close').on('click', function() {
-        $('#modal').css('display', 'none');
+        $('#modal').fadeOut();
     });
 
     // Закрытие модального окна при клике вне изображения
     $('#modal').on('click', function(event) {
         if (!$(event.target).is('#modal-img')) {
-            $(this).css('display', 'none');
+            $(this).fadeOut();
         }
     });
 
-    // Инициализация datepickers (если необходимо)
+    // Инициализация datepickers
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
         changeYear: true,
-        showAnim: "slideDown", // Добавлена анимация
+        showAnim: "slideDown",
         showButtonPanel: true
     });
 });
