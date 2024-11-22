@@ -6,14 +6,14 @@
 <div class="container">
     <h2>Журнал Сделок</h2>
 
-    <button id="toggle-filters"><i class="fas fa-filter"></i> Показать Фильтры</button>
+    <button id="toggle-filters" class="nes-btn is-primary"><i class="fas fa-filter"></i> Показать Фильтры</button>
 
     <div id="filters" style="display: none;">
         <form method="GET">
             <fieldset>
                 <legend>Фильтры</legend>
                 <label for="instrument_id">Инструмент:</label>
-                <select name="instrument_id" id="instrument_id">
+                <select name="instrument_id" id="instrument_id" class="nes-select">
                     <option value="">Все</option>
                     {% for category in categories %}
                         <optgroup label="{{ category.name }}">
@@ -25,17 +25,17 @@
                 </select>
 
                 <label for="direction">Направление:</label>
-                <select name="direction" id="direction">
+                <select name="direction" id="direction" class="nes-select">
                     <option value="">Все</option>
                     <option value="Buy" {% if request.args.get('direction') == 'Buy' %}selected{% endif %}>Buy</option>
                     <option value="Sell" {% if request.args.get('direction') == 'Sell' %}selected{% endif %}>Sell</option>
                 </select>
 
                 <label for="start_date">Дата открытия (с):</label>
-                <input type="text" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}" autocomplete="off">
+                <input type="text" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}" autocomplete="off" class="nes-input">
 
                 <label for="end_date">Дата открытия (по):</label>
-                <input type="text" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}" autocomplete="off">
+                <input type="text" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}" autocomplete="off" class="nes-input">
 
                 <label>Критерии:</label>
                 <div class="criteria-filters">
@@ -43,14 +43,14 @@
                         {% for category in criteria_categories %}
                             {% if category.name in ['Технический анализ', 'Фундаментальный анализ', 'Психологические факторы', 'Рыночная структура', 'Психология рынка'] %}
                                 <div class="criteria-category">
-                                    <button type="button" class="collapse-button">
+                                    <button type="button" class="collapse-button nes-btn is-warning">
                                         {{ category.name }}
                                         <span class="toggle-arrow">▶</span>
                                     </button>
                                     <div class="category-content">
                                         {% for subcategory in category.subcategories %}
                                             <div class="subcategory">
-                                                <button type="button" class="collapse-button">
+                                                <button type="button" class="collapse-button nes-btn is-warning">
                                                     {{ subcategory.name }}
                                                     <span class="toggle-arrow">▶</span>
                                                 </button>
@@ -72,14 +72,14 @@
                     </div>
                 </div>
 
-                <input type="submit" value="Применить фильтры">
+                <input type="submit" value="Применить фильтры" class="nes-btn is-success">
             </fieldset>
         </form>
     </div>
 
     <!-- Обёртывание таблицы в контейнер для предотвращения выхода за пределы -->
     <div class="table-responsive">
-        <table class="trade-table">
+        <table class="trade-table nes-table is-bordered is-centered">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -103,7 +103,7 @@
                     <td data-label="ID">{{ trade.id }}</td>
                     <td data-label="Скриншот">
                         {% if trade.screenshot_url %}
-                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image">
+                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image nes-pointer">
                         {% else %}
                             -
                         {% endif %}
@@ -126,7 +126,7 @@
                         {% if trade.setup %}
                             <div class="setup-info">
                                 {% if trade.setup.screenshot_url %}
-                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image">
+                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image nes-pointer">
                                 {% endif %}
                                 {{ trade.setup.setup_name }}
                             </div>
@@ -141,11 +141,11 @@
                     </td>
                     <td data-label="Действия">
                         <div class="action-buttons">
-                            <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="action-button view-button"><i class="fas fa-eye"></i> Просмотр</a>
-                            <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="action-button edit-button"><i class="fas fa-edit"></i> Редактировать</a>
+                            <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="action-button view-button nes-btn is-info"><i class="fas fa-eye"></i> Просмотр</a>
+                            <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="action-button edit-button nes-btn is-warning"><i class="fas fa-edit"></i> Редактировать</a>
                             <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="action-button delete-button" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');"><i class="fas fa-trash-alt"></i> Удалить</button>
+                                <button type="submit" class="action-button delete-button nes-btn is-error" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');"><i class="fas fa-trash-alt"></i> Удалить</button>
                             </form>
                         </div>
                     </td>
