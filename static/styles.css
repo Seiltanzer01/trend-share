@@ -2,22 +2,28 @@
 
 /* CSS Переменные для консистентности цветов */
 :root {
-    --primary-color: #007BFF; /* Синий */
-    --secondary-color: #6C757D; /* Серый */
-    --success-color: #28A745; /* Зеленый */
-    --danger-color: #DC3545; /* Красный */
-    --warning-color: #FFC107; /* Желтый */
-    --info-color: #17A2B8; /* Бирюзовый */
-    --light-color: #F8F9FA; /* Светло-серый */
-    --dark-color: #343A40; /* Темно-серый */
-    --font-family: 'Courier New', Courier, monospace;
-    --criterion-bg: #E6E6FA; /* Лаванда */
+    --primary-color: #ff5722; /* Ярко-оранжевый */
+    --secondary-color: #3f51b5; /* Индиго */
+    --success-color: #4caf50; /* Зеленый */
+    --danger-color: #f44336; /* Красный */
+    --warning-color: #ff9800; /* Оранжевый */
+    --info-color: #00bcd4; /* Бирюзовый */
+    --light-color: #f0f0f0; /* Светло-серый */
+    --dark-color: #212121; /* Темно-серый */
+    --font-family: 'Press Start 2P', cursive;
+    --font-family-body: 'Courier New', Courier, monospace;
+    --criterion-bg: #ffe0b2; /* Светло-оранжевый */
+    --button-font-size: 1em;
+    --input-font-size: 1em;
 }
+
+/* Импорт ретро-шрифтов */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* Основные стили */
 body {
     background-color: var(--light-color);
-    font-family: var(--font-family);
+    font-family: var(--font-family-body);
     color: var(--dark-color);
     margin: 0;
     padding: 0;
@@ -47,6 +53,7 @@ header {
 header h1 {
     margin: 0;
     font-size: 2.5em;
+    font-family: 'Press Start 2P', cursive;
     text-shadow: 2px 2px var(--danger-color);
     animation: retroFadeIn 3s ease-in-out infinite alternate;
 }
@@ -70,7 +77,7 @@ nav a {
     text-decoration: none;
     font-weight: bold;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    font-size: 1.1em;
+    font-size: 1em;
     padding: 10px 20px;
     border-radius: 5px;
     display: flex;
@@ -98,17 +105,17 @@ nav a:hover {
     padding: 15px;
     margin-bottom: 10px;
     border-radius: 5px;
-    font-size: 1.1em;
+    font-size: 1em;
 }
 
 .flashes .success {
-    background-color: #D4EDDA;
+    background-color: #d4edda;
     color: #155724;
 }
 
 .flashes .danger {
-    background-color: #F8D7DA;
-    color: #721C24;
+    background-color: #f8d7da;
+    color: #721c24;
 }
 
 /* Основное содержимое */
@@ -133,7 +140,7 @@ footer {
     margin-top: 25px;
     border-top: 1px solid var(--primary-color);
     font-size: 0.9em;
-    background-color: #F8F9FA;
+    background-color: #f8f9fa;
     border-radius: 0 0 12px 12px;
 }
 
@@ -187,15 +194,16 @@ button, input[type="submit"], a.action-button {
     background-color: var(--primary-color);
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 14px 24px;
     cursor: pointer;
     font-family: var(--font-family);
     transition: background-color 0.3s ease, transform 0.2s ease;
-    font-size: 1em;
+    font-size: var(--button-font-size);
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 5px;
+    margin: 5px 0;
 }
 
 button i, input[type="submit"] i, a.action-button i {
@@ -209,28 +217,17 @@ button:hover, input[type="submit"]:hover, a.action-button:hover {
 }
 
 /* Согласованные кнопки действий */
-.action-button.view-button {
-    background-color: var(--info-color);
-}
-
-.action-button.view-button:hover {
-    background-color: #138496; /* Darker Info */
-}
-
-.action-button.edit-button {
-    background-color: var(--warning-color);
-}
-
-.action-button.edit-button:hover {
-    background-color: #E0A800; /* Darker Warning */
-}
-
+.action-button.view-button,
+.action-button.edit-button,
 .action-button.delete-button {
-    background-color: var(--danger-color);
+    background-color: var(--primary-color);
+    margin: 0 5px;
 }
 
+.action-button.view-button:hover,
+.action-button.edit-button:hover,
 .action-button.delete-button:hover {
-    background-color: #C82333; /* Darker Danger */
+    background-color: var(--danger-color);
 }
 
 /* Формы */
@@ -256,14 +253,14 @@ label {
 }
 
 input, select, textarea {
-    padding: 12px;
+    padding: 14px;
     margin-bottom: 10px;
     width: 100%;
     box-sizing: border-box;
-    font-family: var(--font-family);
+    font-family: var(--font-family-body);
     border: 1px solid var(--primary-color);
     border-radius: 5px;
-    font-size: 1em;
+    font-size: var(--input-font-size);
 }
 
 select[multiple] {
@@ -284,6 +281,8 @@ select[multiple] {
 .criteria-item label {
     flex: 1;
     font-size: 1em;
+    display: flex;
+    align-items: center;
 }
 
 .criteria-item input[type="checkbox"] {
@@ -322,10 +321,10 @@ span.criterion {
 .collapse-button {
     background-color: transparent;
     border: none;
-    color: var(--primary-color);
+    color: var(--secondary-color);
     font-weight: bold;
     cursor: pointer;
-    font-size: 1.1em;
+    font-size: 1em;
     padding: 10px 0;
     text-align: left;
     width: 100%;
@@ -393,6 +392,16 @@ span.criterion {
     color: var(--secondary-color);
     text-decoration: none;
     cursor: pointer;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 1.2s ease-in;
 }
 
 /* Адаптивность для мобильных устройств */
@@ -482,12 +491,12 @@ span.criterion {
 
     /* Чекбоксы */
     .criteria-item {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        align-items: center;
     }
 
     .criteria-item label {
-        margin-bottom: 5px;
+        margin-bottom: 0;
     }
 
     /* Критерии */
@@ -512,11 +521,6 @@ span.criterion {
         gap: 10px;
         justify-content: center;
         flex-wrap: wrap;
-    }
-
-    /* Улучшение кнопок */
-    a.action-button, button {
-        flex: 1 1 auto;
     }
 
     /* Унификация цветов кнопок */
