@@ -1,6 +1,6 @@
 /* static/styles.css */
 
-/* CSS Переменные для консистентности цветов */
+/* CSS Переменные для консистентности цветов и стилей */
 :root {
     --primary-color: #004080; /* Темно-синий */
     --secondary-color: #FFD700; /* Золотой */
@@ -10,7 +10,7 @@
     --info-color: #17A2B8; /* Бирюзовый */
     --light-color: #F8F9FA; /* Светло-серый */
     --dark-color: #343A40; /* Темно-серый */
-    --font-family: 'Courier New', Courier, monospace;
+    --font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
     --criterion-bg: #E6E6FA; /* Лаванда */
     --button-padding: 14px 24px;
     --input-padding: 14px;
@@ -448,7 +448,7 @@ span.criterion {
 
     nav a {
         margin: 8px 0;
-        padding: 14px 25px;
+        padding: var(--button-padding);
         font-size: 1.2em;
     }
 
@@ -579,5 +579,3 @@ header h1 {
     font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
     font-size: 2.5em;
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
