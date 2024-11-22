@@ -10,54 +10,54 @@
         {{ form.hidden_tag() }}
 
         <div>
-            {{ form.instrument.label }}<br>
-            {{ form.instrument() }}<br>
+            {{ form.instrument.label }}
+            {{ form.instrument() }}
         </div>
 
         <div>
-            {{ form.direction.label }}<br>
-            {{ form.direction() }}<br>
+            {{ form.direction.label }}
+            {{ form.direction() }}
         </div>
 
         <div>
-            {{ form.entry_price.label }}<br>
-            {{ form.entry_price() }}<br>
+            {{ form.entry_price.label }}
+            {{ form.entry_price() }}
         </div>
 
         <div>
-            {{ form.exit_price.label }}<br>
-            {{ form.exit_price() }}<br>
+            {{ form.exit_price.label }}
+            {{ form.exit_price() }}
         </div>
 
         <div>
-            {{ form.trade_open_time.label }}<br>
-            {{ form.trade_open_time(id='trade_open_time') }}<br>
+            {{ form.trade_open_time.label }}
+            {{ form.trade_open_time(id='trade_open_time') }}
         </div>
 
         <div>
-            {{ form.trade_close_time.label }}<br>
-            {{ form.trade_close_time(id='trade_close_time') }}<br>
+            {{ form.trade_close_time.label }}
+            {{ form.trade_close_time(id='trade_close_time') }}
         </div>
 
         <div>
-            {{ form.comment.label }}<br>
-            {{ form.comment(rows=4, cols=50) }}<br>
+            {{ form.comment.label }}
+            {{ form.comment() }}
         </div>
 
         <div>
-            {{ form.setup_id.label }}<br>
-            {{ form.setup_id() }}<br>
+            {{ form.setup_id.label }}
+            {{ form.setup_id() }}
         </div>
 
         <div>
-            {{ form.screenshot.label }}<br>
-            {{ form.screenshot() }}<br>
+            {{ form.screenshot.label }}
+            {{ form.screenshot() }}
         </div>
 
         {% if trade and trade.screenshot_url %}
             <div>
-                <label>Текущее изображение:</label><br>
-                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" width="200"><br>
+                <label>Текущее изображение:</label>
+                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image setup-mini"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
@@ -71,14 +71,14 @@
                         {{ category.name }}
                         <span class="toggle-arrow">▶</span>
                     </button>
-                    <div class="category-content" style="display: none;">
+                    <div class="category-content">
                         {% for subcategory in category.subcategories %}
                             <div class="subcategory">
                                 <button type="button" class="collapse-button">
                                     {{ subcategory.name }}
                                     <span class="toggle-arrow">▶</span>
                                 </button>
-                                <div class="subcategory-content" style="display: none;">
+                                <div class="subcategory-content">
                                     {% for criterion in subcategory.criteria %}
                                         <div class="criteria-item">
                                             <label>
