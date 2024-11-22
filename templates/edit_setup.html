@@ -10,24 +10,24 @@
         {{ form.hidden_tag() }}
 
         <div>
-            {{ form.setup_name.label }}<br>
-            {{ form.setup_name(size=40) }}<br>
+            {{ form.setup_name.label }}
+            {{ form.setup_name() }}
         </div>
 
         <div>
-            {{ form.description.label }}<br>
-            {{ form.description(rows=4, cols=50) }}<br>
+            {{ form.description.label }}
+            {{ form.description() }}
         </div>
 
         <div>
-            {{ form.screenshot.label }}<br>
-            {{ form.screenshot() }}<br>
+            {{ form.screenshot.label }}
+            {{ form.screenshot() }}
         </div>
 
         {% if setup and setup.screenshot_url %}
             <div>
-                <label>Текущее изображение:</label><br>
-                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image" width="200"><br>
+                <label>Текущее изображение:</label>
+                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
@@ -41,14 +41,14 @@
                         {{ category.name }}
                         <span class="toggle-arrow">▶</span>
                     </button>
-                    <div class="category-content" style="display: none;">
+                    <div class="category-content">
                         {% for subcategory in category.subcategories %}
                             <div class="subcategory">
                                 <button type="button" class="collapse-button">
                                     {{ subcategory.name }}
                                     <span class="toggle-arrow">▶</span>
                                 </button>
-                                <div class="subcategory-content" style="display: none;">
+                                <div class="subcategory-content">
                                     {% for criterion in subcategory.criteria %}
                                         <div class="criteria-item">
                                             <label>
