@@ -47,14 +47,14 @@
                                         {{ category.name }}
                                         <span class="toggle-arrow">▶</span>
                                     </button>
-                                    <div class="category-content" style="display: none;">
+                                    <div class="category-content">
                                         {% for subcategory in category.subcategories %}
                                             <div class="subcategory">
                                                 <button type="button" class="collapse-button">
                                                     {{ subcategory.name }}
                                                     <span class="toggle-arrow">▶</span>
                                                 </button>
-                                                <div class="subcategory-content" style="display: none;">
+                                                <div class="subcategory-content">
                                                     {% for criterion in subcategory.criteria %}
                                                         <div class="criteria-item">
                                                             <label>
@@ -140,12 +140,14 @@
                         {% endfor %}
                     </td>
                     <td data-label="Действия">
-                        <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="action-button view-button"><i class="fas fa-eye"></i> Просмотр</a><br>
-                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="action-button edit-button"><i class="fas fa-edit"></i> Редактировать</a><br>
-                        <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');"><i class="fas fa-trash-alt"></i> Удалить</button>
-                        </form>
+                        <div class="action-buttons">
+                            <a href="{{ url_for('view_trade', trade_id=trade.id) }}" class="action-button view-button"><i class="fas fa-eye"></i> Просмотр</a>
+                            <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="action-button edit-button"><i class="fas fa-edit"></i> Редактировать</a>
+                            <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="post" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="action-button delete-button" onclick="return confirm('Вы уверены, что хотите удалить эту сделку?');"><i class="fas fa-trash-alt"></i> Удалить</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
