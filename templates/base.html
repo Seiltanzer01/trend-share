@@ -8,6 +8,15 @@
     <!-- Подключение внешнего CSS-файла -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     
+    <!-- Подключение Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Подключение NES.css для ретро-стиля -->
+    <link rel="stylesheet" href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css">
+    
+    <!-- Подключение Font Awesome для иконок -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-papEcV+C8Dcl7N3lGggDg9AzQW1XkYcF3M6AKVnX25i7tFFzx0O1I7NOKzFvFJObN+fqkY4nK8NwId/PAf3j1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
     <!-- Подключение jQuery через CDN -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
@@ -18,9 +27,6 @@
     <!-- Подключение Telegram WebApps JS API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Подключение Font Awesome для иконок -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-papEcV+C8Dcl7N3lGggDg9AzQW1XkYcF3M6AKVnX25i7tFFzx0O1I7NOKzFvFJObN+fqkY4nK8NwId/PAf3j1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
     <!-- Подключение внешнего скрипта -->
     <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </head>
@@ -30,13 +36,13 @@
             <h1>Trend Share</h1>
             <nav>
                 {% if 'user_id' in session %}
-                    <a href="{{ url_for('index') }}" class="nav-button"><i class="fas fa-home"></i> Главная</a>
-                    <a href="{{ url_for('new_trade') }}" class="nav-button"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
-                    <a href="{{ url_for('manage_setups') }}" class="nav-button"><i class="fas fa-cogs"></i> Управление Сетапами</a>
-                    <a href="{{ url_for('logout') }}" class="nav-button"><i class="fas fa-sign-out-alt"></i> Выйти</a>
+                    <a href="{{ url_for('index') }}" class="nav-button nes-btn is-primary"><i class="fas fa-home"></i> Главная</a>
+                    <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn is-success"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
+                    <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn is-warning"><i class="fas fa-cogs"></i> Управление Сетапами</a>
+                    <a href="{{ url_for('logout') }}" class="nav-button nes-btn is-error"><i class="fas fa-sign-out-alt"></i> Выйти</a>
                 {% else %}
-                    <a href="{{ url_for('login') }}" class="nav-button"><i class="fas fa-sign-in-alt"></i> Авторизоваться</a>
-                    <a href="https://t.me/TrendShare_bot" class="nav-button"><i class="fas fa-robot"></i> Перейти к боту</a>
+                    <a href="{{ url_for('login') }}" class="nav-button nes-btn is-primary"><i class="fas fa-sign-in-alt"></i> Авторизоваться</a>
+                    <a href="https://t.me/TrendShare_bot" class="nav-button nes-btn is-info"><i class="fas fa-robot"></i> Перейти к боту</a>
                 {% endif %}
             </nav>
         </header>
