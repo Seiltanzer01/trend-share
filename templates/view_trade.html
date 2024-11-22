@@ -19,7 +19,7 @@
         {% if trade.setup %}
             <div class="setup-info">
                 {% if trade.setup.screenshot_url %}
-                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image">
+                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image nes-pointer">
                 {% endif %}
                 {{ trade.setup.setup_name }}
             </div>
@@ -30,18 +30,18 @@
     <p><strong>Комментарий:</strong><br>{{ trade.comment or '-' }}</p>
     <p><strong>Критерии:</strong>
         {% for criterion in trade.criteria %}
-            <span class="criterion">{{ criterion.name }}</span>
+            <span class="criterion nes-text is-primary">{{ criterion.name }}</span>
         {% endfor %}
     </p>
     <p><strong>Скриншот:</strong><br>
         {% if trade.screenshot_url %}
-            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image" style="max-width: 100%; height: auto;">
+            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image nes-pointer" style="max-width: 100%; height: auto;">
         {% else %}
             -
         {% endif %}
     </p>
 
-    <a href="{{ url_for('index') }}" class="btn-back"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
+    <a href="{{ url_for('index') }}" class="btn-back nes-btn is-primary"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
 
     <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
