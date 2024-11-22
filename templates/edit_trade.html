@@ -11,53 +11,53 @@
 
         <div>
             {{ form.instrument.label }}
-            {{ form.instrument() }}
+            {{ form.instrument(class="nes-select") }}
         </div>
 
         <div>
             {{ form.direction.label }}
-            {{ form.direction() }}
+            {{ form.direction(class="nes-select") }}
         </div>
 
         <div>
             {{ form.entry_price.label }}
-            {{ form.entry_price() }}
+            {{ form.entry_price(class="nes-input") }}
         </div>
 
         <div>
             {{ form.exit_price.label }}
-            {{ form.exit_price() }}
+            {{ form.exit_price(class="nes-input") }}
         </div>
 
         <div>
             {{ form.trade_open_time.label }}
-            {{ form.trade_open_time(id='trade_open_time') }}
+            {{ form.trade_open_time(id='trade_open_time', class="nes-input") }}
         </div>
 
         <div>
             {{ form.trade_close_time.label }}
-            {{ form.trade_close_time(id='trade_close_time') }}
+            {{ form.trade_close_time(id='trade_close_time', class="nes-input") }}
         </div>
 
         <div>
             {{ form.comment.label }}
-            {{ form.comment() }}
+            {{ form.comment(class="nes-textarea") }}
         </div>
 
         <div>
             {{ form.setup_id.label }}
-            {{ form.setup_id() }}
+            {{ form.setup_id(class="nes-select") }}
         </div>
 
         <div>
             {{ form.screenshot.label }}
-            {{ form.screenshot() }}
+            {{ form.screenshot(class="nes-input") }}
         </div>
 
         {% if trade and trade.screenshot_url %}
             <div>
                 <label>Текущее изображение:</label>
-                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image setup-mini"><br>
+                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image setup-mini nes-pointer"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
@@ -67,14 +67,14 @@
         <div class="criteria-section">
             {% for category in criteria_categories %}
                 <div class="category">
-                    <button type="button" class="collapse-button">
+                    <button type="button" class="collapse-button nes-btn is-warning">
                         {{ category.name }}
                         <span class="toggle-arrow">▶</span>
                     </button>
                     <div class="category-content">
                         {% for subcategory in category.subcategories %}
                             <div class="subcategory">
-                                <button type="button" class="collapse-button">
+                                <button type="button" class="collapse-button nes-btn is-warning">
                                     {{ subcategory.name }}
                                     <span class="toggle-arrow">▶</span>
                                 </button>
@@ -96,7 +96,7 @@
 
         <br>
         <div>
-            {{ form.submit(class="btn btn-primary") }}
+            {{ form.submit(class="nes-btn is-success") }}
         </div>
     </form>
 </div>
