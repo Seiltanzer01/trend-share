@@ -30,7 +30,7 @@
     <p><strong>Комментарий:</strong><br>{{ trade.comment or '-' }}</p>
     <p><strong>Критерии:</strong>
         {% for criterion in trade.criteria %}
-            <span class="criterion nes-text is-primary">{{ criterion.name }}</span>
+            <span class="criterion">{{ criterion.name }}</span>
         {% endfor %}
     </p>
     <p><strong>Скриншот:</strong><br>
@@ -41,7 +41,7 @@
         {% endif %}
     </p>
 
-    <a href="{{ url_for('index') }}" class="btn-back nes-btn"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
+    <a href="{{ url_for('index') }}" class="btn-back nes-btn custom-primary"><i class="fas fa-arrow-left"></i> Вернуться к списку сделок</a>
 
     <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
