@@ -66,7 +66,7 @@ $(document).ready(function() {
         }
     })();
 
-    // Обработчик для кнопки "Показать/Скрыть Фильтры" с делегацией событий
+    // Обработчик для кнопки "Показать/Скрыть Фильтры"
     $('#toggle-filters').on('click', function(){
         $('#filters').slideToggle();
         const button = $(this);
@@ -77,14 +77,14 @@ $(document).ready(function() {
         }
     });
 
-    // Обработчик для кнопок раскрытия критериев с делегацией
+    // Обработчик для кнопок раскрытия критериев
     $(document).on('click', '.collapse-button', function(){
         $(this).next('.category-content, .subcategory-content').slideToggle();
         // Переключаем класс для вращения стрелки
         $(this).toggleClass('rotated');
     });
 
-    // Анимация при наведении на строки таблиц с делегацией
+    // Анимация при наведении на строки таблиц
     $(document).on('mouseenter', 'table tbody tr', function() {
         $(this).css('background-color', '#F0F8FF'); // AliceBlue
     });
