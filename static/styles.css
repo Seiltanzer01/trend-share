@@ -192,8 +192,16 @@ img.setup-mini {
     height: 70px;
 }
 
+img.clickable-image {
+    transition: transform 0.2s ease;
+}
+
+img.clickable-image:hover {
+    transform: scale(1.1);
+}
+
 /* Кнопки */
-button, input[type="submit"], a.action-button, a.btn-add, a.btn-back {
+button, input[type="submit"], a.action-button, a.btn-add, a.btn-back, .collapse-button {
     background-color: var(--primary-color) !important;
     color: white !important;
     border: none;
@@ -208,14 +216,55 @@ button, input[type="submit"], a.action-button, a.btn-add, a.btn-back {
     border-radius: var(--border-radius);
 }
 
-button i, input[type="submit"] i, a.action-button i {
+button i, input[type="submit"] i, a.action-button i, .collapse-button i {
     margin-right: 8px;
     font-size: 1.2em;
 }
 
-button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover, a.btn-back:hover {
+button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover, a.btn-back:hover, .collapse-button:hover {
     background-color: var(--danger-color) !important;
     transform: scale(1.05);
+}
+
+/* Кастомные Классы Кнопок */
+.custom-primary {
+    background-color: var(--primary-color) !important;
+}
+
+.custom-success {
+    background-color: var(--success-color) !important;
+}
+
+.custom-danger {
+    background-color: var(--danger-color) !important;
+}
+
+.custom-warning {
+    background-color: var(--warning-color) !important;
+}
+
+.custom-info {
+    background-color: var(--info-color) !important;
+}
+
+.custom-primary:hover {
+    background-color: darken(var(--primary-color), 10%) !important;
+}
+
+.custom-success:hover {
+    background-color: darken(var(--success-color), 10%) !important;
+}
+
+.custom-danger:hover {
+    background-color: darken(var(--danger-color), 10%) !important;
+}
+
+.custom-warning:hover {
+    background-color: darken(var(--warning-color), 10%) !important;
+}
+
+.custom-info:hover {
+    background-color: darken(var(--info-color), 10%) !important;
 }
 
 /* Согласованные кнопки действий */
@@ -461,7 +510,7 @@ span.criterion {
     }
 
     /* Кнопки */
-    button, input[type="submit"], a.action-button, a.btn-add, a.btn-back {
+    button, input[type="submit"], a.action-button, a.btn-add, a.btn-back, .collapse-button {
         padding: var(--button-padding);
         font-size: 1.2em;
     }
@@ -473,9 +522,8 @@ span.criterion {
     }
 
     /* Таблицы */
-    /* Удаляем display: block; для таблиц, чтобы сохранить горизонтальную прокрутку */
-    table, thead, tbody, th, td, tr {
-        display: table;
+    table {
+        min-width: 800px; /* Обеспечивает горизонтальную прокрутку */
     }
 
     /* Изображения */
