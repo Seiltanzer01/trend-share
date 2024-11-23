@@ -119,4 +119,17 @@ $(document).ready(function() {
         showAnim: "slideDown",
         showButtonPanel: true
     });
+
+    // Инициализация DataTables для таблиц с классом 'datatable'
+    $('table.datatable').DataTable({
+        responsive: true,
+        language: {
+            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
+        },
+        "pageLength": 10,
+        "lengthChange": false,
+        "ordering": true,
+        "info": false,
+        "autoWidth": false
+    });
 });
