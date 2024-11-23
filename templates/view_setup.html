@@ -11,7 +11,7 @@
     <p><strong>Описание:</strong><br>{{ setup.description or '-' }}</p>
     <p><strong>Критерии:</strong>
         {% for criterion in setup.criteria %}
-            <span class="criterion nes-text is-primary">{{ criterion.name }}</span>
+            <span class="criterion">{{ criterion.name }}</span>
         {% endfor %}
     </p>
     <p><strong>Скриншот:</strong><br>
@@ -22,7 +22,7 @@
         {% endif %}
     </p>
 
-    <a href="{{ url_for('manage_setups') }}" class="btn-back nes-btn"><i class="fas fa-arrow-left"></i> Вернуться к списку сетапов</a>
+    <a href="{{ url_for('manage_setups') }}" class="btn-back nes-btn custom-primary"><i class="fas fa-arrow-left"></i> Вернуться к списку сетапов</a>
 
     <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
