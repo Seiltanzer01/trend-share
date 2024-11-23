@@ -6,7 +6,7 @@
 <div class="container">
     <h2>Журнал Сделок</h2>
 
-    <button id="toggle-filters" class="nes-btn is-primary"><i class="fas fa-filter"></i> Показать Фильтры</button>
+    <button id="toggle-filters" class="nes-btn custom-primary"><i class="fas fa-filter"></i> Показать Фильтры</button>
 
     <div id="filters" style="display: none;">
         <form method="GET">
@@ -43,14 +43,14 @@
                         {% for category in criteria_categories %}
                             {% if category.name in ['Технический анализ', 'Фундаментальный анализ', 'Психологические факторы', 'Рыночная структура', 'Психология рынка'] %}
                                 <div class="criteria-category">
-                                    <button type="button" class="collapse-button nes-btn is-warning">
+                                    <button type="button" class="collapse-button nes-btn custom-warning">
                                         {{ category.name }}
                                         <span class="toggle-arrow">▶</span>
                                     </button>
                                     <div class="category-content">
                                         {% for subcategory in category.subcategories %}
                                             <div class="subcategory">
-                                                <button type="button" class="collapse-button nes-btn is-warning">
+                                                <button type="button" class="collapse-button nes-btn custom-warning">
                                                     {{ subcategory.name }}
                                                     <span class="toggle-arrow">▶</span>
                                                 </button>
@@ -72,7 +72,7 @@
                     </div>
                 </div>
 
-                <input type="submit" value="Применить фильтры" class="nes-btn is-success">
+                <input type="submit" value="Применить фильтры" class="nes-btn custom-success">
             </fieldset>
         </form>
     </div>
