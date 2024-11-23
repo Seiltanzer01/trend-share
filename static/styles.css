@@ -2,20 +2,20 @@
 
 /* CSS Переменные для консистентности цветов и стилей */
 :root {
-    --primary-color: #00264d; /* Темно-синий, более строгий */
-    --secondary-color: #b8860b; /* Темно-золотой вместо яркого золота */
-    --success-color: #218838; /* Темно-зеленый */
-    --danger-color: #8B0000; /* Темно-красный */
-    --warning-color: #FFA500; /* Оранжевый вместо яркого желтого */
-    --info-color: #117a8b; /* Темно-бирюзовый */
-    --light-color: #F0F8FF; /* AliceBlue для фона */
-    --dark-color: #343A40; /* Темно-серый */
+    --primary-color: #2c3e50; /* Темно-синий/Темно-серый для более серьезного вида */
+    --secondary-color: #8e44ad; /* Фиолетовый для акцентов */
+    --success-color: #27ae60; /* Зеленый */
+    --danger-color: #c0392b; /* Красный */
+    --warning-color: #f39c12; /* Оранжевый */
+    --info-color: #2980b9; /* Синий */
+    --light-color: #ecf0f1; /* Светло-серый */
+    --dark-color: #34495e; /* Темно-серый */
     --font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
-    --criterion-bg: #D3D3D3; /* Светло-серый вместо лаванды */
-    --button-padding: 14px 24px;
-    --input-padding: 14px;
-    --border-radius: 8px;
-    --transition-speed: 0.3s;
+    --criterion-bg: #bdc3c7; /* Серый для критериев */
+    --button-padding: 12px 20px;
+    --input-padding: 12px;
+    --border-radius: 6px;
+    --transition-speed: 0.2s;
 }
 
 /* Основные стили */
@@ -87,7 +87,7 @@ nav a i {
 }
 
 nav a:hover {
-    background-color: rgba(184, 134, 11, 0.3); /* Прозрачный темно-золотой */
+    background-color: rgba(142, 68, 173, 0.3); /* Изменение на фиолетовый оттенок */
     transform: scale(1.05);
 }
 
@@ -106,13 +106,13 @@ nav a:hover {
 }
 
 .flashes .success {
-    background-color: #D4EDDA;
+    background-color: #d4edda;
     color: #155724;
 }
 
 .flashes .danger {
-    background-color: #F8D7DA;
-    color: #721C24;
+    background-color: #f8d7da;
+    color: #721c24;
 }
 
 /* Основное содержимое */
@@ -137,7 +137,7 @@ footer {
     margin-top: 25px;
     border-top: 1px solid var(--primary-color);
     font-size: 0.9em;
-    background-color: #E0E0E0; /* Более темный светло-серый */
+    background-color: #ecf0f1;
     border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
 
@@ -191,14 +191,6 @@ img.setup-mini {
     height: 70px;
 }
 
-img.clickable-image {
-    transition: transform var(--transition-speed);
-}
-
-img.clickable-image:hover {
-    transform: scale(1.05);
-}
-
 /* Кнопки */
 button, input[type="submit"], a.action-button, a.btn-add, a.btn-back {
     background-color: var(--primary-color);
@@ -246,7 +238,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.view-button:hover {
-    background-color: #0b6e99; /* Темнее info */
+    background-color: #1c638d; /* Darker Info */
 }
 
 .action-button.edit-button {
@@ -254,7 +246,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.edit-button:hover {
-    background-color: #e69500; /* Темнее warning */
+    background-color: #d35400; /* Darker Warning */
 }
 
 .action-button.delete-button {
@@ -262,7 +254,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.delete-button:hover {
-    background-color: #660000; /* Темнее danger */
+    background-color: #a93226; /* Darker Danger */
 }
 
 /* Формы */
@@ -285,7 +277,7 @@ label {
     font-weight: bold;
     margin-bottom: 5px;
     display: block;
-    text-align: center; /* Центрирование меток */
+    text-align: left;
 }
 
 input, select, textarea {
@@ -305,9 +297,6 @@ select[multiple] {
 
 /* Чекбоксы */
 .criteria-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center; /* Центрирование списка */
     margin-top: 10px;
 }
 
@@ -315,14 +304,13 @@ select[multiple] {
     display: flex;
     align-items: center;
     margin-bottom: 8px;
-    justify-content: center; /* Центрирование чекбоксов */
+    justify-content: center;
 }
 
 .criteria-item label {
     display: flex;
     align-items: center;
     font-size: 1em;
-    justify-content: center;
 }
 
 .criteria-item input[type="checkbox"] {
@@ -367,7 +355,7 @@ span.criterion {
     cursor: pointer;
     font-size: 1.1em;
     padding: 10px 0;
-    text-align: center; /* Центрирование текста */
+    text-align: left;
     width: 100%;
     position: relative;
 }
@@ -534,11 +522,11 @@ span.criterion {
     .criteria-item {
         flex-direction: row;
         align-items: center;
+        justify-content: center;
     }
 
     .criteria-item label {
         margin: 0;
-        justify-content: center;
     }
 
     /* Критерии */
@@ -587,21 +575,10 @@ span.criterion {
 
 /* Дополнительные улучшения для ретро-стиля */
 body {
-    background-color: #F0F8FF; /* AliceBlue для ретро-эффекта */
+    background-color: #f0f8ff; /* AliceBlue для ретро-эффекта */
 }
 
 header h1 {
     font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
     font-size: 2.5em;
-}
-
-/* Улучшение выравнивания чекбоксов в раскрывающихся списках */
-.criteria-section {
-    width: 100%;
-    max-width: 600px;
-}
-
-.criteria-item {
-    width: 100%;
-    justify-content: center;
 }
