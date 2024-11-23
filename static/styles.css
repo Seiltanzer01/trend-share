@@ -2,8 +2,8 @@
 
 /* CSS Переменные для консистентности цветов и стилей */
 :root {
-    --primary-color: #2c3e50; /* Темно-синий/Темно-серый для более серьезного вида */
-    --secondary-color: #8e44ad; /* Фиолетовый для акцентов */
+    --primary-color: #2c3e50; /* Темно-синий */
+    --secondary-color: #8e44ad; /* Фиолетовый */
     --success-color: #27ae60; /* Зеленый */
     --danger-color: #c0392b; /* Красный */
     --warning-color: #f39c12; /* Оранжевый */
@@ -87,7 +87,7 @@ nav a i {
 }
 
 nav a:hover {
-    background-color: rgba(142, 68, 173, 0.3); /* Изменение на фиолетовый оттенок */
+    background-color: rgba(142, 68, 173, 0.3); /* Фиолетовый оттенок */
     transform: scale(1.05);
 }
 
@@ -152,7 +152,7 @@ table {
     width: 100%;
     border-collapse: collapse;
     table-layout: auto;
-    min-width: 800px; /* Обеспечивает превышение ширины мобильного экрана */
+    min-width: 800px; /* Обеспечивает горизонтальную прокрутку */
 }
 
 th, td {
@@ -194,8 +194,8 @@ img.setup-mini {
 
 /* Кнопки */
 button, input[type="submit"], a.action-button, a.btn-add, a.btn-back {
-    background-color: var(--primary-color);
-    color: white;
+    background-color: var(--primary-color) !important;
+    color: white !important;
     border: none;
     padding: var(--button-padding);
     cursor: pointer;
@@ -214,7 +214,7 @@ button i, input[type="submit"] i, a.action-button i {
 }
 
 button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover, a.btn-back:hover {
-    background-color: var(--danger-color);
+    background-color: var(--danger-color) !important;
     transform: scale(1.05);
 }
 
@@ -235,7 +235,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.view-button {
-    background-color: var(--info-color) !important; /* Повышенная специфичность */
+    background-color: var(--info-color) !important;
 }
 
 .action-button.view-button:hover {
@@ -305,7 +305,7 @@ select[multiple] {
     display: flex;
     align-items: center;
     margin-bottom: 8px;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .criteria-item label {
@@ -473,34 +473,9 @@ span.criterion {
     }
 
     /* Таблицы */
+    /* Удаляем display: block; для таблиц, чтобы сохранить горизонтальную прокрутку */
     table, thead, tbody, th, td, tr {
-        display: block;
-    }
-
-    tr {
-        margin-bottom: 20px;
-    }
-
-    th {
-        display: none;
-    }
-
-    td {
-        position: relative;
-        padding-left: 55%;
-        text-align: left;
-        border: none;
-        border-bottom: 2px solid #ddd;
-    }
-
-    td::before {
-        content: attr(data-label);
-        position: absolute;
-        left: 15px;
-        width: 40%;
-        padding-right: 10px;
-        font-weight: bold;
-        text-align: left;
+        display: table;
     }
 
     /* Изображения */
@@ -523,7 +498,7 @@ span.criterion {
     .criteria-item {
         flex-direction: row;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .criteria-item label {
