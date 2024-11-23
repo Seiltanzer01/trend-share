@@ -2,16 +2,16 @@
 
 /* CSS Переменные для консистентности цветов и стилей */
 :root {
-    --primary-color: #004080; /* Темно-синий */
-    --secondary-color: #FFD700; /* Золотой */
-    --success-color: #28A745; /* Зеленый */
-    --danger-color: #DC3545; /* Красный */
-    --warning-color: #FFC107; /* Желтый */
-    --info-color: #17A2B8; /* Бирюзовый */
-    --light-color: #F8F9FA; /* Светло-серый */
+    --primary-color: #00264d; /* Темно-синий, более строгий */
+    --secondary-color: #b8860b; /* Темно-золотой вместо яркого золота */
+    --success-color: #218838; /* Темно-зеленый */
+    --danger-color: #8B0000; /* Темно-красный */
+    --warning-color: #FFA500; /* Оранжевый вместо яркого желтого */
+    --info-color: #117a8b; /* Темно-бирюзовый */
+    --light-color: #F0F8FF; /* AliceBlue для фона */
     --dark-color: #343A40; /* Темно-серый */
     --font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
-    --criterion-bg: #E6E6FA; /* Лаванда */
+    --criterion-bg: #D3D3D3; /* Светло-серый вместо лаванды */
     --button-padding: 14px 24px;
     --input-padding: 14px;
     --border-radius: 8px;
@@ -87,7 +87,7 @@ nav a i {
 }
 
 nav a:hover {
-    background-color: rgba(255, 215, 0, 0.3);
+    background-color: rgba(184, 134, 11, 0.3); /* Прозрачный темно-золотой */
     transform: scale(1.05);
 }
 
@@ -137,7 +137,7 @@ footer {
     margin-top: 25px;
     border-top: 1px solid var(--primary-color);
     font-size: 0.9em;
-    background-color: #F8F9FA;
+    background-color: #E0E0E0; /* Более темный светло-серый */
     border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
 
@@ -191,6 +191,14 @@ img.setup-mini {
     height: 70px;
 }
 
+img.clickable-image {
+    transition: transform var(--transition-speed);
+}
+
+img.clickable-image:hover {
+    transform: scale(1.05);
+}
+
 /* Кнопки */
 button, input[type="submit"], a.action-button, a.btn-add, a.btn-back {
     background-color: var(--primary-color);
@@ -238,7 +246,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.view-button:hover {
-    background-color: #138496; /* Darker Info */
+    background-color: #0b6e99; /* Темнее info */
 }
 
 .action-button.edit-button {
@@ -246,7 +254,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.edit-button:hover {
-    background-color: #E0A800; /* Darker Warning */
+    background-color: #e69500; /* Темнее warning */
 }
 
 .action-button.delete-button {
@@ -254,7 +262,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.delete-button:hover {
-    background-color: #C82333; /* Darker Danger */
+    background-color: #660000; /* Темнее danger */
 }
 
 /* Формы */
@@ -277,6 +285,7 @@ label {
     font-weight: bold;
     margin-bottom: 5px;
     display: block;
+    text-align: center; /* Центрирование меток */
 }
 
 input, select, textarea {
@@ -296,6 +305,9 @@ select[multiple] {
 
 /* Чекбоксы */
 .criteria-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Центрирование списка */
     margin-top: 10px;
 }
 
@@ -303,12 +315,14 @@ select[multiple] {
     display: flex;
     align-items: center;
     margin-bottom: 8px;
+    justify-content: center; /* Центрирование чекбоксов */
 }
 
 .criteria-item label {
     display: flex;
     align-items: center;
     font-size: 1em;
+    justify-content: center;
 }
 
 .criteria-item input[type="checkbox"] {
@@ -353,7 +367,7 @@ span.criterion {
     cursor: pointer;
     font-size: 1.1em;
     padding: 10px 0;
-    text-align: left;
+    text-align: center; /* Центрирование текста */
     width: 100%;
     position: relative;
 }
@@ -524,6 +538,7 @@ span.criterion {
 
     .criteria-item label {
         margin: 0;
+        justify-content: center;
     }
 
     /* Критерии */
@@ -578,4 +593,15 @@ body {
 header h1 {
     font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
     font-size: 2.5em;
+}
+
+/* Улучшение выравнивания чекбоксов в раскрывающихся списках */
+.criteria-section {
+    width: 100%;
+    max-width: 600px;
+}
+
+.criteria-item {
+    width: 100%;
+    justify-content: center;
 }
