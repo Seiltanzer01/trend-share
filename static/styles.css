@@ -238,7 +238,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.view-button:hover {
-    background-color: #1c638d; /* Darker Info */
+    background-color: #1c638d; /* Темнее Info */
 }
 
 .action-button.edit-button {
@@ -246,7 +246,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.edit-button:hover {
-    background-color: #d35400; /* Darker Warning */
+    background-color: #d35400; /* Темнее Warning */
 }
 
 .action-button.delete-button {
@@ -254,7 +254,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.delete-button:hover {
-    background-color: #a93226; /* Darker Danger */
+    background-color: #a93226; /* Темнее Danger */
 }
 
 /* Формы */
