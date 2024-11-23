@@ -5,62 +5,71 @@
 <head>
     <meta charset="UTF-8">
     <title>Авторизация</title>
-    <style>
-        body {
-            font-family: 'Press Start 2P', cursive;
-            background-color: #f0f8ff; /* AliceBlue для ретро-эффекта */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .content {
-            background-color: #ecf0f1;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 500px;
-            width: 90%;
-        }
-        h1 {
-            margin-bottom: 20px;
-            color: var(--primary-color);
-            font-size: 1.2em;
-        }
-        .info {
-            margin-bottom: 30px;
-            font-size: 1.2em;
-            color: var(--dark-color);
-        }
-        .button {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 15px 25px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            border-radius: var(--border-radius);
-            transition: background-color var(--transition-speed), transform var(--transition-speed);
-            font-family: var(--font-family);
-        }
-        .button:hover {
-            background-color: var(--danger-color);
-            transform: scale(1.05);
-        }
-    </style>
-    <!-- Подключение CSS переменных -->
+    <!-- Подключение внешнего CSS-файла -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    
+    <!-- Подключение Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Подключение NES.css для ретро-стиля -->
+    <link rel="stylesheet" href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css">
+    
+    <!-- Подключение Font Awesome для иконок -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-papEcV+C8Dcl7N3lGggDg9AzQW1XkYcF3M6AKVnX25i7tFFzx0O1I7NOKzFvFJObN+fqkY4nK8NwId/PAf3j1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Подключение jQuery через CDN -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Подключение jQuery UI для Datepicker -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.0/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
+    
+    <!-- Подключение Telegram WebApps JS API -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Подключение внешнего скрипта -->
+    <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
 </head>
 <body>
-    <div class="content">
-        <h1>Авторизация</h1>
-        <div class="info">
-            Для доступа к приложению откройте его через Telegram Web App. Если вы открываете приложение вне Telegram, пожалуйста, воспользуйтесь ссылкой в боте.
-        </div>
-        <a href="https://t.me/TrendShare_bot" class="button">Открыть в Telegram</a>
+    <div class="container">
+        <header>
+            <h1>Авторизация</h1>
+            <nav>
+                <a href="{{ url_for('login') }}" class="nav-button nes-btn"><i class="fas fa-sign-in-alt"></i> Авторизоваться</a>
+                <a href="https://t.me/TrendShare_bot" class="nav-button nes-btn"><i class="fas fa-robot"></i> Перейти к боту</a>
+            </nav>
+        </header>
+
+        <!-- Вывод flash сообщений -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <main>
+            <div class="content">
+                <h1>Авторизация</h1>
+                <div class="info">
+                    Для доступа к приложению откройте его через Telegram Web App. Если вы открываете приложение вне Telegram, пожалуйста, воспользуйтесь ссылкой в боте.
+                </div>
+                <a href="https://t.me/TrendShare_bot" class="btn-back nes-btn"><i class="fas fa-arrow-left"></i> Открыть в Telegram</a>
+            </div>
+        </main>
+
+        <footer>
+            &copy; {{ datetime.utcnow().year }} Trend Share
+        </footer>
+    </div>
+
+    <!-- Модальное окно для отображения изображений -->
+    <div id="modal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modal-img">
     </div>
 </body>
 </html>
