@@ -152,6 +152,7 @@ table {
     width: 100%;
     border-collapse: collapse;
     table-layout: auto;
+    min-width: 800px; /* Обеспечивает превышение ширины мобильного экрана */
 }
 
 th, td {
@@ -234,27 +235,27 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.view-button {
-    background-color: var(--info-color);
+    background-color: var(--info-color) !important; /* Повышенная специфичность */
 }
 
 .action-button.view-button:hover {
-    background-color: #1c638d; /* Темнее Info */
+    background-color: #1c638d !important; /* Темнее Info */
 }
 
 .action-button.edit-button {
-    background-color: var(--warning-color);
+    background-color: var(--warning-color) !important;
 }
 
 .action-button.edit-button:hover {
-    background-color: #d35400; /* Темнее Warning */
+    background-color: #d35400 !important; /* Темнее Warning */
 }
 
 .action-button.delete-button {
-    background-color: var(--danger-color);
+    background-color: var(--danger-color) !important;
 }
 
 .action-button.delete-button:hover {
-    background-color: #a93226; /* Темнее Danger */
+    background-color: #a93226 !important; /* Темнее Danger */
 }
 
 /* Формы */
@@ -563,13 +564,13 @@ span.criterion {
     a.action-button.view-button,
     a.action-button.edit-button,
     a.action-button.delete-button {
-        background-color: var(--primary-color);
+        background-color: var(--primary-color) !important;
     }
 
     a.action-button.view-button:hover,
     a.action-button.edit-button:hover,
     a.action-button.delete-button:hover {
-        background-color: var(--danger-color);
+        background-color: var(--danger-color) !important;
     }
 }
 
