@@ -37,14 +37,14 @@
         <div class="criteria-section">
             {% for category in criteria_categories %}
                 <div class="category">
-                    <button type="button" class="collapse-button nes-btn is-warning">
+                    <button type="button" class="collapse-button nes-btn custom-warning">
                         {{ category.name }}
                         <span class="toggle-arrow">▶</span>
                     </button>
                     <div class="category-content">
                         {% for subcategory in category.subcategories %}
                             <div class="subcategory">
-                                <button type="button" class="collapse-button nes-btn is-warning">
+                                <button type="button" class="collapse-button nes-btn custom-warning">
                                     {{ subcategory.name }}
                                     <span class="toggle-arrow">▶</span>
                                 </button>
@@ -66,7 +66,7 @@
 
         <br>
         <div>
-            {{ form.submit(class="nes-btn is-success") }}
+            {{ form.submit(class="nes-btn custom-success") }}
         </div>
     </form>
 </div>
