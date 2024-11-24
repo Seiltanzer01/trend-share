@@ -57,7 +57,7 @@
         {% if trade and trade.screenshot_url %}
             <div>
                 <label>Текущее изображение:</label>
-                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image setup-mini nes-pointer"><br>
+                <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image lazyload setup-mini nes-pointer"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
