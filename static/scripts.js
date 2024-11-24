@@ -111,7 +111,7 @@ $(document).ready(function() {
         }
     });
 
-    // Инициализация datepickers
+    // Инициализация datepickers с улучшенной производительностью
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
@@ -133,6 +133,14 @@ $(document).ready(function() {
         "autoWidth": false,
         "columnDefs": [
             { "orderable": false, "targets": [1, 12] } // Скриншот и Действия не сортируются
-        ]
+        ],
+        "deferRender": true, // Улучшает производительность при больших таблицах
+        "processing": true, // Показывает индикатор обработки
+        "serverSide": false // Можно переключить на true при необходимости
+    });
+
+    // Оптимизация производительности через Lazy Loading изображений
+    $('img.clickable-image').each(function(){
+        $(this).attr('loading', 'lazy');
     });
 });
