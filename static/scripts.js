@@ -3,6 +3,11 @@
 $(document).ready(function() {
     console.log("scripts.js загружен"); // Отладочное сообщение
 
+    // Инициализация FastClick для устранения задержки на мобильных устройствах
+    if ('addEventListener' in document) {
+        FastClick.attach(document.body);
+    }
+
     // Обработка Telegram Web App initData
     (function() {
         try {
@@ -139,8 +144,15 @@ $(document).ready(function() {
         "serverSide": false // Можно переключить на true при необходимости
     });
 
-    // Оптимизация производительности через Lazy Loading изображений
+    // Инициализация iCheck для всех чекбоксов
+    $('input[type="checkbox"]').iCheck({
+        checkboxClass: 'icheckbox_square-blue',
+        increaseArea: '20%' // Увеличение области для удобства на мобильных
+    });
+
+    // Оптимизация производительности через Lazy Loading изображений с использованием Lazysizes
+    // Добавление классов для Lazysizes
     $('img.clickable-image').each(function(){
-        $(this).attr('loading', 'lazy');
+        $(this).addClass('lazyload');
     });
 });
