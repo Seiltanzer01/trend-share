@@ -27,7 +27,7 @@
         {% if setup and setup.screenshot_url %}
             <div>
                 <label>Текущее изображение:</label>
-                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini nes-pointer"><br>
+                <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image lazyload setup-mini nes-pointer"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
