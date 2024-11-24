@@ -342,29 +342,10 @@ select[multiple] {
     height: 120px;
 }
 
-/* Чекбоксы */
-.criteria-section {
-    margin-top: 10px;
-}
-
-.criteria-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-    justify-content: flex-start;
-}
-
-.criteria-item label {
-    display: flex;
-    align-items: center;
-    font-size: 1em;
-}
-
-.criteria-item input[type="checkbox"] {
-    width: 24px;
-    height: 24px;
+/* Чекбоксы (iCheck) */
+.icheckbox_square-blue, .iradio_square-blue {
     margin-right: 10px;
-    cursor: pointer;
+    transform: scale(1.5); /* Увеличение размера чекбоксов */
 }
 
 /* Критерии */
