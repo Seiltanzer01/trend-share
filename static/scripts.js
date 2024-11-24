@@ -125,8 +125,8 @@ $(document).ready(function() {
         showButtonPanel: true
     });
 
-    // Инициализация DataTables для таблиц с классом 'datatable'
-    $('table.datatable').DataTable({
+    // Инициализация DataTables для таблицы Setup
+    $('#setup-table').DataTable({
         responsive: true,
         language: {
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
@@ -138,6 +138,25 @@ $(document).ready(function() {
         "autoWidth": false,
         "columnDefs": [
             { "orderable": false, "targets": [3,5] } // Скриншот и Действия не сортируются
+        ],
+        "deferRender": true, // Улучшает производительность при больших таблицах
+        "processing": true, // Показывает индикатор обработки
+        "serverSide": false // Можно переключить на true при необходимости
+    });
+
+    // Инициализация DataTables для таблицы Trade
+    $('#trade-table').DataTable({
+        responsive: true,
+        language: {
+            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
+        },
+        "pageLength": 10,
+        "lengthChange": false,
+        "ordering": true,
+        "info": false,
+        "autoWidth": false,
+        "columnDefs": [
+            { "orderable": false, "targets": [1,12] } // Скриншот и Действия не сортируются
         ],
         "deferRender": true, // Улучшает производительность при больших таблицах
         "processing": true, // Показывает индикатор обработки
