@@ -130,6 +130,9 @@ $(document).ready(function() {
         "lengthChange": false,
         "ordering": true,
         "info": false,
-        "autoWidth": false
+        "autoWidth": false,
+        "columnDefs": [
+            { "orderable": false, "targets": [1, 12] } // Скриншот и Действия не сортируются
+        ]
     });
 });
