@@ -185,15 +185,12 @@ td img, .clickable-image {
     border: 2px solid var(--primary-color);
     border-radius: 5px;
     cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
 img.setup-mini {
     width: 70px;
     height: 70px;
-}
-
-img.clickable-image {
-    transition: transform 0.2s ease;
 }
 
 img.clickable-image:hover {
