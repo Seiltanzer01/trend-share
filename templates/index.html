@@ -103,7 +103,7 @@
                     <td data-label="ID">{{ trade.id }}</td>
                     <td data-label="Скриншот">
                         {% if trade.screenshot_url %}
-                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image nes-pointer">
+                            <img src="{{ trade.screenshot_url }}" alt="Trade Screenshot" class="clickable-image lazyload nes-pointer">
                         {% else %}
                             -
                         {% endif %}
@@ -126,7 +126,7 @@
                         {% if trade.setup %}
                             <div class="setup-info">
                                 {% if trade.setup.screenshot_url %}
-                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image nes-pointer">
+                                    <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image lazyload nes-pointer">
                                 {% endif %}
                                 {{ trade.setup.setup_name }}
                             </div>
