@@ -137,7 +137,7 @@ $(document).ready(function() {
         "info": false,
         "autoWidth": false,
         "columnDefs": [
-            { "orderable": false, "targets": [1, 12] } // Скриншот и Действия не сортируются
+            { "orderable": false, "targets": [3,5] } // Скриншот и Действия не сортируются
         ],
         "deferRender": true, // Улучшает производительность при больших таблицах
         "processing": true, // Показывает индикатор обработки
