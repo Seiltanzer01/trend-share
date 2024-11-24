@@ -361,9 +361,10 @@ select[multiple] {
 }
 
 .criteria-item input[type="checkbox"] {
-    transform: scale(1.3);
+    width: 24px;
+    height: 24px;
     margin-right: 10px;
-    vertical-align: middle;
+    cursor: pointer;
 }
 
 /* Критерии */
