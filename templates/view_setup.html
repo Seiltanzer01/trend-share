@@ -16,7 +16,7 @@
     </p>
     <p><strong>Скриншот:</strong><br>
         {% if setup.screenshot_url %}
-            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image nes-pointer" style="max-width: 100%; height: auto;">
+            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image lazyload nes-pointer" style="max-width: 100%; height: auto;">
         {% else %}
             -
         {% endif %}
