@@ -28,7 +28,7 @@
                     <td data-label="Описание">{{ setup.description or '-' }}</td>
                     <td data-label="Скриншот">
                         {% if setup.screenshot_url %}
-                            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image setup-mini nes-pointer">
+                            <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image lazyload setup-mini nes-pointer">
                         {% else %}
                             -
                         {% endif %}
