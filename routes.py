@@ -14,7 +14,7 @@ from werkzeug.datastructures import FileStorage
 from flask_wtf.csrf import CSRFProtect
 from wtforms.validators import DataRequired, Optional
 
-from app import app, db, s3_client, logger, get_app_host
+from app import app, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url
 from models import *
 from forms import TradeForm, SetupForm  # Импорт обновленных форм
 
@@ -36,6 +36,11 @@ def logout():
     flash('Вы успешно вышли из системы.', 'success')
     logger.info("Пользователь вышел из системы.")
     return redirect(url_for('login'))
+
+# Маршрут здоровья для проверки состояния приложения
+@app.route('/health', methods=['GET'])
+def health():
+    return 'OK', 200
 
 # Обработка initData через маршрут /init с использованием teleapp-auth
 @csrf.exempt  # Исключаем из CSRF-защиты
@@ -686,11 +691,6 @@ def view_setup(setup_id):
 
     return render_template('view_setup.html', setup=setup)
 
-# Отдельный маршрут для Web App
-@app.route('/webapp', methods=['GET'])
-def webapp():
-    return render_template('webapp.html')
-
 # Инициализация Telegram бота и обработчиков
 
 # Получение токена бота из переменных окружения
@@ -838,3 +838,8 @@ def set_webhook_route():
         logger.error(f"Ошибка при установке вебхука: {e}")
         logger.error(traceback.format_exc())
         return f"Не удалось установить webhook: {e}", 500
+
+# Отдельный маршрут для Web App
+@app.route('/webapp', methods=['GET'])
+def webapp():
+    return render_template('webapp.html')
