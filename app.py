@@ -12,6 +12,8 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.utils import secure_filename
+from werkzeug.datastructures import FileStorage
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -472,3 +474,10 @@ def initialize():
 
 # Импорт маршрутов
 from routes import *
+
+# **Запуск Flask-приложения**
+
+if __name__ == '__main__':
+    # Запуск приложения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
