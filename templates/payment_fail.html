@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="payment-fail-container">
+    <h2>Оплата не удалась!</h2>
+    <p>К сожалению, процесс оплаты не был завершен. Попробуйте снова или свяжитесь с поддержкой.</p>
+    <a href="{{ url_for('subscription') }}" class="nes-btn is-primary">Попробовать снова</a>
+</div>
+{% endblock %}
