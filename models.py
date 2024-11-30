@@ -25,6 +25,7 @@ class User(db.Model):
     auth_token = db.Column(db.String(64), unique=True, nullable=True)
     auth_token_creation_time = db.Column(db.DateTime, nullable=True)
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    assistant_premium = db.Column(db.Boolean, default=False)  # Новое поле для подписки на ассистента
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
 
