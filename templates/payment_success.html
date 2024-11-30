@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="payment-success-container">
+    <h2>Оплата прошла успешно!</h2>
+    <p>Спасибо за покупку подписки! Ваш доступ к "Дяде Джону" будет активирован вскоре.</p>
+    <a href="{{ url_for('index') }}" class="nes-btn is-primary">Вернуться на главную</a>
+</div>
+{% endblock %}
