@@ -70,5 +70,5 @@ cryptography
 teleapp_auth
 boto3
 openai
-
-
+celery
+redis
