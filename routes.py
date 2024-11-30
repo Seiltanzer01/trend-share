@@ -17,7 +17,7 @@ from wtforms.validators import DataRequired, Optional
 
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url
 from models import *
-from forms import TradeForm, SetupForm  # Импорт обновленных форм
+from forms import TradeForm, SetupForm  # Импорт обновлённых форм
 
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
@@ -689,12 +689,7 @@ def edit_setup(setup_id):
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    return render_template(
-        'edit_setup.html',
-        form=form,
-        criteria_categories=criteria_categories,
-        setup=setup
-    )
+    return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
 
 # Удалить сетап
 @app.route('/delete_setup/<int:setup_id>', methods=['POST'])
@@ -1031,6 +1026,20 @@ def assistant_analyze_chart():
 
 # **Интеграция Robokassa**
 
+# Маршрут для страницы подписки
+@app.route('/subscription', methods=['GET'])
+def subscription_page():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к подписке.', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if user.assistant_premium:
+        flash('У вас уже активная подписка.', 'info')
+        return redirect(url_for('index'))
+    
+    return render_template('subscription.html')
+
 # Маршрут для покупки ассистента через Robokassa
 @app.route('/buy_assistant', methods=['GET'])
 def buy_assistant():
@@ -1039,7 +1048,7 @@ def buy_assistant():
         return redirect(url_for('login'))
     
     user_id = session['user_id']
-    amount = 1000  # Установи цену за подписку в рублях
+    amount = 1000  # Установите цену за подписку в рублях
 
     inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
     out_sum = f"{amount}.00"
