@@ -174,4 +174,60 @@ $(document).ready(function() {
     $('img.clickable-image').each(function(){
         $(this).addClass('lazyload');
     });
+
+    // **Обработчики для Ассистента "Дядя Джон"**
+
+    // Обработчик формы чата с ассистентом
+    $('#assistant-form').on('submit', function(e){
+        e.preventDefault();
+        const question = $('#assistant-question').val();
+        if(question.trim() === ''){
+            alert('Пожалуйста, введите вопрос.');
+            return;
+        }
+
+        $.ajax({
+            url: '/assistant/chat',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ question: question }),
+            success: function(response){
+                $('#assistant-response').text(response.response);
+            },
+            error: function(xhr){
+                if(xhr.status === 401){
+                    alert('Пожалуйста, войдите в систему.');
+                } else if(xhr.status === 403){
+                    alert('Доступ запрещён. Пожалуйста, купите подписку.');
+                } else {
+                    alert('Произошла ошибка при обработке вашего запроса.');
+                }
+            }
+        });
+    });
+
+    // Обработчик формы анализа графика
+    $('#chart-analysis-form').on('submit', function(e){
+        e.preventDefault();
+        const formData = new FormData(this);
+        $.ajax({
+            url: '/assistant/analyze_chart',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response){
+                $('#chart-analysis-result').text(response.result);
+            },
+            error: function(xhr){
+                if(xhr.status === 401){
+                    alert('Пожалуйста, войдите в систему.');
+                } else if(xhr.status === 403){
+                    alert('Доступ запрещён. Пожалуйста, купите подписку.');
+                } else {
+                    alert('Произошла ошибка при анализе графика.');
+                }
+            }
+        });
+    });
 });
