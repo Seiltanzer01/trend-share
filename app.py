@@ -15,6 +15,9 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 
+# Добавление OpenAI
+import openai
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -474,6 +477,35 @@ def initialize():
 
 # Импорт маршрутов
 from routes import *
+
+# Добавление OpenAI API Key
+app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+if not app.config['OPENAI_API_KEY']:
+    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
+    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+
+# Инициализация OpenAI
+openai.api_key = app.config['OPENAI_API_KEY']
+
+# Добавление Robokassa настроек
+app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
+
+# Проверка наличия необходимых Robokassa настроек
+if not all([
+    app.config['ROBOKASSA_MERCHANT_LOGIN'],
+    app.config['ROBOKASSA_PASSWORD1'],
+    app.config['ROBOKASSA_PASSWORD2'],
+    app.config['ROBOKASSA_RESULT_URL'],
+    app.config['ROBOKASSA_SUCCESS_URL'],
+    app.config['ROBOKASSA_FAIL_URL']
+]):
+    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
 # **Запуск Flask-приложения**
 
