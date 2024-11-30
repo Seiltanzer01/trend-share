@@ -91,13 +91,7 @@ def analyze_chart_with_openai(image_path):
     try:
         # Пример: предположим, что у нас есть функция, которая извлекает текст из изображения
         extracted_text = extract_text_from_image(image_path)  # Необходимо реализовать
-        prompt = f"""
-Пользователь загрузил изображение графика. Вот извлечённая информация:
-
-{extracted_text}
-
-Проанализируй данный график и предоставь подробный анализ и рекомендации.
-"""
+        prompt = f"Проанализируй следующий график: {extracted_text}"
         analysis = generate_openai_response(prompt)
         return analysis
     except Exception as e:
@@ -980,15 +974,14 @@ def assistant_chat():
 
     # Формируем запрос к OpenAI
     prompt = f"""
-Пользователь спросил: "{user_question}"
-Его данные о сделках:
-{trade_data}
-Комментарии к сделкам:
-{comments}
-
-Предоставь подробный анализ и рекомендации.
-"""
-
+    Пользователь спросил: "{user_question}"
+    Его данные о сделках:
+    {trade_data}
+    Комментарии к сделкам:
+    {comments}
+    
+    Предоставь подробный анализ и рекомендации.
+    """
 
     # Получаем ответ от OpenAI
     assistant_response = generate_openai_response(prompt)
