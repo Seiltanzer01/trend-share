@@ -1,0 +1,23 @@
+<!-- templates/subscription.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="subscription-container">
+    <h2>Подписка на Ассистента "Дядя Джон"</h2>
+    <div class="nes-container is-rounded with-title">
+        <p class="title">Преимущества подписки:</p>
+        <ul>
+            <li>Доступ к интеллектуальному ассистенту для анализа сделок.</li>
+            <li>Автоматический анализ загруженных графиков.</li>
+            <li>Персонализированные рекомендации и советы.</li>
+            <li>Приоритетная поддержка.</li>
+        </ul>
+        <p>Стоимость подписки: <strong>1000 ₽</strong></p>
+        <p>Одноразовая оплата за месячную подписку.</p>
+        <a href="{{ url_for('buy_assistant') }}" class="nes-btn is-primary">
+            <i class="fas fa-credit-card"></i> Купить Подписку
+        </a>
+    </div>
+</div>
+{% endblock %}
