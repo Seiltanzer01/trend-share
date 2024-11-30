@@ -69,3 +69,6 @@ telegram==0.0.1
 cryptography
 teleapp_auth
 boto3
+openai
+
+
