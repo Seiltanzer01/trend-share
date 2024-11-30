@@ -53,12 +53,12 @@
         <header>
             <h1>Trend Share</h1>
             <nav>
-                {% if current_user.is_authenticated %}
+                {% if 'user_id' in session %}
                     <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> Главная</a>
                     <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
                     
-                    {% if not current_user.assistant_premium %}
+                    {% if not session.get('assistant_premium') %}
                         <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Купить Подписку</a>
                     {% else %}
                         <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Ассистент</a>
@@ -84,9 +84,7 @@
         {% endwith %}
 
         <main>
-            {% block content %}
-            <!-- Содержимое будет вставлено здесь -->
-            {% endblock %}
+            {% block content %} <!-- Содержимое будет вставлено здесь --> {% endblock %}
         </main>
 
         <footer>
