@@ -1,0 +1,43 @@
+<!-- templates/assistant.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="assistant-container">
+    <h2>Ассистент "Дядя Джон"</h2>
+    
+    <!-- Форма для чата с ассистентом -->
+    <div class="assistant-chat">
+        <form id="assistant-form">
+            <div class="form-group">
+                <label for="assistant-question">Ваш вопрос:</label>
+                <input type="text" class="nes-input" id="assistant-question" required>
+            </div>
+            <button type="submit" class="nes-btn is-primary">Отправить</button>
+        </form>
+        
+        <div class="mt-3">
+            <h4>Ответ:</h4>
+            <p id="assistant-response" class="nes-balloon from-left is-dark"></p>
+        </div>
+    </div>
+    
+    <hr>
+    
+    <!-- Форма для анализа графика -->
+    <div class="assistant-chart-analysis">
+        <form id="chart-analysis-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="chart-image">Загрузите изображение графика:</label>
+                <input type="file" class="nes-input" id="chart-image" name="image" accept="image/*" required>
+            </div>
+            <button type="submit" class="nes-btn is-secondary">Анализировать график</button>
+        </form>
+        
+        <div class="mt-3">
+            <h4>Результат анализа:</h4>
+            <p id="chart-analysis-result" class="nes-balloon from-left is-dark"></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
