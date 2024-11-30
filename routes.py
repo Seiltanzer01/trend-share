@@ -3,7 +3,8 @@
 import os
 import logging
 import traceback
-from datetime import datetime, timedelta
+import hashlib
+from datetime import datetime
 
 from flask import (
     render_template, redirect, url_for, flash, request,
@@ -25,6 +26,101 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 
+# **Интеграция OpenAI**
+import openai
+
+# Инициализация OpenAI API
+app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+if not app.config['OPENAI_API_KEY']:
+    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
+    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+
+openai.api_key = app.config['OPENAI_API_KEY']
+
+# **Интеграция Robokassa**
+app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
+
+# Проверка наличия необходимых Robokassa настроек
+if not all([
+    app.config['ROBOKASSA_MERCHANT_LOGIN'],
+    app.config['ROBOKASSA_PASSWORD1'],
+    app.config['ROBOKASSA_PASSWORD2'],
+    app.config['ROBOKASSA_RESULT_URL'],
+    app.config['ROBOKASSA_SUCCESS_URL'],
+    app.config['ROBOKASSA_FAIL_URL']
+]):
+    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+
+# Вспомогательные функции
+
+def generate_robokassa_signature(out_sum, inv_id, password1):
+    """
+    Генерирует подпись для Robokassa.
+    """
+    signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
+    return signature
+
+def generate_openai_response(prompt):
+    """
+    Получает ответ от OpenAI GPT-3.5-turbo.
+    """
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message['content'].strip()
+    except Exception as e:
+        logger.error(f"Ошибка при обращении к OpenAI API: {e}")
+        logger.error(traceback.format_exc())
+        return "Произошла ошибка при обработке вашего запроса."
+
+def analyze_chart_with_openai(image_path):
+    """
+    Анализирует изображение графика с помощью OpenAI.
+    Обратите внимание, что OpenAI не поддерживает прямую обработку изображений.
+    Здесь предполагается, что изображение предварительно обрабатывается (например, с помощью OCR),
+    и текстовое описание передается в OpenAI.
+    """
+    try:
+        # Пример: предположим, что у нас есть функция, которая извлекает текст из изображения
+        extracted_text = extract_text_from_image(image_path)  # Необходимо реализовать
+        prompt = f"""
+Пользователь загрузил изображение графика. Вот извлечённая информация:
+
+{extracted_text}
+
+Проанализируй данный график и предоставь подробный анализ и рекомендации.
+"""
+        analysis = generate_openai_response(prompt)
+        return analysis
+    except Exception as e:
+        logger.error(f"Ошибка при анализе графика с помощью OpenAI: {e}")
+        logger.error(traceback.format_exc())
+        return "Произошла ошибка при анализе графика."
+
+def extract_text_from_image(image_path):
+    """
+    Извлекает текст из изображения с помощью OCR.
+    Необходимо установить и настроить pytesseract и PIL.
+    """
+    try:
+        from PIL import Image
+        import pytesseract
+
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(image, lang='rus')
+        return text
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении текста из изображения: {e}")
+        logger.error(traceback.format_exc())
+        return ""
 
 # Маршруты аутентификации
 
@@ -661,9 +757,6 @@ def view_trade(trade_id):
             trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
         else:
             trade.setup.screenshot_url = None
-    else:
-        # Если trade.setup равно None, ничего не делаем
-        pass
 
     return render_template('view_trade.html', trade=trade)
 
@@ -689,7 +782,7 @@ def view_setup(setup_id):
 
     return render_template('view_setup.html', setup=setup)
 
-# Инициализация Telegram бота и обработчиков
+# **Интеграция Telegram бота и обработчиков**
 
 # Получение токена бота из переменных окружения
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
@@ -841,3 +934,182 @@ def set_webhook_route():
 @app.route('/webapp', methods=['GET'])
 def webapp():
     return render_template('webapp.html')
+
+# **Интеграция Ассистента "Дядя Джон"**
+
+# Маршрут для страницы ассистента
+@app.route('/assistant', methods=['GET'])
+def assistant_page():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user.assistant_premium:
+        flash('Доступ к ассистенту доступен только по подписке.', 'danger')
+        return redirect(url_for('index'))
+    
+    return render_template('assistant.html')
+
+# Маршрут для чата с ассистентом
+@app.route('/assistant/chat', methods=['POST'])
+def assistant_chat():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.assistant_premium:
+        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
+
+    data = request.get_json()
+    user_question = data.get('question')
+
+    if not user_question:
+        return jsonify({'error': 'No question provided'}), 400
+
+    # Получаем данные пользователя из базы
+    trades = Trade.query.filter_by(user_id=user_id).all()
+    trade_data = "\n".join([
+        f"Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}, Цена выхода: {trade.exit_price}"
+        for trade in trades
+    ])
+    comments = "\n".join([
+        f"Сделка ID {trade.id}: {trade.comment}" for trade in trades if trade.comment
+    ])
+
+    # Формируем запрос к OpenAI
+    prompt = f"""
+Пользователь спросил: "{user_question}"
+Его данные о сделках:
+{trade_data}
+Комментарии к сделкам:
+{comments}
+
+Предоставь подробный анализ и рекомендации.
+"""
+
+
+    # Получаем ответ от OpenAI
+    assistant_response = generate_openai_response(prompt)
+
+    return jsonify({'response': assistant_response}), 200
+
+# Маршрут для анализа графика ассистентом
+@app.route('/assistant/analyze_chart', methods=['POST'])
+def assistant_analyze_chart():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.assistant_premium:
+        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
+
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image provided'}), 400
+
+    image = request.files['image']
+    if image.filename == '':
+        return jsonify({'error': 'No selected image'}), 400
+
+    if image:
+        try:
+            # Сохраняем изображение временно
+            filename = secure_filename(image.filename)
+            temp_dir = 'temp'
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_path = os.path.join(temp_dir, filename)
+            image.save(temp_path)
+
+            # Анализируем изображение
+            analysis_result = analyze_chart_with_openai(temp_path)
+
+            # Удаляем временный файл
+            os.remove(temp_path)
+
+            return jsonify({'result': analysis_result}), 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке изображения: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({'error': 'Error processing the image.'}), 500
+    else:
+        return jsonify({'error': 'Invalid image'}), 400
+
+# **Интеграция Robokassa**
+
+# Маршрут для покупки ассистента через Robokassa
+@app.route('/buy_assistant', methods=['GET'])
+def buy_assistant():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    amount = 1000  # Установи цену за подписку в рублях
+
+    inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
+    out_sum = f"{amount}.00"
+    merchant_login = app.config['ROBOKASSA_MERCHANT_LOGIN']
+    password1 = app.config['ROBOKASSA_PASSWORD1']
+    
+    signature = generate_robokassa_signature(out_sum, inv_id, password1)
+    
+    robokassa_url = (
+        f"https://auth.robokassa.ru/Merchant/Index.aspx?"
+        f"MerchantLogin={merchant_login}&OutSum={out_sum}&InvoiceID={inv_id}&SignatureValue={signature}&"
+        f"Description=Покупка подписки на ассистента Дядя Джон&Culture=ru&Encoding=utf-8&"
+        f"ResultURL={app.config['ROBOKASSA_RESULT_URL']}&SuccessURL={app.config['ROBOKASSA_SUCCESS_URL']}&FailURL={app.config['ROBOKASSA_FAIL_URL']}"
+    )
+    
+    return redirect(robokassa_url)
+
+# Маршрут для обработки результата платежа от Robokassa
+@app.route('/robokassa/result', methods=['POST'])
+def robokassa_result():
+    data = request.form
+    out_sum = data.get('OutSum')
+    inv_id = data.get('InvoiceID')
+    signature = data.get('SignatureValue')
+    
+    password1 = app.config['ROBOKASSA_PASSWORD1']
+    
+    correct_signature = hashlib.md5(f"{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
+    
+    if signature.lower() == correct_signature.lower():
+        # Разделяем inv_id на user_id и timestamp
+        try:
+            user_id_str, timestamp = inv_id.split('_')
+            user_id = int(user_id_str)
+            # Обновляем статус пользователя
+            user = User.query.get(user_id)
+            if user:
+                user.assistant_premium = True  # Поле assistant_premium должно быть добавлено в модель User
+                db.session.commit()
+                logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
+            return 'YES', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке inv_id: {e}")
+            return 'NO', 400
+    else:
+        logger.warning("Неверная подпись Robokassa.")
+        return 'NO', 400
+
+# Маршрут для успешного завершения платежа
+@app.route('/robokassa/success', methods=['GET'])
+def robokassa_success():
+    flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
+    return redirect(url_for('index'))
+
+# Маршрут для неудачного завершения платежа
+@app.route('/robokassa/fail', methods=['GET'])
+def robokassa_fail():
+    flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
+    return redirect(url_for('index'))
+
+# **Запуск Flask-приложения**
+
+if __name__ == '__main__':
+    # Запуск приложения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
