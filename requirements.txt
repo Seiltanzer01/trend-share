@@ -72,3 +72,11 @@ boto3
 openai
 celery
 redis
+Pillow
+pytesseract
+
+
+
+
+
+
