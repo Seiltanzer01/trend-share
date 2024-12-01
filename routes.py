@@ -266,6 +266,16 @@ def login():
         return redirect(url_for('index'))
     return render_template('login.html')
 
+# Маршрут для страницы "Политика конфиденциальности"
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
+# Маршрут для страницы "Доп. информация"
+@app.route('/additional-info')
+def additional_info():
+    return render_template('additional_info.html')
+    
 # Добавить новую сделку
 @app.route('/new_trade', methods=['GET', 'POST'])
 def new_trade():
