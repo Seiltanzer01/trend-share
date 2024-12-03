@@ -9,14 +9,18 @@ import boto3
 from botocore.exceptions import ClientError
 
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-
 # Добавление OpenAI
 import openai
+
+# Импорт расширений
+from extensions import db, migrate
+
+# Импорт моделей
+import models  # Убедитесь, что models.py импортирует db из extensions.py
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
