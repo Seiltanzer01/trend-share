@@ -81,11 +81,9 @@ s3_client = boto3.client(
     aws_secret_access_key=app.config['AWS_SECRET_ACCESS_KEY']
 )
 
-# Инициализация SQLAlchemy
-db = SQLAlchemy(app)
-
-# Импорт моделей
-from models import *
+# Инициализация расширений с приложением
+db.init_app(app)
+migrate.init_app(app, db)
 
 # Контекстный процессор для предоставления datetime в шаблонах
 @app.context_processor
