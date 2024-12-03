@@ -3,8 +3,6 @@
 from datetime import datetime
 from extensions import db
 
-db = SQLAlchemy()
-
 trade_criteria = db.Table('trade_criteria',
     db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
     db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
