@@ -6,20 +6,24 @@
 <div class="assistant-container">
     <h2>Ассистент "Дядя Джон"</h2>
     
-    <!-- Форма для чата с ассистентом -->
+    <!-- Анимированное изображение Дяди Джона -->
+    <div class="uncle-john-container">
+        <img src="{{ url_for('static', filename='images/uncle_john.png') }}" alt="Дядя Джон" class="uncle-john">
+    </div>
+
+    <!-- Чат ассистента -->
     <div class="assistant-chat">
+        <div id="chat-history" class="chat-history">
+            <!-- История сообщений будет отображаться здесь -->
+        </div>
+
         <form id="assistant-form">
             <div class="form-group">
                 <label for="assistant-question">Ваш вопрос:</label>
-                <input type="text" class="nes-input" id="assistant-question" required>
+                <input type="text" class="nes-input" id="assistant-question" required placeholder="Введите ваш вопрос...">
             </div>
             <button type="submit" class="nes-btn is-primary">Отправить</button>
         </form>
-        
-        <div class="mt-3">
-            <h4>Ответ:</h4>
-            <p id="assistant-response" class="nes-balloon from-left is-dark"></p>
-        </div>
     </div>
     
     <hr>
@@ -40,4 +44,171 @@
         </div>
     </div>
 </div>
+
+<!-- Подключение скрипта для обработки форм и обновления чата -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Инициализация истории чата
+        let chatHistory = [];
+
+        const assistantForm = document.getElementById('assistant-form');
+        const chartForm = document.getElementById('chart-analysis-form');
+        const chatHistoryDiv = document.getElementById('chat-history');
+        const assistantQuestionInput = document.getElementById('assistant-question');
+        const assistantResponse = document.getElementById('assistant-response');
+        const chartAnalysisResult = document.getElementById('chart-analysis-result');
+
+        // Функция для обновления отображения истории чата
+        function updateChatHistoryDisplay() {
+            chatHistoryDiv.innerHTML = ''; // Очистка текущего содержимого
+
+            chatHistory.forEach(message => {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = message.role === 'user' ? 'nes-balloon from-right' : 'nes-balloon from-left is-dark';
+                msgDiv.textContent = message.content;
+                chatHistoryDiv.appendChild(msgDiv);
+            });
+
+            // Прокрутка вниз
+            chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+        }
+
+        // Обработка отправки формы чата
+        assistantForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const question = assistantQuestionInput.value.trim();
+            if (!question) return;
+
+            // Добавление сообщения пользователя в историю
+            chatHistory.push({ role: 'user', content: question });
+            updateChatHistoryDisplay();
+
+            // Отправка запроса на сервер
+            try {
+                const response = await fetch('/assistant/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ question: question })
+                });
+
+                const data = await response.json();
+                if (data.response) {
+                    // Добавление ответа ассистента в историю
+                    chatHistory.push({ role: 'assistant', content: data.response });
+                    updateChatHistoryDisplay();
+                } else if (data.error) {
+                    // Обработка ошибок
+                    const errorMsg = `Ошибка: ${data.error}`;
+                    chatHistory.push({ role: 'assistant', content: errorMsg });
+                    updateChatHistoryDisplay();
+                }
+            } catch (error) {
+                console.error('Ошибка при отправке запроса:', error);
+                const errorMsg = 'Произошла ошибка при отправке вашего запроса.';
+                chatHistory.push({ role: 'assistant', content: errorMsg });
+                updateChatHistoryDisplay();
+            }
+
+            // Очистка поля ввода
+            assistantQuestionInput.value = '';
+        });
+
+        // Обработка отправки формы анализа графика
+        chartForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const imageInput = document.getElementById('chart-image');
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            // Отображение индикатора загрузки (можно добавить спиннер или другой элемент)
+            chartAnalysisResult.textContent = 'Идет анализ...';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/assistant/analyze_chart', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.result) {
+                    chartAnalysisResult.textContent = data.result;
+                } else if (data.error) {
+                    chartAnalysisResult.textContent = `Ошибка: ${data.error}`;
+                }
+            } catch (error) {
+                console.error('Ошибка при анализе графика:', error);
+                chartAnalysisResult.textContent = 'Произошла ошибка при анализе графика.';
+            }
+
+            // Очистка поля ввода файла
+            imageInput.value = '';
+        });
+    });
+</script>
+
+<!-- Добавление стилей для анимации Дяди Джона -->
+<style>
+    .uncle-john-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .uncle-john {
+        width: 150px;
+        height: auto;
+        animation: talk 1s infinite;
+    }
+
+    /* Ключевые кадры для анимации */
+    @keyframes talk {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
+
+    /* Стилизация истории чата */
+    .chat-history {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        margin-bottom: 15px;
+    }
+
+    .assistant-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .assistant-chat, .assistant-chart-analysis {
+        width: 100%;
+        max-width: 600px;
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 10px;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 600px) {
+        .assistant-container {
+            padding: 10px;
+        }
+
+        .uncle-john {
+            width: 100px;
+        }
+    }
+</style>
 {% endblock %}
