@@ -29,6 +29,11 @@ app = Flask(__name__)
 # Настройка CSRF защиты
 csrf = CSRFProtect(app)
 
+# Контекстный процессор для предоставления CSRF токена в шаблонах
+@app.context_processor
+def inject_csrf_token():
+    return {'csrf_token': generate_csrf()}
+    
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
     r"/*": {
