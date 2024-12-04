@@ -201,6 +201,7 @@ def init():
             # Устанавливаем сессию пользователя
             session['user_id'] = user.id
             session['telegram_id'] = user.telegram_id
+            session['assistant_premium'] = user.assistant_premium
 
             logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
             return jsonify({'status': 'success'}), 200
@@ -226,6 +227,11 @@ def toggle_premium(user_id):
     user.assistant_premium = not user.assistant_premium
     db.session.commit()
     flash(f"Премиум статус пользователя {user.username} обновлён.", 'success')
+    # Если изменяемый пользователь — текущий пользователь, обновляем сессию
+    if user.id == session.get('user_id'):
+        session['assistant_premium'] = user.assistant_premium
+        flash('Ваш премиум статус обновлён.', 'success')
+        
     return redirect(url_for('admin_users'))
     
 # Главная страница — список сделок
@@ -1135,6 +1141,12 @@ def robokassa_result():
                 user.assistant_premium = True  # Поле assistant_premium должно быть добавлено в модель User
                 db.session.commit()
                 logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
+                
+                # Если оплаченный пользователь — текущий пользователь, обновляем сессию
+                if user.id == session.get('user_id'):
+                    session['assistant_premium'] = user.assistant_premium
+                    flash('Ваша подписка активирована.', 'success')
+            
             return 'YES', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке inv_id: {e}")
