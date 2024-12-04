@@ -145,6 +145,11 @@ def logout():
 def health():
     return 'OK', 200
 
+# Маршрут Временный для Отладки
+@app.route('/debug_session')
+def debug_session():
+    return jsonify(dict(session))
+    
 # Обработка initData через маршрут /init с использованием teleapp-auth
 @csrf.exempt  # Исключаем из CSRF-защиты
 @app.route('/init', methods=['POST'])
