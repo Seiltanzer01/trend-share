@@ -54,6 +54,7 @@
             <h1>Trend Share</h1>
             <nav>
                 {% if 'user_id' in session %}
+                    <p>Премиум статус: {{ session.get('assistant_premium') }}</p> <!-- Временная строка для отладки -->
                     <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> Главная</a>
                     <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
