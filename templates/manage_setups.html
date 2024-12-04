@@ -43,7 +43,7 @@
                             <a href="{{ url_for('view_setup', setup_id=setup.id) }}" class="action-button view-button nes-btn"><i class="fas fa-eye"></i> Просмотр</a>
                             <a href="{{ url_for('edit_setup', setup_id=setup.id) }}" class="action-button edit-button nes-btn"><i class="fas fa-edit"></i> Редактировать</a>
                             <form action="{{ url_for('delete_setup', setup_id=setup.id) }}" method="post" style="display:inline;">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit" class="action-button delete-button nes-btn" onclick="return confirm('Вы уверены, что хотите удалить этот сетап?');"><i class="fas fa-trash-alt"></i> Удалить</button>
                             </form>
                         </div>
