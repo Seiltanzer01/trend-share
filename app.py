@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 
 from flask import Flask
 from flask_cors import CORS
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 # Добавление OpenAI
