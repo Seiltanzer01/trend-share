@@ -22,6 +22,7 @@ from extensions import db, migrate
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 
+ADMIN_TELEGRAM_IDS=[427032240]
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
