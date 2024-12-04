@@ -24,6 +24,9 @@
             </div>
             <button type="submit" class="nes-btn is-primary">Отправить</button>
         </form>
+
+        <!-- Кнопка для очистки чата -->
+        <button id="clear-chat" class="nes-btn is-error">Очистить чат</button>
     </div>
     
     <hr>
@@ -55,8 +58,8 @@
         const chartForm = document.getElementById('chart-analysis-form');
         const chatHistoryDiv = document.getElementById('chat-history');
         const assistantQuestionInput = document.getElementById('assistant-question');
-        const assistantResponse = document.getElementById('assistant-response');
         const chartAnalysisResult = document.getElementById('chart-analysis-result');
+        const clearChatButton = document.getElementById('clear-chat');
 
         // Функция для обновления отображения истории чата
         function updateChatHistoryDisplay() {
@@ -72,6 +75,23 @@
             // Прокрутка вниз
             chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
         }
+
+        // Функция для загрузки истории чата с сервера
+        async function loadChatHistory() {
+            try {
+                const response = await fetch('/get_chat_history');
+                const data = await response.json();
+                if (data.chat_history) {
+                    chatHistory = data.chat_history;
+                    updateChatHistoryDisplay();
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке истории чата:', error);
+            }
+        }
+
+        // Загрузка истории чата при загрузке страницы
+        loadChatHistory();
 
         // Обработка отправки формы чата
         assistantForm.addEventListener('submit', async function(e) {
@@ -122,7 +142,7 @@
             const file = imageInput.files[0];
             if (!file) return;
 
-            // Отображение индикатора загрузки (можно добавить спиннер или другой элемент)
+            // Отображение индикатора загрузки
             chartAnalysisResult.textContent = 'Идет анализ...';
 
             const formData = new FormData();
@@ -148,10 +168,26 @@
             // Очистка поля ввода файла
             imageInput.value = '';
         });
+
+        // Обработка кнопки очистки чата
+        clearChatButton.addEventListener('click', async function() {
+            try {
+                const response = await fetch('/clear_chat_history', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    chatHistory = [];
+                    updateChatHistoryDisplay();
+                }
+            } catch (error) {
+                console.error('Ошибка при очистке чата:', error);
+            }
+        });
     });
 </script>
 
-<!-- Добавление стилей для анимации Дяди Джона -->
+<!-- Добавление стилей для анимации Дяди Джона и стилизации чата -->
 <style>
     .uncle-john-container {
         display: flex;
