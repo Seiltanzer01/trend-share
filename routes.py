@@ -994,6 +994,7 @@ def assistant_page():
 
 # Маршрут для чата с ассистентом
 @app.route('/assistant/chat', methods=['POST'])
+@csrf.exempt  # Исключаем из CSRF-защиты
 def assistant_chat():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -1037,6 +1038,7 @@ def assistant_chat():
 
 # Маршрут для анализа графика ассистентом
 @app.route('/assistant/analyze_chart', methods=['POST'])
+@csrf.exempt  # Исключаем из CSRF-защиты
 def assistant_analyze_chart():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
