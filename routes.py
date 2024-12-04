@@ -26,7 +26,7 @@ from telegram import (
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
-
+from functools import wraps
 # **Интеграция OpenAI**
 import openai
 
