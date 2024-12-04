@@ -478,6 +478,10 @@ def initialize():
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         logger.error(traceback.format_exc())
 
+@app.context_processor
+def inject_admin_ids():
+    return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
+    
 # Импорт маршрутов
 from routes import *
 
