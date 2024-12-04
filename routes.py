@@ -15,7 +15,7 @@ from werkzeug.datastructures import FileStorage
 from flask_wtf.csrf import CSRFProtect
 from wtforms.validators import DataRequired, Optional
 
-from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url
+from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
 from extensions import db  # Импортируем db из extensions.py
 from models import *
 from forms import TradeForm, SetupForm  # Импорт обновлённых форм
@@ -30,6 +30,20 @@ from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 # **Интеграция OpenAI**
 import openai
 
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Проверяем, авторизован ли пользователь
+        if 'user_id' not in session or 'telegram_id' not in session:
+            flash('Пожалуйста, войдите в систему.', 'warning')
+            return redirect(url_for('login'))
+        # Проверяем, является ли пользователь администратором
+        if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
+            flash('Доступ запрещён.', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+    
 # Инициализация OpenAI API
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
@@ -193,6 +207,22 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
+# админские маршруты
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
+
+@app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
+@admin_required
+def toggle_premium(user_id):
+    user = User.query.get_or_404(user_id)
+    user.assistant_premium = not user.assistant_premium
+    db.session.commit()
+    flash(f"Премиум статус пользователя {user.username} обновлён.", 'success')
+    return redirect(url_for('admin_users'))
+    
 # Главная страница — список сделок
 @app.route('/', methods=['GET'])
 def index():
