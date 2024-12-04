@@ -23,7 +23,7 @@
             <td>{{ 'Да' if user.assistant_premium else 'Нет' }}</td>
             <td>
                 <form action="{{ url_for('toggle_premium', user_id=user.id) }}" method="post">
-                    {{ csrf_token() }}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="nes-btn is-primary">
                         {{ 'Отключить' if user.assistant_premium else 'Включить' }} премиум
                     </button>
