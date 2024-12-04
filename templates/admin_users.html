@@ -1,0 +1,36 @@
+<!-- templates/admin_users.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Управление пользователями</h1>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Имя пользователя</th>
+            <th>Telegram ID</th>
+            <th>Премиум</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username or 'Не указан' }}</td>
+            <td>{{ user.telegram_id }}</td>
+            <td>{{ 'Да' if user.assistant_premium else 'Нет' }}</td>
+            <td>
+                <form action="{{ url_for('toggle_premium', user_id=user.id) }}" method="post">
+                    {{ csrf_token() }}
+                    <button type="submit">
+                        {{ 'Отключить' if user.assistant_premium else 'Включить' }} премиум
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
