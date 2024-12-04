@@ -81,14 +81,14 @@ def generate_robokassa_signature(out_sum, inv_id, password1):
     signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
     return signature
 
-def generate_openai_response(prompt):
+def generate_openai_response(messages):
     """
-    Получает ответ от OpenAI GPT-3.5-turbo.
+    Получает ответ от OpenAI GPT-3.5-turbo с учётом истории сообщений.
     """
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
+            messages=messages
         )
         return response.choices[0].message['content'].strip()
     except Exception as e:
@@ -96,6 +96,7 @@ def generate_openai_response(prompt):
         logger.error(traceback.format_exc())
         return "Произошла ошибка при обработке вашего запроса."
 
+# Функция для анализа графика с помощью OpenAI
 def analyze_chart_with_openai(image_path):
     """
     Анализирует изображение графика с помощью OpenAI.
@@ -104,19 +105,29 @@ def analyze_chart_with_openai(image_path):
     и текстовое описание передается в OpenAI.
     """
     try:
-        # Пример: предположим, что у нас есть функция, которая извлекает текст из изображения
-        extracted_text = extract_text_from_image(image_path)  # Необходимо реализовать
-        prompt = f"Проанализируй следующий график: {extracted_text}"
-        analysis = generate_openai_response(prompt)
+        # Извлекаем текст из изображения с помощью OCR
+        extracted_text = extract_text_from_image(image_path)
+        if not extracted_text:
+            return "Не удалось извлечь информацию из изображения графика."
+        
+        # Формируем список сообщений для OpenAI
+        messages = [
+            {"role": "system", "content": "Ты — эксперт по анализу графиков."},
+            {"role": "user", "content": f"Проанализируй следующий график: {extracted_text}"}
+        ]
+
+        # Получаем ответ от OpenAI
+        analysis = generate_openai_response(messages)
         return analysis
     except Exception as e:
         logger.error(f"Ошибка при анализе графика с помощью OpenAI: {e}")
         logger.error(traceback.format_exc())
         return "Произошла ошибка при анализе графика."
 
+# Функция для извлечения текста из изображения с помощью OCR
 def extract_text_from_image(image_path):
     """
-    Извлекает текст из изображения с помощью OCR.
+    Извлекает текст из изображения с помощью OCR (Tesseract).
     Необходимо установить и настроить pytesseract и PIL.
     """
     try:
@@ -126,6 +137,9 @@ def extract_text_from_image(image_path):
         image = Image.open(image_path)
         text = pytesseract.image_to_string(image, lang='rus')
         return text
+    except pytesseract.pytesseract.TesseractNotFoundError:
+        logger.error("Tesseract не установлен или не находится в PATH.")
+        return "Tesseract не установлен. Обратитесь к администратору."
     except Exception as e:
         logger.error(f"Ошибка при извлечении текста из изображения: {e}")
         logger.error(traceback.format_exc())
@@ -1010,6 +1024,20 @@ def assistant_chat():
     if not user_question:
         return jsonify({'error': 'No question provided'}), 400
 
+    # Инициализируем историю чата, если её ещё нет
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+
+        # Получаем данные пользователя из базы при первой инициализации
+        trades = Trade.query.filter_by(user_id=user_id).all()
+        trade_data = "\n".join([
+            f"Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}, Цена выхода: {trade.exit_price}"
+            for trade in trades
+        ])
+        comments = "\n".join([
+            f"Сделка ID {trade.id}: {trade.comment}" for trade in trades if trade.comment
+        ])
+        
     # Получаем данные пользователя из базы
     trades = Trade.query.filter_by(user_id=user_id).all()
     trade_data = "\n".join([
@@ -1020,25 +1048,58 @@ def assistant_chat():
         f"Сделка ID {trade.id}: {trade.comment}" for trade in trades if trade.comment
     ])
 
-    # Формируем запрос к OpenAI
-    prompt = f"""
-    Пользователь спросил: "{user_question}"
-    Его данные о сделках:
-    {trade_data}
-    Комментарии к сделкам:
-    {comments}
-    
-    Предоставь подробный анализ и рекомендации.
-    """
+        # Формируем системное сообщение для OpenAI
+        system_message = f"""
+        Ты — ассистент, который помогает пользователю анализировать его торговые сделки.
+        Данные пользователя о сделках:
+        {trade_data}
+        Комментарии к сделкам:
+        {comments}
+        
+        Предоставь подробный анализ и рекомендации.
+        """
+        # Добавляем системное сообщение в историю
+        session['chat_history'].append({'role': 'system', 'content': system_message})
+    # Добавляем сообщение пользователя в историю
+    session['chat_history'].append({'role': 'user', 'content': user_question})
 
-    # Получаем ответ от OpenAI
-    assistant_response = generate_openai_response(prompt)
+    # Получаем ответ от OpenAI с учётом истории чата
+    assistant_response = generate_openai_response(session['chat_history'])
+
+    # Добавляем ответ ассистента в историю
+    session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
+
+    # Ограничиваем длину истории чата
+    MAX_CHAT_HISTORY = 20
+    if len(session['chat_history']) > MAX_CHAT_HISTORY:
+        session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
 
     return jsonify({'response': assistant_response}), 200
 
+# Маршрут для получения истории чата
+@app.route('/get_chat_history', methods=['GET'])
+def get_chat_history():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    chat_history = session.get('chat_history', [])
+    # Исключаем системное сообщение из истории для отображения
+    display_history = [msg for msg in chat_history if msg['role'] != 'system']
+    return jsonify({'chat_history': display_history}), 200
+
+# Маршрут для очистки истории чата
+@app.route('/clear_chat_history', methods=['POST'])
+@csrf_exempt
+def clear_chat_history():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    session.pop('chat_history', None)
+    return jsonify({'status': 'success'}), 200
+
 # Маршрут для анализа графика ассистентом
 @app.route('/assistant/analyze_chart', methods=['POST'])
-@csrf.exempt  # Исключаем из CSRF-защиты
+@csrf_exempt  # Исключаем из CSRF-защиты, так как используется AJAX
 def assistant_analyze_chart():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
