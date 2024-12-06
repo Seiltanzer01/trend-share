@@ -27,6 +27,7 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 from functools import wraps
+
 # **Интеграция OpenAI**
 import openai
 
@@ -102,7 +103,7 @@ def analyze_chart_with_openai(image_path):
     Анализирует изображение графика с помощью OpenAI.
     Обратите внимание, что OpenAI не поддерживает прямую обработку изображений.
     Здесь предполагается, что изображение предварительно обрабатывается (например, с помощью OCR),
-    и текстовое описание передается в OpenAI.
+    и текстовое описание передаётся в OpenAI.
     """
     try:
         # Извлекаем текст из изображения с помощью OCR
@@ -227,7 +228,7 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-# админские маршруты
+# Админские маршруты
 @app.route('/admin/users')
 @admin_required
 def admin_users():
@@ -1038,16 +1039,6 @@ def assistant_chat():
             f"Сделка ID {trade.id}: {trade.comment}" for trade in trades if trade.comment
         ])
         
-    # Получаем данные пользователя из базы
-    trades = Trade.query.filter_by(user_id=user_id).all()
-    trade_data = "\n".join([
-        f"Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}, Цена выхода: {trade.exit_price}"
-        for trade in trades
-    ])
-    comments = "\n".join([
-        f"Сделка ID {trade.id}: {trade.comment}" for trade in trades if trade.comment
-    ])
-
         # Формируем системное сообщение для OpenAI
         system_message = f"""
         Ты — ассистент, который помогает пользователю анализировать его торговые сделки.
@@ -1089,7 +1080,7 @@ def get_chat_history():
 
 # Маршрут для очистки истории чата
 @app.route('/clear_chat_history', methods=['POST'])
-@csrf_exempt
+@csrf.exempt
 def clear_chat_history():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -1099,7 +1090,7 @@ def clear_chat_history():
 
 # Маршрут для анализа графика ассистентом
 @app.route('/assistant/analyze_chart', methods=['POST'])
-@csrf_exempt  # Исключаем из CSRF-защиты, так как используется AJAX
+@csrf.exempt  # Исключаем из CSRF-защиты, так как используется AJAX
 def assistant_analyze_chart():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
