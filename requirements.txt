@@ -69,7 +69,7 @@ telegram==0.0.1
 cryptography
 teleapp_auth
 boto3
-openai
+openai==0.28.0
 celery
 redis
 Pillow
