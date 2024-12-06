@@ -59,9 +59,9 @@
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
                     
                     {% if not session.get('assistant_premium') %}
-                        <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Купить Подписку</a>
+                        <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка на Дядю Джона</a>
                     {% else %}
-                        <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Ассистент</a>
+                        <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
                     {% endif %}
                     
                     {% if session.get('telegram_id') in ADMIN_TELEGRAM_IDS %}
