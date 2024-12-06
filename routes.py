@@ -87,10 +87,17 @@ def generate_openai_response(messages):
     Получает ответ от OpenAI GPT-3.5-turbo с учётом истории сообщений.
     """
     try:
+        logger.debug(f"Sending messages to OpenAI: {messages}")
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=messages
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1500,  # Увеличено для более подробных ответов
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0
         )
+        logger.debug(f"Received response from OpenAI: {response}")
         return response.choices[0].message['content'].strip()
     except Exception as e:
         logger.error(f"Ошибка при обращении к OpenAI API: {e}")
@@ -1031,26 +1038,44 @@ def assistant_chat():
 
         # Получаем данные пользователя из базы при первой инициализации
         trades = Trade.query.filter_by(user_id=user_id).all()
-        trade_data = "\n".join([
-            f"Инструмент: {trade.instrument.name}, Направление: {trade.direction}, Цена входа: {trade.entry_price}, Цена выхода: {trade.exit_price}"
-            for trade in trades
-        ])
-        comments = "\n".join([
-            f"Сделка ID {trade.id}: {trade.comment}" for trade in trades if trade.comment
-        ])
-        
+        if not trades:
+            trade_data = "У вас пока нет сделок."
+            comments = "Нет комментариев к сделкам."
+        else:
+            trade_data = "\n\n".join([
+                f"**Сделка ID {trade.id}:**\n"
+                f" - **Инструмент:** {trade.instrument.name}\n"
+                f" - **Направление:** {trade.direction}\n"
+                f" - **Цена входа:** {trade.entry_price}\n"
+                f" - **Цена выхода:** {trade.exit_price}\n"
+                f" - **Время открытия:** {trade.trade_open_time}\n"
+                f" - **Время закрытия:** {trade.trade_close_time}\n"
+                f" - **Прибыль/Убыток:** {trade.profit_loss} ({trade.profit_loss_percentage}%)\n"
+                f" - **Сетап:** {trade.setup.setup_name if trade.setup else 'Без сетапа'}\n"
+                f" - **Критерии:** {', '.join([criterion.name for criterion in trade.criteria]) if trade.criteria else 'Без критериев'}"
+                for trade in trades
+            ])
+            comments = "\n\n".join([
+                f"**Сделка ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
+            ]) if any(trade.comment for trade in trades) else "Нет комментариев к сделкам."
+
         # Формируем системное сообщение для OpenAI
         system_message = f"""
-        Ты — ассистент, который помогает пользователю анализировать его торговые сделки.
-        Данные пользователя о сделках:
-        {trade_data}
-        Комментарии к сделкам:
-        {comments}
-        
-        Предоставь подробный анализ и рекомендации.
-        """
+Ты — ассистент, который помогает пользователю анализировать его торговые сделки.
+Данные пользователя о сделках:
+{trade_data}
+
+Комментарии к сделкам:
+{comments}
+
+Предоставь подробный анализ и рекомендации на основе этих данных, если пользователь попросит.
+"""
+
+        logger.debug(f"System message for OpenAI: {system_message}")
+
         # Добавляем системное сообщение в историю
         session['chat_history'].append({'role': 'system', 'content': system_message})
+
     # Добавляем сообщение пользователя в историю
     session['chat_history'].append({'role': 'user', 'content': user_question})
 
