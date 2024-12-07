@@ -18,29 +18,40 @@
     --transition-speed: 0.2s;
 }
 
-/* Добавляем блок для html и body */
-html, body { /* <-- добавлено */
+/* Добавляем html, body стили чтобы не было скролла вверх/вниз при жестах */
+/* и чтобы фон сверху совпадал с шапкой в полноэкранном режиме */
+/* <-- добавлено блок html,body для фиксации фона и отключения отскока */
+html, body { 
     margin: 0;
     padding: 0;
-    background-color: var(--primary-color); /* тот же цвет, что у шапки */
-    overscroll-behavior: none; /* Предотвращает "отскок" при скролле */
+    background-color: var(--primary-color); /* <-- добавлено: фон совпадает с цветом header сверху */
+    overscroll-behavior: none; /* <-- добавлено: предотвращает отскок при скролле */
     color: var(--dark-color);
     font-family: var(--font-family);
     box-sizing: border-box;
 }
 
-/* Удаляем из body лишний margin/padding, так как он уже задан выше */
+/* Оставляем body background для основной части, но сделаем плавный переход */
+/* <-- добавлено градиент через linear-gradient, чтобы не было резкого перепада */
 body {
-    /* Убраны margin:0; padding:0; отсюда, т.к. уже задано выше */
-    background-color: #f0f8ff; /* Можно сохранить этот цвет фона для main-контейнера,
-                                  но тогда для верхней части в полноэкранном режиме
-                                  будет использоваться цвет из html, body */
+    background: linear-gradient(var(--primary-color) 60px, #f0f8ff 0) no-repeat; /* <-- добавлено градиентный переход */
+    /* выше: до 60px сверху фон primary-color, ниже #f0f8ff как было */
 }
 
-/* Чтобы не было некрасивого пробела сверху и кнопки не перекрывались,
-   опустим шапку вниз с помощью margin-top и сохраним фон header такой же как primary */
+/* Контейнер */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* Header */
+/* Опустим шапку чуть ниже, чтобы кнопки Telegram не перекрывали нашу навигацию */
+/* И добавим градиент к шапке, чтобы выглядело интереснее */
+/* <-- добавлено margin-top:60px; и background: linear-gradient(...) */
 header {
     background-color: var(--primary-color);
+    background: linear-gradient(to bottom, var(--primary-color), var(--dark-color)); /* <-- добавлено градиент для интересного вида */
     color: white;
     padding: 20px 0;
     text-align: center;
