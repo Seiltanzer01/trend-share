@@ -57,7 +57,7 @@ header {
     text-align: center;
     border-bottom: 4px solid var(--secondary-color);
     position: relative;
-    margin-top: 60px; /* <-- добавлено: опускаем шапку вниз */
+    margin-top: 110px; /* <-- добавлено: опускаем шапку вниз */
 }
 
 header h1 {
