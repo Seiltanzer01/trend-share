@@ -3,9 +3,13 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    {% block head_meta %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    {% endblock %}
+    
     <meta charset="UTF-8">
     <title>Trend Share</title>
+    
     <!-- Подключение внешнего CSS-файла -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     
