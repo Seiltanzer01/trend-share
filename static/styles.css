@@ -18,27 +18,27 @@
     --transition-speed: 0.2s;
 }
 
-/* Основные стили */
-body {
-    background-color: var(--light-color);
-    font-family: var(--font-family);
-    color: var(--dark-color);
+/* Добавляем блок для html и body */
+html, body { /* <-- добавлено */
     margin: 0;
     padding: 0;
+    background-color: var(--primary-color); /* тот же цвет, что у шапки */
+    overscroll-behavior: none; /* Предотвращает "отскок" при скролле */
+    color: var(--dark-color);
+    font-family: var(--font-family);
     box-sizing: border-box;
 }
 
-*, *::before, *::after {
-    box-sizing: inherit;
+/* Удаляем из body лишний margin/padding, так как он уже задан выше */
+body {
+    /* Убраны margin:0; padding:0; отсюда, т.к. уже задано выше */
+    background-color: #f0f8ff; /* Можно сохранить этот цвет фона для main-контейнера,
+                                  но тогда для верхней части в полноэкранном режиме
+                                  будет использоваться цвет из html, body */
 }
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 15px;
-}
-
-/* Header */
+/* Чтобы не было некрасивого пробела сверху и кнопки не перекрывались,
+   опустим шапку вниз с помощью margin-top и сохраним фон header такой же как primary */
 header {
     background-color: var(--primary-color);
     color: white;
@@ -46,6 +46,7 @@ header {
     text-align: center;
     border-bottom: 4px solid var(--secondary-color);
     position: relative;
+    margin-top: 60px; /* <-- добавлено: опускаем шапку вниз */
 }
 
 header h1 {
@@ -87,7 +88,7 @@ nav a i {
 }
 
 nav a:hover {
-    background-color: rgba(142, 68, 173, 0.3); /* Фиолетовый оттенок */
+    background-color: rgba(142, 68, 173, 0.3);
     transform: scale(1.05);
 }
 
@@ -152,7 +153,7 @@ table {
     width: 100%;
     border-collapse: collapse;
     table-layout: auto;
-    min-width: 800px; /* Обеспечивает горизонтальную прокрутку */
+    min-width: 800px;
 }
 
 th, td {
@@ -244,26 +245,6 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
     background-color: var(--info-color) !important;
 }
 
-.custom-primary:hover {
-    background-color: darken(var(--primary-color), 10%) !important;
-}
-
-.custom-success:hover {
-    background-color: darken(var(--success-color), 10%) !important;
-}
-
-.custom-danger:hover {
-    background-color: darken(var(--danger-color), 10%) !important;
-}
-
-.custom-warning:hover {
-    background-color: darken(var(--warning-color), 10%) !important;
-}
-
-.custom-info:hover {
-    background-color: darken(var(--info-color), 10%) !important;
-}
-
 /* Согласованные кнопки действий */
 .action-buttons {
     display: flex;
@@ -285,7 +266,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.view-button:hover {
-    background-color: #1c638d !important; /* Темнее Info */
+    background-color: #1c638d !important;
 }
 
 .action-button.edit-button {
@@ -293,7 +274,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.edit-button:hover {
-    background-color: #d35400 !important; /* Темнее Warning */
+    background-color: #d35400 !important;
 }
 
 .action-button.delete-button {
@@ -301,7 +282,7 @@ button:hover, input[type="submit"]:hover, a.action-button:hover, a.btn-add:hover
 }
 
 .action-button.delete-button:hover {
-    background-color: #a93226 !important; /* Темнее Danger */
+    background-color: #a93226 !important;
 }
 
 /* Формы */
@@ -345,7 +326,7 @@ select[multiple] {
 /* Чекбоксы (iCheck) */
 .icheckbox_square-blue, .iradio_square-blue {
     margin-right: 10px;
-    transform: scale(1.5); /* Увеличение размера чекбоксов */
+    transform: scale(1.5);
 }
 
 /* Критерии */
@@ -464,14 +445,12 @@ span.criterion {
 
 /* Адаптивность для мобильных устройств и iPhone */
 @media (max-width: 768px) {
-    /* Header */
     header h1 {
         font-size: 2em;
         text-align: center;
         text-shadow: 1px 1px var(--danger-color);
     }
 
-    /* Навигация */
     nav {
         flex-direction: column;
         align-items: center;
@@ -488,24 +467,20 @@ span.criterion {
         font-size: 1.4em;
     }
 
-    /* Кнопки */
     button, input[type="submit"], a.action-button, a.btn-add, a.btn-back, .collapse-button {
         padding: var(--button-padding);
         font-size: 1.2em;
     }
 
-    /* Формы */
     input, select, textarea {
         padding: var(--input-padding);
         font-size: 1.2em;
     }
 
-    /* Таблицы */
     table {
-        min-width: 800px; /* Обеспечивает горизонтальную прокрутку */
+        min-width: 800px; 
     }
 
-    /* Изображения */
     img.setup-mini {
         width: 70px;
         height: 70px;
@@ -515,13 +490,11 @@ span.criterion {
         width: 150px;
     }
 
-    /* Модальное окно */
     .modal-content {
         max-width: 95%;
         max-height: 85%;
     }
 
-    /* Чекбоксы */
     .criteria-item {
         flex-direction: row;
         align-items: center;
@@ -532,13 +505,11 @@ span.criterion {
         margin: 0;
     }
 
-    /* Критерии */
     span.criterion {
         font-size: 1.1em;
         padding: 8px 16px;
     }
 
-    /* Сетап информация */
     .setup-info {
         display: flex;
         align-items: center;
@@ -548,7 +519,6 @@ span.criterion {
         margin-right: 10px;
     }
 
-    /* Кнопки действий */
     td .action-buttons {
         display: flex;
         gap: 10px;
@@ -556,13 +526,11 @@ span.criterion {
         flex-wrap: wrap;
     }
 
-    /* Улучшение кнопок */
     a.action-button, button {
         flex: 1 1 auto;
         padding: 12px 20px;
     }
 
-    /* Унификация цветов кнопок */
     a.action-button.view-button,
     a.action-button.edit-button,
     a.action-button.delete-button {
@@ -577,28 +545,7 @@ span.criterion {
 }
 
 /* Дополнительные улучшения для ретро-стиля */
-body {
-    background-color: #f0f8ff; /* AliceBlue для ретро-эффекта */
-}
-
 header h1 {
-    font-family: 'Press Start 2P', cursive; /* Ретро-шрифт */
+    font-family: 'Press Start 2P', cursive;
     font-size: 2.5em;
-}
-
-/* Добавляем верхний отступ для всей страницы, чтобы шапка была ниже 
-   и не пересекалась с системными кнопками Telegram */
-body {
-    padding-top: 60px; /* При необходимости увеличьте или уменьшите число */
-    overscroll-behavior: contain; /* Предотвращает "схлопывание" при потягивании вниз */
-}
-
-html {
-    overscroll-behavior: contain; /* Усиливаем эффект на уровне html */
-}
-
-/* Опционально, если потребуется:
-   Можно применить touch-action, чтобы избежать глюков при скролле */
-html, body {
-    touch-action: pan-y;
 }
