@@ -73,11 +73,11 @@ openai==0.28.0
 celery
 redis
 Pillow
-pytesseract
 mplfinance
 pandas
 opencv-python
 prophet
 plotly
-
+easyocr
+torch
 
