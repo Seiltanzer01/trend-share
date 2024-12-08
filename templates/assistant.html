@@ -13,11 +13,11 @@
 
     <!-- Чат ассистента -->
     <div class="assistant-chat">
-        <div id="chat-history" class="chat-history">
-            <!-- История сообщений будет отображаться здесь -->
+        <div id="chat-history" class="chat-history nes-container is-rounded">
+            <!-- История сообщений будет загружаться здесь -->
         </div>
 
-        <form id="assistant-form">
+        <form id="assistant-form" class="nes-container is-rounded">
             <div class="form-group">
                 <label for="assistant-question">Ваш вопрос:</label>
                 <input type="text" class="nes-input" id="assistant-question" required placeholder="Введите ваш вопрос...">
@@ -26,14 +26,15 @@
         </form>
 
         <!-- Кнопка для очистки чата -->
-        <button id="clear-chat" class="nes-btn is-error">Очистить чат</button>
+        <button id="clear-chat" class="nes-btn is-error" style="margin-top: 10px;">Очистить чат</button>
     </div>
     
     <hr>
-    
+
     <!-- Форма для анализа графика -->
     <div class="assistant-chart-analysis">
-        <form id="chart-analysis-form" enctype="multipart/form-data">
+        <h3>Анализ графика цены</h3>
+        <form id="chart-analysis-form" enctype="multipart/form-data" class="nes-container is-rounded">
             <div class="form-group">
                 <label for="chart-image">Загрузите изображение графика:</label>
                 <input type="file" class="nes-input" id="chart-image" name="image" accept="image/*" required>
@@ -43,7 +44,12 @@
         
         <div class="mt-3">
             <h4>Результат анализа:</h4>
-            <p id="chart-analysis-result" class="nes-balloon from-left is-dark"></p>
+            <div id="chart-analysis-result" class="nes-container is-rounded" style="min-height: 100px;">
+                <!-- Результаты анализа будут отображаться здесь -->
+            </div>
+            <div id="analysis-chart" class="mt-3">
+                <!-- Сохранённый график будет отображаться здесь -->
+            </div>
         </div>
     </div>
 </div>
@@ -59,6 +65,7 @@
         const chatHistoryDiv = document.getElementById('chat-history');
         const assistantQuestionInput = document.getElementById('assistant-question');
         const chartAnalysisResult = document.getElementById('chart-analysis-result');
+        const analysisChartDiv = document.getElementById('analysis-chart');
         const clearChatButton = document.getElementById('clear-chat');
 
         // Функция для обновления отображения истории чата
@@ -144,6 +151,7 @@
 
             // Отображение индикатора загрузки
             chartAnalysisResult.textContent = 'Идет анализ...';
+            analysisChartDiv.innerHTML = '';
 
             const formData = new FormData();
             formData.append('image', file);
@@ -156,13 +164,18 @@
 
                 const data = await response.json();
                 if (data.result) {
-                    chartAnalysisResult.textContent = data.result;
+                    chartAnalysisResult.innerHTML = `<pre>${data.result.analysis}</pre>`;
+                    if (data.result.chart_url) {
+                        analysisChartDiv.innerHTML = `<img src="${data.result.chart_url}" alt="Анализированный график" style="max-width: 100%;">`;
+                    }
                 } else if (data.error) {
-                    chartAnalysisResult.textContent = `Ошибка: ${data.error}`;
+                    chartAnalysisResult.innerHTML = `<p class="nes-text is-error">Ошибка: ${data.error}</p>`;
+                    analysisChartDiv.innerHTML = '';
                 }
             } catch (error) {
                 console.error('Ошибка при анализе графика:', error);
-                chartAnalysisResult.textContent = 'Произошла ошибка при анализе графика.';
+                chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
+                analysisChartDiv.innerHTML = '';
             }
 
             // Очистка поля ввода файла
