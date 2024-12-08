@@ -77,4 +77,4 @@ pytesseract
 mplfinance
 pandas
 opencv-python
-
+prophet
