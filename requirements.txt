@@ -76,6 +76,6 @@ Pillow
 pytesseract
 mplfinance
 pandas
-digitize==0.2.0
+digitize==1.1.1
 opencv-python
 
