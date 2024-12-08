@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: your-service-name
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      apt-get update
+      apt-get install -y tesseract-ocr libtesseract-dev
+    startCommand: python routes.py
