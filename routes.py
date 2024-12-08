@@ -36,7 +36,8 @@ import cv2
 import numpy as np
 import pandas as pd
 import mplfinance as mpf
-from digitize import Digitize  # Добавлено для извлечения данных
+import pytesseract
+from prophet import Prophet  # Для прогнозирования
 
 def admin_required(f):
     @wraps(f)
@@ -111,30 +112,9 @@ def generate_openai_response(messages):
         logger.error(traceback.format_exc())
         return "Произошла ошибка при обработке вашего запроса."
 
-# Функция для извлечения текста из изображения с помощью OCR (оставляем для совместимости)
-def extract_text_from_image(image_path):
-    """
-    Извлекает текст из изображения с помощью OCR (Tesseract).
-    Необходимо установить и настроить pytesseract и PIL.
-    """
-    try:
-        from PIL import Image
-        import pytesseract
+# Функции для обработки и анализа графиков
 
-        image = Image.open(image_path)
-        text = pytesseract.image_to_string(image, lang='rus')
-        return text
-    except pytesseract.pytesseract.TesseractNotFoundError:
-        logger.error("Tesseract не установлен или не находится в PATH.")
-        return "Tesseract не установлен. Обратитесь к администратору."
-    except Exception as e:
-        logger.error(f"Ошибка при извлечении текста из изображения: {e}")
-        logger.error(traceback.format_exc())
-        return ""
-
-# Новые функции для анализа графиков
-
-def preprocess_image_for_analysis(image_path):
+def preprocess_image(image_path):
     """
     Предобрабатывает изображение для анализа графика.
     """
@@ -147,50 +127,106 @@ def preprocess_image_for_analysis(image_path):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # Увеличение контрастности
         gray = cv2.equalizeHist(gray)
-        # Применение размытия для уменьшения шума
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        return blurred
+        # Применение адаптивной бинаризации
+        binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY, 11, 2)
+        # Удаление шума с помощью морфологии
+        kernel = np.ones((3,3), np.uint8)
+        opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
+        return opening
     except Exception as e:
         logger.error(f"Ошибка при предобработке изображения: {e}")
         logger.error(traceback.format_exc())
         return None
 
-def extract_candlestick_data(image_path):
+def extract_axes_info(preprocessed_img):
     """
-    Извлекает данные из японских свечей на графике.
+    Извлекает информацию о осях графика (метки и масштаб).
+    """
+    try:
+        # Используем Pytesseract для извлечения текста
+        ocr_config = '--psm 6'
+        text = pytesseract.image_to_string(preprocessed_img, lang='rus', config=ocr_config)
+        lines = text.split('\n')
+
+        x_labels = []
+        y_labels = []
+
+        for line in lines:
+            if 'Дата' in line or 'Date' in line:
+                # Предполагается, что метки оси X находятся рядом с текстом "Дата" или "Date"
+                x_labels = line.replace('Дата', '').replace('Date', '').strip().split()
+            if 'Цена' in line or 'Price' in line:
+                # Предполагается, что метки оси Y находятся рядом с текстом "Цена" или "Price"
+                y_labels = line.replace('Цена', '').replace('Price', '').strip().split()
+
+        # Преобразование меток осей в числовые значения
+        y_scale = [float(label.replace(',', '.')) for label in y_labels if is_float(label.replace(',', '.'))]
+
+        # Преобразование меток оси X в даты
+        x_scale = []
+        for label in x_labels:
+            try:
+                date = pd.to_datetime(label, format='%d.%m.%Y')
+                x_scale.append(date)
+            except ValueError:
+                continue  # Пропускаем некорректные форматы
+
+        return x_scale, y_scale
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении информации об осях: {e}")
+        logger.error(traceback.format_exc())
+        return [], []
+
+def is_float(string):
+    """
+    Проверяет, может ли строка быть преобразована в float.
+    """
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
+
+def detect_candlesticks(preprocessed_img, x_scale, y_scale):
+    """
+    Обнаруживает японские свечи на графике и извлекает их данные.
     Возвращает DataFrame с колонками: date, open, high, low, close
     """
     try:
-        preprocessed_img = preprocess_image_for_analysis(image_path)
-        if preprocessed_img is None:
-            return pd.DataFrame()
+        # Используем контурный анализ для обнаружения свечей
+        contours, _ = cv2.findContours(preprocessed_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        candlesticks = []
 
-        # Использование библиотеки digitize для извлечения данных
-        digitizer = Digitize(image_path)
-        # Запуск процесса цифровки (может потребовать ручного вмешательства)
-        digitizer.annotate()
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect_ratio = w / float(h)
+            if 0.1 < aspect_ratio < 0.3 and 20 < h < 200:
+                # Предполагаем, что свеча имеет узкий и высокий прямоугольник
+                # Преобразуем пиксельные координаты в реальные значения
+                date_index = int(x / preprocessed_img.shape[1] * len(x_scale))
+                if 0 <= date_index < len(x_scale):
+                    date = x_scale[date_index]
+                    # Преобразование Y-пикселей в цены
+                    price_range = max(y_scale) - min(y_scale)
+                    open_price = min(y_scale) + (preprocessed_img.shape[0] - (y + h)) * price_range / preprocessed_img.shape[0]
+                    close_price = min(y_scale) + (preprocessed_img.shape[0] - y) * price_range / preprocessed_img.shape[0]
+                    high_price = max(open_price, close_price) + (h / preprocessed_img.shape[0]) * price_range * 0.1  # Примерное увеличение
+                    low_price = min(open_price, close_price) - (h / preprocessed_img.shape[0]) * price_range * 0.1  # Примерное уменьшение
+                    candlesticks.append({
+                        'date': date,
+                        'open': round(open_price, 2),
+                        'high': round(high_price, 2),
+                        'low': round(low_price, 2),
+                        'close': round(close_price, 2)
+                    })
 
-        # Извлечение данных в DataFrame
-        df = digitizer.as_pandas_dataframe()
-
-        if df.empty:
-            logger.error("Digitize не смог извлечь данные.")
-            return pd.DataFrame()
-
-        # Предполагаем, что столбцы уже соответствуют 'date', 'open', 'high', 'low', 'close'
-        # Если нет, потребуется дополнительная обработка
-        required_columns = {'date', 'open', 'high', 'low', 'close'}
-        if not required_columns.issubset(df.columns):
-            logger.error(f"Отсутствуют необходимые столбцы в извлечённых данных: {df.columns}")
-            return pd.DataFrame()
-
-        # Преобразование типов данных
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        df = df.dropna(subset=['date', 'open', 'high', 'low', 'close'])
-
+        df = pd.DataFrame(candlesticks)
+        df = df.drop_duplicates(subset=['date'])
+        df = df.sort_values(by='date')
         return df
     except Exception as e:
-        logger.error(f"Ошибка при извлечении данных свечей: {e}")
+        logger.error(f"Ошибка при обнаружении свечей: {e}")
         logger.error(traceback.format_exc())
         return pd.DataFrame()
 
@@ -210,9 +246,17 @@ def perform_technical_analysis(df):
         # Вычисление RSI
         df['RSI'] = compute_rsi(df['close'], window=14)
 
-        # Прогнозирование простым методом (например, продолжение тренда)
+        # Вычисление MACD
+        df['EMA12'] = df['close'].ewm(span=12, adjust=False).mean()
+        df['EMA26'] = df['close'].ewm(span=26, adjust=False).mean()
+        df['MACD'] = df['EMA12'] - df['EMA26']
+        df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+
+        # Прогнозирование с использованием Prophet
+        forecast = forecast_with_prophet(df)
+
         last_close = df['close'].iloc[-1]
-        forecast = last_close * 1.01  # Прогнозируем увеличение на 1%
+        forecast_price = forecast['yhat'].iloc[-1]
 
         analysis = f"""
 ### Технический Анализ
@@ -224,8 +268,12 @@ def perform_technical_analysis(df):
 **RSI:**
 - {df['RSI'].iloc[-1]:.2f}
 
+**MACD:**
+- MACD: {df['MACD'].iloc[-1]:.2f}
+- Signal: {df['Signal'].iloc[-1]:.2f}
+
 **Прогноз:**
-- Следующая цена: {forecast:.2f}
+- Следующая цена: {forecast_price:.2f}
 """
 
         return analysis
@@ -249,21 +297,48 @@ def compute_rsi(series, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
+def forecast_with_prophet(df):
+    """
+    Выполняет прогнозирование цен с использованием Prophet.
+    Возвращает DataFrame с прогнозом.
+    """
+    try:
+        prophet_df = df[['date', 'close']].rename(columns={'date': 'ds', 'close': 'y'})
+        model = Prophet()
+        model.fit(prophet_df)
+        future = model.make_future_dataframe(periods=5)  # Прогноз на 5 дней
+        forecast = model.predict(future)
+        return forecast
+    except Exception as e:
+        logger.error(f"Ошибка при прогнозировании с использованием Prophet: {e}")
+        logger.error(traceback.format_exc())
+        return pd.DataFrame()
+
 def analyze_chart(image_path):
     """
     Анализирует изображение графика и выполняет технический анализ.
     Возвращает словарь с результатами анализа и URL графика.
     """
     try:
-        # Извлекаем данные свечей из изображения
-        candlestick_df = extract_candlestick_data(image_path)
-        if candlestick_df.empty:
-            return {'error': 'Не удалось извлечь данные из графика.'}
+        # Предобработка изображения
+        preprocessed_img = preprocess_image(image_path)
+        if preprocessed_img is None:
+            return {'error': 'Не удалось обработать изображение.'}
 
-        # Выполняем технический анализ
+        # Извлечение информации об осях
+        x_scale, y_scale = extract_axes_info(preprocessed_img)
+        if not x_scale or not y_scale:
+            return {'error': 'Не удалось извлечь информацию об осях графика.'}
+
+        # Обнаружение и извлечение данных свечей
+        candlestick_df = detect_candlesticks(preprocessed_img, x_scale, y_scale)
+        if candlestick_df.empty:
+            return {'error': 'Не удалось извлечь данные свечей из графика.'}
+
+        # Выполнение технического анализа
         analysis = perform_technical_analysis(candlestick_df)
 
-        # Визуализируем график с индикаторами
+        # Визуализация графика с индикаторами
         chart_filename = f"analysis_chart_{int(datetime.utcnow().timestamp())}.png"
         chart_path = os.path.join('static', 'images', chart_filename)
         mpf.plot(
@@ -275,7 +350,7 @@ def analyze_chart(image_path):
             volume=False,
             savefig=chart_path
         )
-        analysis_chart_url = url_for('static', filename=f'images/{chart_filename}')
+        analysis_chart_url = url_for('static', filename=f'images/{chart_filename}', _external=True)
 
         return {
             'analysis': analysis,
@@ -333,7 +408,107 @@ def assistant_analyze_chart():
     else:
         return jsonify({'error': 'Invalid image'}), 400
 
-# Остальная часть вашего `routes.py` остается без изменений, кроме обновления функции анализа графика
+# Маршрут для чата ассистента
+@app.route('/assistant/chat', methods=['POST'])
+@csrf.exempt  # Исключаем из CSRF-защиты
+def assistant_chat():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.assistant_premium:
+        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
+
+    data = request.get_json()
+    user_question = data.get('question')
+
+    if not user_question:
+        return jsonify({'error': 'No question provided'}), 400
+
+    # Инициализируем историю чата, если её ещё нет
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+
+        # Получаем данные пользователя из базы при первой инициализации
+        trades = Trade.query.filter_by(user_id=user_id).all()
+        if not trades:
+            trade_data = "У вас пока нет сделок."
+            comments = "Нет комментариев к сделкам."
+        else:
+            trade_data = "\n\n".join([
+                f"**Сделка ID {trade.id}:**\n"
+                f" - **Инструмент:** {trade.instrument.name}\n"
+                f" - **Направление:** {trade.direction}\n"
+                f" - **Цена входа:** {trade.entry_price}\n"
+                f" - **Цена выхода:** {trade.exit_price}\n"
+                f" - **Время открытия:** {trade.trade_open_time}\n"
+                f" - **Время закрытия:** {trade.trade_close_time}\n"
+                f" - **Прибыль/Убыток:** {trade.profit_loss} ({trade.profit_loss_percentage}%)\n"
+                f" - **Сетап:** {trade.setup.setup_name if trade.setup else 'Без сетапа'}\n"
+                f" - **Критерии:** {', '.join([criterion.name for criterion in trade.criteria]) if trade.criteria else 'Без критериев'}"
+                for trade in trades
+            ])
+            comments = "\n\n".join([
+                f"**Сделка ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
+            ]) if any(trade.comment for trade in trades) else "Нет комментариев к сделкам."
+
+        # Формируем системное сообщение для OpenAI
+        system_message = f"""
+Ты — дядя Джон, крутой спец, который помогает пользователю анализировать его торговые сделки, предлагает конкретные решения с конкретными расчетами для торговых ситуаций пользователя, считает статистику по сделкам и находит закономерности.
+Данные пользователя о сделках:
+{trade_data}
+
+Комментарии к сделкам:
+{comments}
+
+Предоставь подробный анализ и рекомендации на основе этих данных, если пользователь попросит.
+"""
+
+        logger.debug(f"System message for OpenAI: {system_message}")
+
+        # Добавляем системное сообщение в историю
+        session['chat_history'].append({'role': 'system', 'content': system_message})
+
+    # Добавляем сообщение пользователя в историю
+    session['chat_history'].append({'role': 'user', 'content': user_question})
+
+    # Получаем ответ от OpenAI с учётом истории чата
+    assistant_response = generate_openai_response(session['chat_history'])
+
+    # Добавляем ответ ассистента в историю
+    session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
+
+    # Ограничиваем длину истории чата
+    MAX_CHAT_HISTORY = 20
+    if len(session['chat_history']) > MAX_CHAT_HISTORY:
+        session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
+
+    return jsonify({'response': assistant_response}), 200
+
+# Маршрут для получения истории чата
+@app.route('/get_chat_history', methods=['GET'])
+def get_chat_history():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    chat_history = session.get('chat_history', [])
+    # Исключаем системное сообщение из истории для отображения
+    display_history = [msg for msg in chat_history if msg['role'] != 'system']
+    return jsonify({'chat_history': display_history}), 200
+
+# Маршрут для очистки истории чата
+@app.route('/clear_chat_history', methods=['POST'])
+@csrf.exempt
+def clear_chat_history():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    session.pop('chat_history', None)
+    return jsonify({'status': 'success'}), 200
+
+# Остальные маршруты вашего приложения
+# ...
 
 # Маршруты аутентификации
 
@@ -353,7 +528,7 @@ def health():
 @app.route('/debug_session')
 def debug_session():
     return jsonify(dict(session))
-    
+
 # Обработка initData через маршрут /init с использованием teleapp-auth
 @csrf.exempt  # Исключаем из CSRF-защиты
 @app.route('/init', methods=['POST'])
@@ -1195,105 +1370,6 @@ def assistant_page():
         return redirect(url_for('index'))
     
     return render_template('assistant.html')
-
-# Маршрут для чата с ассистентом
-@app.route('/assistant/chat', methods=['POST'])
-@csrf.exempt  # Исключаем из CSRF-защиты
-def assistant_chat():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user or not user.assistant_premium:
-        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
-
-    data = request.get_json()
-    user_question = data.get('question')
-
-    if not user_question:
-        return jsonify({'error': 'No question provided'}), 400
-
-    # Инициализируем историю чата, если её ещё нет
-    if 'chat_history' not in session:
-        session['chat_history'] = []
-
-        # Получаем данные пользователя из базы при первой инициализации
-        trades = Trade.query.filter_by(user_id=user_id).all()
-        if not trades:
-            trade_data = "У вас пока нет сделок."
-            comments = "Нет комментариев к сделкам."
-        else:
-            trade_data = "\n\n".join([
-                f"**Сделка ID {trade.id}:**\n"
-                f" - **Инструмент:** {trade.instrument.name}\n"
-                f" - **Направление:** {trade.direction}\n"
-                f" - **Цена входа:** {trade.entry_price}\n"
-                f" - **Цена выхода:** {trade.exit_price}\n"
-                f" - **Время открытия:** {trade.trade_open_time}\n"
-                f" - **Время закрытия:** {trade.trade_close_time}\n"
-                f" - **Прибыль/Убыток:** {trade.profit_loss} ({trade.profit_loss_percentage}%)\n"
-                f" - **Сетап:** {trade.setup.setup_name if trade.setup else 'Без сетапа'}\n"
-                f" - **Критерии:** {', '.join([criterion.name for criterion in trade.criteria]) if trade.criteria else 'Без критериев'}"
-                for trade in trades
-            ])
-            comments = "\n\n".join([
-                f"**Сделка ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
-            ]) if any(trade.comment for trade in trades) else "Нет комментариев к сделкам."
-
-        # Формируем системное сообщение для OpenAI
-        system_message = f"""
-Ты — дядя Джон, крутой спец, который помогает пользователю анализировать его торговые сделки, предлагает конкретные решения с конкретными расчетами для торговых ситуаций пользователя, считает статистику по сделкам и находит закономерности.
-Данные пользователя о сделках:
-{trade_data}
-
-Комментарии к сделкам:
-{comments}
-
-Предоставь подробный анализ и рекомендации на основе этих данных, если пользователь попросит.
-"""
-
-        logger.debug(f"System message for OpenAI: {system_message}")
-
-        # Добавляем системное сообщение в историю
-        session['chat_history'].append({'role': 'system', 'content': system_message})
-
-    # Добавляем сообщение пользователя в историю
-    session['chat_history'].append({'role': 'user', 'content': user_question})
-
-    # Получаем ответ от OpenAI с учётом истории чата
-    assistant_response = generate_openai_response(session['chat_history'])
-
-    # Добавляем ответ ассистента в историю
-    session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
-
-    # Ограничиваем длину истории чата
-    MAX_CHAT_HISTORY = 20
-    if len(session['chat_history']) > MAX_CHAT_HISTORY:
-        session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
-
-    return jsonify({'response': assistant_response}), 200
-
-# Маршрут для получения истории чата
-@app.route('/get_chat_history', methods=['GET'])
-def get_chat_history():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    chat_history = session.get('chat_history', [])
-    # Исключаем системное сообщение из истории для отображения
-    display_history = [msg for msg in chat_history if msg['role'] != 'system']
-    return jsonify({'chat_history': display_history}), 200
-
-# Маршрут для очистки истории чата
-@app.route('/clear_chat_history', methods=['POST'])
-@csrf.exempt
-def clear_chat_history():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    session.pop('chat_history', None)
-    return jsonify({'status': 'success'}), 200
 
 # **Интеграция Robokassa**
 
