@@ -36,9 +36,15 @@ import cv2
 import numpy as np
 import pandas as pd
 import mplfinance as mpf
-import pytesseract
+# import pytesseract  # Удален pytesseract
 import shutil
 from prophet import Prophet  # Для прогнозирования
+
+# **Добавление EasyOCR и Torch для OCR и нейросетевого анализа**
+import easyocr
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 def admin_required(f):
     @wraps(f)
@@ -54,14 +60,10 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Определение пути к Tesseract
-tesseract_path = shutil.which('tesseract')
-if tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-    logger.info(f"Tesseract найден по пути: {tesseract_path}")
-else:
-    logger.error("Tesseract не найден в PATH.")
-    
+# Инициализация EasyOCR Reader
+# Укажите языки, которые вам необходимы, например 'ru' для русского
+reader = easyocr.Reader(['ru', 'en'])
+
 # Инициализация OpenAI API
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
@@ -148,31 +150,31 @@ def preprocess_image(image_path):
         logger.error(traceback.format_exc())
         return None
 
-def extract_axes_info(preprocessed_img):
+def extract_axes_info(image_path):
     """
-    Извлекает информацию о осях графика (метки и масштаб).
+    Извлекает информацию о осях графика (метки и масштаб) с использованием EasyOCR.
     """
     try:
-        # Используем Pytesseract для извлечения текста
-        ocr_config = '--psm 6'
-        text = pytesseract.image_to_string(preprocessed_img, lang='rus', config=ocr_config)
-        lines = text.split('\n')
+        # Используем EasyOCR для распознавания текста
+        result = reader.readtext(image_path, detail=0, paragraph=True)
+        parsed_text = ' '.join(result)
+        lines = parsed_text.split('\n')
 
         x_labels = []
         y_labels = []
 
         for line in lines:
-            if 'Дата' in line or 'Date' in line:
-                # Предполагается, что метки оси X находятся рядом с текстом "Дата" или "Date"
-                x_labels = line.replace('Дата', '').replace('Date', '').strip().split()
-            if 'Цена' in line or 'Price' in line:
-                # Предполагается, что метки оси Y находятся рядом с текстом "Цена" или "Price"
-                y_labels = line.replace('Цена', '').replace('Price', '').strip().split()
+            if 'ось x' in line.lower() or 'x-axis' in line.lower():
+                # Извлекаем метки оси X
+                x_labels = line.lower().replace('ось x', '').replace('x-axis', '').strip().split()
+            if 'ось y' in line.lower() or 'y-axis' in line.lower():
+                # Извлекаем метки оси Y
+                y_labels = line.lower().replace('ось y', '').replace('y-axis', '').strip().split()
 
         # Преобразование меток осей в числовые значения
         y_scale = [float(label.replace(',', '.')) for label in y_labels if is_float(label.replace(',', '.'))]
 
-        # Преобразование меток оси X в даты
+        # Преобразование меток оси X в даты (предполагается формат даты)
         x_scale = []
         for label in x_labels:
             try:
@@ -249,8 +251,8 @@ def perform_technical_analysis(df):
             return "Нет данных для анализа."
 
         # Вычисление скользящих средних
-        df['MA20'] = df['close'].rolling(window=20).mean()
-        df['MA50'] = df['close'].rolling(window=50).mean()
+        df['MA20'] = df['close'].rolling(window=20, min_periods=1).mean()
+        df['MA50'] = df['close'].rolling(window=50, min_periods=1).mean()
 
         # Вычисление RSI
         df['RSI'] = compute_rsi(df['close'], window=14)
@@ -265,7 +267,10 @@ def perform_technical_analysis(df):
         forecast = forecast_with_prophet(df)
 
         last_close = df['close'].iloc[-1]
-        forecast_price = forecast['yhat'].iloc[-1]
+        forecast_price = forecast['yhat'].iloc[-1] if not forecast.empty else "N/A"
+
+        # Пример нейросетевого анализа (простая модель для демонстрации)
+        nn_analysis = neural_network_analysis(df)
 
         analysis = f"""
 ### Технический Анализ
@@ -282,7 +287,10 @@ def perform_technical_analysis(df):
 - Signal: {df['Signal'].iloc[-1]:.2f}
 
 **Прогноз:**
-- Следующая цена: {forecast_price:.2f}
+- Следующая цена: {forecast_price}
+
+**Нейросетевой Анализ:**
+{nn_analysis}
 """
 
         return analysis
@@ -323,6 +331,81 @@ def forecast_with_prophet(df):
         logger.error(traceback.format_exc())
         return pd.DataFrame()
 
+def neural_network_analysis(df):
+    """
+    Пример простой нейросетевой модели для анализа данных свечей.
+    Возвращает строку с результатом анализа.
+    """
+    try:
+        # Простая модель: предсказывает изменение цены на следующий день
+        class SimpleNN(nn.Module):
+            def __init__(self, input_size, hidden_size, output_size):
+                super(SimpleNN, self).__init__()
+                self.fc1 = nn.Linear(input_size, hidden_size)
+                self.relu = nn.ReLU()
+                self.fc2 = nn.Linear(hidden_size, output_size)
+
+            def forward(self, x):
+                out = self.fc1(x)
+                out = self.relu(out)
+                out = self.fc2(out)
+                return out
+
+        # Подготовка данных
+        feature_columns = ['open', 'high', 'low', 'close', 'MA20', 'MA50', 'RSI', 'MACD', 'Signal']
+        X = df[feature_columns].values[:-1]  # Все кроме последнего
+        y = (df['close'].values[1:] > df['close'].values[:-1]).astype(int)  # 1: Цена выросла, 0: снизилась
+
+        if len(X) < 10:
+            return "Недостаточно данных для нейросетевого анализа."
+
+        # Нормализация данных
+        X = (X - X.mean(axis=0)) / X.std(axis=0)
+
+        # Разделение на обучающую и тестовую выборки
+        split = int(0.8 * len(X))
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y[:split], y[split:]
+
+        # Преобразование в тензоры
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
+        X_test = torch.tensor(X_test, dtype=torch.float32)
+        y_test = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
+
+        # Определение модели, функции потерь и оптимизатора
+        input_size = X_train.shape[1]
+        hidden_size = 16
+        output_size = 1
+        model = SimpleNN(input_size, hidden_size, output_size)
+        criterion = nn.BCEWithLogitsLoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+        # Обучение модели
+        epochs = 100
+        for epoch in range(epochs):
+            model.train()
+            outputs = model(X_train)
+            loss = criterion(outputs, y_train)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # Оценка модели
+        model.eval()
+        with torch.no_grad():
+            predictions = torch.sigmoid(model(X_test))
+            predicted = (predictions > 0.5).float()
+            accuracy = (predicted == y_test).float().mean().item()
+
+        analysis = f"Нейросетевая модель предсказывает направление цены с точностью: {accuracy * 100:.2f}%"
+
+        return analysis
+    except Exception as e:
+        logger.error(f"Ошибка при нейросетевом анализе: {e}")
+        logger.error(traceback.format_exc())
+        return "Ошибка при нейросетевом анализе."
+
 def analyze_chart(image_path):
     """
     Анализирует изображение графика и выполняет технический анализ.
@@ -334,14 +417,20 @@ def analyze_chart(image_path):
         if preprocessed_img is None:
             return {'error': 'Не удалось обработать изображение.'}
 
-        # Извлечение информации об осях
-        x_scale, y_scale = extract_axes_info(preprocessed_img)
+        # Сохранение предобработанного изображения временно для OCR
+        processed_image_path = 'processed_image.png'
+        cv2.imwrite(processed_image_path, preprocessed_img)
+
+        # Извлечение информации об осях с использованием EasyOCR
+        x_scale, y_scale = extract_axes_info(processed_image_path)
         if not x_scale or not y_scale:
+            os.remove(processed_image_path)
             return {'error': 'Не удалось извлечь информацию об осях графика.'}
 
         # Обнаружение и извлечение данных свечей
         candlestick_df = detect_candlesticks(preprocessed_img, x_scale, y_scale)
         if candlestick_df.empty:
+            os.remove(processed_image_path)
             return {'error': 'Не удалось извлечь данные свечей из графика.'}
 
         # Выполнение технического анализа
@@ -350,6 +439,7 @@ def analyze_chart(image_path):
         # Визуализация графика с индикаторами
         chart_filename = f"analysis_chart_{int(datetime.utcnow().timestamp())}.png"
         chart_path = os.path.join('static', 'images', chart_filename)
+        os.makedirs(os.path.dirname(chart_path), exist_ok=True)
         mpf.plot(
             candlestick_df.set_index('date'),
             type='candle',
@@ -360,6 +450,10 @@ def analyze_chart(image_path):
             savefig=chart_path
         )
         analysis_chart_url = url_for('static', filename=f'images/{chart_filename}', _external=True)
+
+        # Удаление временных файлов
+        os.remove(image_path)
+        os.remove(processed_image_path)
 
         return {
             'analysis': analysis,
@@ -376,7 +470,7 @@ def analyze_chart(image_path):
 def assistant_analyze_chart():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     user_id = session['user_id']
     user = User.query.get(user_id)
     if not user or not user.assistant_premium:
@@ -423,7 +517,7 @@ def assistant_analyze_chart():
 def assistant_chat():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     user_id = session['user_id']
     user = User.query.get(user_id)
     if not user or not user.assistant_premium:
