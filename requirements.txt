@@ -38,7 +38,7 @@ mdurl==0.1.2
 ml-dtypes==0.4.1
 namex==0.0.8
 numpy==1.26.4
-opencv-python==4.10.0.84
+opencv-python-headless
 opt_einsum==3.4.0
 optree==0.13.0
 packaging==24.1
@@ -74,8 +74,8 @@ celery
 redis
 Pillow
 pytesseract
-
-
+mplfinance
+pandas
 
 
 
