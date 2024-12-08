@@ -36,6 +36,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import mplfinance as mpf
+from plotdigitizer import PlotDigitizer  # Добавлено для извлечения данных
 
 def admin_required(f):
     @wraps(f)
@@ -164,29 +165,34 @@ def extract_candlestick_data(image_path):
         if preprocessed_img is None:
             return pd.DataFrame()
 
-        # Детектирование краев
-        edges = cv2.Canny(preprocessed_img, 50, 150, apertureSize=3)
+        # Использование PlotDigitizer для извлечения данных
+        pd_digitizer = PlotDigitizer(image_path)
+        
+        # Настройка координат вручную
+        # В автоматическом режиме PlotDigitizer может не справиться, поэтому рекомендуется ручная настройка
+        # Для автоматизации потребуется более сложная логика или предобученные модели
+        # Здесь предполагается, что пользователи сами настроят координаты
 
-        # Поиск линий с помощью преобразования Хафа
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=50, maxLineGap=10)
+        # Попытка автоматической настройки (может потребовать доработки)
+        pd_digitizer.auto_setup()
+        data = pd_digitizer.digitize()
+        df = pd_digitizer.as_pandas_dataframe()
 
-        if lines is None:
-            logger.error("Не удалось обнаружить линии на графике.")
+        if df.empty:
+            logger.error("PlotDigitizer не смог извлечь данные.")
             return pd.DataFrame()
 
-        # Предполагаем, что каждая свеча состоит из тела и теней
-        # Здесь потребуется более сложная логика для распознавания свечей
-        # Для простоты вернём фиктивные данные
+        # Предполагаем, что столбцы уже соответствуют 'date', 'open', 'high', 'low', 'close'
+        # Если нет, потребуется дополнительная обработка
+        required_columns = {'date', 'open', 'high', 'low', 'close'}
+        if not required_columns.issubset(df.columns):
+            logger.error(f"Отсутствуют необходимые столбцы в извлечённых данных: {df.columns}")
+            return pd.DataFrame()
 
-        # Пример: создадим DataFrame с фиктивными данными
-        data = {
-            'date': pd.date_range(start='2024-01-01', periods=30, freq='D'),
-            'open': np.random.uniform(100, 200, 30).round(2),
-            'high': np.random.uniform(200, 300, 30).round(2),
-            'low': np.random.uniform(50, 100, 30).round(2),
-            'close': np.random.uniform(100, 200, 30).round(2)
-        }
-        df = pd.DataFrame(data)
+        # Преобразование типов данных
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        df = df.dropna(subset=['date', 'open', 'high', 'low', 'close'])
+
         return df
     except Exception as e:
         logger.error(f"Ошибка при извлечении данных свечей: {e}")
@@ -202,11 +208,11 @@ def perform_technical_analysis(df):
         if df.empty:
             return "Нет данных для анализа."
 
-        # Пример: вычислим скользящие средние
+        # Вычисление скользящих средних
         df['MA20'] = df['close'].rolling(window=20).mean()
         df['MA50'] = df['close'].rolling(window=50).mean()
 
-        # Определим сигналы перекупленности и перепроданности
+        # Вычисление RSI
         df['RSI'] = compute_rsi(df['close'], window=14)
 
         # Прогнозирование простым методом (например, продолжение тренда)
@@ -248,32 +254,91 @@ def compute_rsi(series, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Функция для анализа графика с помощью OpenAI (оставляем для совместимости)
-def analyze_chart_with_openai(image_path):
+def analyze_chart(image_path):
     """
-    Анализирует изображение графика с помощью OpenAI.
-    Обратите внимание, что OpenAI не поддерживает прямую обработку изображений.
-    Здесь предполагается, что изображение предварительно обрабатывается и данные передаются в OpenAI.
+    Анализирует изображение графика и выполняет технический анализ.
+    Возвращает словарь с результатами анализа и URL графика.
     """
     try:
-        # Извлекаем текст из изображения с помощью OCR (оставляем для совместимости)
-        extracted_text = extract_text_from_image(image_path)
-        if not extracted_text:
-            extracted_text = "Не удалось извлечь информацию из изображения графика."
+        # Извлекаем данные свечей из изображения
+        candlestick_df = extract_candlestick_data(image_path)
+        if candlestick_df.empty:
+            return {'error': 'Не удалось извлечь данные из графика.'}
 
-        # Формируем список сообщений для OpenAI
-        messages = [
-            {"role": "system", "content": "Ты — эксперт по анализу графиков."},
-            {"role": "user", "content": f"Проанализируй следующий график: {extracted_text}"}
-        ]
+        # Выполняем технический анализ
+        analysis = perform_technical_analysis(candlestick_df)
 
-        # Получаем ответ от OpenAI
-        analysis = generate_openai_response(messages)
-        return analysis
+        # Визуализируем график с индикаторами
+        chart_filename = f"analysis_chart_{int(datetime.utcnow().timestamp())}.png"
+        chart_path = os.path.join('static', 'images', chart_filename)
+        mpf.plot(
+            candlestick_df.set_index('date'),
+            type='candle',
+            style='charles',
+            title='Анализированный график',
+            mav=(20, 50),
+            volume=False,
+            savefig=chart_path
+        )
+        analysis_chart_url = url_for('static', filename=f'images/{chart_filename}')
+
+        return {
+            'analysis': analysis,
+            'chart_url': analysis_chart_url
+        }
     except Exception as e:
-        logger.error(f"Ошибка при анализе графика с помощью OpenAI: {e}")
+        logger.error(f"Ошибка при анализе графика: {e}")
         logger.error(traceback.format_exc())
-        return "Произошла ошибка при анализе графика."
+        return {'error': 'Произошла ошибка при анализе графика.'}
+
+# Функция для анализа графика ассистентом
+@app.route('/assistant/analyze_chart', methods=['POST'])
+@csrf.exempt  # Исключаем из CSRF-защиты, так как используется AJAX
+def assistant_analyze_chart():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.assistant_premium:
+        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
+
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image provided'}), 400
+
+    image = request.files['image']
+    if image.filename == '':
+        return jsonify({'error': 'No selected image'}), 400
+
+    if image:
+        try:
+            # Сохраняем изображение временно
+            filename = secure_filename(image.filename)
+            temp_dir = 'temp'
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_path = os.path.join(temp_dir, filename)
+            image.save(temp_path)
+
+            # Анализируем изображение
+            analysis_result = analyze_chart(temp_path)
+
+            if 'error' in analysis_result:
+                # Удаляем временный файл
+                os.remove(temp_path)
+                return jsonify({'error': analysis_result['error']}), 400
+
+            # Удаляем временный файл
+            os.remove(temp_path)
+
+            return jsonify({'result': analysis_result}), 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке изображения: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({'error': 'Error processing the image.'}), 500
+    else:
+        return jsonify({'error': 'Invalid image'}), 400
+
+# Остальная часть вашего `routes.py` остается без изменений, кроме обновления функции анализа графика
 
 # Маршруты аутентификации
 
@@ -1234,71 +1299,6 @@ def clear_chat_history():
 
     session.pop('chat_history', None)
     return jsonify({'status': 'success'}), 200
-
-# Маршрут для анализа графика ассистентом
-@app.route('/assistant/analyze_chart', methods=['POST'])
-@csrf.exempt  # Исключаем из CSRF-защиты, так как используется AJAX
-def assistant_analyze_chart():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user or not user.assistant_premium:
-        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
-
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image provided'}), 400
-
-    image = request.files['image']
-    if image.filename == '':
-        return jsonify({'error': 'No selected image'}), 400
-
-    if image:
-        try:
-            # Сохраняем изображение временно
-            filename = secure_filename(image.filename)
-            temp_dir = 'temp'
-            os.makedirs(temp_dir, exist_ok=True)
-            temp_path = os.path.join(temp_dir, filename)
-            image.save(temp_path)
-
-            # Извлекаем данные из графика
-            candlestick_df = extract_candlestick_data(temp_path)
-            if candlestick_df.empty:
-                return jsonify({'error': 'Failed to extract data from chart.'}), 400
-
-            # Выполняем технический анализ
-            analysis = perform_technical_analysis(candlestick_df)
-
-            # Опционально: Сохраняем график с индикаторами
-            mpf.plot(
-                candlestick_df.set_index('date'),
-                type='candle',
-                style='charles',
-                title='Анализированный график',
-                mav=(20, 50),
-                volume=False,
-                savefig='static/images/analysis_chart.png'
-            )
-            analysis_chart_url = url_for('static', filename='images/analysis_chart.png')
-
-            # Формируем ответ
-            response = {
-                'analysis': analysis,
-                'chart_url': analysis_chart_url
-            }
-
-            # Удаляем временный файл
-            os.remove(temp_path)
-
-            return jsonify({'result': response}), 200
-        except Exception as e:
-            logger.error(f"Ошибка при обработке изображения: {e}")
-            logger.error(traceback.format_exc())
-            return jsonify({'error': 'Error processing the image.'}), 500
-    else:
-        return jsonify({'error': 'Invalid image'}), 400
 
 # **Интеграция Robokassa**
 
