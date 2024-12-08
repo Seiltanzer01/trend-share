@@ -76,7 +76,7 @@ Pillow
 pytesseract
 mplfinance
 pandas
-
+plotdigitizer
 
 
 
