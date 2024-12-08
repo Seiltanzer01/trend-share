@@ -76,6 +76,5 @@ Pillow
 pytesseract
 mplfinance
 pandas
-digitize @ git+https://github.com/siklab/digitize.git#egg=digitize
 opencv-python
 
