@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 import mplfinance as mpf
 import pytesseract
+import shutil
 from prophet import Prophet  # Для прогнозирования
 
 def admin_required(f):
@@ -52,6 +53,14 @@ def admin_required(f):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
+
+# Определение пути к Tesseract
+tesseract_path = shutil.which('tesseract')
+if tesseract_path:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+    logger.info(f"Tesseract найден по пути: {tesseract_path}")
+else:
+    logger.error("Tesseract не найден в PATH.")
     
 # Инициализация OpenAI API
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
