@@ -88,6 +88,7 @@
             try {
                 const response = await fetch('/get_chat_history');
                 const data = await response.json();
+                console.log('Chat History:', data); // Для отладки
                 if (data.chat_history) {
                     chatHistory = data.chat_history;
                     updateChatHistoryDisplay();
@@ -121,6 +122,7 @@
                 });
 
                 const data = await response.json();
+                console.log('Chat Response:', data); // Для отладки
                 if (data.response) {
                     // Добавление ответа ассистента в историю
                     chatHistory.push({ role: 'assistant', content: data.response });
@@ -163,6 +165,7 @@
                 });
 
                 const data = await response.json();
+                console.log('Chart Analysis Response:', data); // Для отладки
                 if (data.result) {
                     chartAnalysisResult.innerHTML = `<pre>${data.result.analysis}</pre>`;
                     if (data.result.chart_url) {
