@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: your-service-name
+    name: trend-share
     env: python
-    buildCommand: |
-      pip install -r requirements.txt
-      apt-get update
-      apt-get install -y tesseract-ocr libtesseract-dev
-    startCommand: python routes.py
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && flask db stamp head && flask db upgrade
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
+    buildpacks:
+      - https://github.com/heroku/heroku-buildpack-apt
+      - heroku/python
+    envVars:
+      # Добавьте ваши переменные окружения здесь, если необходимо
