@@ -75,7 +75,9 @@
             chatHistory.forEach(message => {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = message.role === 'user' ? 'nes-balloon from-right' : 'nes-balloon from-left is-dark';
-                msgDiv.textContent = message.content;
+                // Если содержимое — объект, преобразуем его в строку
+                const content = (typeof message.content === 'object') ? JSON.stringify(message.content, null, 2) : message.content;
+                msgDiv.textContent = content;
                 chatHistoryDiv.appendChild(msgDiv);
             });
 
@@ -125,7 +127,9 @@
                 console.log('Chat Response:', data); // Для отладки
                 if (data.response) {
                     // Добавление ответа ассистента в историю
-                    chatHistory.push({ role: 'assistant', content: data.response });
+                    // Если response — объект, преобразуем его в строку
+                    const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
+                    chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
                     // Обработка ошибок
@@ -167,7 +171,9 @@
                 const data = await response.json();
                 console.log('Chart Analysis Response:', data); // Для отладки
                 if (data.result) {
-                    chartAnalysisResult.innerHTML = `<pre>${data.result.analysis}</pre>`;
+                    // Убедимся, что analysis — строка
+                    const analysisText = (typeof data.result.analysis === 'object') ? JSON.stringify(data.result.analysis, null, 2) : data.result.analysis;
+                    chartAnalysisResult.innerHTML = `<pre>${analysisText}</pre>`;
                     if (data.result.chart_url) {
                         analysisChartDiv.innerHTML = `<img src="${data.result.chart_url}" alt="Анализированный график" style="max-width: 100%;">`;
                     }
