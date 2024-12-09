@@ -36,14 +36,18 @@ import cv2
 import numpy as np
 import pandas as pd
 import mplfinance as mpf
-# import pytesseract  # Удален pytesseract
 import shutil
 from prophet import Prophet  # Для прогнозирования
+from skimage import feature, transform, color, filters, morphology
+from skimage.segmentation import clear_border
 
-# **Добавление Torch для нейросетевого анализа**
+# **Добавление Torch и TensorFlow для нейросетевого анализа**
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
 
 # Ленивая инициализация нейросетевой модели
 nn_model = None
@@ -54,30 +58,15 @@ def get_nn_model():
     """
     global nn_model
     if nn_model is None:
-        nn_model = SimpleNN(input_size=9, hidden_size=16, output_size=1)
-        model_path = 'model.pth'
+        # Переход на более сложную модель CNN
+        model_path = 'cnn_model.h5'
         if os.path.exists(model_path):
-            nn_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-            nn_model.eval()
-            logger.info("Нейросетевая модель загружена из 'model.pth'.")
+            nn_model = load_model(model_path)
+            logger.info("Нейросетевая модель CNN загружена из 'cnn_model.h5'.")
         else:
-            logger.warning("Файл модели 'model.pth' не найден. Нейросетевая модель не будет загружена.")
+            logger.warning("Файл модели 'cnn_model.h5' не найден. Нейросетевая модель не будет загружена.")
             nn_model = None
     return nn_model
-
-# Определение нейросетевой модели
-class SimpleNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(SimpleNN, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        return out
 
 def admin_required(f):
     @wraps(f)
@@ -157,6 +146,7 @@ def generate_openai_response(messages):
 def preprocess_image(image_path):
     """
     Предобрабатывает изображение для анализа графика.
+    Универсальная обработка без зависимости от цвета свечей и наличия осей.
     """
     try:
         img = cv2.imread(image_path)
@@ -164,35 +154,23 @@ def preprocess_image(image_path):
             logger.error(f"Не удалось загрузить изображение: {image_path}")
             return None
 
-        # Преобразование в HSV для цветовой сегментации
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        # Преобразование в серый цвет
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Определение диапазонов цветов для бычьих и медвежьих свечей
-        # Бычьи свечи (зелёные)
-        lower_green = np.array([40, 40, 40])
-        upper_green = np.array([80, 255, 255])
+        # Применение адаптивного порогового значения
+        thresh = cv2.adaptiveThreshold(gray, 255,
+                                       cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY_INV, 11, 2)
 
-        # Медвежьи свечи (красные)
-        lower_red1 = np.array([0, 70, 50])
-        upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([170, 70, 50])
-        upper_red2 = np.array([180, 255, 255])
+        # Морфологические операции для удаления шума
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+        cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-        # Создание масок
-        mask_green = cv2.inRange(hsv, lower_green, upper_green)
-        mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        mask_red2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+        # Удаление границ
+        cleaned = clear_border(cleaned)
 
-        # Объединение масок
-        mask = cv2.bitwise_or(mask_green, mask_red)
-
-        # Удаление шума с помощью морфологических операций
-        kernel = np.ones((5,5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
-        return mask
+        return cleaned
     except Exception as e:
         logger.error(f"Ошибка при предобработке изображения: {e}")
         logger.error(traceback.format_exc())
@@ -215,7 +193,7 @@ def detect_candlesticks(preprocessed_img, original_img):
             aspect_ratio = w / float(h)
 
             # Фильтрация контуров по размеру и соотношению сторон
-            if 0.05 < aspect_ratio < 0.5 and h > img_height * 0.02:
+            if 0.05 < aspect_ratio < 0.5 and h > img_height * 0.02 and h < img_height * 0.8:
                 candlesticks.append((x, y, w, h))
                 # Отрисовка прямоугольника для визуализации
                 cv2.rectangle(original_img, (x, y), (x + w, y + h), (0, 255, 0), 1)
@@ -232,8 +210,6 @@ def detect_candlesticks(preprocessed_img, original_img):
         candle_lows = []
         for c in candlesticks:
             x, y, w, h = c
-            # Примерная оценка high и low на основе положения свечи
-            # Предполагается, что верхняя часть свечи соответствует high, нижняя - low
             candle_highs.append(y)
             candle_lows.append(y + h)
 
@@ -242,17 +218,22 @@ def detect_candlesticks(preprocessed_img, original_img):
 
         # Дополнение диапазона для учета графика
         padding = (max_y - min_y) * 0.05  # 5% от диапазона
-        min_y -= padding
-        max_y += padding
+        min_y = max(min_y - padding, 0)
+        max_y = min(max_y + padding, img_height)
 
         # Преобразование координат Y в цены
-        # Допустим, верх графика соответствует максимальной цене, нижний - минимальной
-        # Здесь используется линейная интерполяция
+        # Необходимо определить MIN_PRICE и MAX_PRICE на основе графика или пользовательского ввода
+        # Для примера, зададим фиктивные значения
+        MIN_PRICE = 0  # Требуется реализация определения минимальной цены
+        MAX_PRICE = 100  # Требуется реализация определения максимальной цены
 
         def y_to_price(y):
             return MIN_PRICE + (max_y - y) / (max_y - min_y) * (MAX_PRICE - MIN_PRICE)
 
         data = []
+        START_DATE = datetime.utcnow() - timedelta(days=len(candlesticks))  # Примерная дата начала
+        FREQUENCY = timedelta(days=1)  # Примерная частота
+
         for index, c in enumerate(candlesticks):
             x, y, w, h = c
             date = START_DATE + index * FREQUENCY
@@ -382,7 +363,7 @@ def neural_network_analysis(df):
         if model is None:
             return "Нейросетевая модель не загружена."
 
-        # Подготовка данных
+        # Подготовка данных для CNN
         feature_columns = ['open', 'high', 'low', 'close', 'MA20', 'MA50', 'RSI', 'MACD', 'Signal']
         X = df[feature_columns].values[:-1]  # Все кроме последнего
         y = (df['close'].values[1:] > df['close'].values[:-1]).astype(int)  # 1: Цена выросла, 0: снизилась
