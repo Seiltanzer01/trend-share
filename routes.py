@@ -46,6 +46,51 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+# Ленивая инициализация моделей
+reader = None
+nn_model = None
+
+def get_easyocr_reader():
+    """
+    Ленивая инициализация EasyOCR Reader.
+    """
+    global reader
+    if reader is None:
+        reader = easyocr.Reader(['ru', 'en'])
+        logger.info("EasyOCR Reader инициализирован.")
+    return reader
+
+def get_nn_model():
+    """
+    Ленивая инициализация нейросетевой модели.
+    """
+    global nn_model
+    if nn_model is None:
+        nn_model = SimpleNN(input_size=9, hidden_size=16, output_size=1)
+        model_path = 'model.pth'
+        if os.path.exists(model_path):
+            nn_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+            nn_model.eval()
+            logger.info("Нейросетевая модель загружена из 'model.pth'.")
+        else:
+            logger.warning("Файл модели 'model.pth' не найден. Нейросетевая модель не будет загружена.")
+            nn_model = None
+    return nn_model
+
+# Определение нейросетевой модели
+class SimpleNN(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(SimpleNN, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
+        return out
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -59,10 +104,6 @@ def admin_required(f):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
-
-# Инициализация EasyOCR Reader
-# Укажите языки, которые вам необходимы, например 'ru' для русского
-reader = easyocr.Reader(['ru', 'en'])
 
 # Инициализация OpenAI API
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
@@ -155,6 +196,7 @@ def extract_axes_info(image_path):
     Извлекает информацию о осях графика (метки и масштаб) с использованием EasyOCR.
     """
     try:
+        reader = get_easyocr_reader()
         # Используем EasyOCR для распознавания текста
         result = reader.readtext(image_path, detail=0, paragraph=True)
         parsed_text = ' '.join(result)
@@ -269,7 +311,7 @@ def perform_technical_analysis(df):
         last_close = df['close'].iloc[-1]
         forecast_price = forecast['yhat'].iloc[-1] if not forecast.empty else "N/A"
 
-        # Пример нейросетевого анализа (простая модель для демонстрации)
+        # Нейросетевой анализ
         nn_analysis = neural_network_analysis(df)
 
         analysis = f"""
@@ -333,23 +375,13 @@ def forecast_with_prophet(df):
 
 def neural_network_analysis(df):
     """
-    Пример простой нейросетевой модели для анализа данных свечей.
+    Выполняет нейросетевой анализ данных свечей.
     Возвращает строку с результатом анализа.
     """
     try:
-        # Простая модель: предсказывает изменение цены на следующий день
-        class SimpleNN(nn.Module):
-            def __init__(self, input_size, hidden_size, output_size):
-                super(SimpleNN, self).__init__()
-                self.fc1 = nn.Linear(input_size, hidden_size)
-                self.relu = nn.ReLU()
-                self.fc2 = nn.Linear(hidden_size, output_size)
-
-            def forward(self, x):
-                out = self.fc1(x)
-                out = self.relu(out)
-                out = self.fc2(out)
-                return out
+        model = get_nn_model()
+        if model is None:
+            return "Нейросетевая модель не загружена."
 
         # Подготовка данных
         feature_columns = ['open', 'high', 'low', 'close', 'MA20', 'MA50', 'RSI', 'MACD', 'Signal']
@@ -360,43 +392,18 @@ def neural_network_analysis(df):
             return "Недостаточно данных для нейросетевого анализа."
 
         # Нормализация данных
-        X = (X - X.mean(axis=0)) / X.std(axis=0)
-
-        # Разделение на обучающую и тестовую выборки
-        split = int(0.8 * len(X))
-        X_train, X_test = X[:split], X[split:]
-        y_train, y_test = y[:split], y[split:]
+        X_mean = X.mean(axis=0)
+        X_std = X.std(axis=0)
+        X = (X - X_mean) / X_std
 
         # Преобразование в тензоры
-        X_train = torch.tensor(X_train, dtype=torch.float32)
-        y_train = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
-        X_test = torch.tensor(X_test, dtype=torch.float32)
-        y_test = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
+        X_tensor = torch.tensor(X, dtype=torch.float32)
 
-        # Определение модели, функции потерь и оптимизатора
-        input_size = X_train.shape[1]
-        hidden_size = 16
-        output_size = 1
-        model = SimpleNN(input_size, hidden_size, output_size)
-        criterion = nn.BCEWithLogitsLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-        # Обучение модели
-        epochs = 100
-        for epoch in range(epochs):
-            model.train()
-            outputs = model(X_train)
-            loss = criterion(outputs, y_train)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        # Оценка модели
-        model.eval()
+        # Прогнозирование
         with torch.no_grad():
-            predictions = torch.sigmoid(model(X_test))
+            predictions = torch.sigmoid(model(X_tensor))
             predicted = (predictions > 0.5).float()
-            accuracy = (predicted == y_test).float().mean().item()
+            accuracy = (predicted.squeeze() == torch.tensor(y, dtype=torch.float32)).float().mean().item()
 
         analysis = f"Нейросетевая модель предсказывает направление цены с точностью: {accuracy * 100:.2f}%"
 
@@ -1544,7 +1551,7 @@ def robokassa_result():
                 if user.id == session.get('user_id'):
                     session['assistant_premium'] = user.assistant_premium
                     flash('Ваша подписка активирована.', 'success')
-            
+        
             return 'YES', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке inv_id: {e}")
