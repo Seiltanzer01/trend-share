@@ -206,12 +206,11 @@ def detect_candlesticks(preprocessed_img, original_img):
         # Сортируем свечи по оси X
         candlesticks = sorted(candlesticks, key=lambda c: c[0])
 
-        # Извлечение данных свечей
         data = []
         img_height, img_width = preprocessed_img.shape
 
-        for index, candlestick in enumerate(candlesticks):
-            x, y, w, h = candlestick
+        for index, c in enumerate(candlesticks):
+            x, y, w, h = c
 
             # Определение даты на основе индекса свечи
             date = START_DATE + index * FREQUENCY
@@ -233,10 +232,15 @@ def detect_candlesticks(preprocessed_img, original_img):
                 'close': round(close_price, 2)
             })
 
-        df = pd.DataFrame(data)
-        df = df.drop_duplicates(subset=['date'])
-        df = df.sort_values(by='date')
-        return df, original_img
+        if data:
+            df = pd.DataFrame(data)
+            df = df.drop_duplicates(subset=['date'])
+            df = df.sort_values(by='date')
+            logger.info(f"Обнаружено {len(df)} свечей.")
+            return df, original_img
+        else:
+            logger.warning("Свечи не обнаружены на графике.")
+            return pd.DataFrame(), original_img
     except Exception as e:
         logger.error(f"Ошибка при обнаружении свечей: {e}")
         logger.error(traceback.format_exc())
