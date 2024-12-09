@@ -154,12 +154,6 @@ def generate_openai_response(messages):
 
 # Функции для обработки и анализа графиков
 
-# Константы для масштабов графика
-MIN_PRICE = 34000.0  # Минимальная цена на оси Y
-MAX_PRICE = 35000.0  # Максимальная цена на оси Y
-START_DATE = datetime(2023, 9, 19)  # Начальная дата на оси X
-FREQUENCY = timedelta(hours=4)  # Частота свечей (например, 4 часа)
-
 def preprocess_image(image_path):
     """
     Предобрабатывает изображение для анализа графика.
@@ -170,16 +164,35 @@ def preprocess_image(image_path):
             logger.error(f"Не удалось загрузить изображение: {image_path}")
             return None
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Увеличение контрастности
-        gray = cv2.equalizeHist(gray)
-        # Применение адаптивной бинаризации
-        binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY, 11, 2)
-        # Удаление шума с помощью морфологии
-        kernel = np.ones((3,3), np.uint8)
-        opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
-        return opening
+        # Преобразование в HSV для цветовой сегментации
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # Определение диапазонов цветов для бычьих и медвежьих свечей
+        # Бычьи свечи (зелёные)
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([80, 255, 255])
+
+        # Медвежьи свечи (красные)
+        lower_red1 = np.array([0, 70, 50])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([170, 70, 50])
+        upper_red2 = np.array([180, 255, 255])
+
+        # Создание масок
+        mask_green = cv2.inRange(hsv, lower_green, upper_green)
+        mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask_red2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+
+        # Объединение масок
+        mask = cv2.bitwise_or(mask_green, mask_red)
+
+        # Удаление шума с помощью морфологических операций
+        kernel = np.ones((5,5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        return mask
     except Exception as e:
         logger.error(f"Ошибка при предобработке изображения: {e}")
         logger.error(traceback.format_exc())
@@ -191,48 +204,64 @@ def detect_candlesticks(preprocessed_img, original_img):
     Возвращает DataFrame с колонками: date, open, high, low, close
     """
     try:
-        # Изменение размера изображения для стандартизации размеров свечей
-        standard_width = 800
-        scale_ratio = standard_width / preprocessed_img.shape[1]
-        resized_img = cv2.resize(preprocessed_img, (standard_width, int(preprocessed_img.shape[0] * scale_ratio)))
-        resized_original = cv2.resize(original_img, (standard_width, int(original_img.shape[0] * scale_ratio)))
-
         # Поиск контуров
-        contours, _ = cv2.findContours(resized_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(preprocessed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         candlesticks = []
 
-        img_height, img_width = resized_img.shape
-
-        # Определение относительных порогов
-        min_aspect_ratio = 0.05  # Минимальное соотношение ширины к высоте
-        max_aspect_ratio = 0.5   # Максимальное соотношение ширины к высоте
-        min_height = img_height * 0.02  # Минимальная высота свечи (2% от высоты изображения)
-        max_height = img_height * 0.8   # Максимальная высота свечи (80% от высоты изображения)
+        img_height, img_width = preprocessed_img.shape
 
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
             aspect_ratio = w / float(h)
 
-            if min_aspect_ratio < aspect_ratio < max_aspect_ratio and min_height < h < max_height:
+            # Фильтрация контуров по размеру и соотношению сторон
+            if 0.05 < aspect_ratio < 0.5 and h > img_height * 0.02:
                 candlesticks.append((x, y, w, h))
                 # Отрисовка прямоугольника для визуализации
-                cv2.rectangle(resized_original, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                cv2.rectangle(original_img, (x, y), (x + w, y + h), (0, 255, 0), 1)
 
         # Сортировка свечей по оси X (слева направо)
         candlesticks = sorted(candlesticks, key=lambda c: c[0])
+
+        if not candlesticks:
+            logger.warning("Свечи не обнаружены на графике.")
+            return pd.DataFrame(), original_img
+
+        # Определение диапазона цен на основе свечей
+        candle_highs = []
+        candle_lows = []
+        for c in candlesticks:
+            x, y, w, h = c
+            # Примерная оценка high и low на основе положения свечи
+            # Предполагается, что верхняя часть свечи соответствует high, нижняя - low
+            candle_highs.append(y)
+            candle_lows.append(y + h)
+
+        min_y = min(candle_highs)
+        max_y = max(candle_lows)
+
+        # Дополнение диапазона для учета графика
+        padding = (max_y - min_y) * 0.05  # 5% от диапазона
+        min_y -= padding
+        max_y += padding
+
+        # Преобразование координат Y в цены
+        # Допустим, верх графика соответствует максимальной цене, нижний - минимальной
+        # Здесь используется линейная интерполяция
+
+        def y_to_price(y):
+            return MIN_PRICE + (max_y - y) / (max_y - min_y) * (MAX_PRICE - MIN_PRICE)
 
         data = []
         for index, c in enumerate(candlesticks):
             x, y, w, h = c
             date = START_DATE + index * FREQUENCY
 
-            # Преобразование координат Y в цены
-            open_price = MIN_PRICE + (img_height - (y + h)) / img_height * (MAX_PRICE - MIN_PRICE)
-            close_price = MIN_PRICE + (img_height - y) / img_height * (MAX_PRICE - MIN_PRICE)
+            open_price = y_to_price(y + h)
+            close_price = y_to_price(y)
 
-            # Определение high и low на основе высоты свечи
-            high_price = max(open_price, close_price) + (h / img_height) * (MAX_PRICE - MIN_PRICE) * 0.1
-            low_price = min(open_price, close_price) - (h / img_height) * (MAX_PRICE - MIN_PRICE) * 0.1
+            high_price = y_to_price(min_y)  # Максимальная цена на графике
+            low_price = y_to_price(max_y)   # Минимальная цена на графике
 
             data.append({
                 'date': date,
@@ -242,15 +271,12 @@ def detect_candlesticks(preprocessed_img, original_img):
                 'close': round(close_price, 2)
             })
 
-        if data:
-            df = pd.DataFrame(data)
-            df = df.drop_duplicates(subset=['date'])
-            df = df.sort_values(by='date')
-            logger.info(f"Обнаружено {len(df)} свечей.")
-            return df, resized_original
-        else:
-            logger.warning("Свечи не обнаружены на графике.")
-            return pd.DataFrame(), resized_original
+        df = pd.DataFrame(data)
+        df = df.drop_duplicates(subset=['date'])
+        df = df.sort_values(by='date')
+        logger.info(f"Обнаружено {len(df)} свечей.")
+
+        return df, original_img
     except Exception as e:
         logger.error(f"Ошибка при обнаружении свечей: {e}")
         logger.error(traceback.format_exc())
@@ -398,7 +424,8 @@ def analyze_chart(image_path):
             return {'error': 'Не удалось обработать изображение.'}
 
         # Обнаружение свечей и получение DataFrame
-        candlestick_df, annotated_img = detect_candlesticks(preprocessed_img, cv2.imread(image_path))
+        original_img = cv2.imread(image_path)
+        candlestick_df, annotated_img = detect_candlesticks(preprocessed_img, original_img)
         if candlestick_df.empty:
             return {'error': 'Не удалось извлечь данные свечей из графика.'}
 
@@ -409,8 +436,15 @@ def analyze_chart(image_path):
         chart_filename = f"analysis_chart_{int(datetime.utcnow().timestamp())}.png"
         chart_path = os.path.join('static', 'images', chart_filename)
         os.makedirs(os.path.dirname(chart_path), exist_ok=True)
+
+        # Сохранение аннотированного изображения для отладки (опционально)
+        annotated_chart_path = os.path.join('static', 'images', f"annotated_{chart_filename}")
+        cv2.imwrite(annotated_chart_path, annotated_img)
+
+        # Генерация графика с использованием mplfinance
+        df_plot = candlestick_df.set_index('date')
         mpf.plot(
-            candlestick_df.set_index('date'),
+            df_plot,
             type='candle',
             style='charles',
             title='Анализированный график',
@@ -422,7 +456,8 @@ def analyze_chart(image_path):
 
         return {
             'analysis': analysis,
-            'chart_url': analysis_chart_url
+            'chart_url': analysis_chart_url,
+            'annotated_chart_url': url_for('static', filename=f'images/annotated_{chart_filename}', _external=True)  # Опционально
         }
     except Exception as e:
         logger.error(f"Ошибка при анализе графика: {e}")
