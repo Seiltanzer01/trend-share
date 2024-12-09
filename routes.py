@@ -191,32 +191,42 @@ def detect_candlesticks(preprocessed_img, original_img):
     Возвращает DataFrame с колонками: date, open, high, low, close
     """
     try:
-        # Используем контурный анализ для обнаружения свечей
-        contours, _ = cv2.findContours(preprocessed_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # Изменение размера изображения для стандартизации размеров свечей
+        standard_width = 800
+        scale_ratio = standard_width / preprocessed_img.shape[1]
+        resized_img = cv2.resize(preprocessed_img, (standard_width, int(preprocessed_img.shape[0] * scale_ratio)))
+        resized_original = cv2.resize(original_img, (standard_width, int(original_img.shape[0] * scale_ratio)))
+
+        # Поиск контуров
+        contours, _ = cv2.findContours(resized_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         candlesticks = []
+
+        img_height, img_width = resized_img.shape
+
+        # Определение относительных порогов
+        min_aspect_ratio = 0.05  # Минимальное соотношение ширины к высоте
+        max_aspect_ratio = 0.5   # Максимальное соотношение ширины к высоте
+        min_height = img_height * 0.02  # Минимальная высота свечи (2% от высоты изображения)
+        max_height = img_height * 0.8   # Максимальная высота свечи (80% от высоты изображения)
 
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
             aspect_ratio = w / float(h)
-            if 0.1 < aspect_ratio < 0.3 and 20 < h < 200:
-                # Предполагаем, что свеча имеет узкий и высокий прямоугольник
-                candlesticks.append((x, y, w, h))
-                cv2.rectangle(original_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Сортируем свечи по оси X
+            if min_aspect_ratio < aspect_ratio < max_aspect_ratio and min_height < h < max_height:
+                candlesticks.append((x, y, w, h))
+                # Отрисовка прямоугольника для визуализации
+                cv2.rectangle(resized_original, (x, y), (x + w, y + h), (0, 255, 0), 1)
+
+        # Сортировка свечей по оси X (слева направо)
         candlesticks = sorted(candlesticks, key=lambda c: c[0])
 
         data = []
-        img_height, img_width = preprocessed_img.shape
-
         for index, c in enumerate(candlesticks):
             x, y, w, h = c
-
-            # Определение даты на основе индекса свечи
             date = START_DATE + index * FREQUENCY
 
-            # Преобразование Y-пикселей в цены
-            # Предполагаем, что верх графика соответствует MAX_PRICE, ниж графика - MIN_PRICE
+            # Преобразование координат Y в цены
             open_price = MIN_PRICE + (img_height - (y + h)) / img_height * (MAX_PRICE - MIN_PRICE)
             close_price = MIN_PRICE + (img_height - y) / img_height * (MAX_PRICE - MIN_PRICE)
 
@@ -237,10 +247,10 @@ def detect_candlesticks(preprocessed_img, original_img):
             df = df.drop_duplicates(subset=['date'])
             df = df.sort_values(by='date')
             logger.info(f"Обнаружено {len(df)} свечей.")
-            return df, original_img
+            return df, resized_original
         else:
             logger.warning("Свечи не обнаружены на графике.")
-            return pd.DataFrame(), original_img
+            return pd.DataFrame(), resized_original
     except Exception as e:
         logger.error(f"Ошибка при обнаружении свечей: {e}")
         logger.error(traceback.format_exc())
