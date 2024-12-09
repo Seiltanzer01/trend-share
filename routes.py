@@ -4,7 +4,7 @@ import os
 import logging
 import traceback
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (
     render_template, redirect, url_for, flash, request,
@@ -40,25 +40,13 @@ import mplfinance as mpf
 import shutil
 from prophet import Prophet  # Для прогнозирования
 
-# **Добавление EasyOCR и Torch для OCR и нейросетевого анализа**
-import easyocr
+# **Добавление Torch для нейросетевого анализа**
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# Ленивая инициализация моделей
-reader = None
+# Ленивая инициализация нейросетевой модели
 nn_model = None
-
-def get_easyocr_reader():
-    """
-    Ленивая инициализация EasyOCR Reader.
-    """
-    global reader
-    if reader is None:
-        reader = easyocr.Reader(['ru', 'en'])
-        logger.info("EasyOCR Reader инициализирован.")
-    return reader
 
 def get_nn_model():
     """
@@ -166,6 +154,12 @@ def generate_openai_response(messages):
 
 # Функции для обработки и анализа графиков
 
+# Константы для масштабов графика
+MIN_PRICE = 34000.0  # Минимальная цена на оси Y
+MAX_PRICE = 35000.0  # Максимальная цена на оси Y
+START_DATE = datetime(2023, 9, 19)  # Начальная дата на оси X
+FREQUENCY = timedelta(hours=4)  # Частота свечей (например, 4 часа)
+
 def preprocess_image(image_path):
     """
     Предобрабатывает изображение для анализа графика.
@@ -191,57 +185,7 @@ def preprocess_image(image_path):
         logger.error(traceback.format_exc())
         return None
 
-def extract_axes_info(image_path):
-    """
-    Извлекает информацию о осях графика (метки и масштаб) с использованием EasyOCR.
-    """
-    try:
-        reader = get_easyocr_reader()
-        # Используем EasyOCR для распознавания текста
-        result = reader.readtext(image_path, detail=0, paragraph=True)
-        parsed_text = ' '.join(result)
-        lines = parsed_text.split('\n')
-
-        x_labels = []
-        y_labels = []
-
-        for line in lines:
-            if 'ось x' in line.lower() or 'x-axis' in line.lower():
-                # Извлекаем метки оси X
-                x_labels = line.lower().replace('ось x', '').replace('x-axis', '').strip().split()
-            if 'ось y' in line.lower() or 'y-axis' in line.lower():
-                # Извлекаем метки оси Y
-                y_labels = line.lower().replace('ось y', '').replace('y-axis', '').strip().split()
-
-        # Преобразование меток осей в числовые значения
-        y_scale = [float(label.replace(',', '.')) for label in y_labels if is_float(label.replace(',', '.'))]
-
-        # Преобразование меток оси X в даты (предполагается формат даты)
-        x_scale = []
-        for label in x_labels:
-            try:
-                date = pd.to_datetime(label, format='%d.%m.%Y')
-                x_scale.append(date)
-            except ValueError:
-                continue  # Пропускаем некорректные форматы
-
-        return x_scale, y_scale
-    except Exception as e:
-        logger.error(f"Ошибка при извлечении информации об осях: {e}")
-        logger.error(traceback.format_exc())
-        return [], []
-
-def is_float(string):
-    """
-    Проверяет, может ли строка быть преобразована в float.
-    """
-    try:
-        float(string)
-        return True
-    except ValueError:
-        return False
-
-def detect_candlesticks(preprocessed_img, x_scale, y_scale):
+def detect_candlesticks(preprocessed_img, original_img):
     """
     Обнаруживает японские свечи на графике и извлекает их данные.
     Возвращает DataFrame с колонками: date, open, high, low, close
@@ -256,32 +200,47 @@ def detect_candlesticks(preprocessed_img, x_scale, y_scale):
             aspect_ratio = w / float(h)
             if 0.1 < aspect_ratio < 0.3 and 20 < h < 200:
                 # Предполагаем, что свеча имеет узкий и высокий прямоугольник
-                # Преобразуем пиксельные координаты в реальные значения
-                date_index = int(x / preprocessed_img.shape[1] * len(x_scale))
-                if 0 <= date_index < len(x_scale):
-                    date = x_scale[date_index]
-                    # Преобразование Y-пикселей в цены
-                    price_range = max(y_scale) - min(y_scale)
-                    open_price = min(y_scale) + (preprocessed_img.shape[0] - (y + h)) * price_range / preprocessed_img.shape[0]
-                    close_price = min(y_scale) + (preprocessed_img.shape[0] - y) * price_range / preprocessed_img.shape[0]
-                    high_price = max(open_price, close_price) + (h / preprocessed_img.shape[0]) * price_range * 0.1  # Примерное увеличение
-                    low_price = min(open_price, close_price) - (h / preprocessed_img.shape[0]) * price_range * 0.1  # Примерное уменьшение
-                    candlesticks.append({
-                        'date': date,
-                        'open': round(open_price, 2),
-                        'high': round(high_price, 2),
-                        'low': round(low_price, 2),
-                        'close': round(close_price, 2)
-                    })
+                candlesticks.append((x, y, w, h))
+                cv2.rectangle(original_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        df = pd.DataFrame(candlesticks)
+        # Сортируем свечи по оси X
+        candlesticks = sorted(candlesticks, key=lambda c: c[0])
+
+        # Извлечение данных свечей
+        data = []
+        img_height, img_width = preprocessed_img.shape
+
+        for index, candlestick in enumerate(candlesticks):
+            x, y, w, h = candlestick
+
+            # Определение даты на основе индекса свечи
+            date = START_DATE + index * FREQUENCY
+
+            # Преобразование Y-пикселей в цены
+            # Предполагаем, что верх графика соответствует MAX_PRICE, ниж графика - MIN_PRICE
+            open_price = MIN_PRICE + (img_height - (y + h)) / img_height * (MAX_PRICE - MIN_PRICE)
+            close_price = MIN_PRICE + (img_height - y) / img_height * (MAX_PRICE - MIN_PRICE)
+
+            # Определение high и low на основе высоты свечи
+            high_price = max(open_price, close_price) + (h / img_height) * (MAX_PRICE - MIN_PRICE) * 0.1
+            low_price = min(open_price, close_price) - (h / img_height) * (MAX_PRICE - MIN_PRICE) * 0.1
+
+            data.append({
+                'date': date,
+                'open': round(open_price, 2),
+                'high': round(high_price, 2),
+                'low': round(low_price, 2),
+                'close': round(close_price, 2)
+            })
+
+        df = pd.DataFrame(data)
         df = df.drop_duplicates(subset=['date'])
         df = df.sort_values(by='date')
-        return df
+        return df, original_img
     except Exception as e:
         logger.error(f"Ошибка при обнаружении свечей: {e}")
         logger.error(traceback.format_exc())
-        return pd.DataFrame()
+        return pd.DataFrame(), original_img
 
 def perform_technical_analysis(df):
     """
@@ -365,7 +324,7 @@ def forecast_with_prophet(df):
         prophet_df = df[['date', 'close']].rename(columns={'date': 'ds', 'close': 'y'})
         model = Prophet()
         model.fit(prophet_df)
-        future = model.make_future_dataframe(periods=5)  # Прогноз на 5 дней
+        future = model.make_future_dataframe(periods=5)  # Прогноз на 5 свечей
         forecast = model.predict(future)
         return forecast
     except Exception as e:
@@ -424,20 +383,9 @@ def analyze_chart(image_path):
         if preprocessed_img is None:
             return {'error': 'Не удалось обработать изображение.'}
 
-        # Сохранение предобработанного изображения временно для OCR
-        processed_image_path = 'processed_image.png'
-        cv2.imwrite(processed_image_path, preprocessed_img)
-
-        # Извлечение информации об осях с использованием EasyOCR
-        x_scale, y_scale = extract_axes_info(processed_image_path)
-        if not x_scale or not y_scale:
-            os.remove(processed_image_path)
-            return {'error': 'Не удалось извлечь информацию об осях графика.'}
-
-        # Обнаружение и извлечение данных свечей
-        candlestick_df = detect_candlesticks(preprocessed_img, x_scale, y_scale)
+        # Обнаружение свечей и получение DataFrame
+        candlestick_df, annotated_img = detect_candlesticks(preprocessed_img, cv2.imread(image_path))
         if candlestick_df.empty:
-            os.remove(processed_image_path)
             return {'error': 'Не удалось извлечь данные свечей из графика.'}
 
         # Выполнение технического анализа
@@ -457,10 +405,6 @@ def analyze_chart(image_path):
             savefig=chart_path
         )
         analysis_chart_url = url_for('static', filename=f'images/{chart_filename}', _external=True)
-
-        # Удаление временных файлов
-        os.remove(image_path)
-        os.remove(processed_image_path)
 
         return {
             'analysis': analysis,
@@ -492,7 +436,16 @@ def assistant_analyze_chart():
 
     if image:
         try:
-            # Сохраняем изображение временно
+            # Ограничение размера файла
+            MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 МБ
+            image.seek(0, os.SEEK_END)
+            file_size = image.tell()
+            image.seek(0)  # Сброс позиции чтения
+
+            if file_size > MAX_IMAGE_SIZE:
+                return jsonify({'error': 'Image size exceeds 5 MB limit.'}), 400
+
+            # Сохранение изображения временно
             filename = secure_filename(image.filename)
             temp_dir = 'temp'
             os.makedirs(temp_dir, exist_ok=True)
@@ -1014,12 +967,7 @@ def edit_trade(trade_id):
                     flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
-    return render_template(
-        'edit_trade.html',
-        form=form,
-        criteria_categories=criteria_categories,
-        trade=trade
-    )
+    return render_template('edit_trade.html', form=form, criteria_categories=criteria_categories, trade=trade)
 
 # Удалить сделку
 @app.route('/delete_trade/<int:trade_id>', methods=['POST'])
