@@ -79,4 +79,4 @@ opencv-python
 prophet
 plotly
 torch
-
+skimage
