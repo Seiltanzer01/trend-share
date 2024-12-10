@@ -76,7 +76,7 @@ Pillow
 mplfinance
 pandas
 opencv-python
-prophet
+# prophet
 plotly
 torch
 scikit-image
