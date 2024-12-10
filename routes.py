@@ -91,35 +91,7 @@ from skimage.segmentation import clear_border
 # **Добавление PyTorch для нейросетевого анализа**
 import torch
 import torch.nn as nn
-
-# Ленивая инициализация нейросетевой модели (для цены)
-nn_model = None
-
-def get_nn_model():
-    """
-    Ленивая инициализация нейросетевой модели для цены (model.pth).
-    """
-    global nn_model
-    if nn_model is None:
-        model_path = 'model.pth'
-        if os.path.exists(model_path):
-            nn_model = SimpleNet()
-            nn_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-            nn_model.eval()
-            logger.info("Простая нейросеть загружена из 'model.pth'.")
-        else:
-            logger.warning("Файл модели 'model.pth' не найден. Нейросетевая модель не будет загружена.")
-            nn_model = None
-    return nn_model
-
-# Простая модель PyTorch для прогноза цены
-class SimpleNet(nn.Module):
-    def __init__(self):
-        super(SimpleNet, self).__init__()
-        self.fc = nn.Linear(100, 1)  # Очень простая модель
-
-    def forward(self, x):
-        return self.fc(x)
+import torch.nn.functional as F
 
 def admin_required(f):
     @wraps(f)
@@ -143,28 +115,12 @@ if not app.config['OPENAI_API_KEY']:
 
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# ------------------------------
-# ДОБАВЛЕНИЕ КОДА ДЛЯ trend_model.pth (КЛАССИФИКАЦИЯ НАПРАВЛЕНИЯ)
-# ------------------------------
+
+##################################################
+# Модель тренда (trend_model.pth)
+##################################################
 
 trend_model = None
-
-def get_trend_model():
-    """
-    Ленивая инициализация нейросетевой модели для тренда (trend_model.pth).
-    """
-    global trend_model
-    if trend_model is None:
-        trend_model_path = 'trend_model.pth'
-        if os.path.exists(trend_model_path):
-            trend_model = TrendCNN(num_classes=3)
-            trend_model.load_state_dict(torch.load(trend_model_path, map_location=torch.device('cpu')))
-            trend_model.eval()
-            logger.info("Модель для тренда загружена из 'trend_model.pth'.")
-        else:
-            logger.warning("Файл 'trend_model.pth' не найден. Модель тренда не будет загружена.")
-            trend_model = None
-    return trend_model
 
 class TrendCNN(nn.Module):
     def __init__(self, num_classes=3):
@@ -188,6 +144,20 @@ class TrendCNN(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x
+
+def get_trend_model():
+    global trend_model
+    if trend_model is None:
+        model_path = 'trend_model.pth'
+        if os.path.exists(model_path):
+            trend_model = TrendCNN(num_classes=3)
+            trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+            trend_model.eval()
+            logger.info("Модель тренда загружена из 'trend_model.pth'.")
+        else:
+            logger.warning("Файл 'trend_model.pth' не найден. Модель тренда не будет загружена.")
+            trend_model = None
+    return trend_model
 
 def preprocess_for_trend(image_path):
     """
@@ -233,69 +203,22 @@ def predict_trend(image_path):
     classes = ["uptrend", "downtrend", "sideways"]
     return f"Прогноз направления тренда: {classes[predicted.item()]}"
 
-# --------------------------------
-
-def preprocess_image(image_path):
-    """
-    Предобрабатывает изображение для анализа графика (для цены).
-    """
-    try:
-        img = cv2.imread(image_path)
-        if img is None:
-            logger.error(f"Не удалось загрузить изображение: {image_path}")
-            return None
-
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        thresh = cv2.adaptiveThreshold(gray, 255,
-                                       cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY_INV, 11, 2)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
-        cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
-        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
-        cleaned = clear_border(cleaned)
-        img_vector = cleaned.flatten().astype(np.float32) / 255.0
-
-        if len(img_vector) > 100:
-            img_vector = img_vector[:100]
-        else:
-            img_vector = np.pad(img_vector, (0, 100 - len(img_vector)), 'constant')
-
-        return img_vector
-    except Exception as e:
-        logger.error(f"Ошибка при предобработке изображения: {e}")
-        logger.error(traceback.format_exc())
-        return None
-
-def predict_price(img_vector):
-    """
-    Использует нейросетевую модель для предсказания цены (model.pth).
-    """
-    model = get_nn_model()
-    if model is None:
-        return "Модель не загружена."
-    x = torch.tensor(img_vector).unsqueeze(0)
-    with torch.no_grad():
-        pred = model(x).item()
-    return f"Прогнозируемая цена: {pred:.2f}"
+##################################################
+# Предобработка и анализ графика
+##################################################
 
 def analyze_chart(image_path):
     """
-    Анализирует изображение графика: предсказывает цену (model.pth) и тренд (trend_model.pth).
+    Анализирует изображение графика: предсказывает тренд (trend_model.pth).
     Возвращает словарь с результатами анализа.
     """
     try:
-        img_vector = preprocess_image(image_path)
-        if img_vector is None:
-            return {'error': 'Не удалось обработать изображение.'}
-
-        # Прогноз цены
-        prediction_price = predict_price(img_vector)
         # Прогноз тренда
-        prediction_trend = predict_trend(image_path)
+        trend_prediction = predict_trend(image_path)
 
+        # Возвращаем результаты
         return {
-            'prediction_price': prediction_price,
-            'prediction_trend': prediction_trend
+            'trend_prediction': trend_prediction
         }
     except Exception as e:
         logger.error(f"Ошибка при анализе графика: {e}")
@@ -1197,12 +1120,12 @@ def assistant_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user.assistant_premium:
         flash('Доступ к ассистенту доступен только по подписке.', 'danger')
         return redirect(url_for('index'))
-    
+
     return render_template('assistant.html')
 
 @app.route('/subscription', methods=['GET'])
@@ -1210,12 +1133,12 @@ def subscription_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите в систему для доступа к подписке.', 'warning')
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if user.assistant_premium:
         flash('У вас уже активная подписка.', 'info')
         return redirect(url_for('index'))
-    
+
     return render_template('subscription.html')
 
 @app.route('/buy_assistant', methods=['GET'])
@@ -1223,23 +1146,23 @@ def buy_assistant():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
         return redirect(url_for('login'))
-    
+
     user_id = session['user_id']
     amount = 1000
     inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
     out_sum = f"{amount}.00"
     merchant_login = app.config['ROBOKASSA_MERCHANT_LOGIN']
     password1 = app.config['ROBOKASSA_PASSWORD1']
-    
+
     signature = generate_robokassa_signature(out_sum, inv_id, password1)
-    
+
     robokassa_url = (
         f"https://auth.robokassa.ru/Merchant/Index.aspx?"
         f"MerchantLogin={merchant_login}&OutSum={out_sum}&InvoiceID={inv_id}&SignatureValue={signature}&"
         f"Description=Покупка подписки на ассистента Дядя Джон&Culture=ru&Encoding=utf-8&"
         f"ResultURL={app.config['ROBOKASSA_RESULT_URL']}&SuccessURL={app.config['ROBOKASSA_SUCCESS_URL']}&FailURL={app.config['ROBOKASSA_FAIL_URL']}"
     )
-    
+
     return redirect(robokassa_url)
 
 @app.route('/robokassa/result', methods=['POST'])
@@ -1248,10 +1171,10 @@ def robokassa_result():
     out_sum = data.get('OutSum')
     inv_id = data.get('InvoiceID')
     signature = data.get('SignatureValue')
-    
+
     password1 = app.config['ROBOKASSA_PASSWORD1']
     correct_signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
-    
+
     if signature.lower() == correct_signature.lower():
         try:
             user_id_str, timestamp = inv_id.split('_')
@@ -1264,7 +1187,7 @@ def robokassa_result():
                 if user.id == session.get('user_id'):
                     session['assistant_premium'] = user.assistant_premium
                     flash('Ваша подписка активирована.', 'success')
-        
+    
             return 'YES', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке inv_id: {e}")
