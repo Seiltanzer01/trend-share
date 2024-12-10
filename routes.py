@@ -151,7 +151,7 @@ def get_trend_model():
         model_path = 'trend_model.pth'
         if os.path.exists(model_path):
             trend_model = TrendCNN(num_classes=3)
-            trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+            trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'), weights_only=True))
             trend_model.eval()
             logger.info("Модель тренда загружена из 'trend_model.pth'.")
         else:
