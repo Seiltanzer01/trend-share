@@ -80,3 +80,4 @@ opencv-python
 plotly
 torch
 scikit-image
+torchvision
