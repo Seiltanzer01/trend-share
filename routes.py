@@ -31,65 +31,6 @@ from functools import wraps
 # **Интеграция OpenAI**
 import openai
 
-# **Импорт дополнительных библиотек для обработки изображений и анализа**
-import cv2
-import numpy as np
-import pandas as pd
-import mplfinance as mpf
-import shutil
-from prophet import Prophet  # Для прогнозирования
-from skimage import feature, transform, color, filters, morphology
-from skimage.segmentation import clear_border
-
-# **Добавление Torch и TensorFlow для нейросетевого анализа**
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
-
-# Ленивая инициализация нейросетевой модели
-nn_model = None
-
-def get_nn_model():
-    """
-    Ленивая инициализация нейросетевой модели.
-    """
-    global nn_model
-    if nn_model is None:
-        # Переход на более сложную модель CNN
-        model_path = 'cnn_model.h5'
-        if os.path.exists(model_path):
-            nn_model = load_model(model_path)
-            logger.info("Нейросетевая модель CNN загружена из 'cnn_model.h5'.")
-        else:
-            logger.warning("Файл модели 'cnn_model.h5' не найден. Нейросетевая модель не будет загружена.")
-            nn_model = None
-    return nn_model
-
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Проверяем, авторизован ли пользователь
-        if 'user_id' not in session or 'telegram_id' not in session:
-            flash('Пожалуйста, войдите в систему.', 'warning')
-            return redirect(url_for('login'))
-        # Проверяем, является ли пользователь администратором
-        if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
-            flash('Доступ запрещён.', 'danger')
-            return redirect(url_for('index'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Инициализация OpenAI API
-app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
-if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
-
-openai.api_key = app.config['OPENAI_API_KEY']
-
 # **Интеграция Robokassa**
 app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
 app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
@@ -109,8 +50,6 @@ if not all([
 ]):
     logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-
-# Вспомогательные функции
 
 def generate_robokassa_signature(out_sum, inv_id, password1):
     """
@@ -141,6 +80,69 @@ def generate_openai_response(messages):
         logger.error(traceback.format_exc())
         return "Произошла ошибка при обработке вашего запроса."
 
+# **Импорт дополнительных библиотек для обработки изображений и упрощённой нейросети**
+import cv2
+import numpy as np
+import pandas as pd
+import mplfinance as mpf
+import shutil
+from skimage.segmentation import clear_border
+
+# **Добавление PyTorch для нейросетевого анализа**
+import torch
+import torch.nn as nn
+
+# Ленивая инициализация нейросетевой модели
+nn_model = None
+
+def get_nn_model():
+    """
+    Ленивая инициализация нейросетевой модели.
+    """
+    global nn_model
+    if nn_model is None:
+        model_path = 'model.pth'
+        if os.path.exists(model_path):
+            nn_model = SimpleNet()
+            nn_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+            nn_model.eval()
+            logger.info("Простая нейросеть загружена из 'model.pth'.")
+        else:
+            logger.warning("Файл модели 'model.pth' не найден. Нейросетевая модель не будет загружена.")
+            nn_model = None
+    return nn_model
+
+# Простая модель PyTorch для прогноза
+class SimpleNet(nn.Module):
+    def __init__(self):
+        super(SimpleNet, self).__init__()
+        self.fc = nn.Linear(100, 1)  # Очень простая модель
+
+    def forward(self, x):
+        return self.fc(x)
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Проверяем, авторизован ли пользователь
+        if 'user_id' not in session or 'telegram_id' not in session:
+            flash('Пожалуйста, войдите в систему.', 'warning')
+            return redirect(url_for('login'))
+        # Проверяем, является ли пользователь администратором
+        if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
+            flash('Доступ запрещён.', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Инициализация OpenAI API
+app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+if not app.config['OPENAI_API_KEY']:
+    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
+    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+
+openai.api_key = app.config['OPENAI_API_KEY']
+
 # Функции для обработки и анализа графиков
 
 def preprocess_image(image_path):
@@ -170,275 +172,54 @@ def preprocess_image(image_path):
         # Удаление границ
         cleaned = clear_border(cleaned)
 
-        return cleaned
+        # Преобразование изображения в вектор
+        img_vector = cleaned.flatten().astype(np.float32) / 255.0
+
+        # Обрезка или дополнение до длины 100
+        if len(img_vector) > 100:
+            img_vector = img_vector[:100]
+        else:
+            img_vector = np.pad(img_vector, (0, 100 - len(img_vector)), 'constant')
+
+        return img_vector
     except Exception as e:
         logger.error(f"Ошибка при предобработке изображения: {e}")
         logger.error(traceback.format_exc())
         return None
 
-def detect_candlesticks(preprocessed_img, original_img):
+def predict_price(img_vector):
     """
-    Обнаруживает японские свечи на графике и извлекает их данные.
-    Возвращает DataFrame с колонками: date, open, high, low, close
+    Использует нейросетевую модель для предсказания цены.
     """
-    try:
-        # Поиск контуров
-        contours, _ = cv2.findContours(preprocessed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        candlesticks = []
+    model = get_nn_model()
+    if model is None:
+        return "Модель не загружена."
 
-        img_height, img_width = preprocessed_img.shape
-
-        for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-            aspect_ratio = w / float(h)
-
-            # Фильтрация контуров по размеру и соотношению сторон
-            if 0.05 < aspect_ratio < 0.5 and h > img_height * 0.02 and h < img_height * 0.8:
-                candlesticks.append((x, y, w, h))
-                # Отрисовка прямоугольника для визуализации
-                cv2.rectangle(original_img, (x, y), (x + w, y + h), (0, 255, 0), 1)
-
-        # Сортировка свечей по оси X (слева направо)
-        candlesticks = sorted(candlesticks, key=lambda c: c[0])
-
-        if not candlesticks:
-            logger.warning("Свечи не обнаружены на графике.")
-            return pd.DataFrame(), original_img
-
-        # Определение диапазона цен на основе свечей
-        candle_highs = []
-        candle_lows = []
-        for c in candlesticks:
-            x, y, w, h = c
-            candle_highs.append(y)
-            candle_lows.append(y + h)
-
-        min_y = min(candle_highs)
-        max_y = max(candle_lows)
-
-        # Дополнение диапазона для учета графика
-        padding = (max_y - min_y) * 0.05  # 5% от диапазона
-        min_y = max(min_y - padding, 0)
-        max_y = min(max_y + padding, img_height)
-
-        # Преобразование координат Y в цены
-        # Необходимо определить MIN_PRICE и MAX_PRICE на основе графика или пользовательского ввода
-        # Для примера, зададим фиктивные значения
-        MIN_PRICE = 0  # Требуется реализация определения минимальной цены
-        MAX_PRICE = 100  # Требуется реализация определения максимальной цены
-
-        def y_to_price(y):
-            return MIN_PRICE + (max_y - y) / (max_y - min_y) * (MAX_PRICE - MIN_PRICE)
-
-        data = []
-        START_DATE = datetime.utcnow() - timedelta(days=len(candlesticks))  # Примерная дата начала
-        FREQUENCY = timedelta(days=1)  # Примерная частота
-
-        for index, c in enumerate(candlesticks):
-            x, y, w, h = c
-            date = START_DATE + index * FREQUENCY
-
-            open_price = y_to_price(y + h)
-            close_price = y_to_price(y)
-
-            high_price = y_to_price(min_y)  # Максимальная цена на графике
-            low_price = y_to_price(max_y)   # Минимальная цена на графике
-
-            data.append({
-                'date': date,
-                'open': round(open_price, 2),
-                'high': round(high_price, 2),
-                'low': round(low_price, 2),
-                'close': round(close_price, 2)
-            })
-
-        df = pd.DataFrame(data)
-        df = df.drop_duplicates(subset=['date'])
-        df = df.sort_values(by='date')
-        logger.info(f"Обнаружено {len(df)} свечей.")
-
-        return df, original_img
-    except Exception as e:
-        logger.error(f"Ошибка при обнаружении свечей: {e}")
-        logger.error(traceback.format_exc())
-        return pd.DataFrame(), original_img
-
-def perform_technical_analysis(df):
-    """
-    Выполняет технический анализ на основе данных свечей.
-    Возвращает анализ в виде строки.
-    """
-    try:
-        if df.empty:
-            return "Нет данных для анализа."
-
-        # Вычисление скользящих средних
-        df['MA20'] = df['close'].rolling(window=20, min_periods=1).mean()
-        df['MA50'] = df['close'].rolling(window=50, min_periods=1).mean()
-
-        # Вычисление RSI
-        df['RSI'] = compute_rsi(df['close'], window=14)
-
-        # Вычисление MACD
-        df['EMA12'] = df['close'].ewm(span=12, adjust=False).mean()
-        df['EMA26'] = df['close'].ewm(span=26, adjust=False).mean()
-        df['MACD'] = df['EMA12'] - df['EMA26']
-        df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-
-        # Прогнозирование с использованием Prophet
-        forecast = forecast_with_prophet(df)
-
-        last_close = df['close'].iloc[-1]
-        forecast_price = forecast['yhat'].iloc[-1] if not forecast.empty else "N/A"
-
-        # Нейросетевой анализ
-        nn_analysis = neural_network_analysis(df)
-
-        analysis = f"""
-### Технический Анализ
-
-**Скользящие Средние:**
-- MA20: {df['MA20'].iloc[-1]:.2f}
-- MA50: {df['MA50'].iloc[-1]:.2f}
-
-**RSI:**
-- {df['RSI'].iloc[-1]:.2f}
-
-**MACD:**
-- MACD: {df['MACD'].iloc[-1]:.2f}
-- Signal: {df['Signal'].iloc[-1]:.2f}
-
-**Прогноз:**
-- Следующая цена: {forecast_price}
-
-**Нейросетевой Анализ:**
-{nn_analysis}
-"""
-
-        return analysis
-    except Exception as e:
-        logger.error(f"Ошибка при выполнении технического анализа: {e}")
-        logger.error(traceback.format_exc())
-        return "Ошибка при выполнении технического анализа."
-
-def compute_rsi(series, window=14):
-    """
-    Вычисляет индекс относительной силы (RSI).
-    """
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).fillna(0)
-    loss = (-delta.where(delta < 0, 0)).fillna(0)
-
-    avg_gain = gain.rolling(window=window, min_periods=1).mean()
-    avg_loss = loss.rolling(window=window, min_periods=1).mean()
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-def forecast_with_prophet(df):
-    """
-    Выполняет прогнозирование цен с использованием Prophet.
-    Возвращает DataFrame с прогнозом.
-    """
-    try:
-        prophet_df = df[['date', 'close']].rename(columns={'date': 'ds', 'close': 'y'})
-        model = Prophet()
-        model.fit(prophet_df)
-        future = model.make_future_dataframe(periods=5)  # Прогноз на 5 свечей
-        forecast = model.predict(future)
-        return forecast
-    except Exception as e:
-        logger.error(f"Ошибка при прогнозировании с использованием Prophet: {e}")
-        logger.error(traceback.format_exc())
-        return pd.DataFrame()
-
-def neural_network_analysis(df):
-    """
-    Выполняет нейросетевой анализ данных свечей.
-    Возвращает строку с результатом анализа.
-    """
-    try:
-        model = get_nn_model()
-        if model is None:
-            return "Нейросетевая модель не загружена."
-
-        # Подготовка данных для CNN
-        feature_columns = ['open', 'high', 'low', 'close', 'MA20', 'MA50', 'RSI', 'MACD', 'Signal']
-        X = df[feature_columns].values[:-1]  # Все кроме последнего
-        y = (df['close'].values[1:] > df['close'].values[:-1]).astype(int)  # 1: Цена выросла, 0: снизилась
-
-        if len(X) < 10:
-            return "Недостаточно данных для нейросетевого анализа."
-
-        # Нормализация данных
-        X_mean = X.mean(axis=0)
-        X_std = X.std(axis=0)
-        X = (X - X_mean) / X_std
-
-        # Преобразование в тензоры
-        X_tensor = torch.tensor(X, dtype=torch.float32)
-
-        # Прогнозирование
-        with torch.no_grad():
-            predictions = torch.sigmoid(model(X_tensor))
-            predicted = (predictions > 0.5).float()
-            accuracy = (predicted.squeeze() == torch.tensor(y, dtype=torch.float32)).float().mean().item()
-
-        analysis = f"Нейросетевая модель предсказывает направление цены с точностью: {accuracy * 100:.2f}%"
-
-        return analysis
-    except Exception as e:
-        logger.error(f"Ошибка при нейросетевом анализе: {e}")
-        logger.error(traceback.format_exc())
-        return "Ошибка при нейросетевом анализе."
+    x = torch.tensor(img_vector).unsqueeze(0)  # [1, 100]
+    with torch.no_grad():
+        pred = model(x).item()
+    return f"Прогнозируемая цена: {pred:.2f}"
 
 def analyze_chart(image_path):
     """
-    Анализирует изображение графика и выполняет технический анализ.
+    Анализирует изображение графика и выполняет прогноз цены.
     Возвращает словарь с результатами анализа и URL графика.
     """
     try:
         # Предобработка изображения
-        preprocessed_img = preprocess_image(image_path)
-        if preprocessed_img is None:
+        img_vector = preprocess_image(image_path)
+        if img_vector is None:
             return {'error': 'Не удалось обработать изображение.'}
 
-        # Обнаружение свечей и получение DataFrame
-        original_img = cv2.imread(image_path)
-        candlestick_df, annotated_img = detect_candlesticks(preprocessed_img, original_img)
-        if candlestick_df.empty:
-            return {'error': 'Не удалось извлечь данные свечей из графика.'}
+        # Предсказание цены с использованием нейросети
+        prediction = predict_price(img_vector)
 
-        # Выполнение технического анализа
-        analysis = perform_technical_analysis(candlestick_df)
-
-        # Визуализация графика с индикаторами
-        chart_filename = f"analysis_chart_{int(datetime.utcnow().timestamp())}.png"
-        chart_path = os.path.join('static', 'images', chart_filename)
-        os.makedirs(os.path.dirname(chart_path), exist_ok=True)
-
-        # Сохранение аннотированного изображения для отладки (опционально)
-        annotated_chart_path = os.path.join('static', 'images', f"annotated_{chart_filename}")
-        cv2.imwrite(annotated_chart_path, annotated_img)
-
-        # Генерация графика с использованием mplfinance
-        df_plot = candlestick_df.set_index('date')
-        mpf.plot(
-            df_plot,
-            type='candle',
-            style='charles',
-            title='Анализированный график',
-            mav=(20, 50),
-            volume=False,
-            savefig=chart_path
-        )
-        analysis_chart_url = url_for('static', filename=f'images/{chart_filename}', _external=True)
+        # Визуализация графика (опционально)
+        # Здесь можно добавить код для сохранения или отображения графика, если необходимо
 
         return {
-            'analysis': analysis,
-            'chart_url': analysis_chart_url,
-            'annotated_chart_url': url_for('static', filename=f'images/annotated_{chart_filename}', _external=True)  # Опционально
+            'prediction': prediction
+            # 'chart_url': analysis_chart_url  # Добавьте, если нужно
         }
     except Exception as e:
         logger.error(f"Ошибка при анализе графика: {e}")
@@ -599,9 +380,6 @@ def clear_chat_history():
 
     session.pop('chat_history', None)
     return jsonify({'status': 'success'}), 200
-
-# Остальные маршруты вашего приложения
-# ...
 
 # Маршруты аутентификации
 
@@ -1511,7 +1289,7 @@ def robokassa_result():
     
     password1 = app.config['ROBOKASSA_PASSWORD1']
     
-    correct_signature = hashlib.md5(f"{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
+    correct_signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
     
     if signature.lower() == correct_signature.lower():
         # Разделяем inv_id на user_id и timestamp
