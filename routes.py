@@ -92,12 +92,12 @@ from skimage.segmentation import clear_border
 import torch
 import torch.nn as nn
 
-# Ленивая инициализация нейросетевой модели
+# Ленивая инициализация нейросетевой модели (для цены)
 nn_model = None
 
 def get_nn_model():
     """
-    Ленивая инициализация нейросетевой модели.
+    Ленивая инициализация нейросетевой модели для цены (model.pth).
     """
     global nn_model
     if nn_model is None:
@@ -112,7 +112,7 @@ def get_nn_model():
             nn_model = None
     return nn_model
 
-# Простая модель PyTorch для прогноза
+# Простая модель PyTorch для прогноза цены
 class SimpleNet(nn.Module):
     def __init__(self):
         super(SimpleNet, self).__init__()
@@ -143,12 +143,101 @@ if not app.config['OPENAI_API_KEY']:
 
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# Функции для обработки и анализа графиков
+# ------------------------------
+# ДОБАВЛЕНИЕ КОДА ДЛЯ trend_model.pth (КЛАССИФИКАЦИЯ НАПРАВЛЕНИЯ)
+# ------------------------------
+
+trend_model = None
+
+def get_trend_model():
+    """
+    Ленивая инициализация нейросетевой модели для тренда (trend_model.pth).
+    """
+    global trend_model
+    if trend_model is None:
+        trend_model_path = 'trend_model.pth'
+        if os.path.exists(trend_model_path):
+            trend_model = TrendCNN(num_classes=3)
+            trend_model.load_state_dict(torch.load(trend_model_path, map_location=torch.device('cpu')))
+            trend_model.eval()
+            logger.info("Модель для тренда загружена из 'trend_model.pth'.")
+        else:
+            logger.warning("Файл 'trend_model.pth' не найден. Модель тренда не будет загружена.")
+            trend_model = None
+    return trend_model
+
+class TrendCNN(nn.Module):
+    def __init__(self, num_classes=3):
+        super(TrendCNN, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(32 * 32 * 32, 128),
+            nn.ReLU(),
+            nn.Linear(128, num_classes)
+        )
+        
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
+
+def preprocess_for_trend(image_path):
+    """
+    Предобработка изображения для модели тренда.
+    """
+    try:
+        from torchvision import transforms
+        from PIL import Image
+
+        if not os.path.exists(image_path):
+            return None
+
+        transform = transforms.Compose([
+            transforms.Resize((128, 128)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5,0.5,0.5], std=[0.5,0.5,0.5])
+        ])
+
+        img = Image.open(image_path).convert('RGB')
+        img_tensor = transform(img).unsqueeze(0)
+        return img_tensor
+    except Exception as e:
+        logger.error(f"Ошибка при предобработке изображения для тренда: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
+def predict_trend(image_path):
+    """
+    Предсказывает направление тренда: uptrend, downtrend или sideways.
+    """
+    model = get_trend_model()
+    if model is None:
+        return "Модель тренда не загружена."
+
+    img_tensor = preprocess_for_trend(image_path)
+    if img_tensor is None:
+        return "Не удалось обработать изображение для тренда."
+
+    with torch.no_grad():
+        outputs = model(img_tensor)
+        _, predicted = torch.max(outputs.data, 1)
+    # 0: uptrend, 1: downtrend, 2: sideways
+    classes = ["uptrend", "downtrend", "sideways"]
+    return f"Прогноз направления тренда: {classes[predicted.item()]}"
+
+# --------------------------------
 
 def preprocess_image(image_path):
     """
-    Предобрабатывает изображение для анализа графика.
-    Универсальная обработка без зависимости от цвета свечей и наличия осей.
+    Предобрабатывает изображение для анализа графика (для цены).
     """
     try:
         img = cv2.imread(image_path)
@@ -156,26 +245,16 @@ def preprocess_image(image_path):
             logger.error(f"Не удалось загрузить изображение: {image_path}")
             return None
 
-        # Преобразование в серый цвет
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        # Применение адаптивного порогового значения
         thresh = cv2.adaptiveThreshold(gray, 255,
                                        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY_INV, 11, 2)
-
-        # Морфологические операции для удаления шума
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
         cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
         cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
-
-        # Удаление границ
         cleaned = clear_border(cleaned)
-
-        # Преобразование изображения в вектор
         img_vector = cleaned.flatten().astype(np.float32) / 255.0
 
-        # Обрезка или дополнение до длины 100
         if len(img_vector) > 100:
             img_vector = img_vector[:100]
         else:
@@ -189,46 +268,42 @@ def preprocess_image(image_path):
 
 def predict_price(img_vector):
     """
-    Использует нейросетевую модель для предсказания цены.
+    Использует нейросетевую модель для предсказания цены (model.pth).
     """
     model = get_nn_model()
     if model is None:
         return "Модель не загружена."
-
-    x = torch.tensor(img_vector).unsqueeze(0)  # [1, 100]
+    x = torch.tensor(img_vector).unsqueeze(0)
     with torch.no_grad():
         pred = model(x).item()
     return f"Прогнозируемая цена: {pred:.2f}"
 
 def analyze_chart(image_path):
     """
-    Анализирует изображение графика и выполняет прогноз цены.
-    Возвращает словарь с результатами анализа и URL графика.
+    Анализирует изображение графика: предсказывает цену (model.pth) и тренд (trend_model.pth).
+    Возвращает словарь с результатами анализа.
     """
     try:
-        # Предобработка изображения
         img_vector = preprocess_image(image_path)
         if img_vector is None:
             return {'error': 'Не удалось обработать изображение.'}
 
-        # Предсказание цены с использованием нейросети
-        prediction = predict_price(img_vector)
-
-        # Визуализация графика (опционально)
-        # Здесь можно добавить код для сохранения или отображения графика, если необходимо
+        # Прогноз цены
+        prediction_price = predict_price(img_vector)
+        # Прогноз тренда
+        prediction_trend = predict_trend(image_path)
 
         return {
-            'prediction': prediction
-            # 'chart_url': analysis_chart_url  # Добавьте, если нужно
+            'prediction_price': prediction_price,
+            'prediction_trend': prediction_trend
         }
     except Exception as e:
         logger.error(f"Ошибка при анализе графика: {e}")
         logger.error(traceback.format_exc())
         return {'error': 'Произошла ошибка при анализе графика.'}
 
-# Функция для анализа графика ассистентом
 @app.route('/assistant/analyze_chart', methods=['POST'])
-@csrf.exempt  # Исключаем из CSRF-защиты, так как используется AJAX
+@csrf.exempt
 def assistant_analyze_chart():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -247,32 +322,25 @@ def assistant_analyze_chart():
 
     if image:
         try:
-            # Ограничение размера файла
             MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 МБ
             image.seek(0, os.SEEK_END)
             file_size = image.tell()
-            image.seek(0)  # Сброс позиции чтения
-
+            image.seek(0)
             if file_size > MAX_IMAGE_SIZE:
                 return jsonify({'error': 'Image size exceeds 5 MB limit.'}), 400
 
-            # Сохранение изображения временно
             filename = secure_filename(image.filename)
             temp_dir = 'temp'
             os.makedirs(temp_dir, exist_ok=True)
             temp_path = os.path.join(temp_dir, filename)
             image.save(temp_path)
 
-            # Анализируем изображение
             analysis_result = analyze_chart(temp_path)
 
-            if 'error' in analysis_result:
-                # Удаляем временный файл
-                os.remove(temp_path)
-                return jsonify({'error': analysis_result['error']}), 400
-
-            # Удаляем временный файл
             os.remove(temp_path)
+
+            if 'error' in analysis_result:
+                return jsonify({'error': analysis_result['error']}), 400
 
             return jsonify({'result': analysis_result}), 200
         except Exception as e:
@@ -282,9 +350,8 @@ def assistant_analyze_chart():
     else:
         return jsonify({'error': 'Invalid image'}), 400
 
-# Маршрут для чата ассистента
 @app.route('/assistant/chat', methods=['POST'])
-@csrf.exempt  # Исключаем из CSRF-защиты
+@csrf.exempt
 def assistant_chat():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -300,11 +367,9 @@ def assistant_chat():
     if not user_question:
         return jsonify({'error': 'No question provided'}), 400
 
-    # Инициализируем историю чата, если её ещё нет
     if 'chat_history' not in session:
         session['chat_history'] = []
 
-        # Получаем данные пользователя из базы при первой инициализации
         trades = Trade.query.filter_by(user_id=user_id).all()
         if not trades:
             trade_data = "У вас пока нет сделок."
@@ -327,7 +392,6 @@ def assistant_chat():
                 f"**Сделка ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
             ]) if any(trade.comment for trade in trades) else "Нет комментариев к сделкам."
 
-        # Формируем системное сообщение для OpenAI
         system_message = f"""
 Ты — дядя Джон, крутой спец, который помогает пользователю анализировать его торговые сделки, предлагает конкретные решения с конкретными расчетами для торговых ситуаций пользователя, считает статистику по сделкам и находит закономерности.
 Данные пользователя о сделках:
@@ -338,40 +402,28 @@ def assistant_chat():
 
 Предоставь подробный анализ и рекомендации на основе этих данных, если пользователь попросит.
 """
-
         logger.debug(f"System message for OpenAI: {system_message}")
-
-        # Добавляем системное сообщение в историю
         session['chat_history'].append({'role': 'system', 'content': system_message})
 
-    # Добавляем сообщение пользователя в историю
     session['chat_history'].append({'role': 'user', 'content': user_question})
-
-    # Получаем ответ от OpenAI с учётом истории чата
     assistant_response = generate_openai_response(session['chat_history'])
-
-    # Добавляем ответ ассистента в историю
     session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
 
-    # Ограничиваем длину истории чата
     MAX_CHAT_HISTORY = 20
     if len(session['chat_history']) > MAX_CHAT_HISTORY:
         session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
 
     return jsonify({'response': assistant_response}), 200
 
-# Маршрут для получения истории чата
 @app.route('/get_chat_history', methods=['GET'])
 def get_chat_history():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
     chat_history = session.get('chat_history', [])
-    # Исключаем системное сообщение из истории для отображения
     display_history = [msg for msg in chat_history if msg['role'] != 'system']
     return jsonify({'chat_history': display_history}), 200
 
-# Маршрут для очистки истории чата
 @app.route('/clear_chat_history', methods=['POST'])
 @csrf.exempt
 def clear_chat_history():
@@ -381,8 +433,6 @@ def clear_chat_history():
     session.pop('chat_history', None)
     return jsonify({'status': 'success'}), 200
 
-# Маршруты аутентификации
-
 @app.route('/logout')
 def logout():
     session.clear()
@@ -390,18 +440,15 @@ def logout():
     logger.info("Пользователь вышел из системы.")
     return redirect(url_for('login'))
 
-# Маршрут здоровья для проверки состояния приложения
 @app.route('/health', methods=['GET'])
 def health():
     return 'OK', 200
 
-# Маршрут Временный для Отладки
 @app.route('/debug_session')
 def debug_session():
     return jsonify(dict(session))
 
-# Обработка initData через маршрут /init с использованием teleapp-auth
-@csrf.exempt  # Исключаем из CSRF-защиты
+@csrf.exempt
 @app.route('/init', methods=['POST'])
 def init():
     if 'user_id' in session:
@@ -413,14 +460,9 @@ def init():
     logger.debug(f"Получен initData через AJAX: {init_data}")
     if init_data:
         try:
-            # Верификация initData с использованием teleapp-auth
             webapp_data = parse_webapp_data(init_data)
             logger.debug(f"Parsed WebAppInitData: {webapp_data}")
-
-            # Получаем секретный ключ из телеграм-бота
             secret_key = get_secret_key(app.config['TELEGRAM_BOT_TOKEN'])
-
-            # Валидация данных
             is_valid = validate_webapp_data(webapp_data, secret_key)
             logger.debug(f"Validation result: {is_valid}")
 
@@ -428,13 +470,11 @@ def init():
                 logger.warning("Невалидные данные авторизации.")
                 return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
 
-            # Извлечение данных пользователя из webapp_data
             telegram_id = int(webapp_data.user.id)
             first_name = webapp_data.user.first_name
             last_name = webapp_data.user.last_name or ''
             username = webapp_data.user.username or ''
 
-            # Поиск или создание пользователя
             user = User.query.filter_by(telegram_id=telegram_id).first()
             if not user:
                 user = User(
@@ -448,7 +488,6 @@ def init():
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
 
-            # Устанавливаем сессию пользователя
             session['user_id'] = user.id
             session['telegram_id'] = user.telegram_id
             session['assistant_premium'] = user.assistant_premium
@@ -463,7 +502,6 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-# Админские маршруты
 @app.route('/admin/users')
 @admin_required
 def admin_users():
@@ -477,14 +515,12 @@ def toggle_premium(user_id):
     user.assistant_premium = not user.assistant_premium
     db.session.commit()
     flash(f"Премиум статус пользователя {user.username} обновлён.", 'success')
-    # Если изменяемый пользователь — текущий пользователь, обновляем сессию
     if user.id == session.get('user_id'):
         session['assistant_premium'] = user.assistant_premium
         flash('Ваш премиум статус обновлён.', 'success')
         
     return redirect(url_for('admin_users'))
-    
-# Главная страница — список сделок
+
 @app.route('/', methods=['GET'])
 def index():
     if 'user_id' not in session:
@@ -494,7 +530,6 @@ def index():
     categories = InstrumentCategory.query.all()
     criteria_categories = CriterionCategory.query.all()
 
-    # Получение параметров фильтрации из запроса
     instrument_id = request.args.get('instrument_id', type=int)
     direction = request.args.get('direction')
     start_date = request.args.get('start_date')
@@ -527,14 +562,12 @@ def index():
     trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
     logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
 
-    # Генерация S3 URL для скриншотов сделок
     for trade in trades:
         if trade.screenshot:
             trade.screenshot_url = generate_s3_url(trade.screenshot)
         else:
             trade.screenshot_url = None
 
-    # Генерация S3 URL для скриншотов сетапов
     for trade in trades:
         if trade.setup:
             if trade.setup.screenshot:
@@ -551,24 +584,20 @@ def index():
         selected_criteria=selected_criteria
     )
 
-# Страница авторизации
 @app.route('/login', methods=['GET'])
 def login():
     if 'user_id' in session:
         return redirect(url_for('index'))
     return render_template('login.html')
 
-# Маршрут для страницы "Политика конфиденциальности"
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
 
-# Маршрут для страницы "Доп. информация"
 @app.route('/additional-info')
 def additional_info():
     return render_template('additional_info.html')
-    
-# Добавить новую сделку
+
 @app.route('/new_trade', methods=['GET', 'POST'])
 def new_trade():
     if 'user_id' not in session:
@@ -576,16 +605,12 @@ def new_trade():
 
     user_id = session['user_id']
     form = TradeForm()
-    # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
     form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
-    # Заполнение списка инструментов
     instruments = Instrument.query.all()
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
-    # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Инициализация form.criteria.data пустым списком, если оно None
     if form.criteria.data is None:
         form.criteria.data = []
 
@@ -602,7 +627,6 @@ def new_trade():
                 comment=form.comment.data,
                 setup_id=form.setup_id.data if form.setup_id.data != 0 else None
             )
-            # Расчёт прибыли/убытка
             if trade.exit_price:
                 trade.profit_loss = (trade.exit_price - trade.entry_price) * (1 if trade.direction == 'Buy' else -1)
                 trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
@@ -610,7 +634,6 @@ def new_trade():
                 trade.profit_loss = None
                 trade.profit_loss_percentage = None
 
-            # Обработка критериев
             selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
                 try:
@@ -620,15 +643,13 @@ def new_trade():
                 except (ValueError, TypeError):
                     logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
-                # Убедитесь, что имя файла уникально
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
-                    trade.screenshot = unique_filename  # Сохраняем имя файла для формирования URL
+                    trade.screenshot = unique_filename
                 else:
                     flash('Ошибка при загрузке скриншота.', 'danger')
                     logger.error("Не удалось загрузить скриншот в S3.")
@@ -658,7 +679,6 @@ def new_trade():
         criteria_categories=criteria_categories
     )
 
-# Редактировать сделку
 @app.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
 def edit_trade(trade_id):
     if 'user_id' not in session:
@@ -671,23 +691,18 @@ def edit_trade(trade_id):
         logger.warning(f"Пользователь ID {user_id} попытался редактировать сделку ID {trade_id}, которая ему не принадлежит.")
         return redirect(url_for('index'))
 
-    # Генерация S3 URL для скриншота, если он есть
     if trade.screenshot:
         trade.screenshot_url = generate_s3_url(trade.screenshot)
     else:
         trade.screenshot_url = None
 
     form = TradeForm(obj=trade)
-    # Заполнение списка сетапов
     setups = Setup.query.filter_by(user_id=user_id).all()
     form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
-    # Заполнение списка инструментов
     instruments = Instrument.query.all()
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
-    # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in trade.criteria]
         form.instrument.data = trade.instrument_id
@@ -704,7 +719,6 @@ def edit_trade(trade_id):
             trade.comment = form.comment.data
             trade.setup_id = form.setup_id.data if form.setup_id.data != 0 else None
 
-            # Расчёт прибыли/убытка
             if trade.exit_price:
                 trade.profit_loss = (trade.exit_price - trade.entry_price) * (1 if trade.direction == 'Buy' else -1)
                 trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
@@ -712,7 +726,6 @@ def edit_trade(trade_id):
                 trade.profit_loss = None
                 trade.profit_loss_percentage = None
 
-            # Обработка критериев
             trade.criteria.clear()
             selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
@@ -723,7 +736,6 @@ def edit_trade(trade_id):
                 except (ValueError, TypeError):
                     logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка удаления текущего изображения
             if form.remove_image.data:
                 if trade.screenshot:
                     delete_success = delete_file_from_s3(trade.screenshot)
@@ -736,10 +748,8 @@ def edit_trade(trade_id):
                         logger.error(f"Не удалось удалить изображение сделки ID {trade_id} из S3.")
                         return redirect(url_for('edit_trade', trade_id=trade_id))
 
-            # Обработка загрузки нового изображения
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
-                # Если уже существует изображение и пользователь не решил удалить его, удалим старое
                 if trade.screenshot:
                     delete_success = delete_file_from_s3(trade.screenshot)
                     if not delete_success:
@@ -777,7 +787,6 @@ def edit_trade(trade_id):
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_trade.html', form=form, criteria_categories=criteria_categories, trade=trade)
 
-# Удалить сделку
 @app.route('/delete_trade/<int:trade_id>', methods=['POST'])
 def delete_trade(trade_id):
     if 'user_id' not in session:
@@ -791,7 +800,6 @@ def delete_trade(trade_id):
         return redirect(url_for('index'))
     try:
         if trade.screenshot:
-            # Удаление файла из S3
             delete_success = delete_file_from_s3(trade.screenshot)
             if not delete_success:
                 flash('Ошибка при удалении скриншота.', 'danger')
@@ -806,7 +814,6 @@ def delete_trade(trade_id):
         logger.error(f"Ошибка при удалении сделки ID {trade_id}: {e}")
     return redirect(url_for('index'))
 
-# Управление сетапами
 @app.route('/manage_setups')
 def manage_setups():
     if 'user_id' not in session:
@@ -816,7 +823,6 @@ def manage_setups():
     setups = Setup.query.filter_by(user_id=user_id).all()
     logger.info(f"Пользователь ID {user_id} просматривает свои сетапы.")
 
-    # Генерация S3 URL для скриншотов сетапов
     for setup in setups:
         if setup.screenshot:
             setup.screenshot_url = generate_s3_url(setup.screenshot)
@@ -825,7 +831,6 @@ def manage_setups():
 
     return render_template('manage_setups.html', setups=setups)
 
-# Добавить новый сетап
 @app.route('/add_setup', methods=['GET', 'POST'])
 def add_setup():
     if 'user_id' not in session:
@@ -833,10 +838,8 @@ def add_setup():
 
     user_id = session['user_id']
     form = SetupForm()
-    # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Инициализация form.criteria.data пустым списком, если оно None
     if form.criteria.data is None:
         form.criteria.data = []
 
@@ -847,7 +850,6 @@ def add_setup():
                 setup_name=form.setup_name.data,
                 description=form.description.data
             )
-            # Обработка критериев
             selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
                 try:
@@ -857,11 +859,9 @@ def add_setup():
                 except (ValueError, TypeError):
                     logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка скриншота
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
                 filename = secure_filename(screenshot_file.filename)
-                # Убедитесь, что имя файла уникально
                 unique_filename = f"setup_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
@@ -891,7 +891,6 @@ def add_setup():
     criteria_categories = CriterionCategory.query.all()
     return render_template('add_setup.html', form=form, criteria_categories=criteria_categories)
 
-# Редактировать сетап
 @app.route('/edit_setup/<int:setup_id>', methods=['GET', 'POST'])
 def edit_setup(setup_id):
     if 'user_id' not in session:
@@ -904,17 +903,14 @@ def edit_setup(setup_id):
         logger.warning(f"Пользователь ID {user_id} попытался редактировать сетап ID {setup_id}, который ему не принадлежит.")
         return redirect(url_for('manage_setups'))
 
-    # Генерация S3 URL для скриншота, если он есть
     if setup.screenshot:
         setup.screenshot_url = generate_s3_url(setup.screenshot)
     else:
         setup.screenshot_url = None
 
     form = SetupForm(obj=setup)
-    # Заполнение списка критериев
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
 
-    # Установка выбранных критериев
     if request.method == 'GET':
         form.criteria.data = [criterion.id for criterion in setup.criteria]
 
@@ -923,7 +919,6 @@ def edit_setup(setup_id):
             setup.setup_name = form.setup_name.data
             setup.description = form.description.data
 
-            # Обработка критериев
             setup.criteria.clear()
             selected_criteria_ids = form.criteria.data
             for criterion_id in selected_criteria_ids:
@@ -934,7 +929,6 @@ def edit_setup(setup_id):
                 except (ValueError, TypeError):
                     logger.error(f"Некорректный ID критерия: {criterion_id}")
 
-            # Обработка удаления текущего изображения
             if form.remove_image.data:
                 if setup.screenshot:
                     delete_success = delete_file_from_s3(setup.screenshot)
@@ -947,10 +941,8 @@ def edit_setup(setup_id):
                         logger.error(f"Не удалось удалить изображение сетапа ID {setup_id} из S3.")
                         return redirect(url_for('edit_setup', setup_id=setup_id))
 
-            # Обработка загрузки нового изображения
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
-                # Если уже существует изображение и пользователь не решил удалить его, удалим старое
                 if setup.screenshot:
                     delete_success = delete_file_from_s3(setup.screenshot)
                     if not delete_success:
@@ -988,7 +980,6 @@ def edit_setup(setup_id):
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
 
-# Удалить сетап
 @app.route('/delete_setup/<int:setup_id>', methods=['POST'])
 def delete_setup(setup_id):
     if 'user_id' not in session:
@@ -1002,7 +993,6 @@ def delete_setup(setup_id):
         return redirect(url_for('manage_setups'))
     try:
         if setup.screenshot:
-            # Удаление файла из S3
             delete_success = delete_file_from_s3(setup.screenshot)
             if not delete_success:
                 flash('Ошибка при удалении скриншота.', 'danger')
@@ -1017,7 +1007,6 @@ def delete_setup(setup_id):
         logger.error(f"Ошибка при удалении сетапа ID {setup_id}: {e}")
     return redirect(url_for('manage_setups'))
 
-# Просмотр сделки
 @app.route('/view_trade/<int:trade_id>')
 def view_trade(trade_id):
     if 'user_id' not in session:
@@ -1031,13 +1020,11 @@ def view_trade(trade_id):
         return redirect(url_for('index'))
     logger.info(f"Пользователь ID {user_id} просматривает сделку ID {trade_id}.")
 
-    # Генерация S3 URL для скриншота, если он есть
     if trade.screenshot:
         trade.screenshot_url = generate_s3_url(trade.screenshot)
     else:
         trade.screenshot_url = None
 
-    # Генерация S3 URL для скриншота сетапа, если он есть
     if trade.setup:
         if trade.setup.screenshot:
             trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
@@ -1046,7 +1033,6 @@ def view_trade(trade_id):
 
     return render_template('view_trade.html', trade=trade)
 
-# Просмотр сетапа
 @app.route('/view_setup/<int:setup_id>')
 def view_setup(setup_id):
     if 'user_id' not in session:
@@ -1060,7 +1046,6 @@ def view_setup(setup_id):
         return redirect(url_for('manage_setups'))
     logger.info(f"Пользователь ID {user_id} просматривает сетап ID {setup_id}.")
 
-    # Генерация S3 URL для скриншота, если он есть
     if setup.screenshot:
         setup.screenshot_url = generate_s3_url(setup.screenshot)
     else:
@@ -1068,26 +1053,19 @@ def view_setup(setup_id):
 
     return render_template('view_setup.html', setup=setup)
 
-# **Интеграция Telegram бота и обработчиков**
-
-# Получение токена бота из переменных окружения
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
 TOKEN = app.config['TELEGRAM_BOT_TOKEN']
 if not TOKEN:
     logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
     exit(1)
 
-# Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
-
-# Обработчики команд
 
 def start_command(update, context):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
     try:
-        # Поиск или создание пользователя в базе данных
         with app.app_context():
             user_record = User.query.filter_by(telegram_id=user.id).first()
             if not user_record:
@@ -1102,10 +1080,8 @@ def start_command(update, context):
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
 
-        # Отправка сообщения с кнопкой Web App
         message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
-
-        web_app_url = f"https://{get_app_host()}/webapp"  # Обновлённый URL Web App
+        web_app_url = f"https://{get_app_host()}/webapp"
         keyboard = InlineKeyboardMarkup(
             [
                 [
@@ -1168,14 +1144,12 @@ def button_click(update, context):
         logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
         logger.error(traceback.format_exc())
 
-# Добавление обработчиков к диспетчеру
 dispatcher.add_handler(CommandHandler('start', start_command))
 dispatcher.add_handler(CommandHandler('help', help_command))
 dispatcher.add_handler(CommandHandler('test', test_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
-# Обработчик вебхуков
-@csrf.exempt  # Исключаем из CSRF-защиты только этот маршрут
+@csrf.exempt
 @app.route('/webhook', methods=['POST'])
 def webhook():
     if request.method == 'POST':
@@ -1183,7 +1157,6 @@ def webhook():
             raw_data = request.get_data(as_text=True)
             logger.debug(f"Raw request data: {raw_data}")
 
-            # Проверка, что данные присутствуют
             if not raw_data:
                 logger.error("Empty request data received.")
                 return 'Bad Request', 400
@@ -1199,7 +1172,6 @@ def webhook():
     else:
         return 'Method Not Allowed', 405
 
-# Маршрут для установки вебхука
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook_route():
     webhook_url = f"https://{get_app_host()}/webhook"
@@ -1216,14 +1188,10 @@ def set_webhook_route():
         logger.error(traceback.format_exc())
         return f"Не удалось установить webhook: {e}", 500
 
-# Отдельный маршрут для Web App
 @app.route('/webapp', methods=['GET'])
 def webapp():
     return render_template('webapp.html')
 
-# **Интеграция Ассистента "Дядя Джон"**
-
-# Маршрут для страницы ассистента
 @app.route('/assistant', methods=['GET'])
 def assistant_page():
     if 'user_id' not in session:
@@ -1237,9 +1205,6 @@ def assistant_page():
     
     return render_template('assistant.html')
 
-# **Интеграция Robokassa**
-
-# Маршрут для страницы подписки
 @app.route('/subscription', methods=['GET'])
 def subscription_page():
     if 'user_id' not in session:
@@ -1253,7 +1218,6 @@ def subscription_page():
     
     return render_template('subscription.html')
 
-# Маршрут для покупки ассистента через Robokassa
 @app.route('/buy_assistant', methods=['GET'])
 def buy_assistant():
     if 'user_id' not in session:
@@ -1261,8 +1225,7 @@ def buy_assistant():
         return redirect(url_for('login'))
     
     user_id = session['user_id']
-    amount = 1000  # Установите цену за подписку в рублях
-
+    amount = 1000
     inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
     out_sum = f"{amount}.00"
     merchant_login = app.config['ROBOKASSA_MERCHANT_LOGIN']
@@ -1279,7 +1242,6 @@ def buy_assistant():
     
     return redirect(robokassa_url)
 
-# Маршрут для обработки результата платежа от Robokassa
 @app.route('/robokassa/result', methods=['POST'])
 def robokassa_result():
     data = request.form
@@ -1288,22 +1250,17 @@ def robokassa_result():
     signature = data.get('SignatureValue')
     
     password1 = app.config['ROBOKASSA_PASSWORD1']
-    
     correct_signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
     
     if signature.lower() == correct_signature.lower():
-        # Разделяем inv_id на user_id и timestamp
         try:
             user_id_str, timestamp = inv_id.split('_')
             user_id = int(user_id_str)
-            # Обновляем статус пользователя
             user = User.query.get(user_id)
             if user:
-                user.assistant_premium = True  # Поле assistant_premium должно быть добавлено в модель User
+                user.assistant_premium = True
                 db.session.commit()
                 logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
-                
-                # Если оплаченный пользователь — текущий пользователь, обновляем сессию
                 if user.id == session.get('user_id'):
                     session['assistant_premium'] = user.assistant_premium
                     flash('Ваша подписка активирована.', 'success')
@@ -1316,21 +1273,16 @@ def robokassa_result():
         logger.warning("Неверная подпись Robokassa.")
         return 'NO', 400
 
-# Маршрут для успешного завершения платежа
 @app.route('/robokassa/success', methods=['GET'])
 def robokassa_success():
     flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
     return redirect(url_for('index'))
 
-# Маршрут для неудачного завершения платежа
 @app.route('/robokassa/fail', methods=['GET'])
 def robokassa_fail():
     flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
     return redirect(url_for('index'))
 
-# **Запуск Flask-приложения**
-
 if __name__ == '__main__':
-    # Запуск приложения
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
