@@ -6,12 +6,10 @@
 <div class="assistant-container">
     <h2>Ассистент "Дядя Джон"</h2>
     
-    <!-- Анимированное изображение Дяди Джона -->
     <div class="uncle-john-container">
         <img src="{{ url_for('static', filename='images/uncle_john.png') }}" alt="Дядя Джон" class="uncle-john">
     </div>
 
-    <!-- Чат ассистента -->
     <div class="assistant-chat">
         <div id="chat-history" class="chat-history nes-container is-rounded">
             <!-- История сообщений будет загружаться здесь -->
@@ -25,13 +23,11 @@
             <button type="submit" class="nes-btn is-primary">Отправить</button>
         </form>
 
-        <!-- Кнопка для очистки чата -->
         <button id="clear-chat" class="nes-btn is-error" style="margin-top: 10px;">Очистить чат</button>
     </div>
     
     <hr>
 
-    <!-- Форма для анализа графика -->
     <div class="assistant-chart-analysis">
         <h3>Анализ графика цены</h3>
         <form id="chart-analysis-form" enctype="multipart/form-data" class="nes-container is-rounded">
@@ -47,17 +43,13 @@
             <div id="chart-analysis-result" class="nes-container is-rounded" style="min-height: 100px;">
                 <!-- Результаты анализа будут отображаться здесь -->
             </div>
-            <div id="analysis-chart" class="mt-3">
-                <!-- Сохранённый график будет отображаться здесь -->
-            </div>
+            <div id="analysis-chart" class="mt-3"></div>
         </div>
     </div>
 </div>
 
-<!-- Подключение скрипта для обработки форм и обновления чата -->
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Инициализация истории чата
         let chatHistory = [];
 
         const assistantForm = document.getElementById('assistant-form');
@@ -68,29 +60,23 @@
         const analysisChartDiv = document.getElementById('analysis-chart');
         const clearChatButton = document.getElementById('clear-chat');
 
-        // Функция для обновления отображения истории чата
         function updateChatHistoryDisplay() {
-            chatHistoryDiv.innerHTML = ''; // Очистка текущего содержимого
-
+            chatHistoryDiv.innerHTML = '';
             chatHistory.forEach(message => {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = message.role === 'user' ? 'nes-balloon from-right' : 'nes-balloon from-left is-dark';
-                // Если содержимое — объект, преобразуем его в строку
                 const content = (typeof message.content === 'object') ? JSON.stringify(message.content, null, 2) : message.content;
                 msgDiv.textContent = content;
                 chatHistoryDiv.appendChild(msgDiv);
             });
-
-            // Прокрутка вниз
             chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
         }
 
-        // Функция для загрузки истории чата с сервера
         async function loadChatHistory() {
             try {
                 const response = await fetch('/get_chat_history');
                 const data = await response.json();
-                console.log('Chat History:', data); // Для отладки
+                console.log('Chat History:', data);
                 if (data.chat_history) {
                     chatHistory = data.chat_history;
                     updateChatHistoryDisplay();
@@ -100,40 +86,37 @@
             }
         }
 
-        // Загрузка истории чата при загрузке страницы
-        loadChatHistory();
+        // Загрузка истории чата при загрузке страницы, если нужно
+        // loadChatHistory();
 
-        // Обработка отправки формы чата
         assistantForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const question = assistantQuestionInput.value.trim();
             if (!question) return;
 
-            // Добавление сообщения пользователя в историю
             chatHistory.push({ role: 'user', content: question });
             updateChatHistoryDisplay();
 
-            // Отправка запроса на сервер
             try {
                 const response = await fetch('/assistant/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question: question })
                 });
 
                 const data = await response.json();
-                console.log('Chat Response:', data); // Для отладки
+                console.log('Chat Response:', data);
                 if (data.response) {
-                    // Добавление ответа ассистента в историю
-                    // Если response — объект, преобразуем его в строку
                     const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
-                    // Обработка ошибок
                     const errorMsg = `Ошибка: ${data.error}`;
+                    chatHistory.push({ role: 'assistant', content: errorMsg });
+                    updateChatHistoryDisplay();
+                } else {
+                    // Неизвестный формат ответа
+                    const errorMsg = 'Произошла неизвестная ошибка.';
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 }
@@ -144,18 +127,18 @@
                 updateChatHistoryDisplay();
             }
 
-            // Очистка поля ввода
             assistantQuestionInput.value = '';
         });
 
-        // Обработка отправки формы анализа графика
         chartForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const imageInput = document.getElementById('chart-image');
             const file = imageInput.files[0];
-            if (!file) return;
+            if (!file) {
+                alert('Пожалуйста, выберите изображение.');
+                return;
+            }
 
-            // Отображение индикатора загрузки
             chartAnalysisResult.textContent = 'Идет анализ...';
             analysisChartDiv.innerHTML = '';
 
@@ -169,16 +152,19 @@
                 });
 
                 const data = await response.json();
-                console.log('Chart Analysis Response:', data); // Для отладки
-                if (data.result) {
-                    // Убедимся, что analysis — строка
-                    const analysisText = (typeof data.result.analysis === 'object') ? JSON.stringify(data.result.analysis, null, 2) : data.result.analysis;
-                    chartAnalysisResult.innerHTML = `<pre>${analysisText}</pre>`;
-                    if (data.result.chart_url) {
-                        analysisChartDiv.innerHTML = `<img src="${data.result.chart_url}" alt="Анализированный график" style="max-width: 100%;">`;
-                    }
+                console.log('Chart Analysis Response:', data);
+
+                if (data.result && data.result.trend_prediction) {
+                    // Отображаем результат trend_prediction
+                    chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
+                    analysisChartDiv.innerHTML = '';
                 } else if (data.error) {
+                    // Отображение ошибки
                     chartAnalysisResult.innerHTML = `<p class="nes-text is-error">Ошибка: ${data.error}</p>`;
+                    analysisChartDiv.innerHTML = '';
+                } else {
+                    // Если ни result, ни error не были предоставлены
+                    chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла неизвестная ошибка при анализе графика.</p>';
                     analysisChartDiv.innerHTML = '';
                 }
             } catch (error) {
@@ -187,16 +173,12 @@
                 analysisChartDiv.innerHTML = '';
             }
 
-            // Очистка поля ввода файла
             imageInput.value = '';
         });
 
-        // Обработка кнопки очистки чата
         clearChatButton.addEventListener('click', async function() {
             try {
-                const response = await fetch('/clear_chat_history', {
-                    method: 'POST'
-                });
+                const response = await fetch('/clear_chat_history', { method: 'POST' });
                 const data = await response.json();
                 if (data.status === 'success') {
                     chatHistory = [];
@@ -209,7 +191,6 @@
     });
 </script>
 
-<!-- Добавление стилей для анимации Дяди Джона и стилизации чата -->
 <style>
     .uncle-john-container {
         display: flex;
@@ -224,14 +205,12 @@
         animation: talk 1s infinite;
     }
 
-    /* Ключевые кадры для анимации */
     @keyframes talk {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-10px); }
         100% { transform: translateY(0px); }
     }
 
-    /* Стилизация истории чата */
     .chat-history {
         max-height: 400px;
         overflow-y: auto;
@@ -258,7 +237,6 @@
         margin-bottom: 10px;
     }
 
-    /* Адаптивность */
     @media (max-width: 600px) {
         .assistant-container {
             padding: 10px;
