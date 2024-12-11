@@ -72,7 +72,6 @@
             chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
         }
 
-        // Функция для загрузки истории чата с сервера
         async function loadChatHistory() {
             try {
                 const response = await fetch('/get_chat_history');
@@ -87,8 +86,8 @@
             }
         }
 
-        // Загружаем историю чата при загрузке страницы
-        loadChatHistory();
+        // Загрузка истории чата при загрузке страницы, если нужно
+        // loadChatHistory();
 
         assistantForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -112,10 +111,11 @@
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
-                    const errorMsg = `Ошибка: ${data.error}`;
+                    const errorMsg = Ошибка: ${data.error};
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 } else {
+                    // Неизвестный формат ответа
                     const errorMsg = 'Произошла неизвестная ошибка.';
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
@@ -155,12 +155,15 @@
                 console.log('Chart Analysis Response:', data);
 
                 if (data.result && data.result.trend_prediction) {
-                    chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
+                    // Отображаем результат trend_prediction
+                    chartAnalysisResult.innerHTML = <pre>${data.result.trend_prediction}</pre>;
                     analysisChartDiv.innerHTML = '';
                 } else if (data.error) {
-                    chartAnalysisResult.innerHTML = `<p class="nes-text is-error">Ошибка: ${data.error}</p>`;
+                    // Отображение ошибки
+                    chartAnalysisResult.innerHTML = <p class="nes-text is-error">Ошибка: ${data.error}</p>;
                     analysisChartDiv.innerHTML = '';
                 } else {
+                    // Если ни result, ни error не были предоставлены
                     chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла неизвестная ошибка при анализе графика.</p>';
                     analysisChartDiv.innerHTML = '';
                 }
