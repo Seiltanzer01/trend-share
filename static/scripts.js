@@ -177,57 +177,156 @@ $(document).ready(function() {
 
     // **Обработчики для Ассистента "Дядя Джон"**
 
-    // Обработчик формы чата с ассистентом
-    $('#assistant-form').on('submit', function(e){
+    // Массив для хранения истории чата
+    let chatHistory = [];
+
+    const assistantForm = document.getElementById('assistant-form');
+    const chartForm = document.getElementById('chart-analysis-form');
+    const chatHistoryDiv = document.getElementById('chat-history');
+    const assistantQuestionInput = document.getElementById('assistant-question');
+    const chartAnalysisResult = document.getElementById('chart-analysis-result');
+    const analysisChartDiv = document.getElementById('analysis-chart');
+    const clearChatButton = document.getElementById('clear-chat');
+
+    // Функция для обновления отображения истории чата
+    function updateChatHistoryDisplay() {
+        chatHistoryDiv.innerHTML = ''; // Очистка текущего содержимого
+
+        chatHistory.forEach(message => {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = message.role === 'user' ? 'nes-balloon from-right' : 'nes-balloon from-left is-dark';
+            // Если содержимое — объект, преобразуем его в строку
+            const content = (typeof message.content === 'object') ? JSON.stringify(message.content, null, 2) : message.content;
+            msgDiv.textContent = content;
+            chatHistoryDiv.appendChild(msgDiv);
+        });
+
+        // Прокрутка вниз
+        chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+    }
+
+    // Функция для загрузки истории чата с сервера (если необходимо)
+    async function loadChatHistory() {
+        try {
+            const response = await fetch('/get_chat_history');
+            const data = await response.json();
+            console.log('Chat History:', data); // Для отладки
+            if (data.chat_history) {
+                chatHistory = data.chat_history;
+                updateChatHistoryDisplay();
+            }
+        } catch (error) {
+            console.error('Ошибка при загрузке истории чата:', error);
+        }
+    }
+
+    // Загрузка истории чата при загрузке страницы (если необходимо)
+    // loadChatHistory(); // Раскомментируйте, если есть такая необходимость
+
+    // Обработка отправки формы чата
+    assistantForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        const question = $('#assistant-question').val();
-        if(question.trim() === ''){
-            alert('Пожалуйста, введите вопрос.');
+        const question = assistantQuestionInput.value.trim();
+        if (!question) return;
+
+        // Добавление сообщения пользователя в историю
+        chatHistory.push({ role: 'user', content: question });
+        updateChatHistoryDisplay();
+
+        // Отправка запроса на сервер
+        try {
+            const response = await fetch('/assistant/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question: question })
+            });
+
+            const data = await response.json();
+            console.log('Chat Response:', data); // Для отладки
+            if (data.response) {
+                // Добавление ответа ассистента в историю
+                const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
+                chatHistory.push({ role: 'assistant', content: assistantContent });
+                updateChatHistoryDisplay();
+            } else if (data.error) {
+                // Обработка ошибок
+                const errorMsg = `Ошибка: ${data.error}`;
+                chatHistory.push({ role: 'assistant', content: errorMsg });
+                updateChatHistoryDisplay();
+            }
+        } catch (error) {
+            console.error('Ошибка при отправке запроса:', error);
+            const errorMsg = 'Произошла ошибка при отправке вашего запроса.';
+            chatHistory.push({ role: 'assistant', content: errorMsg });
+            updateChatHistoryDisplay();
+        }
+
+        // Очистка поля ввода
+        assistantQuestionInput.value = '';
+    });
+
+    // Обработка отправки формы анализа графика
+    chartForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        const imageInput = document.getElementById('chart-image');
+        const file = imageInput.files[0];
+        if (!file) {
+            alert('Пожалуйста, выберите изображение.');
             return;
         }
 
-        $.ajax({
-            url: '/assistant/chat',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ question: question }),
-            success: function(response){
-                $('#assistant-response').text(response.response);
-            },
-            error: function(xhr){
-                if(xhr.status === 401){
-                    alert('Пожалуйста, войдите в систему.');
-                } else if(xhr.status === 403){
-                    alert('Доступ запрещён. Пожалуйста, купите подписку.');
-                } else {
-                    alert('Произошла ошибка при обработке вашего запроса.');
-                }
+        // Отображение индикатора загрузки
+        chartAnalysisResult.textContent = 'Идет анализ...';
+        analysisChartDiv.innerHTML = '';
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const response = await fetch('/assistant/analyze_chart', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            console.log('Chart Analysis Response:', data); // Для отладки
+            if (data.result && data.result.trend_prediction) {
+                // Отображение прогноза тренда
+                chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
+                // Если вы хотите отображать график, убедитесь, что бэкенд возвращает chart_url
+                // В текущем случае этого нет, поэтому оставляем пустым
+                analysisChartDiv.innerHTML = '';
+            } else if (data.error) {
+                // Обработка ошибок
+                const errorMsg = `Ошибка: ${data.error}`;
+                chartAnalysisResult.innerHTML = `<p class="nes-text is-error">${errorMsg}</p>`;
+                analysisChartDiv.innerHTML = '';
             }
-        });
+        } catch (error) {
+            console.error('Ошибка при анализе графика:', error);
+            chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
+            analysisChartDiv.innerHTML = '';
+        }
+
+        // Очистка поля ввода файла
+        imageInput.value = '';
     });
 
-    // Обработчик формы анализа графика
-    $('#chart-analysis-form').on('submit', function(e){
-        e.preventDefault();
-        const formData = new FormData(this);
-        $.ajax({
-            url: '/assistant/analyze_chart',
-            method: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response){
-                $('#chart-analysis-result').text(response.result);
-            },
-            error: function(xhr){
-                if(xhr.status === 401){
-                    alert('Пожалуйста, войдите в систему.');
-                } else if(xhr.status === 403){
-                    alert('Доступ запрещён. Пожалуйста, купите подписку.');
-                } else {
-                    alert('Произошла ошибка при анализе графика.');
-                }
+    // Обработка кнопки очистки чата
+    clearChatButton.addEventListener('click', async function() {
+        try {
+            const response = await fetch('/clear_chat_history', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                chatHistory = [];
+                updateChatHistoryDisplay();
             }
-        });
+        } catch (error) {
+            console.error('Ошибка при очистке чата:', error);
+        }
     });
 });
