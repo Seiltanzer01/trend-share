@@ -201,7 +201,7 @@ def predict_trend(image_path):
         outputs = model(img_tensor)
         _, predicted = torch.max(outputs.data, 1)
     # 0: uptrend, 1: downtrend, 2: sideways
-    classes = ["uptrend", "downtrend", "sideways"]
+    classes = ["downtrend", "sideways", "uptrend"]
     return f"Прогноз направления тренда: {classes[predicted.item()]}"
 
 ##################################################
