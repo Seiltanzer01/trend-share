@@ -260,13 +260,19 @@ def assistant_analyze_chart():
             image.save(temp_path)
 
             analysis_result = analyze_chart(temp_path)
-
             os.remove(temp_path)
 
+            # Проверяем, что вернула функция analyze_chart
             if 'error' in analysis_result:
+                # Возвращаем ошибку
                 return jsonify({'error': analysis_result['error']}), 400
+            elif 'trend_prediction' in analysis_result:
+                # Возвращаем корректный результат
+                return jsonify({'result': analysis_result}), 200
+            else:
+                # На всякий случай, если нет ни error, ни trend_prediction
+                return jsonify({'error': 'Неизвестная ошибка при анализе графика.'}), 500
 
-            return jsonify({'result': analysis_result}), 200
         except Exception as e:
             logger.error(f"Ошибка при обработке изображения: {e}")
             logger.error(traceback.format_exc())
