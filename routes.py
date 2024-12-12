@@ -7,13 +7,13 @@ import hashlib
 from datetime import datetime, timedelta
 
 from flask import (
-    render_template, redirect, url_for, flash, request,
+    Blueprint, render_template, redirect, url_for, flash, request,
     session, jsonify, send_file
 )
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from flask_wtf.csrf import CSRFProtect
-from wtforms.validators import DataRequired, Optional
+from functools import wraps
 
 from extensions import db  # Импортируем db из extensions.py
 from models import *
@@ -25,7 +25,6 @@ from telegram import (
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
 
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
-from functools import wraps
 
 # **Интеграция OpenAI**
 import openai
@@ -48,9 +47,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # **Импорт библиотек для мониторинга цен и планировщика задач**
-from flask import send_file
 import io
 import base64
+
+# Создаём Blueprint
+routes_bp = Blueprint('routes', __name__)
 
 # Функция для проверки премиум статуса пользователя
 def premium_required(f):
@@ -100,20 +101,19 @@ def generate_openai_response(messages):
 # Мониторинг цен через Yahoo Finance
 ##################################################
 
-@app.route('/price/<int:instrument_id>')
+@routes_bp.route('/price/<int:instrument_id>')
 def price(instrument_id):
     """
     Отображает ценовой график для указанного инструмента.
     """
-    # Импортируем необходимые функции внутри маршрута, чтобы избежать циклического импорта
-    from app import generate_s3_url
+    from app import generate_s3_url  # Импортируем необходимые функции из app.py
     instrument = Instrument.query.get_or_404(instrument_id)
     # Получаем последние 30 записей о ценах
     price_history = PriceHistory.query.filter_by(instrument_id=instrument_id).order_by(PriceHistory.date.asc()).limit(30).all()
     
     if not price_history:
         flash('Нет данных о ценах для этого инструмента.', 'info')
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
     
     dates = [ph.date for ph in price_history]
     closes = [ph.close for ph in price_history]
@@ -138,7 +138,7 @@ def price(instrument_id):
     
     return render_template('price_chart.html', instrument=instrument, plot_url=plot_url)
 
-@app.route('/price_charts')
+@routes_bp.route('/price_charts')
 @premium_required
 def price_charts():
     """
@@ -189,16 +189,16 @@ def admin_required(f):
         # Проверяем, авторизован ли пользователь
         if 'user_id' not in session or 'telegram_id' not in session:
             flash('Пожалуйста, войдите в систему.', 'warning')
-            return redirect(url_for('login'))
+            return redirect(url_for('routes.login'))
         # Проверяем, является ли пользователь администратором
         if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
             flash('Доступ запрещён.', 'danger')
-            return redirect(url_for('index'))
+            return redirect(url_for('routes.index'))
         return f(*args, **kwargs)
     return decorated_function
 
 # Маршруты для голосования
-@app.route('/vote', methods=['GET', 'POST'])
+@routes_bp.route('/vote', methods=['GET', 'POST'])
 @premium_required
 def vote():
     """
@@ -213,7 +213,7 @@ def vote():
     
     if not current_poll:
         flash('В данный момент нет активного голосования.', 'info')
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
     
     # Выбираем первый инструмент из опроса для отображения графика
     poll_instrument = current_poll.poll_instruments[0].instrument if current_poll.poll_instruments else None
@@ -221,8 +221,7 @@ def vote():
     # Обработка формы
     if form.validate_on_submit():
         try:
-            # Импортируем необходимые функции внутри маршрута
-            from app import upload_file_to_s3, generate_s3_url
+            from app import upload_file_to_s3, generate_s3_url  # Импортируем необходимые функции
             prediction = UserPrediction(
                 user_id=user_id,
                 poll_id=current_poll.id,
@@ -233,7 +232,7 @@ def vote():
             db.session.commit()
             flash('Ваше предсказание успешно отправлено.', 'success')
             logger.info(f"Пользователь ID {user_id} отправил предсказание для инструмента ID {form.instrument.data}.")
-            return redirect(url_for('vote'))
+            return redirect(url_for('routes.vote'))
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при отправке предсказания.', 'danger')
@@ -301,103 +300,7 @@ def vote():
     )
 
 # Интеграция Telegram бота
-app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
-TOKEN = app.config['TELEGRAM_BOT_TOKEN']
-if not TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
-    exit(1)
-
-bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
-
-def start_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
-    try:
-        with app.app_context():
-            user_record = User.query.filter_by(telegram_id=user.id).first()
-            if not user_record:
-                user_record = User(
-                    telegram_id=user.id,
-                    username=user.username,
-                    first_name=user.first_name,
-                    last_name=user.last_name,
-                    registered_at=datetime.utcnow()
-                )
-                db.session.add(user_record)
-                db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
-    
-        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
-        web_app_url = f"https://{get_app_host()}/webapp"
-        keyboard = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(
-                        text="Открыть приложение",
-                        web_app=WebAppInfo(url=web_app_url)
-                    )
-                ]
-            ]
-        )
-    
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message_text,
-            reply_markup=keyboard
-        )
-        logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке команды /start: {e}")
-        logger.error(traceback.format_exc())
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
-
-def help_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
-    help_text = (
-        "Доступные команды:\n"
-        "/start - Начать общение с ботом и открыть приложение\n"
-        "/help - Получить справку\n"
-        "/test - Тестовая команда для проверки работы бота\n"
-    )
-    try:
-        context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
-        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке ответа на /help: {e}")
-        logger.error(traceback.format_exc())
-
-def test_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
-    try:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
-        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке ответа на /test: {e}")
-        logger.error(traceback.format_exc())
-
-def button_click(update, context):
-    query = update.callback_query
-    query.answer()
-    user = update.effective_user
-    data = query.data
-    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
-
-    try:
-        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
-        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
-        logger.error(traceback.format_exc())
-
-dispatcher.add_handler(CommandHandler('start', start_command))
-dispatcher.add_handler(CommandHandler('help', help_command))
-dispatcher.add_handler(CommandHandler('test', test_command))
-dispatcher.add_handler(CallbackQueryHandler(button_click))
-
-@app.route('/webhook', methods=['POST'])
+@routes_bp.route('/webhook', methods=['POST'])
 @csrf.exempt
 def webhook():
     if request.method == 'POST':
@@ -420,9 +323,9 @@ def webhook():
     else:
         return 'Method Not Allowed', 405
 
-@app.route('/set_webhook', methods=['GET'])
+@routes_bp.route('/set_webhook', methods=['GET'])
 def set_webhook_route():
-    webhook_url = f"https://{get_app_host()}/webhook"
+    webhook_url = f"https://{app.config['APP_HOST']}/webhook"
     try:
         s = bot.set_webhook(webhook_url)
         if s:
@@ -436,41 +339,41 @@ def set_webhook_route():
         logger.error(traceback.format_exc())
         return f"Не удалось установить webhook: {e}", 500
 
-@app.route('/webapp', methods=['GET'])
+@routes_bp.route('/webapp', methods=['GET'])
 def webapp():
     return render_template('webapp.html')
 
-@app.route('/assistant', methods=['GET'])
+@routes_bp.route('/assistant', methods=['GET'])
 def assistant_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user = User.query.get(session['user_id'])
     if not user.assistant_premium:
         flash('Доступ к ассистенту доступен только по подписке.', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
 
     return render_template('assistant.html')
 
-@app.route('/subscription', methods=['GET'])
+@routes_bp.route('/subscription', methods=['GET'])
 def subscription_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите в систему для доступа к подписке.', 'warning')
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user = User.query.get(session['user_id'])
     if user.assistant_premium:
         flash('У вас уже активная подписка.', 'info')
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
 
     return render_template('subscription.html')
 
-@app.route('/buy_assistant', methods=['GET'])
+@routes_bp.route('/buy_assistant', methods=['GET'])
 def buy_assistant():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     amount = 1000
@@ -490,7 +393,7 @@ def buy_assistant():
 
     return redirect(robokassa_url)
 
-@app.route('/robokassa/result', methods=['POST'])
+@routes_bp.route('/robokassa/result', methods=['POST'])
 def robokassa_result():
     data = request.form
     out_sum = data.get('OutSum')
@@ -521,15 +424,15 @@ def robokassa_result():
         logger.warning("Неверная подпись Robokassa.")
         return 'NO', 400
 
-@app.route('/robokassa/success', methods=['GET'])
+@routes_bp.route('/robokassa/success', methods=['GET'])
 def robokassa_success():
     flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
-    return redirect(url_for('index'))
+    return redirect(url_for('routes.index'))
 
-@app.route('/robokassa/fail', methods=['GET'])
+@routes_bp.route('/robokassa/fail', methods=['GET'])
 def robokassa_fail():
     flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
-    return redirect(url_for('index'))
+    return redirect(url_for('routes.index'))
 
 # Маршруты для управления пользователями, сделками, сетапами и т.д.
 # Ваш существующий код остается без изменений
@@ -618,7 +521,7 @@ def predict_trend(image_path):
     with torch.no_grad():
         outputs = model(img_tensor)
         _, predicted = torch.max(outputs.data, 1)
-    # 0: uptrend, 1: downtrend, 2: sideways
+    # 0: downtrend, 1: sideways, 2: uptrend
     classes = ["downtrend", "sideways", "uptrend"]
     return f"Прогноз направления тренда: {classes[predicted.item()]}"
 
@@ -640,7 +543,7 @@ def analyze_chart(image_path):
         logger.error(traceback.format_exc())
         return {'error': 'Произошла ошибка при анализе графика.'}
 
-@app.route('/assistant/analyze_chart', methods=['POST'])
+@routes_bp.route('/assistant/analyze_chart', methods=['POST'])
 @csrf.exempt
 def assistant_analyze_chart():
     if 'user_id' not in session:
@@ -694,7 +597,7 @@ def assistant_analyze_chart():
     else:
         return jsonify({'error': 'Invalid image'}), 400
 
-@app.route('/assistant/chat', methods=['POST'])
+@routes_bp.route('/assistant/chat', methods=['POST'])
 @csrf.exempt
 def assistant_chat():
     if 'user_id' not in session:
@@ -759,7 +662,7 @@ def assistant_chat():
 
     return jsonify({'response': assistant_response}), 200
 
-@app.route('/get_chat_history', methods=['GET'])
+@routes_bp.route('/get_chat_history', methods=['GET'])
 def get_chat_history():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -768,7 +671,7 @@ def get_chat_history():
     display_history = [msg for msg in chat_history if msg['role'] != 'system']
     return jsonify({'chat_history': display_history}), 200
 
-@app.route('/clear_chat_history', methods=['POST'])
+@routes_bp.route('/clear_chat_history', methods=['POST'])
 @csrf.exempt
 def clear_chat_history():
     if 'user_id' not in session:
@@ -777,22 +680,22 @@ def clear_chat_history():
     session.pop('chat_history', None)
     return jsonify({'status': 'success'}), 200
 
-@app.route('/logout')
+@routes_bp.route('/logout')
 def logout():
     session.clear()
     flash('Вы успешно вышли из системы.', 'success')
     logger.info("Пользователь вышел из системы.")
-    return redirect(url_for('login'))
+    return redirect(url_for('routes.login'))
 
-@app.route('/health', methods=['GET'])
+@routes_bp.route('/health', methods=['GET'])
 def health():
     return 'OK', 200
 
-@app.route('/debug_session')
+@routes_bp.route('/debug_session')
 def debug_session():
     return jsonify(dict(session))
 
-@app.route('/init', methods=['POST'])
+@routes_bp.route('/init', methods=['POST'])
 @csrf.exempt
 def init():
     if 'user_id' in session:
@@ -846,13 +749,13 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-@app.route('/admin/users')
+@routes_bp.route('/admin/users')
 @admin_required
 def admin_users():
     users = User.query.all()
     return render_template('admin_users.html', users=users)
 
-@app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
+@routes_bp.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
 @admin_required
 def toggle_premium(user_id):
     user = User.query.get_or_404(user_id)
@@ -863,12 +766,12 @@ def toggle_premium(user_id):
         session['assistant_premium'] = user.assistant_premium
         flash('Ваш премиум статус обновлён.', 'success')
         
-    return redirect(url_for('admin_users'))
+    return redirect(url_for('routes.admin_users'))
 
-@app.route('/', methods=['GET'])
+@routes_bp.route('/', methods=['GET'])
 def index():
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     categories = InstrumentCategory.query.all()
@@ -928,24 +831,24 @@ def index():
         selected_criteria=selected_criteria
     )
 
-@app.route('/login', methods=['GET'])
+@routes_bp.route('/login', methods=['GET'])
 def login():
     if 'user_id' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
     return render_template('login.html')
 
-@app.route('/privacy-policy')
+@routes_bp.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
 
-@app.route('/additional-info')
+@routes_bp.route('/additional-info')
 def additional_info():
     return render_template('additional_info.html')
 
-@app.route('/new_trade', methods=['GET', 'POST'])
+@routes_bp.route('/new_trade', methods=['GET', 'POST'])
 def new_trade():
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     form = TradeForm()
@@ -960,8 +863,7 @@ def new_trade():
 
     if form.validate_on_submit():
         try:
-            # Импортируем необходимые функции внутри маршрута
-            from app import upload_file_to_s3, generate_s3_url
+            from app import upload_file_to_s3, generate_s3_url  # Импортируем необходимые функции
             trade = Trade(
                 user_id=user_id,
                 instrument_id=form.instrument.data,
@@ -999,13 +901,13 @@ def new_trade():
                 else:
                     flash('Ошибка при загрузке скриншота.', 'danger')
                     logger.error("Не удалось загрузить скриншот в S3.")
-                    return redirect(url_for('new_trade'))
+                    return redirect(url_for('routes.new_trade'))
 
             db.session.add(trade)
             db.session.commit()
             flash('Сделка успешно добавлена.', 'success')
             logger.info(f"Сделка ID {trade.id} добавлена пользователем ID {user_id}.")
-            return redirect(url_for('index'))
+            return redirect(url_for('routes.index'))
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при добавлении сделки.', 'danger')
@@ -1025,17 +927,17 @@ def new_trade():
         criteria_categories=criteria_categories
     )
 
-@app.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
+@routes_bp.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
 def edit_trade(trade_id):
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
         flash('У вас нет прав для редактирования этой сделки.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался редактировать сделку ID {trade_id}, которая ему не принадлежит.")
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
 
     if trade.screenshot:
         trade.screenshot_url = generate_s3_url(trade.screenshot)
@@ -1056,8 +958,7 @@ def edit_trade(trade_id):
 
     if form.validate_on_submit():
         try:
-            # Импортируем необходимые функции внутри маршрута
-            from app import delete_file_from_s3, upload_file_to_s3, generate_s3_url
+            from app import delete_file_from_s3, upload_file_to_s3, generate_s3_url  # Импортируем необходимые функции
             trade.instrument_id = form.instrument.data
             trade.direction = form.direction.data
             trade.entry_price = form.entry_price.data
@@ -1094,7 +995,7 @@ def edit_trade(trade_id):
                     else:
                         flash('Ошибка при удалении изображения.', 'danger')
                         logger.error(f"Не удалось удалить изображение сделки ID {trade_id} из S3.")
-                        return redirect(url_for('edit_trade', trade_id=trade_id))
+                        return redirect(url_for('routes.edit_trade', trade_id=trade_id))
 
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
@@ -1103,7 +1004,7 @@ def edit_trade(trade_id):
                     if not delete_success:
                         flash('Ошибка при удалении старого изображения.', 'danger')
                         logger.error(f"Не удалось удалить старое изображение сделки ID {trade_id} из S3.")
-                        return redirect(url_for('edit_trade', trade_id=trade_id))
+                        return redirect(url_for('routes.edit_trade', trade_id=trade_id))
                 filename = secure_filename(screenshot_file.filename)
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
@@ -1114,12 +1015,12 @@ def edit_trade(trade_id):
                 else:
                     flash('Ошибка при загрузке нового изображения.', 'danger')
                     logger.error(f"Не удалось загрузить новое изображение сделки ID {trade_id} в S3.")
-                    return redirect(url_for('edit_trade', trade_id=trade_id))
+                    return redirect(url_for('routes.edit_trade', trade_id=trade_id))
 
             db.session.commit()
             flash('Сделка успешно обновлена.', 'success')
             logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
-            return redirect(url_for('index'))
+            return redirect(url_for('routes.index'))
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при обновлении сделки.', 'danger')
@@ -1135,21 +1036,20 @@ def edit_trade(trade_id):
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_trade.html', form=form, criteria_categories=criteria_categories, trade=trade)
 
-@app.route('/delete_trade/<int:trade_id>', methods=['POST'])
+@routes_bp.route('/delete_trade/<int:trade_id>', methods=['POST'])
 def delete_trade(trade_id):
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
         flash('У вас нет прав для удаления этой сделки.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался удалить сделку ID {trade_id}, которая ему не принадлежит.")
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
     try:
         if trade.screenshot:
-            # Импортируем необходимые функции внутри маршрута
-            from app import delete_file_from_s3
+            from app import delete_file_from_s3  # Импортируем необходимые функции
             delete_success = delete_file_from_s3(trade.screenshot)
             if not delete_success:
                 flash('Ошибка при удалении скриншота.', 'danger')
@@ -1162,12 +1062,12 @@ def delete_trade(trade_id):
         db.session.rollback()
         flash('Произошла ошибка при удалении сделки.', 'danger')
         logger.error(f"Ошибка при удалении сделки ID {trade_id}: {e}")
-    return redirect(url_for('index'))
+    return redirect(url_for('routes.index'))
 
-@app.route('/manage_setups')
+@routes_bp.route('/manage_setups')
 def manage_setups():
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     setups = Setup.query.filter_by(user_id=user_id).all()
@@ -1181,10 +1081,10 @@ def manage_setups():
 
     return render_template('manage_setups.html', setups=setups)
 
-@app.route('/add_setup', methods=['GET', 'POST'])
+@routes_bp.route('/add_setup', methods=['GET', 'POST'])
 def add_setup():
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     form = SetupForm()
@@ -1195,8 +1095,7 @@ def add_setup():
 
     if form.validate_on_submit():
         try:
-            # Импортируем необходимые функции внутри маршрута
-            from app import upload_file_to_s3, generate_s3_url
+            from app import upload_file_to_s3, generate_s3_url  # Импортируем необходимые функции
             setup = Setup(
                 user_id=user_id,
                 setup_name=form.setup_name.data,
@@ -1221,13 +1120,13 @@ def add_setup():
                 else:
                     flash('Ошибка при загрузке скриншота.', 'danger')
                     logger.error("Не удалось загрузить скриншот в S3.")
-                    return redirect(url_for('add_setup'))
+                    return redirect(url_for('routes.add_setup'))
 
             db.session.add(setup)
             db.session.commit()
             flash('Сетап успешно добавлен.', 'success')
             logger.info(f"Сетап ID {setup.id} добавлен пользователем ID {user_id}.")
-            return redirect(url_for('manage_setups'))
+            return redirect(url_for('routes.manage_setups'))
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при добавлении сетапа.', 'danger')
@@ -1243,17 +1142,17 @@ def add_setup():
     criteria_categories = CriterionCategory.query.all()
     return render_template('add_setup.html', form=form, criteria_categories=criteria_categories)
 
-@app.route('/edit_setup/<int:setup_id>', methods=['GET', 'POST'])
+@routes_bp.route('/edit_setup/<int:setup_id>', methods=['GET', 'POST'])
 def edit_setup(setup_id):
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
         flash('У вас нет прав для редактирования этого сетапа.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался редактировать сетап ID {setup_id}, который ему не принадлежит.")
-        return redirect(url_for('manage_setups'))
+        return redirect(url_for('routes.manage_setups'))
 
     if setup.screenshot:
         setup.screenshot_url = generate_s3_url(setup.screenshot)
@@ -1268,8 +1167,7 @@ def edit_setup(setup_id):
 
     if form.validate_on_submit():
         try:
-            # Импортируем необходимые функции внутри маршрута
-            from app import delete_file_from_s3, upload_file_to_s3, generate_s3_url
+            from app import delete_file_from_s3, upload_file_to_s3, generate_s3_url  # Импортируем необходимые функции
             setup.setup_name = form.setup_name.data
             setup.description = form.description.data
 
@@ -1293,7 +1191,7 @@ def edit_setup(setup_id):
                     else:
                         flash('Ошибка при удалении изображения.', 'danger')
                         logger.error(f"Не удалось удалить изображение сетапа ID {setup_id} из S3.")
-                        return redirect(url_for('edit_setup', setup_id=setup_id))
+                        return redirect(url_for('routes.edit_setup', setup_id=setup_id))
 
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
@@ -1302,7 +1200,7 @@ def edit_setup(setup_id):
                     if not delete_success:
                         flash('Ошибка при удалении старого изображения.', 'danger')
                         logger.error(f"Не удалось удалить старое изображение сетапа ID {setup_id} из S3.")
-                        return redirect(url_for('edit_setup', setup_id=setup_id))
+                        return redirect(url_for('routes.edit_setup', setup_id=setup_id))
                 filename = secure_filename(screenshot_file.filename)
                 unique_filename = f"setup_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
@@ -1313,12 +1211,12 @@ def edit_setup(setup_id):
                 else:
                     flash('Ошибка при загрузке нового изображения.', 'danger')
                     logger.error(f"Не удалось загрузить новое изображение сетапа ID {setup_id} в S3.")
-                    return redirect(url_for('edit_setup', setup_id=setup_id))
+                    return redirect(url_for('routes.edit_setup', setup_id=setup_id))
 
             db.session.commit()
             flash('Сетап успешно обновлён.', 'success')
             logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {user_id}.")
-            return redirect(url_for('manage_setups'))
+            return redirect(url_for('routes.manage_setups'))
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при обновлении сетапа.', 'danger')
@@ -1334,21 +1232,20 @@ def edit_setup(setup_id):
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
 
-@app.route('/delete_setup/<int:setup_id>', methods=['POST'])
+@routes_bp.route('/delete_setup/<int:setup_id>', methods=['POST'])
 def delete_setup(setup_id):
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
         flash('У вас нет прав для удаления этого сетапа.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался удалить сетап ID {setup_id}, который ему не принадлежит.")
-        return redirect(url_for('manage_setups'))
+        return redirect(url_for('routes.manage_setups'))
     try:
         if setup.screenshot:
-            # Импортируем необходимые функции внутри маршрута
-            from app import delete_file_from_s3
+            from app import delete_file_from_s3  # Импортируем необходимые функции
             delete_success = delete_file_from_s3(setup.screenshot)
             if not delete_success:
                 flash('Ошибка при удалении скриншота.', 'danger')
@@ -1361,19 +1258,19 @@ def delete_setup(setup_id):
         db.session.rollback()
         flash('Произошла ошибка при удалении сетапа.', 'danger')
         logger.error(f"Ошибка при удалении сетапа ID {setup_id}: {e}")
-    return redirect(url_for('manage_setups'))
+    return redirect(url_for('routes.manage_setups'))
 
-@app.route('/view_trade/<int:trade_id>')
+@routes_bp.route('/view_trade/<int:trade_id>')
 def view_trade(trade_id):
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
         flash('У вас нет прав для просмотра этой сделки.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался просмотреть сделку ID {trade_id}, которая ему не принадлежит.")
-        return redirect(url_for('index'))
+        return redirect(url_for('routes.index'))
     logger.info(f"Пользователь ID {user_id} просматривает сделку ID {trade_id}.")
 
     if trade.screenshot:
@@ -1389,17 +1286,17 @@ def view_trade(trade_id):
 
     return render_template('view_trade.html', trade=trade)
 
-@app.route('/view_setup/<int:setup_id>')
+@routes_bp.route('/view_setup/<int:setup_id>')
 def view_setup(setup_id):
     if 'user_id' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('routes.login'))
 
     user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
         flash('У вас нет прав для просмотра этого сетапа.', 'danger')
         logger.warning(f"Пользователь ID {user_id} попытался просмотреть сетап ID {setup_id}, который ему не принадлежит.")
-        return redirect(url_for('manage_setups'))
+        return redirect(url_for('routes.manage_setups'))
     logger.info(f"Пользователь ID {user_id} просматривает сетап ID {setup_id}.")
 
     if setup.screenshot:
@@ -1408,12 +1305,3 @@ def view_setup(setup_id):
         setup.screenshot_url = None
 
     return render_template('view_setup.html', setup=setup)
-
-##################################################
-# Запуск Flask-приложения
-##################################################
-
-if __name__ == '__main__':
-    # Запуск приложения
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
