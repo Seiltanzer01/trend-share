@@ -50,6 +50,8 @@ import torch.nn.functional as F
 import io
 import base64
 
+logger = logging.getLogger(__name__)  # Инициализируем логгер
+
 # Создаём Blueprint
 routes_bp = Blueprint('routes', __name__)
 
