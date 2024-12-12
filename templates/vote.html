@@ -1,0 +1,27 @@
+<!-- templates/vote.html -->
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Голосование</title>
+</head>
+<body>
+    <h1>Голосование</h1>
+    <p>Голосование действует до: {{ poll.end_date.strftime('%Y-%m-%d %H:%M') }}</p>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <div>
+            {{ form.instrument.label }}<br>
+            {{ form.instrument() }}
+        </div>
+        <div>
+            {{ form.predicted_price.label }}<br>
+            {{ form.predicted_price() }}
+        </div>
+        <div>
+            {{ form.submit() }}
+        </div>
+    </form>
+</body>
+</html>
