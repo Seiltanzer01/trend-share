@@ -13,7 +13,12 @@ from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
+
+# Добавление OpenAI
 import openai
+
+# Добавление APScheduler для планирования задач
+from flask_apscheduler import APScheduler
 
 # Импорт расширений
 from extensions import db, migrate
@@ -21,14 +26,15 @@ from extensions import db, migrate
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.date import DateTrigger
-
 ADMIN_TELEGRAM_IDS = [427032240]
+
+# Конфигурация APScheduler
+class Config:
+    SCHEDULER_API_ENABLED = True
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
+app.config.from_object(Config())
 
 # Настройка CSRF защиты
 csrf = CSRFProtect(app)
@@ -100,28 +106,6 @@ migrate.init_app(app, db)
 def inject_datetime():
     return {'datetime': datetime}
 
-# Фильтр для генерации URL изображений
-@app.template_filter('image_url')
-def image_url_filter(filename):
-    if filename:
-        return generate_s3_url(filename)
-    return ''
-
-# Функция для генерации URL из S3
-def generate_s3_url(filename: str) -> str:
-    bucket_name = app.config['AWS_S3_BUCKET']
-    region = app.config['AWS_S3_REGION']
-
-    if region == 'us-east-1':
-        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
-    else:
-        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
-    return url
-
-# Функция для получения APP_HOST
-def get_app_host():
-    return app.config['APP_HOST']
-
 # Вспомогательные функции для работы с S3
 
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
@@ -159,6 +143,25 @@ def delete_file_from_s3(filename: str) -> bool:
     except ClientError as e:
         logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
         return False
+
+def generate_s3_url(filename: str) -> str:
+    """
+    Генерирует публичный URL для файла в S3.
+    :param filename: Имя файла в S3.
+    :return: URL файла.
+    """
+    bucket_name = app.config['AWS_S3_BUCKET']
+    region = app.config['AWS_S3_REGION']
+
+    if region == 'us-east-1':
+        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+    else:
+        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
+    return url
+
+# Функция для получения APP_HOST
+def get_app_host():
+    return app.config['APP_HOST']
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -203,76 +206,11 @@ def create_predefined_data():
         {'name': 'Coffee', 'category': 'Товары'},
         {'name': 'Sugar', 'category': 'Товары'},
         # Криптовалюты
-        {'name': 'BTC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ETH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'LTC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XRP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BCH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ADA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DOT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'LINK/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BNB/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SOL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DOGE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MATIC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'AVAX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'TRX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'UNI/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ATOM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FIL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ALGO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ICP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ETC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'VET/USDT', 'category': 'Криптовалюты'},
-        {'name': 'EOS/USDT', 'category': 'Криптовалюты'},
-        {'name': 'AAVE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'THETA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XLM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'NEO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DASH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'KSM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BAT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZEC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MKR/USDT', 'category': 'Криптовалюты'},
-        {'name': 'COMP/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SNX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SUSHI/USDT', 'category': 'Криптовалюты'},
-        {'name': 'YFI/USDT', 'category': 'Криптовалюты'},
-        {'name': 'REN/USDT', 'category': 'Криптовалюты'},
-        {'name': 'UMA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZRX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CRV/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BNT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'LRC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BAL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'MANA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CHZ/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FTT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'CELR/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ENJ/USDT', 'category': 'Криптовалюты'},
-        {'name': 'GRT/USDT', 'category': 'Криптовалюты'},
-        {'name': '1INCH/USDT', 'category': 'Криптовалюты'},
-        {'name': 'SAND/USDT', 'category': 'Криптовалюты'},
-        {'name': 'AXS/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FLOW/USDT', 'category': 'Криптовалюты'},
-        {'name': 'RUNE/USDT', 'category': 'Криптовалюты'},
-        {'name': 'GALA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'KAVA/USDT', 'category': 'Криптовалюты'},
-        {'name': 'QTUM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'FTM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ONT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'HNT/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ICX/USDT', 'category': 'Криптовалюты'},
-        {'name': 'RLC/USDT', 'category': 'Криптовалюты'},
-        {'name': 'GNO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'OMG/USDT', 'category': 'Криптовалюты'},
-        {'name': 'DGB/USDT', 'category': 'Криптовалюты'},
-        {'name': 'ZIL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'TFUEL/USDT', 'category': 'Криптовалюты'},
-        {'name': 'BTS/USDT', 'category': 'Криптовалюты'},
-        {'name': 'NANO/USDT', 'category': 'Криптовалюты'},
-        {'name': 'XEM/USDT', 'category': 'Криптовалюты'},
-        {'name': 'HOT/USDT', 'category': 'Криптовалюты'},
+        {'name': 'BTC-USD', 'category': 'Криптовалюты'},
+        {'name': 'ETH-USD', 'category': 'Криптовалюты'},
+        {'name': 'LTC-USD', 'category': 'Криптовалюты'},
+        {'name': 'XRP-USD', 'category': 'Криптовалюты'},
+        {'name': 'BCH-USD', 'category': 'Криптовалюты'},
         # Добавьте больше инструментов по необходимости
     ]
 
@@ -281,17 +219,17 @@ def create_predefined_data():
         instrument_name = instrument_data['name']
 
         # Получаем или создаём категорию
-        category = models.InstrumentCategory.query.filter_by(name=category_name).first()
+        category = InstrumentCategory.query.filter_by(name=category_name).first()
         if not category:
-            category = models.InstrumentCategory(name=category_name)
+            category = InstrumentCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
             logger.info(f"Категория '{category_name}' добавлена.")
 
         # Проверяем, существует ли инструмент
-        instrument = models.Instrument.query.filter_by(name=instrument_name).first()
+        instrument = Instrument.query.filter_by(name=instrument_name).first()
         if not instrument:
-            instrument = models.Instrument(name=instrument_name, category_id=category.id)
+            instrument = Instrument(name=instrument_name, category_id=category.id)
             db.session.add(instrument)
             logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{category_name}'.")
 
@@ -441,17 +379,17 @@ def create_predefined_data():
     }
 
     for category_name, subcategories in categories_data.items():
-        category = models.CriterionCategory.query.filter_by(name=category_name).first()
+        category = CriterionCategory.query.filter_by(name=category_name).first()
         if not category:
-            category = models.CriterionCategory(name=category_name)
+            category = CriterionCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
             logger.info(f"Категория критерия '{category_name}' добавлена.")
 
         for subcategory_name, criteria_list in subcategories.items():
-            subcategory = models.CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
+            subcategory = CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
             if not subcategory:
-                subcategory = models.CriterionSubcategory(
+                subcategory = CriterionSubcategory(
                     name=subcategory_name,
                     category_id=category.id
                 )
@@ -460,9 +398,9 @@ def create_predefined_data():
                 logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
 
             for criterion_name in criteria_list:
-                criterion = models.Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
+                criterion = Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
                 if not criterion:
-                    criterion = models.Criterion(
+                    criterion = Criterion(
                         name=criterion_name,
                         subcategory_id=subcategory.id
                     )
@@ -472,221 +410,68 @@ def create_predefined_data():
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
-    # Инициализация данных при первом запуске
-    @app.before_first_request
-    def initialize():
-        try:
-            db.create_all()
-            logger.info("База данных создана или уже существует.")
-            create_predefined_data()
-        except Exception as e:
-            logger.error(f"Ошибка при инициализации базы данных: {e}")
-            logger.error(traceback.format_exc())
+# Инициализация данных при первом запуске
+@app.before_first_request
+def initialize():
+    try:
+        db.create_all()
+        logger.info("База данных создана или уже существует.")
+        create_predefined_data()
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        logger.error(traceback.format_exc())
 
-    @app.context_processor
-    def inject_admin_ids():
-        return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
+@app.context_processor
+def inject_admin_ids():
+    return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-    # Добавление Robokassa настроек
-    # (Этот блок уже присутствует выше, поэтому его можно удалить здесь)
-    # Убедитесь, что все настройки Robokassa уже добавлены в app.py выше
+# Импорт маршрутов
+from routes import *
 
-    # Импорт маршрутов
-    from routes import *
+# Добавление OpenAI API Key
+app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+if not app.config['OPENAI_API_KEY']:
+    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
+    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
 
-    ##################################################
-    # Планировщик задач для голосования и диаграмм
-    ##################################################
+# Инициализация OpenAI
+openai.api_key = app.config['OPENAI_API_KEY']
 
-    scheduler = BackgroundScheduler()
+# Добавление Robokassa настроек
+app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
 
-    def select_random_instruments():
-        """
-        Выбирает по одному случайному инструменту из каждой категории: Товары, Криптовалюты, Форекс, Индексы.
-        Создаёт новый Poll и связанные PollInstrument записи.
-        """
-        try:
-            with app.app_context():
-                # Проверяем, активен ли голосование
-                voting_enabled = Config.query.filter_by(key='voting_enabled').first()
-                if voting_enabled and voting_enabled.value.lower() == 'false':
-                    logger.info("Голосование отключено администратором. Пропуск создания опроса.")
-                    return
+# Проверка наличия необходимых Robokassa настроек
+if not all([
+    app.config['ROBOKASSA_MERCHANT_LOGIN'],
+    app.config['ROBOKASSA_PASSWORD1'],
+    app.config['ROBOKASSA_PASSWORD2'],
+    app.config['ROBOKASSA_RESULT_URL'],
+    app.config['ROBOKASSA_SUCCESS_URL'],
+    app.config['ROBOKASSA_FAIL_URL']
+]):
+    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
-                # Проверяем, нет ли уже активного опроса
-                active_poll = Poll.query.filter_by(status='active').first()
-                if active_poll:
-                    logger.info("Активный опрос уже существует. Пропуск создания нового опроса.")
-                    return
+# Инициализация APScheduler
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.start()
 
-                # Определяем категории
-                required_categories = ['Товары', 'Криптовалюты', 'Форекс', 'Индексы']
-                selected_instruments = []
+# Импорт дополнительных функций для голосования и диаграмм
+from poll_functions import start_new_poll, process_poll_results
 
-                for category_name in required_categories:
-                    category = InstrumentCategory.query.filter_by(name=category_name).first()
-                    if category and category.instruments:
-                        instrument = random.choice(category.instruments)
-                        selected_instruments.append(instrument)
-                        logger.info(f"Выбран инструмент '{instrument.name}' из категории '{category_name}'.")
-                    else:
-                        logger.warning(f"Категория '{category_name}' пуста или не найдена.")
+# Планирование задач голосования
+scheduler.add_job(id='Start Poll', func=start_new_poll, trigger='interval', days=3, next_run_time=datetime.utcnow())
+scheduler.add_job(id='Process Poll Results', func=process_poll_results, trigger='interval', days=3, next_run_time=datetime.utcnow() + timedelta(days=3, hours=1))
 
-                if not selected_instruments:
-                    logger.error("Не удалось выбрать ни одного инструмента для опроса.")
-                    return
+# **Запуск Flask-приложения**
 
-                # Создаём новый опрос
-                start_date = datetime.utcnow()
-                end_date = start_date + timedelta(days=3)  # Голосование длится 3 дня
-
-                poll = Poll(
-                    start_date=start_date,
-                    end_date=end_date,
-                    status='active'
-                )
-                db.session.add(poll)
-                db.session.flush()
-
-                # Добавляем инструменты к опросу
-                for instrument in selected_instruments:
-                    poll_instrument = PollInstrument(
-                        poll_id=poll.id,
-                        instrument_id=instrument.id
-                    )
-                    db.session.add(poll_instrument)
-
-                db.session.commit()
-                logger.info(f"Новый опрос ID {poll.id} создан с инструментами {[instr.name for instr in selected_instruments]}.")
-
-                # Планируем задачу по завершению опроса
-                scheduler.add_job(
-                    func=process_poll_results,
-                    trigger=DateTrigger(run_date=end_date),
-                    args=[poll.id],
-                    id=f"process_poll_{poll.id}"
-                )
-        except Exception as e:
-            logger.error(f"Ошибка при выборе случайных инструментов: {e}")
-            logger.error(traceback.format_exc())
-
-    def process_poll_results(poll_id):
-        """
-        Обрабатывает результаты опроса: получает реальные цены, находит наиболее точные прогнозы и награждает победителей.
-        """
-        try:
-            with app.app_context():
-                poll = Poll.query.get(poll_id)
-                if not poll:
-                    logger.error(f"Опрос ID {poll_id} не найден.")
-                    return
-
-                if poll.status != 'active':
-                    logger.info(f"Опрос ID {poll_id} уже обработан.")
-                    return
-
-                # Получаем реальные цены для каждого инструмента через 3 дня
-                real_prices = {}
-                for poll_instrument in poll.poll_instruments:
-                    instrument = poll_instrument.instrument
-                    # Преобразуем название инструмента в тикер Yahoo Finance
-                    if '/USDT' in instrument.name:
-                        yf_ticker = instrument.name.replace('/USDT', '-USD')
-                    else:
-                        yf_ticker = instrument.name
-
-                    # Получаем данные с Yahoo Finance
-                    data = yf.download(yf_ticker, period='1d')
-                    if not data.empty:
-                        real_close_price = data['Close'].iloc[-1]
-                        real_prices[instrument.id] = real_close_price
-                        logger.info(f"Реальная цена для '{instrument.name}': {real_close_price}")
-                    else:
-                        logger.warning(f"Не удалось получить реальные цены для '{instrument.name}'.")
-
-                poll.real_prices = real_prices
-                poll.status = 'completed'
-                db.session.commit()
-                logger.info(f"Опрос ID {poll.id} завершен. Реальные цены: {real_prices}")
-
-                # Находим победителей для каждого инструмента
-                winners = []
-                for instrument_id, real_price in real_prices.items():
-                    predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument_id).all()
-                    if not predictions:
-                        logger.info(f"Нет прогнозов для инструмента ID {instrument_id}.")
-                        continue
-
-                    # Находим прогноз с минимальным отклонением
-                    closest_prediction = min(predictions, key=lambda pred: abs(pred.predicted_price - real_price))
-                    deviation = round(abs(closest_prediction.predicted_price - real_price) / real_price * 100, 2)
-                    winners.append(closest_prediction)
-
-                    # Награждаем пользователя, если он еще не имеет премиум
-                    user = closest_prediction.user
-                    if not user.assistant_premium:
-                        user.assistant_premium = True
-                        db.session.commit()
-                        logger.info(f"Пользователь ID {user.id} ({user.username}) награждён премиум за точный прогноз инструмента ID {instrument_id}.")
-
-                db.session.commit()
-                logger.info(f"Победители опроса ID {poll.id} обработаны.")
-
-        except Exception as e:
-            logger.error(f"Ошибка при обработке результатов опроса ID {poll_id}: {e}")
-            logger.error(traceback.format_exc())
-
-    # Инициализация планировщика задач
-    scheduler = BackgroundScheduler()
-    scheduler.start()
-
-    # Планируем периодическую задачу для создания опросов каждые 3 дня
-    scheduler.add_job(
-        func=select_random_instruments,
-        trigger=IntervalTrigger(days=3),
-        id='select_random_instruments',
-        name='Создание новых опросов каждые 3 дня',
-        replace_existing=True
-    )
-    logger.info("Планировщик задач запущен и задача по созданию опросов добавлена.")
-
-    # Добавляем задачу для проверки и завершения опросов при запуске приложения
-    def check_active_polls():
-        """
-        Проверяет активные опросы и планирует задачи по их завершению, если срок опроса уже прошел.
-        """
-        try:
-            with app.app_context():
-                active_polls = Poll.query.filter_by(status='active').all()
-                for poll in active_polls:
-                    if poll.end_date <= datetime.utcnow():
-                        process_poll_results(poll.id)
-                    else:
-                        # Планируем задачу по завершению опроса
-                        scheduler.add_job(
-                            func=process_poll_results,
-                            trigger=DateTrigger(run_date=poll.end_date),
-                            args=[poll.id],
-                            id=f"process_poll_{poll.id}"
-                        )
-                        logger.info(f"Задача по завершению опроса ID {poll.id} запланирована на {poll.end_date}.")
-        except Exception as e:
-            logger.error(f"Ошибка при проверке активных опросов: {e}")
-            logger.error(traceback.format_exc())
-
-    scheduler.add_job(
-        func=check_active_polls,
-        trigger=IntervalTrigger(hours=1),
-        id='check_active_polls',
-        name='Проверка активных опросов каждый час',
-        replace_existing=True
-    )
-    logger.info("Задача по проверке активных опросов добавлена.")
-
-    ##################################################
-    # Запуск Flask-приложения
-    ##################################################
-
-    if __name__ == '__main__':
-        port = int(os.environ.get('PORT', 5000))
-        app.run(host='0.0.0.0', port=port, debug=False)
+if __name__ == '__main__':
+    # Запуск приложения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
