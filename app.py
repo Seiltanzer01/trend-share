@@ -509,9 +509,6 @@ if not app.config['OPENAI_API_KEY']:
 # Инициализация OpenAI
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# **Добавление Robokassa настроек**
-# Эти настройки уже были добавлены выше в routes.py, поэтому можно удалить их из app.py, чтобы избежать дублирования
-
 # **Запуск Flask-приложения**
 
 if __name__ == '__main__':
