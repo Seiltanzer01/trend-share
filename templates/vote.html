@@ -6,15 +6,15 @@
 <h1>Участвовать в Голосовании</h1>
 <form method="POST">
     {{ form.hidden_tag() }}
-    <div>
+    <div class="nes-field">
         {{ form.instrument.label }}<br>
-        {{ form.instrument }}
+        {{ form.instrument(class="nes-select") }}
     </div>
-    <div>
+    <div class="nes-field">
         {{ form.predicted_price.label }}<br>
-        {{ form.predicted_price }}
+        {{ form.predicted_price(class="nes-input") }}
     </div>
-    <div>
+    <div class="nes-field">
         {{ form.submit(class="nes-btn is-primary") }}
     </div>
 </form>
