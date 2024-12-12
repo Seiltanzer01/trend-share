@@ -7,59 +7,19 @@
 
 <!-- Форма голосования -->
 <form method="POST">
-    {{ form.hidden_tag() }}
+    {{ csrf_token }}
+    {% for instrument in instruments %}
+        <div class="nes-field">
+            <label for="predicted_price_{{ instrument.id }}">{{ instrument.name }}</label><br>
+            <input type="number" step="0.01" name="predicted_price_{{ instrument.id }}" id="predicted_price_{{ instrument.id }}" class="nes-input" required>
+        </div>
+    {% endfor %}
     <div class="nes-field">
-        {{ form.instrument.label }}<br>
-        {{ form.instrument(class="nes-select") }}
-    </div>
-    <div class="nes-field">
-        {{ form.predicted_price.label }}<br>
-        {{ form.predicted_price(class="nes-input") }}
-    </div>
-    <div class="nes-field">
-        {{ form.submit(class="nes-btn is-primary") }}
+        <button type="submit" class="nes-btn is-primary">Отправить Предсказания</button>
     </div>
 </form>
 
 <hr>
 
-<!-- Ценовой график выбранного инструмента -->
-{% if selected_instrument and price_plot_url %}
-    <h2>Ценовой график: {{ selected_instrument.name }}</h2>
-    <img src="data:image/png;base64,{{ price_plot_url }}" alt="Ценовой график {{ selected_instrument.name }}" class="lazyload">
-{% endif %}
-
-<hr>
-
-<!-- Список победителей -->
-{% if winners %}
-    <h2>Победители Голосования</h2>
-    <table class="nes-table is-bordered is-centered">
-        <thead>
-            <tr>
-                <th>№</th>
-                <th>Пользователь</th>
-                <th>Инструмент</th>
-                <th>Предсказанная Цена</th>
-                <th>Реальная Цена</th>
-                <th>Отклонение</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for winner in winners %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ winner.user.username or winner.user.first_name }}</td>
-                    <td>{{ winner.instrument.name }}</td>
-                    <td>{{ winner.predicted_price }}</td>
-                    <td>{{ real_price }}</td>
-                    <td>{{ winner.deviation }}%</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% elif poll_status == 'completed' %}
-    <h2>Победителей пока нет.</h2>
-{% endif %}
-
+<!-- Список активных опросов (если необходимо) -->
 {% endblock %}
