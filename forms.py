@@ -2,7 +2,7 @@
 
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, SelectField, FloatField, TextAreaField, DateField, FileField, SelectMultipleField, BooleanField
-from wtforms.validators import DataRequired, Optional
+from wtforms.validators import DataRequired, Optional, NumberRange
 from flask_wtf.file import FileAllowed
 
 class TradeForm(FlaskForm):
@@ -26,3 +26,9 @@ class SetupForm(FlaskForm):
     screenshot = FileField('Скриншот', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Только изображения!')])
     remove_image = BooleanField('Удалить текущее изображение')  # Новое поле
     submit = SubmitField('Сохранить')
+
+# Новая форма для отправки предсказаний
+class SubmitPredictionForm(FlaskForm):
+    instrument = SelectField('Инструмент', coerce=int, validators=[DataRequired()])
+    predicted_price = FloatField('Ожидаемая Цена', validators=[DataRequired(), NumberRange(min=0)])
+    submit = SubmitField('Отправить Предсказание')
