@@ -1,0 +1,13 @@
+<!-- templates/predictions_chart.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Диаграммы Предсказаний</h1>
+{% for instrument, plot_url in charts.items() %}
+    <div>
+        <h2>{{ instrument }}</h2>
+        <img src="data:image/png;base64,{{ plot_url }}" alt="Диаграмма для {{ instrument }}">
+    </div>
+{% endfor %}
+{% endblock %}
