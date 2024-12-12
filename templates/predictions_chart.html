@@ -8,7 +8,7 @@
     {% for instrument, plot_url in charts.items() %}
         <div style="margin-bottom: 40px;">
             <h2>{{ instrument }}</h2>
-            <img src="data:image/png;base64,{{ plot_url }}" alt="Диаграмма для {{ instrument }}">
+            <img src="data:image/png;base64,{{ plot_url }}" alt="Диаграмма для {{ instrument }}" class="lazyload">
         </div>
     {% endfor %}
 {% else %}
