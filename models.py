@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from extensions import db
-from collections import defaultdict
 
 # Таблицы для связи многих ко многим
 trade_criteria = db.Table('trade_criteria',
@@ -18,17 +17,17 @@ setup_criteria = db.Table('setup_criteria',
 class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
-    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)  # Изменено на BigInteger
+    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=True)
     first_name = db.Column(db.String(80), nullable=True)
     last_name = db.Column(db.String(80), nullable=True)
     auth_token = db.Column(db.String(64), unique=True, nullable=True)
     auth_token_creation_time = db.Column(db.DateTime, nullable=True)
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    assistant_premium = db.Column(db.Boolean, default=False)  # Новое поле для подписки на ассистента
+    assistant_premium = db.Column(db.Boolean, default=False)
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
-    predictions = db.relationship('UserPrediction', backref='user', lazy=True)
+    predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)  # Изменено
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
@@ -43,7 +42,7 @@ class Instrument(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
     trades = db.relationship('Trade', backref='instrument', lazy=True)
     poll_instruments = db.relationship('PollInstrument', backref='instrument', lazy=True)
-    price_history = db.relationship('PriceHistory', backref='instrument', lazy=True)  # Добавлено отношение
+    price_history = db.relationship('PriceHistory', back_populates='instrument', lazy=True)  # Изменено
 
 class CriterionCategory(db.Model):
     __tablename__ = 'criterion_category'
@@ -137,9 +136,9 @@ class Poll(db.Model):
     start_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     end_date = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='active')  # 'active' или 'completed'
-    poll_instruments = db.relationship('PollInstrument', backref='poll', lazy=True)
+    poll_instruments = db.relationship('PollInstrument', back_populates='poll', lazy=True)
     real_prices = db.Column(db.JSON, nullable=True)  # Хранит реальные цены после завершения голосования
-    predictions = db.relationship('UserPrediction', backref='poll', lazy=True)
+    predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)  # Изменено
 
 class PollInstrument(db.Model):
     __tablename__ = 'poll_instrument'
@@ -147,6 +146,7 @@ class PollInstrument(db.Model):
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
     instrument = db.relationship('Instrument')
+    poll = db.relationship('Poll', back_populates='poll_instruments')  # Изменено
 
 class UserPrediction(db.Model):
     __tablename__ = 'user_prediction'
@@ -157,8 +157,8 @@ class UserPrediction(db.Model):
     predicted_price = db.Column(db.Float, nullable=False)
     deviation = db.Column(db.Float, nullable=True)  # Отклонение от реальной цены после завершения голосования
 
-    user = db.relationship('User')
-    poll = db.relationship('Poll')
+    user = db.relationship('User', back_populates='predictions')  # Изменено
+    poll = db.relationship('Poll', back_populates='predictions')  # Изменено
     instrument = db.relationship('Instrument')
 
 # Модель Config для хранения настроек приложения
@@ -167,8 +167,7 @@ class Config(db.Model):
     key = db.Column(db.String(50), primary_key=True)
     value = db.Column(db.String(50), nullable=False)
 
-# **Добавление Модели PriceHistory**
-
+# Добавление Модели PriceHistory
 class PriceHistory(db.Model):
     __tablename__ = 'price_history'
     
@@ -181,4 +180,6 @@ class PriceHistory(db.Model):
     close = db.Column(db.Float, nullable=False)
     volume = db.Column(db.BigInteger, nullable=False)
     
-    instrument = db.relationship('Instrument', backref='price_history')
+    instrument = db.relationship('Instrument', back_populates='price_history')  # Изменено
+    
+    __table_args__ = (db.UniqueConstraint('instrument_id', 'date', name='_instrument_date_uc'),)
