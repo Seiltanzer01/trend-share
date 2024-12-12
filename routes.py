@@ -15,7 +15,6 @@ from werkzeug.datastructures import FileStorage
 from flask_wtf.csrf import CSRFProtect
 from wtforms.validators import DataRequired, Optional
 
-from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
 from extensions import db  # Импортируем db из extensions.py
 from models import *
 from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
@@ -106,6 +105,8 @@ def price(instrument_id):
     """
     Отображает ценовой график для указанного инструмента.
     """
+    # Импортируем необходимые функции внутри маршрута, чтобы избежать циклического импорта
+    from app import generate_s3_url
     instrument = Instrument.query.get_or_404(instrument_id)
     # Получаем последние 30 записей о ценах
     price_history = PriceHistory.query.filter_by(instrument_id=instrument_id).order_by(PriceHistory.date.asc()).limit(30).all()
@@ -220,6 +221,8 @@ def vote():
     # Обработка формы
     if form.validate_on_submit():
         try:
+            # Импортируем необходимые функции внутри маршрута
+            from app import upload_file_to_s3, generate_s3_url
             prediction = UserPrediction(
                 user_id=user_id,
                 poll_id=current_poll.id,
@@ -270,7 +273,7 @@ def vote():
     if poll_status == 'completed':
         # Получение реальной цены из Poll.real_prices
         # Предполагается, что real_prices хранит реальные цены в формате {instrument_id: real_price}
-        real_prices = current_poll.real_prices or {}
+        real_prices = json.loads(current_poll.real_prices) if current_poll.real_prices else {}
         real_price = real_prices.get(str(poll_instrument.id), None) if poll_instrument else None
         
         if real_price:
@@ -324,7 +327,7 @@ def start_command(update, context):
                 db.session.add(user_record)
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
-
+    
         message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
         web_app_url = f"https://{get_app_host()}/webapp"
         keyboard = InlineKeyboardMarkup(
@@ -337,7 +340,7 @@ def start_command(update, context):
                 ]
             ]
         )
-
+    
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=message_text,
@@ -406,9 +409,9 @@ def webhook():
                 logger.error("Empty request data received.")
                 return 'Bad Request', 400
 
-            update = Update.de_json(request.get_json(force=True), bot)
-            dispatcher.process_update(update)
-            logger.info(f"Получено обновление от Telegram: {update}")
+            update_obj = Update.de_json(request.get_json(force=True), bot)
+            dispatcher.process_update(update_obj)
+            logger.info(f"Получено обновление от Telegram: {update_obj}")
             return 'OK', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке вебхука: {e}")
@@ -957,6 +960,8 @@ def new_trade():
 
     if form.validate_on_submit():
         try:
+            # Импортируем необходимые функции внутри маршрута
+            from app import upload_file_to_s3, generate_s3_url
             trade = Trade(
                 user_id=user_id,
                 instrument_id=form.instrument.data,
@@ -1051,6 +1056,8 @@ def edit_trade(trade_id):
 
     if form.validate_on_submit():
         try:
+            # Импортируем необходимые функции внутри маршрута
+            from app import delete_file_from_s3, upload_file_to_s3, generate_s3_url
             trade.instrument_id = form.instrument.data
             trade.direction = form.direction.data
             trade.entry_price = form.entry_price.data
@@ -1141,6 +1148,8 @@ def delete_trade(trade_id):
         return redirect(url_for('index'))
     try:
         if trade.screenshot:
+            # Импортируем необходимые функции внутри маршрута
+            from app import delete_file_from_s3
             delete_success = delete_file_from_s3(trade.screenshot)
             if not delete_success:
                 flash('Ошибка при удалении скриншота.', 'danger')
@@ -1186,6 +1195,8 @@ def add_setup():
 
     if form.validate_on_submit():
         try:
+            # Импортируем необходимые функции внутри маршрута
+            from app import upload_file_to_s3, generate_s3_url
             setup = Setup(
                 user_id=user_id,
                 setup_name=form.setup_name.data,
@@ -1257,6 +1268,8 @@ def edit_setup(setup_id):
 
     if form.validate_on_submit():
         try:
+            # Импортируем необходимые функции внутри маршрута
+            from app import delete_file_from_s3, upload_file_to_s3, generate_s3_url
             setup.setup_name = form.setup_name.data
             setup.description = form.description.data
 
@@ -1334,6 +1347,8 @@ def delete_setup(setup_id):
         return redirect(url_for('manage_setups'))
     try:
         if setup.screenshot:
+            # Импортируем необходимые функции внутри маршрута
+            from app import delete_file_from_s3
             delete_success = delete_file_from_s3(setup.screenshot)
             if not delete_success:
                 flash('Ошибка при удалении скриншота.', 'danger')
@@ -1393,3 +1408,12 @@ def view_setup(setup_id):
         setup.screenshot_url = None
 
     return render_template('view_setup.html', setup=setup)
+
+##################################################
+# Запуск Flask-приложения
+##################################################
+
+if __name__ == '__main__':
+    # Запуск приложения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
