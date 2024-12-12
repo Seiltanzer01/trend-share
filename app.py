@@ -22,7 +22,7 @@ from extensions import db, migrate
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 
-ADMIN_TELEGRAM_IDS=[427032240]
+ADMIN_TELEGRAM_IDS = [427032240]
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -33,7 +33,7 @@ csrf = CSRFProtect(app)
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
-    
+
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
     r"/*": {
@@ -479,6 +479,14 @@ def initialize():
         db.create_all()
         logger.info("База данных создана или уже существует.")
         create_predefined_data()
+
+        # Инициализируем настройки голосования, если они ещё не существуют
+        voting_config = Config.query.filter_by(key='VOTING_ENABLED').first()
+        if not voting_config:
+            voting_config = Config(key='VOTING_ENABLED', value='True')  # По умолчанию включено
+            db.session.add(voting_config)
+            db.session.commit()
+            logger.info("Настройка VOTING_ENABLED добавлена в Config.")
     except Exception as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         logger.error(traceback.format_exc())
@@ -486,8 +494,8 @@ def initialize():
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
-    
-# Импорт маршрутов
+
+# **Импорт маршрутов**
 from routes import *
 
 # Добавление OpenAI API Key
@@ -499,25 +507,8 @@ if not app.config['OPENAI_API_KEY']:
 # Инициализация OpenAI
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# Добавление Robokassa настроек
-app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
-app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
-app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
-app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
-app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
-app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
-
-# Проверка наличия необходимых Robokassa настроек
-if not all([
-    app.config['ROBOKASSA_MERCHANT_LOGIN'],
-    app.config['ROBOKASSA_PASSWORD1'],
-    app.config['ROBOKASSA_PASSWORD2'],
-    app.config['ROBOKASSA_RESULT_URL'],
-    app.config['ROBOKASSA_SUCCESS_URL'],
-    app.config['ROBOKASSA_FAIL_URL']
-]):
-    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+# Добавление Robokassa настроек (уже добавлено в routes.py)
+# ... (оставить без изменений) ...
 
 # **Запуск Flask-приложения**
 
