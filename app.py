@@ -23,6 +23,7 @@ from extensions import db, migrate
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 
 ADMIN_TELEGRAM_IDS = [427032240]
+
 # Инициализация Flask-приложения
 app = Flask(__name__)
 
@@ -496,9 +497,10 @@ def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
 # **Импорт маршрутов**
-from routes import *
+# Этот импорт должен быть после определения всех функций и конфигураций, чтобы избежать циклических импортов
+import routes
 
-# Добавление OpenAI API Key
+# **Добавление OpenAI API Key**
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
     logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
@@ -507,8 +509,8 @@ if not app.config['OPENAI_API_KEY']:
 # Инициализация OpenAI
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# Добавление Robokassa настроек (уже добавлено в routes.py)
-# ... (оставить без изменений) ...
+# **Добавление Robokassa настроек**
+# Эти настройки уже были добавлены выше в routes.py, поэтому можно удалить их из app.py, чтобы избежать дублирования
 
 # **Запуск Flask-приложения**
 
