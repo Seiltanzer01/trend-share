@@ -4,7 +4,6 @@ import os
 import logging
 import traceback
 import hashlib
-import random
 from datetime import datetime, timedelta
 
 from flask import (
@@ -19,7 +18,7 @@ from wtforms.validators import DataRequired, Optional
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
 from extensions import db  # Импортируем db из extensions.py
 from models import *
-from forms import TradeForm, SetupForm, PredictionForm  # Импорт обновлённых форм
+from forms import TradeForm, SetupForm  # Импорт обновлённых форм
 
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
@@ -94,6 +93,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Импорт функций для голосования и диаграмм
+from poll_functions import start_new_poll, process_poll_results
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -115,7 +117,6 @@ if not app.config['OPENAI_API_KEY']:
     raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
 
 openai.api_key = app.config['OPENAI_API_KEY']
-
 
 ##################################################
 # Модель тренда (trend_model.pth)
@@ -226,191 +227,6 @@ def analyze_chart(image_path):
         logger.error(f"Ошибка при анализе графика: {e}")
         logger.error(traceback.format_exc())
         return {'error': 'Произошла ошибка при анализе графика.'}
-
-##################################################
-# Голосование и Диаграммы
-##################################################
-
-from forms import PredictionForm  # Убедитесь, что форма PredictionForm создана в forms.py
-
-@app.route('/vote', methods=['GET', 'POST'])
-def vote():
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для участия в голосовании.', 'warning')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user:
-        flash('Пользователь не найден.', 'danger')
-        return redirect(url_for('login'))
-
-    # Проверяем, активен ли текущий опрос
-    active_poll = Poll.query.filter_by(status='active').first()
-    if not active_poll:
-        flash('В данный момент нет активных голосований.', 'info')
-        return redirect(url_for('index'))
-
-    form = PredictionForm()
-    # Заполняем форму инструментами текущего опроса
-    instruments = [pi.instrument for pi in active_poll.poll_instruments]
-    form.instrument.choices = [(instr.id, instr.name) for instr in instruments]
-
-    if form.validate_on_submit():
-        try:
-            instrument_id = form.instrument.data
-            predicted_price = form.predicted_price.data
-
-            # Проверяем, не сделал ли пользователь уже прогноз для этого инструмента
-            existing_prediction = UserPrediction.query.filter_by(
-                user_id=user_id,
-                poll_id=active_poll.id,
-                instrument_id=instrument_id
-            ).first()
-
-            if existing_prediction:
-                flash('Вы уже сделали прогноз для этого инструмента.', 'warning')
-                return redirect(url_for('vote'))
-
-            # Создаём новую запись прогноза
-            prediction = UserPrediction(
-                user_id=user_id,
-                poll_id=active_poll.id,
-                instrument_id=instrument_id,
-                predicted_price=predicted_price
-            )
-            db.session.add(prediction)
-            db.session.commit()
-            flash('Ваш прогноз успешно сохранён.', 'success')
-            logger.info(f"Пользователь ID {user_id} сделал прогноз для инструмента ID {instrument_id}: {predicted_price}")
-            return redirect(url_for('vote'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Произошла ошибка при сохранении прогноза.', 'danger')
-            logger.error(f"Ошибка при сохранении прогноза пользователем ID {user_id}: {e}")
-            logger.error(traceback.format_exc())
-
-    # Получаем результаты голосования, если опрос завершён
-    poll_status = active_poll.status
-    winners = []
-    real_price = None
-
-    if active_poll.status == 'completed':
-        # Получаем реальные цены
-        real_prices = active_poll.real_prices
-        real_price = real_prices  # Можно использовать для отображения реальных цен
-
-        for instrument_id, real_val in real_prices.items():
-            # Находим победителя для каждого инструмента
-            predictions = UserPrediction.query.filter_by(poll_id=active_poll.id, instrument_id=instrument_id).all()
-            if not predictions:
-                continue
-            closest_prediction = min(predictions, key=lambda pred: abs(pred.predicted_price - real_val))
-            winners.append({
-                'instrument_id': instrument_id,
-                'instrument_name': closest_prediction.instrument.name,
-                'user': closest_prediction.user,
-                'predicted_price': closest_prediction.predicted_price,
-                'real_price': real_val,
-                'deviation': round(abs(closest_prediction.predicted_price - real_val) / real_val * 100, 2)
-            })
-
-    return render_template(
-        'vote.html',
-        form=form,
-        selected_instrument=None,  # Можно использовать для дополнительной логики
-        price_plot_url=None,       # Можно использовать для отображения графиков
-        winners=winners,
-        real_price=real_price,
-        poll_status=poll_status
-    )
-
-@app.route('/charts', methods=['GET'])
-def charts():
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для доступа к диаграммам.', 'warning')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user or not user.assistant_premium:
-        flash('Доступ к диаграммам доступен только по подписке.', 'danger')
-        return redirect(url_for('index'))
-
-    # Получаем все завершённые опросы
-    completed_polls = Poll.query.filter_by(status='completed').all()
-    charts = {}
-
-    for poll in completed_polls:
-        for poll_instrument in poll.poll_instruments:
-            instrument = poll_instrument.instrument
-            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
-            if not predictions:
-                continue
-
-            # Собираем данные для диаграммы
-            df = pd.DataFrame([{
-                'User': pred.user.username or pred.user.first_name,
-                'Predicted Price': pred.predicted_price,
-                'Real Price': poll.real_prices.get(instrument.id, None)
-            } for pred in predictions if poll.real_prices.get(instrument.id, None) is not None])
-
-            if df.empty:
-                continue
-
-            # Создаём диаграмму
-            plt.figure(figsize=(10, 6))
-            plt.bar(df['User'], df['Predicted Price'], color='skyblue', label='Predicted Price')
-            plt.axhline(y=df['Real Price'].iloc[0], color='r', linestyle='--', label='Real Price')
-            plt.xlabel('User')
-            plt.ylabel('Price')
-            plt.title(f'Predictions for {instrument.name} (Poll ID {poll.id})')
-            plt.legend()
-            plt.xticks(rotation=45)
-
-            # Сохраняем диаграмму в буфер и кодируем в base64
-            from io import BytesIO
-            import base64
-            buffer = BytesIO()
-            plt.tight_layout()
-            plt.savefig(buffer, format='png')
-            buffer.seek(0)
-            image_png = buffer.getvalue()
-            buffer.close()
-            plot_url = base64.b64encode(image_png).decode('utf-8')
-            charts[instrument.name] = plot_url
-            plt.close()
-
-    return render_template('predictions_chart.html', charts=charts)
-
-@app.route('/admin/toggle_voting', methods=['POST'])
-@admin_required
-def toggle_voting():
-    try:
-        current_setting = models.Config.query.filter_by(key='voting_enabled').first()
-        if current_setting:
-            # Переключаем значение
-            new_value = 'false' if current_setting.value.lower() == 'true' else 'true'
-            current_setting.value = new_value
-        else:
-            # Создаём настройку, если её нет
-            new_value = 'false'
-            setting = models.Config(key='voting_enabled', value=new_value)
-            db.session.add(setting)
-        
-        db.session.commit()
-        status = "включено" if new_value == 'true' else "отключено"
-        flash(f"Голосование успешно {status}.", 'success')
-        logger.info(f"Администратор изменил статус голосования на {status}.")
-        return redirect(url_for('admin_users'))
-    except Exception as e:
-        db.session.rollback()
-        flash('Произошла ошибка при изменении статуса голосования.', 'danger')
-        logger.error(f"Ошибка при переключении статуса голосования: {e}")
-        logger.error(traceback.format_exc())
-        return redirect(url_for('admin_users'))
-
-# Остальные маршруты остаются без изменений
 
 @app.route('/assistant/analyze_chart', methods=['POST'])
 @csrf.exempt
@@ -622,16 +438,7 @@ def init():
 @admin_required
 def admin_users():
     users = User.query.all()
-    return render_template('admin_users.html', users=users, voting_feature_enabled=get_voting_status())
-
-def get_voting_status():
-    """
-    Возвращает статус голосования (включено/отключено).
-    """
-    setting = Config.query.filter_by(key='voting_enabled').first()
-    if setting:
-        return setting.value.lower() == 'true'
-    return False
+    return render_template('admin_users.html', users=users)
 
 @app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
 @admin_required
@@ -645,6 +452,304 @@ def toggle_premium(user_id):
         flash('Ваш премиум статус обновлён.', 'success')
         
     return redirect(url_for('admin_users'))
+
+@app.route('/admin/toggle_voting', methods=['POST'])
+@admin_required
+def toggle_voting():
+    """
+    Маршрут для включения/отключения функции голосования через админ-панель.
+    """
+    try:
+        config = Config.query.filter_by(key='voting_enabled').first()
+        if not config:
+            config = Config(key='voting_enabled', value='true')
+            db.session.add(config)
+        else:
+            config.value = 'false' if config.value == 'true' else 'true'
+        db.session.commit()
+        flash(f"Функция голосования {'включена' if config.value == 'true' else 'отключена'}.", 'success')
+        logger.info(f"Функция голосования {'включена' if config.value == 'true' else 'отключена'} администратором.")
+    except Exception as e:
+        db.session.rollback()
+        flash('Произошла ошибка при изменении настроек голосования.', 'danger')
+        logger.error(f"Ошибка при изменении настроек голосования: {e}")
+        logger.error(traceback.format_exc())
+    return redirect(url_for('admin_users'))
+
+@app.route('/vote', methods=['GET', 'POST'])
+def vote():
+    """
+    Маршрут для участия в голосовании. Бесплатная часть.
+    """
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для участия в голосовании.', 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    
+    # Проверка, включена ли функция голосования
+    voting_config = Config.query.filter_by(key='voting_enabled').first()
+    if not voting_config or voting_config.value != 'true':
+        flash('Функция голосования отключена.', 'info')
+        return redirect(url_for('index'))
+
+    # Получение активного опроса
+    active_poll = Poll.query.filter(Poll.status == 'active').first()
+    if not active_poll:
+        flash('Сейчас нет активного голосования.', 'info')
+        return redirect(url_for('index'))
+
+    # Получение инструментов опроса
+    poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
+    instruments = [pi.instrument for pi in poll_instruments]
+
+    if request.method == 'POST':
+        try:
+            # Получение предсказаний пользователя
+            predictions = {}
+            for instrument in instruments:
+                predicted_price = request.form.get(f'predicted_price_{instrument.id}')
+                if predicted_price:
+                    try:
+                        predicted_price = float(predicted_price)
+                        predictions[instrument.id] = predicted_price
+                    except ValueError:
+                        flash(f'Некорректная цена для инструмента {instrument.name}.', 'danger')
+                        return redirect(url_for('vote'))
+                else:
+                    flash(f'Не указана цена для инструмента {instrument.name}.', 'danger')
+                    return redirect(url_for('vote'))
+
+            # Сохранение предсказаний
+            for instrument_id, predicted_price in predictions.items():
+                user_prediction = UserPrediction(
+                    user_id=user_id,
+                    poll_id=active_poll.id,
+                    instrument_id=instrument_id,
+                    predicted_price=predicted_price
+                )
+                db.session.add(user_prediction)
+
+            db.session.commit()
+            flash('Ваши предсказания успешно сохранены.', 'success')
+            logger.info(f"Пользователь ID {user_id} сделал предсказания в опросе ID {active_poll.id}.")
+            return redirect(url_for('index'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Произошла ошибка при сохранении ваших предсказаний.', 'danger')
+            logger.error(f"Ошибка при сохранении предсказаний пользователя ID {user_id}: {e}")
+            logger.error(traceback.format_exc())
+            return redirect(url_for('vote'))
+
+    return render_template('vote.html', instruments=instruments)
+
+@app.route('/predictions_chart', methods=['GET'])
+def predictions_chart():
+    """
+    Маршрут для просмотра диаграмм предсказаний. Премиум часть.
+    """
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к диаграммам.', 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user.assistant_premium:
+        flash('Доступ к диаграммам доступен только по подписке.', 'danger')
+        return redirect(url_for('index'))
+
+    # Получение всех завершённых опросов
+    completed_polls = Poll.query.filter(Poll.status == 'completed').all()
+
+    charts = {}
+    for poll in completed_polls:
+        poll_instruments = PollInstrument.query.filter_by(poll_id=poll.id).all()
+        instrument_ids = [pi.instrument_id for pi in poll_instruments]
+        instruments = Instrument.query.filter(Instrument.id.in_(instrument_ids)).all()
+
+        for instrument in instruments:
+            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
+            if not predictions:
+                continue
+
+            # Создание DataFrame для построения диаграммы
+            df = pd.DataFrame([{
+                'user': pred.user.username or pred.user.first_name,
+                'predicted_price': pred.predicted_price,
+                'deviation': pred.deviation
+            } for pred in predictions if pred.deviation is not None])
+
+            if df.empty:
+                continue
+
+            # Построение диаграммы
+            plt.figure(figsize=(10, 6))
+            mpf.plot(
+                df,
+                type='bar',
+                title=f'Предсказания для {instrument.name}',
+                ylabel='Цена',
+                style='charles',
+                mav=(3,6),
+                volume=False
+            )
+            plt.tight_layout()
+
+            # Сохранение диаграммы в буфер и преобразование в base64
+            import io
+            import base64
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+            charts[instrument.name] = image_base64
+
+    return render_template('predictions_chart.html', charts=charts)
+
+@app.route('/vote_results', methods=['GET'])
+@admin_required
+def vote_results():
+    """
+    Маршрут для отображения результатов голосования в админ-панели.
+    """
+    completed_polls = Poll.query.filter(Poll.status == 'completed').all()
+    return render_template('vote_results.html', polls=completed_polls)
+
+@app.route('/subscription', methods=['GET'])
+def subscription_page():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к подписке.', 'warning')
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if user.assistant_premium:
+        flash('У вас уже активная подписка.', 'info')
+        return redirect(url_for('index'))
+
+    return render_template('subscription.html')
+
+@app.route('/buy_assistant', methods=['GET'])
+def buy_assistant():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    amount = 1000
+    inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
+    out_sum = f"{amount}.00"
+    merchant_login = app.config['ROBOKASSA_MERCHANT_LOGIN']
+    password1 = app.config['ROBOKASSA_PASSWORD1']
+
+    signature = generate_robokassa_signature(out_sum, inv_id, password1)
+
+    robokassa_url = (
+        f"https://auth.robokassa.ru/Merchant/Index.aspx?"
+        f"MerchantLogin={merchant_login}&OutSum={out_sum}&InvoiceID={inv_id}&SignatureValue={signature}&"
+        f"Description=Покупка подписки на ассистента Дядя Джон&Culture=ru&Encoding=utf-8&"
+        f"ResultURL={app.config['ROBOKASSA_RESULT_URL']}&SuccessURL={app.config['ROBOKASSA_SUCCESS_URL']}&FailURL={app.config['ROBOKASSA_FAIL_URL']}"
+    )
+
+    return redirect(robokassa_url)
+
+@app.route('/robokassa/result', methods=['POST'])
+def robokassa_result():
+    data = request.form
+    out_sum = data.get('OutSum')
+    inv_id = data.get('InvoiceID')
+    signature = data.get('SignatureValue')
+
+    password1 = app.config['ROBOKASSA_PASSWORD1']
+    correct_signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
+
+    if signature.lower() == correct_signature.lower():
+        try:
+            user_id_str, timestamp = inv_id.split('_')
+            user_id = int(user_id_str)
+            user = User.query.get(user_id)
+            if user:
+                user.assistant_premium = True
+                db.session.commit()
+                logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
+                if user.id == session.get('user_id'):
+                    session['assistant_premium'] = user.assistant_premium
+                    flash('Ваша подписка активирована.', 'success')
+    
+            return 'YES', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке inv_id: {e}")
+            return 'NO', 400
+    else:
+        logger.warning("Неверная подпись Robokassa.")
+        return 'NO', 400
+
+@app.route('/robokassa/success', methods=['GET'])
+def robokassa_success():
+    flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
+    return redirect(url_for('index'))
+
+@app.route('/robokassa/fail', methods=['GET'])
+def robokassa_fail():
+    flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
+    return redirect(url_for('index'))
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.method == 'POST':
+        try:
+            raw_data = request.get_data(as_text=True)
+            logger.debug(f"Raw request data: {raw_data}")
+
+            if not raw_data:
+                logger.error("Empty request data received.")
+                return 'Bad Request', 400
+
+            update = Update.de_json(request.get_json(force=True), bot)
+            dispatcher.process_update(update)
+            logger.info(f"Получено обновление от Telegram: {update}")
+            return 'OK', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке вебхука: {e}")
+            logger.error(traceback.format_exc())
+            return 'Internal Server Error', 500
+    else:
+        return 'Method Not Allowed', 405
+
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook_route():
+    webhook_url = f"https://{get_app_host()}/webhook"
+    try:
+        s = bot.set_webhook(webhook_url)
+        if s:
+            logger.info(f"Webhook успешно установлен на {webhook_url}")
+            return f"Webhook успешно установлен на {webhook_url}", 200
+        else:
+            logger.error(f"Не удалось установить webhook на {webhook_url}")
+            return f"Не удалось установить webhook", 500
+    except Exception as e:
+        logger.error(f"Ошибка при установке вебхука: {e}")
+        logger.error(traceback.format_exc())
+        return f"Не удалось установить webhook: {e}", 500
+
+@app.route('/webapp', methods=['GET'])
+def webapp():
+    return render_template('webapp.html')
+
+@app.route('/assistant', methods=['GET'])
+def assistant_page():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if not user.assistant_premium:
+        flash('Доступ к ассистенту доступен только по подписке.', 'danger')
+        return redirect(url_for('index'))
+
+    return render_template('assistant.html')
 
 @app.route('/', methods=['GET'])
 def index():
