@@ -7,7 +7,7 @@ import random
 import yfinance as yf
 
 from app import app, db, logger
-from models import Poll, PollInstrument, UserPrediction, Instrument, User
+from models import Poll, PollInstrument, UserPrediction, Instrument, User, InstrumentCategory
 
 def start_new_poll():
     """
@@ -26,7 +26,11 @@ def start_new_poll():
         categories = ['Форекс', 'Индексы', 'Товары', 'Криптовалюты']
         selected_instruments = []
         for category in categories:
-            instruments = Instrument.query.filter_by(category_id=InstrumentCategory.query.filter_by(name=category).first().id).all()
+            category_obj = InstrumentCategory.query.filter_by(name=category).first()
+            if not category_obj:
+                logger.warning(f"Категория '{category}' не найдена в базе данных.")
+                continue
+            instruments = Instrument.query.filter_by(category_id=category_obj.id).all()
             if instruments:
                 selected_instruments.append(random.choice(instruments))
             else:
@@ -80,7 +84,7 @@ def process_poll_results():
             instrument_ids = [pi.instrument_id for pi in poll_instruments]
             instruments = Instrument.query.filter(Instrument.id.in_(instrument_ids)).all()
 
-            # Получение реальных цен через 2 дня после окончания опроса
+            # Получение реальных цен через 3 дня после окончания опроса
             real_prices = {}
             for instrument in instruments:
                 ticker = get_yfinance_ticker(instrument.name)
