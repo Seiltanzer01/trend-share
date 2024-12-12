@@ -13,7 +13,6 @@ from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-# Добавление OpenAI
 import openai
 
 # Импорт расширений
@@ -22,6 +21,7 @@ from extensions import db, migrate
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 
+# Административные Telegram ID
 ADMIN_TELEGRAM_IDS = [427032240]
 
 # Инициализация Flask-приложения
@@ -480,14 +480,6 @@ def initialize():
         db.create_all()
         logger.info("База данных создана или уже существует.")
         create_predefined_data()
-
-        # Инициализируем настройки голосования, если они ещё не существуют
-        voting_config = Config.query.filter_by(key='VOTING_ENABLED').first()
-        if not voting_config:
-            voting_config = Config(key='VOTING_ENABLED', value='True')  # По умолчанию включено
-            db.session.add(voting_config)
-            db.session.commit()
-            logger.info("Настройка VOTING_ENABLED добавлена в Config.")
     except Exception as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         logger.error(traceback.format_exc())
@@ -495,12 +487,11 @@ def initialize():
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
+    
+# Импорт маршрутов
+from routes import *
 
-# **Импорт маршрутов**
-# Этот импорт должен быть после определения всех функций и конфигураций, чтобы избежать циклических импортов
-import routes
-
-# **Добавление OpenAI API Key**
+# Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
     logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
@@ -509,7 +500,153 @@ if not app.config['OPENAI_API_KEY']:
 # Инициализация OpenAI
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# **Запуск Flask-приложения**
+# Добавление Robokassa настроек
+app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
+
+# Проверка наличия необходимых Robokassa настроек
+if not all([
+    app.config['ROBOKASSA_MERCHANT_LOGIN'],
+    app.config['ROBOKASSA_PASSWORD1'],
+    app.config['ROBOKASSA_PASSWORD2'],
+    app.config['ROBOKASSA_RESULT_URL'],
+    app.config['ROBOKASSA_SUCCESS_URL'],
+    app.config['ROBOKASSA_FAIL_URL']
+]):
+    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+
+##################################################
+# Мониторинг цен через Yahoo Finance
+##################################################
+
+from apscheduler.schedulers.background import BackgroundScheduler
+import yfinance as yf
+from models import PriceHistory, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion
+
+def fetch_and_store_prices():
+    """
+    Загружает данные о ценах с Yahoo Finance и сохраняет их в базу данных.
+    """
+    with app.app_context():
+        instruments = Instrument.query.all()
+        for instrument in instruments:
+            ticker = get_yahoo_ticker(instrument.name)
+            if not ticker:
+                logger.warning(f"Не удалось определить тикер для инструмента: {instrument.name}")
+                continue
+            try:
+                # Загрузка данных за последние 30 дней с дневным интервалом
+                data = yf.download(ticker, period="30d", interval="1d")
+                if data.empty:
+                    logger.warning(f"Данные для тикера {ticker} пусты.")
+                    continue
+                for index, row in data.iterrows():
+                    date = index.date()
+                    # Проверяем, существует ли уже запись на эту дату
+                    existing_price = PriceHistory.query.filter_by(instrument_id=instrument.id, date=date).first()
+                    if existing_price:
+                        continue  # Пропускаем существующие записи
+                    price_history = PriceHistory(
+                        instrument_id=instrument.id,
+                        date=date,
+                        open=row['Open'],
+                        high=row['High'],
+                        low=row['Low'],
+                        close=row['Close'],
+                        volume=row['Volume']
+                    )
+                    db.session.add(price_history)
+                db.session.commit()
+                logger.info(f"Цены для {instrument.name} ({ticker}) успешно загружены и сохранены.")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Ошибка при загрузке цен для {instrument.name} ({ticker}): {e}")
+                logger.error(traceback.format_exc())
+
+def get_yahoo_ticker(instrument_name):
+    """
+    Определяет тикер Yahoo Finance на основе названия инструмента.
+    Это необходимо, так как форматы тикеров могут отличаться.
+    Например, валютные пары должны иметь суффикс '=X'.
+    """
+    forex_pairs = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY']
+    if instrument_name in forex_pairs:
+        return f"{instrument_name.replace('/', '')}=X"
+    elif instrument_name in ['S&P 500', 'Dow Jones', 'NASDAQ', 'DAX', 'FTSE 100', 'CAC 40', 'Nikkei 225', 'Hang Seng', 'ASX 200', 'Euro Stoxx 50']:
+        # Преобразуем названия индексов в тикеры Yahoo Finance
+        index_tickers = {
+            'S&P 500': '^GSPC',
+            'Dow Jones': '^DJI',
+            'NASDAQ': '^IXIC',
+            'DAX': '^GDAXI',
+            'FTSE 100': '^FTSE',
+            'CAC 40': '^FCHI',
+            'Nikkei 225': '^N225',
+            'Hang Seng': '^HSI',
+            'ASX 200': '^AXJO',
+            'Euro Stoxx 50': '^STOXX50E'
+        }
+        return index_tickers.get(instrument_name, None)
+    elif instrument_name in ['Gold', 'Silver', 'Crude Oil', 'Natural Gas', 'Copper', 'Corn', 'Wheat', 'Soybean', 'Coffee', 'Sugar']:
+        commodity_tickers = {
+            'Gold': 'GC=F',
+            'Silver': 'SI=F',
+            'Crude Oil': 'CL=F',
+            'Natural Gas': 'NG=F',
+            'Copper': 'HG=F',
+            'Corn': 'ZC=F',
+            'Wheat': 'ZW=F',
+            'Soybean': 'ZS=F',
+            'Coffee': 'KC=F',
+            'Sugar': 'SB=F'
+        }
+        return commodity_tickers.get(instrument_name, None)
+    elif instrument_name.endswith('/USDT'):
+        # Предположим, что криптовалюты используют тикеры в формате 'BTC-USD'
+        return f"{instrument_name.replace('/', '-')}"
+    
+    # Добавьте больше условий для других категорий по необходимости
+    return None
+
+def start_price_scheduler():
+    """
+    Запускает планировщик задач для регулярного обновления цен.
+    """
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=fetch_and_store_prices, trigger="interval", minutes=60)  # Обновление каждый час
+    scheduler.start()
+    logger.info("Фоновый планировщик запущен для обновления цен через Yahoo Finance.")
+
+def initialize_price_monitor():
+    """
+    Инициализирует мониторинг цен при запуске приложения.
+    """
+    try:
+        fetch_and_store_prices()  # Первоначальная загрузка данных
+        start_price_scheduler()
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации мониторинга цен: {e}")
+        logger.error(traceback.format_exc())
+
+@app.before_first_request
+def initialize_all():
+    try:
+        db.create_all()
+        logger.info("База данных создана или уже существует.")
+        create_predefined_data()
+        initialize_price_monitor()
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации базы данных или мониторинга цен: {e}")
+        logger.error(traceback.format_exc())
+
+##################################################
+# Запуск Flask-приложения
+##################################################
 
 if __name__ == '__main__':
     # Запуск приложения
