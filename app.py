@@ -18,7 +18,7 @@ import openai
 import yfinance as yf
 
 # Импорт расширений
-from extensions import db, migrate
+from extensions import db, migrate, csrf  # Добавляем csrf
 
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
@@ -30,7 +30,7 @@ ADMIN_TELEGRAM_IDS = [427032240]
 app = Flask(__name__)
 
 # Настройка CSRF защиты
-csrf = CSRFProtect(app)
+csrf.init_app(app)  # Инициализируем CSRFProtect с приложением
 
 # Контекстный процессор для предоставления CSRF токена в шаблонах
 @app.context_processor
