@@ -487,34 +487,9 @@ def create_predefined_data():
     def inject_admin_ids():
         return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-    # Добавление OpenAI API Key
-    app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
-    if not app.config['OPENAI_API_KEY']:
-        logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-        raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
-
-    # Инициализация OpenAI
-    openai.api_key = app.config['OPENAI_API_KEY']
-
     # Добавление Robokassa настроек
-    app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
-    app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
-    app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
-    app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
-    app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
-    app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
-
-    # Проверка наличия необходимых Robokassa настроек
-    if not all([
-        app.config['ROBOKASSA_MERCHANT_LOGIN'],
-        app.config['ROBOKASSA_PASSWORD1'],
-        app.config['ROBOKASSA_PASSWORD2'],
-        app.config['ROBOKASSA_RESULT_URL'],
-        app.config['ROBOKASSA_SUCCESS_URL'],
-        app.config['ROBOKASSA_FAIL_URL']
-    ]):
-        logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-        raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    # (Этот блок уже присутствует выше, поэтому его можно удалить здесь)
+    # Убедитесь, что все настройки Robokassa уже добавлены в app.py выше
 
     # Импорт маршрутов
     from routes import *
@@ -533,13 +508,13 @@ def create_predefined_data():
         try:
             with app.app_context():
                 # Проверяем, активен ли голосование
-                voting_enabled = models.Config.query.filter_by(key='voting_enabled').first()
+                voting_enabled = Config.query.filter_by(key='voting_enabled').first()
                 if voting_enabled and voting_enabled.value.lower() == 'false':
                     logger.info("Голосование отключено администратором. Пропуск создания опроса.")
                     return
 
                 # Проверяем, нет ли уже активного опроса
-                active_poll = models.Poll.query.filter_by(status='active').first()
+                active_poll = Poll.query.filter_by(status='active').first()
                 if active_poll:
                     logger.info("Активный опрос уже существует. Пропуск создания нового опроса.")
                     return
@@ -549,7 +524,7 @@ def create_predefined_data():
                 selected_instruments = []
 
                 for category_name in required_categories:
-                    category = models.InstrumentCategory.query.filter_by(name=category_name).first()
+                    category = InstrumentCategory.query.filter_by(name=category_name).first()
                     if category and category.instruments:
                         instrument = random.choice(category.instruments)
                         selected_instruments.append(instrument)
@@ -565,7 +540,7 @@ def create_predefined_data():
                 start_date = datetime.utcnow()
                 end_date = start_date + timedelta(days=3)  # Голосование длится 3 дня
 
-                poll = models.Poll(
+                poll = Poll(
                     start_date=start_date,
                     end_date=end_date,
                     status='active'
@@ -575,7 +550,7 @@ def create_predefined_data():
 
                 # Добавляем инструменты к опросу
                 for instrument in selected_instruments:
-                    poll_instrument = models.PollInstrument(
+                    poll_instrument = PollInstrument(
                         poll_id=poll.id,
                         instrument_id=instrument.id
                     )
@@ -601,7 +576,7 @@ def create_predefined_data():
         """
         try:
             with app.app_context():
-                poll = models.Poll.query.get(poll_id)
+                poll = Poll.query.get(poll_id)
                 if not poll:
                     logger.error(f"Опрос ID {poll_id} не найден.")
                     return
@@ -614,9 +589,13 @@ def create_predefined_data():
                 real_prices = {}
                 for poll_instrument in poll.poll_instruments:
                     instrument = poll_instrument.instrument
-                    # Здесь предполагается, что реальные цены можно получить через yfinance
-                    # Например, для 'BTC/USDT' использовать 'BTC-USD'
-                    yf_ticker = instrument.name.replace('/USDT', '-USD') if '/USDT' in instrument.name else instrument.name
+                    # Преобразуем название инструмента в тикер Yahoo Finance
+                    if '/USDT' in instrument.name:
+                        yf_ticker = instrument.name.replace('/USDT', '-USD')
+                    else:
+                        yf_ticker = instrument.name
+
+                    # Получаем данные с Yahoo Finance
                     data = yf.download(yf_ticker, period='1d')
                     if not data.empty:
                         real_close_price = data['Close'].iloc[-1]
@@ -633,17 +612,14 @@ def create_predefined_data():
                 # Находим победителей для каждого инструмента
                 winners = []
                 for instrument_id, real_price in real_prices.items():
-                    predictions = models.UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument_id).all()
+                    predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument_id).all()
                     if not predictions:
                         logger.info(f"Нет прогнозов для инструмента ID {instrument_id}.")
                         continue
 
                     # Находим прогноз с минимальным отклонением
-                    closest_prediction = min(
-                        predictions,
-                        key=lambda pred: abs(pred.predicted_price - real_price)
-                    )
-                    closest_prediction.deviation = abs(closest_prediction.predicted_price - real_price) / real_price * 100
+                    closest_prediction = min(predictions, key=lambda pred: abs(pred.predicted_price - real_price))
+                    deviation = round(abs(closest_prediction.predicted_price - real_price) / real_price * 100, 2)
                     winners.append(closest_prediction)
 
                     # Награждаем пользователя, если он еще не имеет премиум
@@ -681,7 +657,7 @@ def create_predefined_data():
         """
         try:
             with app.app_context():
-                active_polls = models.Poll.query.filter_by(status='active').all()
+                active_polls = Poll.query.filter_by(status='active').all()
                 for poll in active_polls:
                     if poll.end_date <= datetime.utcnow():
                         process_poll_results(poll.id)
@@ -707,11 +683,9 @@ def create_predefined_data():
     )
     logger.info("Задача по проверке активных опросов добавлена.")
 
-    # Добавление Robokassa настроек
-    # (Этот блок уже присутствует выше, поэтому его можно удалить здесь)
-    # Убедитесь, что все настройки Robokassa уже добавлены в app.py выше
-
-    # **Запуск Flask-приложения**
+    ##################################################
+    # Запуск Flask-приложения
+    ##################################################
 
     if __name__ == '__main__':
         port = int(os.environ.get('PORT', 5000))
