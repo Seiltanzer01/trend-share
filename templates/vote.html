@@ -4,6 +4,8 @@
 
 {% block content %}
 <h1>Участвовать в Голосовании</h1>
+
+<!-- Форма голосования -->
 <form method="POST">
     {{ form.hidden_tag() }}
     <div class="nes-field">
@@ -18,4 +20,46 @@
         {{ form.submit(class="nes-btn is-primary") }}
     </div>
 </form>
+
+<hr>
+
+<!-- Ценовой график выбранного инструмента -->
+{% if selected_instrument and price_plot_url %}
+    <h2>Ценовой график: {{ selected_instrument.name }}</h2>
+    <img src="data:image/png;base64,{{ price_plot_url }}" alt="Ценовой график {{ selected_instrument.name }}" class="lazyload">
+{% endif %}
+
+<hr>
+
+<!-- Список победителей -->
+{% if winners %}
+    <h2>Победители Голосования</h2>
+    <table class="nes-table is-bordered is-centered">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Пользователь</th>
+                <th>Инструмент</th>
+                <th>Предсказанная Цена</th>
+                <th>Реальная Цена</th>
+                <th>Отклонение</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for winner in winners %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ winner.user.username or winner.user.first_name }}</td>
+                    <td>{{ winner.instrument.name }}</td>
+                    <td>{{ winner.predicted_price }}</td>
+                    <td>{{ real_price }}</td>
+                    <td>{{ winner.deviation }}%</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% elif poll_status == 'completed' %}
+    <h2>Победителей пока нет.</h2>
+{% endif %}
+
 {% endblock %}
