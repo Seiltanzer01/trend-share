@@ -1,0 +1,40 @@
+<!-- templates/admin_poll_detail.html -->
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Детали Голосования</title>
+</head>
+<body>
+    <h1>Детали Голосования ID {{ poll.id }}</h1>
+    <p>Статус: {{ poll.status }}</p>
+    <p>Начало: {{ poll.start_date }}</p>
+    <p>Окончание: {{ poll.end_date }}</p>
+
+    <h2>Инструменты</h2>
+    <ul>
+        {% for pi in poll.poll_instruments %}
+            <li>{{ pi.instrument.name }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Предсказания</h2>
+    <table border="1">
+        <tr>
+            <th>Пользователь</th>
+            <th>Инструмент</th>
+            <th>Предсказанная Цена</th>
+            <th>Отклонение</th>
+        </tr>
+        {% for prediction in predictions %}
+            <tr>
+                <td>{{ prediction.user.username or prediction.user.first_name }}</td>
+                <td>{{ prediction.instrument.name }}</td>
+                <td>{{ prediction.predicted_price }}</td>
+                <td>{{ prediction.deviation }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
