@@ -27,7 +27,7 @@ class User(db.Model):
     assistant_premium = db.Column(db.Boolean, default=False)
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
-    predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)  # Изменено
+    predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
@@ -41,8 +41,8 @@ class Instrument(db.Model):
     name = db.Column(db.String(50), nullable=False, unique=True)
     category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
     trades = db.relationship('Trade', backref='instrument', lazy=True)
-    poll_instruments = db.relationship('PollInstrument', backref='instrument', lazy=True)
-    price_history = db.relationship('PriceHistory', back_populates='instrument', lazy=True)  # Изменено
+    poll_instruments = db.relationship('PollInstrument', back_populates='instrument', lazy=True)  # Используем back_populates
+    price_history = db.relationship('PriceHistory', back_populates='instrument', lazy=True)
 
 class CriterionCategory(db.Model):
     __tablename__ = 'criterion_category'
@@ -138,15 +138,15 @@ class Poll(db.Model):
     status = db.Column(db.String(20), nullable=False, default='active')  # 'active' или 'completed'
     poll_instruments = db.relationship('PollInstrument', back_populates='poll', lazy=True)
     real_prices = db.Column(db.JSON, nullable=True)  # Хранит реальные цены после завершения голосования
-    predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)  # Изменено
+    predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)
 
 class PollInstrument(db.Model):
     __tablename__ = 'poll_instrument'
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
-    instrument = db.relationship('Instrument')
-    poll = db.relationship('Poll', back_populates='poll_instruments')  # Изменено
+    instrument = db.relationship('Instrument', back_populates='poll_instruments')  # Используем back_populates
+    poll = db.relationship('Poll', back_populates='poll_instruments')  # Связь с Poll
 
 class UserPrediction(db.Model):
     __tablename__ = 'user_prediction'
@@ -157,8 +157,8 @@ class UserPrediction(db.Model):
     predicted_price = db.Column(db.Float, nullable=False)
     deviation = db.Column(db.Float, nullable=True)  # Отклонение от реальной цены после завершения голосования
 
-    user = db.relationship('User', back_populates='predictions')  # Изменено
-    poll = db.relationship('Poll', back_populates='predictions')  # Изменено
+    user = db.relationship('User', back_populates='predictions')
+    poll = db.relationship('Poll', back_populates='predictions')
     instrument = db.relationship('Instrument')
 
 # Модель Config для хранения настроек приложения
@@ -180,6 +180,6 @@ class PriceHistory(db.Model):
     close = db.Column(db.Float, nullable=False)
     volume = db.Column(db.BigInteger, nullable=False)
     
-    instrument = db.relationship('Instrument', back_populates='price_history')  # Изменено
+    instrument = db.relationship('Instrument', back_populates='price_history')
     
     __table_args__ = (db.UniqueConstraint('instrument_id', 'date', name='_instrument_date_uc'),)
