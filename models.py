@@ -2,7 +2,9 @@
 
 from datetime import datetime
 from extensions import db
+from collections import defaultdict
 
+# Таблицы для связи многих ко многим
 trade_criteria = db.Table('trade_criteria',
     db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
     db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
@@ -26,6 +28,7 @@ class User(db.Model):
     assistant_premium = db.Column(db.Boolean, default=False)  # Новое поле для подписки на ассистента
     trades = db.relationship('Trade', backref='user', lazy=True)
     setups = db.relationship('Setup', backref='user', lazy=True)
+    predictions = db.relationship('UserPrediction', backref='user', lazy=True)
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
@@ -39,6 +42,7 @@ class Instrument(db.Model):
     name = db.Column(db.String(50), nullable=False, unique=True)
     category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
     trades = db.relationship('Trade', backref='instrument', lazy=True)
+    poll_instruments = db.relationship('PollInstrument', backref='instrument', lazy=True)
 
 class CriterionCategory(db.Model):
     __tablename__ = 'criterion_category'
@@ -124,3 +128,40 @@ class LoginToken(db.Model):
     
     def is_expired(self):
         return datetime.utcnow() > self.expires_at
+
+# Новые модели для голосования
+class Poll(db.Model):
+    __tablename__ = 'poll'
+    id = db.Column(db.Integer, primary_key=True)
+    start_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='active')  # 'active' или 'completed'
+    poll_instruments = db.relationship('PollInstrument', backref='poll', lazy=True)
+    real_prices = db.Column(db.JSON, nullable=True)  # Хранит реальные цены после завершения голосования
+    predictions = db.relationship('UserPrediction', backref='poll', lazy=True)
+
+class PollInstrument(db.Model):
+    __tablename__ = 'poll_instrument'
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
+    instrument = db.relationship('Instrument')
+
+class UserPrediction(db.Model):
+    __tablename__ = 'user_prediction'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
+    predicted_price = db.Column(db.Float, nullable=False)
+    deviation = db.Column(db.Float, nullable=True)  # Отклонение от реальной цены после завершения голосования
+
+    user = db.relationship('User')
+    poll = db.relationship('Poll')
+    instrument = db.relationship('Instrument')
+
+# Модель Config для хранения настроек приложения
+class Config(db.Model):
+    __tablename__ = 'config'
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.String(50), nullable=False)
