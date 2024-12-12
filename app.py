@@ -517,7 +517,7 @@ def fetch_and_store_prices():
                 continue
             try:
                 # Загрузка данных за последние 30 дней с дневным интервалом
-                data = yf.download(ticker, period="30d", interval="1d")
+                data = yf.download(ticker, period="1mo", interval="1d")
                 if data.empty:
                     logger.warning(f"Данные для тикера {ticker} пусты.")
                     continue
