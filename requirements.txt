@@ -82,4 +82,5 @@ torch
 scikit-image
 torchvision
 APScheduler
-
+yfinance
+matplotlib
