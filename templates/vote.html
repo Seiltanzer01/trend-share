@@ -1,0 +1,21 @@
+<!-- templates/vote.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Участвовать в Голосовании</h1>
+<form method="POST">
+    {{ form.hidden_tag() }}
+    <div>
+        {{ form.instrument.label }}<br>
+        {{ form.instrument }}
+    </div>
+    <div>
+        {{ form.predicted_price.label }}<br>
+        {{ form.predicted_price }}
+    </div>
+    <div>
+        {{ form.submit(class="nes-btn is-primary") }}
+    </div>
+</form>
+{% endblock %}
