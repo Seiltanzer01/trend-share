@@ -15,7 +15,7 @@ from werkzeug.datastructures import FileStorage
 from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 
-from extensions import db  # Импортируем db из extensions.py
+from extensions import db, csrf  # Импортируем csrf из extensions.py  # Импортируем db из extensions.py
 from models import *
 from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
 
