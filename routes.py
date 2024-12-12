@@ -18,7 +18,7 @@ from wtforms.validators import DataRequired, Optional
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
 from extensions import db  # Импортируем db из extensions.py
 from models import *
-from forms import TradeForm, SetupForm  # Импорт обновлённых форм
+from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
 
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
@@ -93,6 +93,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# **Импорт дополнительных библиотек для голосования и фоновых задач**
+import random
+import yfinance as yf  # Для получения реальных цен
+from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy.sql import func
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import io
+import base64
+
+# **Декоратор для проверки административных прав**
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -107,14 +118,676 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Инициализация OpenAI API
-app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
-if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+# **Функции для работы с голосованием**
 
-openai.api_key = app.config['OPENAI_API_KEY']
+def get_config(key):
+    config = Config.query.filter_by(key=key).first()
+    if config:
+        return config.value
+    return None
 
+def set_config(key, value):
+    config = Config.query.filter_by(key=key).first()
+    if config:
+        config.value = value
+    else:
+        config = Config(key=key, value=value)
+        db.session.add(config)
+    db.session.commit()
+
+def create_poll():
+    with app.app_context():
+        # Проверяем, нет ли уже активного голосования
+        active_poll = Poll.query.filter_by(status='active').first()
+        if active_poll:
+            logger.info("Активное голосование уже существует. Создание нового голосования пропущено.")
+            return
+
+        # Выбираем по одному случайному инструменту из каждой категории
+        categories = InstrumentCategory.query.all()
+        selected_instruments = []
+        for category in categories:
+            instruments = Instrument.query.filter_by(category_id=category.id).all()
+            if instruments:
+                selected_instrument = random.choice(instruments)
+                selected_instruments.append(selected_instrument)
+
+        if not selected_instruments:
+            logger.warning("Нет доступных инструментов для создания голосования.")
+            return
+
+        # Создаём новое голосование
+        start_date = datetime.utcnow()
+        end_date = start_date + timedelta(days=1)  # Голосование длится 1 день
+        poll = Poll(start_date=start_date, end_date=end_date, status='active')
+        db.session.add(poll)
+        db.session.commit()
+        logger.info(f"Создано новое голосование ID {poll.id}.")
+
+        # Добавляем выбранные инструменты в голосование
+        for instrument in selected_instruments:
+            poll_instrument = PollInstrument(poll_id=poll.id, instrument_id=instrument.id)
+            db.session.add(poll_instrument)
+        db.session.commit()
+        logger.info(f"Добавлены инструменты в голосование ID {poll.id}.")
+
+        # Уведомление пользователей о начале голосования
+        notify_users_about_poll_start(poll)
+
+def process_poll_results():
+    with app.app_context():
+        # Находим завершённые голосования, статус 'active' и end_date прошла
+        completed_polls = Poll.query.filter(
+            Poll.status == 'active',
+            Poll.end_date <= datetime.utcnow()
+        ).all()
+
+        for poll in completed_polls:
+            real_prices = {}
+            for poll_instrument in poll.poll_instruments:
+                instrument = poll_instrument.instrument
+                real_price = get_real_price(instrument.name)
+                if real_price is not None:
+                    real_prices[str(instrument.id)] = real_price
+                else:
+                    logger.warning(f"Не удалось получить реальную цену для инструмента '{instrument.name}'.")
+
+            poll.real_prices = real_prices
+            poll.status = 'completed'
+
+            # Рассчитать отклонения предсказаний
+            user_deviations = defaultdict(float)
+            predictions = UserPrediction.query.filter_by(poll_id=poll.id).all()
+            for prediction in predictions:
+                real_price = real_prices.get(str(prediction.instrument_id))
+                if real_price:
+                    prediction.deviation = abs(prediction.predicted_price - real_price)
+                    user_deviations[prediction.user_id] += prediction.deviation
+
+            db.session.commit()
+
+            if not user_deviations:
+                logger.info(f"Голосование ID {poll.id} завершено, но нет предсказаний.")
+                continue
+
+            # Найти пользователя с наименьшим суммарным отклонением
+            winner_user_id = min(user_deviations, key=user_deviations.get)
+            winner_user = User.query.get(winner_user_id)
+
+            if winner_user:
+                # Выдать бесплатный премиум, если ещё не имеет
+                if not winner_user.assistant_premium:
+                    winner_user.assistant_premium = True
+                    db.session.commit()
+                    logger.info(f"Пользователь ID {winner_user.id} выиграл голосование ID {poll.id} и получил премиум.")
+                    # Отправить уведомление через Telegram
+                    send_premium_award_message(winner_user)
+                else:
+                    logger.info(f"Пользователь ID {winner_user.id} уже имеет премиум. Награда не выдана.")
+            else:
+                logger.warning(f"Пользователь с ID {winner_user_id} не найден.")
+
+            # Уведомление пользователей о завершении голосования
+            notify_users_about_poll_end(poll, winner_user)
+
+def notify_users_about_poll_start(poll):
+    try:
+        message_text = "Новое голосование началось! Проголосуйте, предсказывая цены инструментов."
+        for user in User.query.all():
+            bot.send_message(chat_id=user.telegram_id, text=message_text)
+        logger.info(f"Уведомления о начале голосования ID {poll.id} отправлены всем пользователям.")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке уведомлений о начале голосования: {e}")
+
+def notify_users_about_poll_end(poll, winner_user):
+    try:
+        if winner_user.username:
+            winner_name = f"@{winner_user.username}"
+        else:
+            winner_name = f"{winner_user.first_name} {winner_user.last_name}".strip()
+            if not winner_name:
+                winner_name = f"Пользователь ID {winner_user.id}"
+        
+        message_text = f"Голосование завершено! Поздравляем пользователя {winner_name} с победой и получением бесплатного премиум-статуса."
+        for user in User.query.all():
+            bot.send_message(chat_id=user.telegram_id, text=message_text)
+        logger.info(f"Уведомления о завершении голосования ID {poll.id} отправлены всем пользователям.")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке уведомлений о завершении голосования: {e}")
+
+def get_real_price(instrument_name):
+    """
+    Получает реальную цену инструмента через yfinance.
+    """
+    try:
+        # Преобразование имени инструмента в тикер yfinance
+        ticker_map = {
+            'EUR/USD': 'EURUSD=X',
+            'GBP/USD': 'GBPUSD=X',
+            'USD/JPY': 'JPY=X',
+            'USD/CHF': 'CHF=X',
+            'AUD/USD': 'AUDUSD=X',
+            'USD/CAD': 'CAD=X',
+            'NZD/USD': 'NZDUSD=X',
+            'EUR/GBP': 'EURGBP=X',
+            'EUR/JPY': 'EURJPY=X',
+            'GBP/JPY': 'GBPJPY=X',
+            # Индексы
+            'S&P 500': '^GSPC',
+            'Dow Jones': '^DJI',
+            'NASDAQ': '^IXIC',
+            'DAX': '^GDAXI',
+            'FTSE 100': '^FTSE',
+            'CAC 40': '^FCHI',
+            'Nikkei 225': '^N225',
+            'Hang Seng': '^HSI',
+            'ASX 200': '^AXJO',
+            'Euro Stoxx 50': '^STOXX50E',
+            # Товары
+            'Gold': 'GC=F',
+            'Silver': 'SI=F',
+            'Crude Oil': 'CL=F',
+            'Natural Gas': 'NG=F',
+            'Copper': 'HG=F',
+            'Corn': 'ZC=F',
+            'Wheat': 'ZW=F',
+            'Soybean': 'ZS=F',
+            'Coffee': 'KC=F',
+            'Sugar': 'SB=F',
+            # Криптовалюты
+            'BTC/USDT': 'BTC-USD',
+            'ETH/USDT': 'ETH-USD',
+            'LTC/USDT': 'LTC-USD',
+            'XRP/USDT': 'XRP-USD',
+            'BCH/USDT': 'BCH-USD',
+            'ADA/USDT': 'ADA-USD',
+            'DOT/USDT': 'DOT-USD',
+            'LINK/USDT': 'LINK-USD',
+            'BNB/USDT': 'BNB-USD',
+            'SOL/USDT': 'SOL-USD',
+            'DOGE/USDT': 'DOGE-USD',
+            'MATIC/USDT': 'MATIC-USD',
+            'AVAX/USDT': 'AVAX-USD',
+            'TRX/USDT': 'TRX-USD',
+            'UNI/USDT': 'UNI1-USD',
+            'ATOM/USDT': 'ATOM-USD',
+            'FIL/USDT': 'FIL-USD',
+            'ALGO/USDT': 'ALGO-USD',
+            'ICP/USDT': 'ICP-USD',
+            'ETC/USDT': 'ETC-USD',
+            'VET/USDT': 'VET-USD',
+            'EOS/USDT': 'EOS-USD',
+            'AAVE/USDT': 'AAVE-USD',
+            'THETA/USDT': 'THETA-USD',
+            'XLM/USDT': 'XLM-USD',
+            'NEO/USDT': 'NEO-USD',
+            'DASH/USDT': 'DASH-USD',
+            'KSM/USDT': 'KSM-USD',
+            'BAT/USDT': 'BAT-USD',
+            'ZEC/USDT': 'ZEC-USD',
+            'MKR/USDT': 'MKR-USD',
+            'COMP/USDT': 'COMP-USD',
+            'SNX/USDT': 'SNX-USD',
+            'SUSHI/USDT': 'SUSHI-USD',
+            'YFI/USDT': 'YFI-USD',
+            'REN/USDT': 'REN-USD',
+            'UMA/USDT': 'UMA-USD',
+            'ZRX/USDT': 'ZRX-USD',
+            'CRV/USDT': 'CRV-USD',
+            'BNT/USDT': 'BNT-USD',
+            'LRC/USDT': 'LRC-USD',
+            'BAL/USDT': 'BAL-USD',
+            'MANA/USDT': 'MANA-USD',
+            'CHZ/USDT': 'CHZ-USD',
+            'FTT/USDT': 'FTT-USD',
+            'CELR/USDT': 'CELR-USD',
+            'ENJ/USDT': 'ENJ-USD',
+            'GRT/USDT': 'GRT-USD',
+            '1INCH/USDT': '1INCH-USD',
+            'SAND/USDT': 'SAND-USD',
+            'AXS/USDT': 'AXS-USD',
+            'FLOW/USDT': 'FLOW-USD',
+            'RUNE/USDT': 'RUNE-USD',
+            'GALA/USDT': 'GALA-USD',
+            'KAVA/USDT': 'KAVA-USD',
+            'QTUM/USDT': 'QTUM-USD',
+            'FTM/USDT': 'FTM-USD',
+            'ONT/USDT': 'ONT-USD',
+            'HNT/USDT': 'HNT-USD',
+            'ICX/USDT': 'ICX-USD',
+            'RLC/USDT': 'RLC-USD',
+            'GNO/USDT': 'GNO-USD',
+            'OMG/USDT': 'OMG-USD',
+            'DGB/USDT': 'DGB-USD',
+            'ZIL/USDT': 'ZIL-USD',
+            'TFUEL/USDT': 'TFUEL-USD',
+            'BTS/USDT': 'BTS-USD',
+            'NANO/USDT': 'NANO-USD',
+            'XEM/USDT': 'XEM-USD',
+            'HOT/USDT': 'HOT-USD',
+            # Добавьте больше инструментов по необходимости
+        }
+
+        ticker = ticker_map.get(instrument_name)
+        if not ticker:
+            logger.warning(f"Тикер для инструмента '{instrument_name}' не найден.")
+            return None
+
+        data = yf.Ticker(ticker)
+        hist = data.history(period='1d')
+        if hist.empty:
+            logger.warning(f"Нет данных для тикера '{ticker}'.")
+            return None
+        current_price = hist['Close'].iloc[-1]
+        return current_price
+
+# **Маршруты для голосования**
+
+@app.route('/vote', methods=['GET', 'POST'])
+def vote():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для участия в голосовании.', 'warning')
+        return redirect(url_for('login'))
+
+    # Проверяем, включена ли функция голосования
+    voting_enabled = get_config('VOTING_ENABLED') == 'True'
+    if not voting_enabled:
+        flash('Функция голосования временно отключена.', 'warning')
+        return redirect(url_for('index'))
+
+    current_poll = Poll.query.filter(
+        Poll.status == 'active',
+        Poll.start_date <= datetime.utcnow(),
+        Poll.end_date >= datetime.utcnow()
+    ).first()
+
+    if not current_poll:
+        flash('Сейчас нет активного голосования.', 'info')
+        return redirect(url_for('index'))
+
+    form = SubmitPredictionForm()
+
+    # Заполнение выбора инструментов текущего голосования
+    if request.method == 'GET':
+        instruments = current_poll.poll_instruments
+        form.instrument.choices = [(instrument.instrument_id, instrument.instrument.name) for instrument in instruments]
+        if instruments:
+            form.instrument.data = instruments[0].instrument_id  # По умолчанию первый инструмент
+
+    if form.validate_on_submit():
+        user_id = session['user_id']
+        try:
+            instrument_id = form.instrument.data
+            predicted_price = form.predicted_price.data
+
+            # Проверка, что инструмент принадлежит текущему голосованию
+            poll_instrument = PollInstrument.query.filter_by(
+                poll_id=current_poll.id,
+                instrument_id=instrument_id
+            ).first()
+            if not poll_instrument:
+                flash('Некорректный инструмент.', 'danger')
+                return redirect(url_for('vote'))
+
+            # Проверка, что пользователь ещё не отправлял предсказание для этого голосования
+            existing_prediction = UserPrediction.query.filter_by(
+                user_id=user_id,
+                poll_id=current_poll.id,
+                instrument_id=instrument_id
+            ).first()
+            if existing_prediction:
+                flash('Вы уже отправили предсказание для этого инструмента в этом голосовании.', 'warning')
+                return redirect(url_for('vote'))
+
+            # Создание предсказания
+            prediction = UserPrediction(
+                user_id=user_id,
+                poll_id=current_poll.id,
+                instrument_id=instrument_id,
+                predicted_price=predicted_price
+            )
+            db.session.add(prediction)
+            db.session.commit()
+            flash('Ваше предсказание успешно отправлено.', 'success')
+            logger.info(f"Пользователь ID {user_id} отправил предсказание для голосования ID {current_poll.id}, инструмента ID {instrument_id}.")
+            return redirect(url_for('index'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Произошла ошибка при отправке предсказания.', 'danger')
+            logger.error(f"Ошибка при отправке предсказания: {e}")
+            logger.error(traceback.format_exc())
+    else:
+        if request.method == 'POST':
+            flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
+
+    return render_template('vote.html', form=form, poll=current_poll)
+
+# **Маршруты для административного управления голосованием**
+
+@app.route('/admin/toggle_voting', methods=['POST'])
+@admin_required
+def toggle_voting():
+    current_status = get_config('VOTING_ENABLED') == 'True'
+    new_status = 'False' if current_status else 'True'
+    set_config('VOTING_ENABLED', new_status)
+    flash(f"Функция голосования {'отключена' if new_status == 'False' else 'включена'}.", 'success')
+    return redirect(url_for('admin_users'))  # Предполагается, что есть страница управления пользователями
+
+# **Маршруты для отображения диаграмм предсказаний премиум-пользователям**
+
+@app.route('/premium/predictions_chart', methods=['GET'])
+def predictions_chart():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к премиум функциям.', 'warning')
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if not user.assistant_premium:
+        flash('Доступ к этой функции доступен только премиум-пользователям.', 'danger')
+        return redirect(url_for('index'))
+
+    # Получаем последние N голосований (например, последние 10)
+    polls = Poll.query.filter_by(status='completed').order_by(Poll.end_date.desc()).limit(10).all()
+
+    # Собираем данные предсказаний
+    instrument_predictions = defaultdict(list)  # {instrument_id: [predicted_prices]}
+
+    for poll in polls:
+        predictions = UserPrediction.query.filter_by(poll_id=poll.id).all()
+        for prediction in predictions:
+            instrument_predictions[prediction.instrument_id].append(prediction.predicted_price)
+
+    # Генерируем диаграммы для каждого инструмента
+    charts = {}
+    for instrument_id, predictions in instrument_predictions.items():
+        instrument = Instrument.query.get(instrument_id)
+        if not instrument:
+            continue
+        plt.figure(figsize=(10,6))
+        plt.hist(predictions, bins=20, alpha=0.7, color='blue')
+        plt.title(f'Распределение предсказанных цен для {instrument.name}')
+        plt.xlabel('Предсказанная цена')
+        plt.ylabel('Количество предсказаний')
+
+        # Сохраняем график в строку
+        img = io.BytesIO()
+        plt.savefig(img, format='png')
+        img.seek(0)
+        plot_url = base64.b64encode(img.getvalue()).decode()
+
+        charts[instrument.name] = plot_url
+        plt.close()
+
+    return render_template('predictions_chart.html', charts=charts)
+
+# **Инициализация фонового планировщика**
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=create_poll, trigger='interval', days=3, next_run_time=datetime.utcnow())
+scheduler.add_job(func=process_poll_results, trigger='interval', hours=24, next_run_time=datetime.utcnow() + timedelta(hours=24))
+scheduler.start()
+
+# **Остановка планировщика при завершении приложения**
+
+import atexit
+
+atexit.register(lambda: scheduler.shutdown())
+
+# **Добавление обработчиков команд Telegram (уже существует)**
+
+def start_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
+    try:
+        with app.app_context():
+            user_record = User.query.filter_by(telegram_id=user.id).first()
+            if not user_record:
+                user_record = User(
+                    telegram_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user_record)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
+
+        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
+        web_app_url = f"https://{get_app_host()}/webapp"
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        text="Открыть приложение",
+                        web_app=WebAppInfo(url=web_app_url)
+                    )
+                ]
+            ]
+        )
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message_text,
+            reply_markup=keyboard
+        )
+        logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке команды /start: {e}")
+        logger.error(traceback.format_exc())
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
+
+def help_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
+    help_text = (
+        "Доступные команды:\n"
+        "/start - Начать общение с ботом и открыть приложение\n"
+        "/help - Получить справку\n"
+        "/test - Тестовая команда для проверки работы бота\n"
+        "/vote - Принять участие в голосовании и отправить предсказание\n"
+    )
+    try:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
+        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /help: {e}")
+        logger.error(traceback.format_exc())
+
+def test_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
+    try:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
+        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /test: {e}")
+        logger.error(traceback.format_exc())
+
+def button_click(update, context):
+    query = update.callback_query
+    query.answer()
+    user = update.effective_user
+    data = query.data
+    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
+
+    try:
+        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
+        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
+        logger.error(traceback.format_exc())
+
+dispatcher.add_handler(CommandHandler('start', start_command))
+dispatcher.add_handler(CommandHandler('help', help_command))
+dispatcher.add_handler(CommandHandler('test', test_command))
+dispatcher.add_handler(CommandHandler('vote', vote))  # Добавлен обработчик команды /vote
+dispatcher.add_handler(CallbackQueryHandler(button_click))
+
+# **Webhook и настройка бота (уже существует)**
+
+@csrf.exempt
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.method == 'POST':
+        try:
+            raw_data = request.get_data(as_text=True)
+            logger.debug(f"Raw request data: {raw_data}")
+
+            if not raw_data:
+                logger.error("Empty request data received.")
+                return 'Bad Request', 400
+
+            update = Update.de_json(request.get_json(force=True), bot)
+            dispatcher.process_update(update)
+            logger.info(f"Получено обновление от Telegram: {update}")
+            return 'OK', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке вебхука: {e}")
+            logger.error(traceback.format_exc())
+            return 'Internal Server Error', 500
+    else:
+        return 'Method Not Allowed', 405
+
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook_route():
+    webhook_url = f"https://{get_app_host()}/webhook"
+    try:
+        s = bot.set_webhook(webhook_url)
+        if s:
+            logger.info(f"Webhook успешно установлен на {webhook_url}")
+            return f"Webhook успешно установлен на {webhook_url}", 200
+        else:
+            logger.error(f"Не удалось установить webhook на {webhook_url}")
+            return f"Не удалось установить webhook", 500
+    except Exception as e:
+        logger.error(f"Ошибка при установке вебхука: {e}")
+        logger.error(traceback.format_exc())
+        return f"Не удалось установить webhook: {e}", 500
+
+@app.route('/webapp', methods=['GET'])
+def webapp():
+    return render_template('webapp.html')
+
+# **Ассистент и Подписка (уже существует)**
+
+@app.route('/assistant', methods=['GET'])
+def assistant_page():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if not user.assistant_premium:
+        flash('Доступ к ассистенту доступен только по подписке.', 'danger')
+        return redirect(url_for('index'))
+
+    return render_template('assistant.html')
+
+@app.route('/subscription', methods=['GET'])
+def subscription_page():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для доступа к подписке.', 'warning')
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if user.assistant_premium:
+        flash('У вас уже активная подписка.', 'info')
+        return redirect(url_for('index'))
+
+    return render_template('subscription.html')
+
+@app.route('/buy_assistant', methods=['GET'])
+def buy_assistant():
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    amount = 1000
+    inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
+    out_sum = f"{amount}.00"
+    merchant_login = app.config['ROBOKASSA_MERCHANT_LOGIN']
+    password1 = app.config['ROBOKASSA_PASSWORD1']
+
+    signature = generate_robokassa_signature(out_sum, inv_id, password1)
+
+    robokassa_url = (
+        f"https://auth.robokassa.ru/Merchant/Index.aspx?"
+        f"MerchantLogin={merchant_login}&OutSum={out_sum}&InvoiceID={inv_id}&SignatureValue={signature}&"
+        f"Description=Покупка подписки на ассистента Дядя Джон&Culture=ru&Encoding=utf-8&"
+        f"ResultURL={app.config['ROBOKASSA_RESULT_URL']}&SuccessURL={app.config['ROBOKASSA_SUCCESS_URL']}&FailURL={app.config['ROBOKASSA_FAIL_URL']}"
+    )
+
+    return redirect(robokassa_url)
+
+@app.route('/robokassa/result', methods=['POST'])
+def robokassa_result():
+    data = request.form
+    out_sum = data.get('OutSum')
+    inv_id = data.get('InvoiceID')
+    signature = data.get('SignatureValue')
+
+    password1 = app.config['ROBOKASSA_PASSWORD1']
+    correct_signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
+
+    if signature.lower() == correct_signature.lower():
+        try:
+            user_id_str, timestamp = inv_id.split('_')
+            user_id = int(user_id_str)
+            user = User.query.get(user_id)
+            if user:
+                user.assistant_premium = True
+                db.session.commit()
+                logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
+                if user.id == session.get('user_id'):
+                    session['assistant_premium'] = user.assistant_premium
+                    flash('Ваша подписка активирована.', 'success')
+
+            return 'YES', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке inv_id: {e}")
+            return 'NO', 400
+    else:
+        logger.warning("Неверная подпись Robokassa.")
+        return 'NO', 400
+
+@app.route('/robokassa/success', methods=['GET'])
+def robokassa_success():
+    flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
+    return redirect(url_for('index'))
+
+@app.route('/robokassa/fail', methods=['GET'])
+def robokassa_fail():
+    flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
+    return redirect(url_for('index'))
+
+# **Маршрут для выхода из системы (уже существует)**
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Вы успешно вышли из системы.', 'success')
+    logger.info("Пользователь вышел из системы.")
+    return redirect(url_for('login'))
+
+# **Маршрут для проверки здоровья приложения (уже существует)**
+
+@app.route('/health', methods=['GET'])
+def health():
+    return 'OK', 200
+
+# **Маршрут для отладки сессии (уже существует)**
+
+@app.route('/debug_session')
+def debug_session():
+    return jsonify(dict(session))
+
+# **Маршруты для управления сделками и сетапами (уже существуют)**
+# ... (оставить без изменений) ...
 
 ##################################################
 # Модель тренда (trend_model.pth)
@@ -200,7 +873,7 @@ def predict_trend(image_path):
     with torch.no_grad():
         outputs = model(img_tensor)
         _, predicted = torch.max(outputs.data, 1)
-    # 0: uptrend, 1: downtrend, 2: sideways
+    # 0: downtrend, 1: sideways, 2: uptrend
     classes = ["downtrend", "sideways", "uptrend"]
     return f"Прогноз направления тренда: {classes[predicted.item()]}"
 
@@ -279,6 +952,209 @@ def assistant_analyze_chart():
             return jsonify({'error': 'Error processing the image.'}), 500
     else:
         return jsonify({'error': 'Invalid image'}), 400
+
+##################################################
+# Функции для голосования и премиум
+##################################################
+
+# Функция для отправки уведомления победителю через Telegram
+def send_premium_award_message(user):
+    try:
+        if user.username:
+            winner_name = f"@{user.username}"
+        else:
+            winner_name = f"{user.first_name} {user.last_name}".strip()
+            if not winner_name:
+                winner_name = f"Пользователь ID {user.id}"
+
+        message_text = f"Поздравляем, {winner_name}! Вы выиграли голосование и получили бесплатный премиум-статус."
+        bot.send_message(chat_id=user.telegram_id, text=message_text)
+        logger.info(f"Уведомление о премиум-статусе отправлено пользователю ID {user.id}.")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке уведомления премиум-статуса: {e}")
+        logger.error(traceback.format_exc())
+
+# **Маршрут для отображения списка пользователей (уже существует)**
+# Обновим маршрут, чтобы он также отображал состояние голосования
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    users = User.query.all()
+    voting_enabled = get_config('VOTING_ENABLED') == 'True'
+    return render_template('admin_users.html', users=users, voting_feature_enabled=voting_enabled)
+
+# **Маршрут для переключения премиум статуса пользователя (уже существует)**
+
+@app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
+@admin_required
+def toggle_premium(user_id):
+    user = User.query.get_or_404(user_id)
+    user.assistant_premium = not user.assistant_premium
+    db.session.commit()
+    flash(f"Премиум статус пользователя {user.username or user.id} обновлён.", 'success')
+    if user.id == session.get('user_id'):
+        session['assistant_premium'] = user.assistant_premium
+        flash('Ваш премиум статус обновлён.', 'success')
+        
+    return redirect(url_for('admin_users'))
+
+# **Маршрут для отображения текущего голосования (опционально, если нужна отдельная страница)**
+
+@app.route('/current_poll', methods=['GET'])
+def current_poll():
+    current_poll = Poll.query.filter(
+        Poll.status == 'active',
+        Poll.start_date <= datetime.utcnow(),
+        Poll.end_date >= datetime.utcnow()
+    ).first()
+
+    if not current_poll:
+        flash('Сейчас нет активного голосования.', 'info')
+        return redirect(url_for('index'))
+
+    instruments = [pi.instrument for pi in current_poll.poll_instruments]
+    return render_template('current_poll.html', poll=current_poll, instruments=instruments)
+
+##################################################
+# Добавление обработчиков команд Telegram (уже существует)
+##################################################
+
+def start_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
+    try:
+        with app.app_context():
+            user_record = User.query.filter_by(telegram_id=user.id).first()
+            if not user_record:
+                user_record = User(
+                    telegram_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user_record)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
+
+        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
+        web_app_url = f"https://{get_app_host()}/webapp"
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        text="Открыть приложение",
+                        web_app=WebAppInfo(url=web_app_url)
+                    )
+                ]
+            ]
+        )
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message_text,
+            reply_markup=keyboard
+        )
+        logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке команды /start: {e}")
+        logger.error(traceback.format_exc())
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
+
+def help_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
+    help_text = (
+        "Доступные команды:\n"
+        "/start - Начать общение с ботом и открыть приложение\n"
+        "/help - Получить справку\n"
+        "/test - Тестовая команда для проверки работы бота\n"
+        "/vote - Принять участие в голосовании и отправить предсказание\n"
+    )
+    try:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
+        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /help: {e}")
+        logger.error(traceback.format_exc())
+
+def test_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
+    try:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
+        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /test: {e}")
+        logger.error(traceback.format_exc())
+
+def button_click(update, context):
+    query = update.callback_query
+    query.answer()
+    user = update.effective_user
+    data = query.data
+    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
+
+    try:
+        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
+        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
+        logger.error(traceback.format_exc())
+
+dispatcher.add_handler(CommandHandler('start', start_command))
+dispatcher.add_handler(CommandHandler('help', help_command))
+dispatcher.add_handler(CommandHandler('test', test_command))
+dispatcher.add_handler(CommandHandler('vote', vote))  # Добавлен обработчик команды /vote
+dispatcher.add_handler(CallbackQueryHandler(button_click))
+
+# **Webhook и настройка бота (уже существует)**
+
+@csrf.exempt
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.method == 'POST':
+        try:
+            raw_data = request.get_data(as_text=True)
+            logger.debug(f"Raw request data: {raw_data}")
+
+            if not raw_data:
+                logger.error("Empty request data received.")
+                return 'Bad Request', 400
+
+            update = Update.de_json(request.get_json(force=True), bot)
+            dispatcher.process_update(update)
+            logger.info(f"Получено обновление от Telegram: {update}")
+            return 'OK', 200
+        except Exception as e:
+            logger.error(f"Ошибка при обработке вебхука: {e}")
+            logger.error(traceback.format_exc())
+            return 'Internal Server Error', 500
+    else:
+        return 'Method Not Allowed', 405
+
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook_route():
+    webhook_url = f"https://{get_app_host()}/webhook"
+    try:
+        s = bot.set_webhook(webhook_url)
+        if s:
+            logger.info(f"Webhook успешно установлен на {webhook_url}")
+            return f"Webhook успешно установлен на {webhook_url}", 200
+        else:
+            logger.error(f"Не удалось установить webhook на {webhook_url}")
+            return f"Не удалось установить webhook", 500
+    except Exception as e:
+        logger.error(f"Ошибка при установке вебхука: {e}")
+        logger.error(traceback.format_exc())
+        return f"Не удалось установить webhook: {e}", 500
+
+@app.route('/webapp', methods=['GET'])
+def webapp():
+    return render_template('webapp.html')
+
+# **Ассистент чат (уже существует, без изменений)**
 
 @app.route('/assistant/chat', methods=['POST'])
 @csrf.exempt
@@ -363,80 +1239,12 @@ def clear_chat_history():
     session.pop('chat_history', None)
     return jsonify({'status': 'success'}), 200
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash('Вы успешно вышли из системы.', 'success')
-    logger.info("Пользователь вышел из системы.")
-    return redirect(url_for('login'))
-
-@app.route('/health', methods=['GET'])
-def health():
-    return 'OK', 200
-
-@app.route('/debug_session')
-def debug_session():
-    return jsonify(dict(session))
-
-@csrf.exempt
-@app.route('/init', methods=['POST'])
-def init():
-    if 'user_id' in session:
-        logger.info(f"Пользователь ID {session['user_id']} уже авторизован.")
-        return jsonify({'status': 'success'}), 200
-
-    data = request.get_json()
-    init_data = data.get('initData')
-    logger.debug(f"Получен initData через AJAX: {init_data}")
-    if init_data:
-        try:
-            webapp_data = parse_webapp_data(init_data)
-            logger.debug(f"Parsed WebAppInitData: {webapp_data}")
-            secret_key = get_secret_key(app.config['TELEGRAM_BOT_TOKEN'])
-            is_valid = validate_webapp_data(webapp_data, secret_key)
-            logger.debug(f"Validation result: {is_valid}")
-
-            if not is_valid:
-                logger.warning("Невалидные данные авторизации.")
-                return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
-
-            telegram_id = int(webapp_data.user.id)
-            first_name = webapp_data.user.first_name
-            last_name = webapp_data.user.last_name or ''
-            username = webapp_data.user.username or ''
-
-            user = User.query.filter_by(telegram_id=telegram_id).first()
-            if not user:
-                user = User(
-                    telegram_id=telegram_id,
-                    username=username,
-                    first_name=first_name,
-                    last_name=last_name,
-                    registered_at=datetime.utcnow()
-                )
-                db.session.add(user)
-                db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
-
-            session['user_id'] = user.id
-            session['telegram_id'] = user.telegram_id
-            session['assistant_premium'] = user.assistant_premium
-
-            logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
-            return jsonify({'status': 'success'}), 200
-        except Exception as e:
-            logger.error(f"Ошибка при верификации initData: {e}")
-            logger.error(traceback.format_exc())
-            return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
-    else:
-        logger.warning("initData отсутствует в AJAX-запросе.")
-        return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
-
 @app.route('/admin/users')
 @admin_required
 def admin_users():
     users = User.query.all()
-    return render_template('admin_users.html', users=users)
+    voting_enabled = get_config('VOTING_ENABLED') == 'True'
+    return render_template('admin_users.html', users=users, voting_feature_enabled=voting_enabled)
 
 @app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
 @admin_required
@@ -444,7 +1252,7 @@ def toggle_premium(user_id):
     user = User.query.get_or_404(user_id)
     user.assistant_premium = not user.assistant_premium
     db.session.commit()
-    flash(f"Премиум статус пользователя {user.username} обновлён.", 'success')
+    flash(f"Премиум статус пользователя {user.username or user.id} обновлён.", 'success')
     if user.id == session.get('user_id'):
         session['assistant_premium'] = user.assistant_premium
         flash('Ваш премиум статус обновлён.', 'success')
@@ -983,236 +1791,3 @@ def view_setup(setup_id):
 
     return render_template('view_setup.html', setup=setup)
 
-app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
-TOKEN = app.config['TELEGRAM_BOT_TOKEN']
-if not TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
-    exit(1)
-
-bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
-
-def start_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
-    try:
-        with app.app_context():
-            user_record = User.query.filter_by(telegram_id=user.id).first()
-            if not user_record:
-                user_record = User(
-                    telegram_id=user.id,
-                    username=user.username,
-                    first_name=user.first_name,
-                    last_name=user.last_name,
-                    registered_at=datetime.utcnow()
-                )
-                db.session.add(user_record)
-                db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
-
-        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
-        web_app_url = f"https://{get_app_host()}/webapp"
-        keyboard = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(
-                        text="Открыть приложение",
-                        web_app=WebAppInfo(url=web_app_url)
-                    )
-                ]
-            ]
-        )
-
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message_text,
-            reply_markup=keyboard
-        )
-        logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке команды /start: {e}")
-        logger.error(traceback.format_exc())
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
-
-def help_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
-    help_text = (
-        "Доступные команды:\n"
-        "/start - Начать общение с ботом и открыть приложение\n"
-        "/help - Получить справку\n"
-        "/test - Тестовая команда для проверки работы бота\n"
-    )
-    try:
-        context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
-        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке ответа на /help: {e}")
-        logger.error(traceback.format_exc())
-
-def test_command(update, context):
-    user = update.effective_user
-    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
-    try:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
-        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке ответа на /test: {e}")
-        logger.error(traceback.format_exc())
-
-def button_click(update, context):
-    query = update.callback_query
-    query.answer()
-    user = update.effective_user
-    data = query.data
-    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
-
-    try:
-        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
-        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
-        logger.error(traceback.format_exc())
-
-dispatcher.add_handler(CommandHandler('start', start_command))
-dispatcher.add_handler(CommandHandler('help', help_command))
-dispatcher.add_handler(CommandHandler('test', test_command))
-dispatcher.add_handler(CallbackQueryHandler(button_click))
-
-@csrf.exempt
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    if request.method == 'POST':
-        try:
-            raw_data = request.get_data(as_text=True)
-            logger.debug(f"Raw request data: {raw_data}")
-
-            if not raw_data:
-                logger.error("Empty request data received.")
-                return 'Bad Request', 400
-
-            update = Update.de_json(request.get_json(force=True), bot)
-            dispatcher.process_update(update)
-            logger.info(f"Получено обновление от Telegram: {update}")
-            return 'OK', 200
-        except Exception as e:
-            logger.error(f"Ошибка при обработке вебхука: {e}")
-            logger.error(traceback.format_exc())
-            return 'Internal Server Error', 500
-    else:
-        return 'Method Not Allowed', 405
-
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook_route():
-    webhook_url = f"https://{get_app_host()}/webhook"
-    try:
-        s = bot.set_webhook(webhook_url)
-        if s:
-            logger.info(f"Webhook успешно установлен на {webhook_url}")
-            return f"Webhook успешно установлен на {webhook_url}", 200
-        else:
-            logger.error(f"Не удалось установить webhook на {webhook_url}")
-            return f"Не удалось установить webhook", 500
-    except Exception as e:
-        logger.error(f"Ошибка при установке вебхука: {e}")
-        logger.error(traceback.format_exc())
-        return f"Не удалось установить webhook: {e}", 500
-
-@app.route('/webapp', methods=['GET'])
-def webapp():
-    return render_template('webapp.html')
-
-@app.route('/assistant', methods=['GET'])
-def assistant_page():
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_id'])
-    if not user.assistant_premium:
-        flash('Доступ к ассистенту доступен только по подписке.', 'danger')
-        return redirect(url_for('index'))
-
-    return render_template('assistant.html')
-
-@app.route('/subscription', methods=['GET'])
-def subscription_page():
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для доступа к подписке.', 'warning')
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_id'])
-    if user.assistant_premium:
-        flash('У вас уже активная подписка.', 'info')
-        return redirect(url_for('index'))
-
-    return render_template('subscription.html')
-
-@app.route('/buy_assistant', methods=['GET'])
-def buy_assistant():
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    amount = 1000
-    inv_id = f"{user_id}_{int(datetime.utcnow().timestamp())}"
-    out_sum = f"{amount}.00"
-    merchant_login = app.config['ROBOKASSA_MERCHANT_LOGIN']
-    password1 = app.config['ROBOKASSA_PASSWORD1']
-
-    signature = generate_robokassa_signature(out_sum, inv_id, password1)
-
-    robokassa_url = (
-        f"https://auth.robokassa.ru/Merchant/Index.aspx?"
-        f"MerchantLogin={merchant_login}&OutSum={out_sum}&InvoiceID={inv_id}&SignatureValue={signature}&"
-        f"Description=Покупка подписки на ассистента Дядя Джон&Culture=ru&Encoding=utf-8&"
-        f"ResultURL={app.config['ROBOKASSA_RESULT_URL']}&SuccessURL={app.config['ROBOKASSA_SUCCESS_URL']}&FailURL={app.config['ROBOKASSA_FAIL_URL']}"
-    )
-
-    return redirect(robokassa_url)
-
-@app.route('/robokassa/result', methods=['POST'])
-def robokassa_result():
-    data = request.form
-    out_sum = data.get('OutSum')
-    inv_id = data.get('InvoiceID')
-    signature = data.get('SignatureValue')
-
-    password1 = app.config['ROBOKASSA_PASSWORD1']
-    correct_signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
-
-    if signature.lower() == correct_signature.lower():
-        try:
-            user_id_str, timestamp = inv_id.split('_')
-            user_id = int(user_id_str)
-            user = User.query.get(user_id)
-            if user:
-                user.assistant_premium = True
-                db.session.commit()
-                logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
-                if user.id == session.get('user_id'):
-                    session['assistant_premium'] = user.assistant_premium
-                    flash('Ваша подписка активирована.', 'success')
-    
-            return 'YES', 200
-        except Exception as e:
-            logger.error(f"Ошибка при обработке inv_id: {e}")
-            return 'NO', 400
-    else:
-        logger.warning("Неверная подпись Robokassa.")
-        return 'NO', 400
-
-@app.route('/robokassa/success', methods=['GET'])
-def robokassa_success():
-    flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
-    return redirect(url_for('index'))
-
-@app.route('/robokassa/fail', methods=['GET'])
-def robokassa_fail():
-    flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
-    return redirect(url_for('index'))
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
