@@ -202,20 +202,26 @@ def admin_required(f):
 def vote():
     """
     Маршрут для участия в голосовании.
+    Отображает форму для предсказания цены, ценовой график и список победителей.
     """
     form = SubmitPredictionForm()
-    # Получаем список инструментов, доступных для текущего голосования
+    user_id = session['user_id']
+    
+    # Получаем текущий активный опрос
     current_poll = Poll.query.filter(Poll.status == 'active').first()
+    
     if not current_poll:
         flash('В данный момент нет активного голосования.', 'info')
         return redirect(url_for('index'))
     
-    form.instrument.choices = [(pi.instrument.id, pi.instrument.name) for pi in current_poll.poll_instruments]
+    # Выбираем первый инструмент из опроса для отображения графика
+    poll_instrument = current_poll.poll_instruments[0].instrument if current_poll.poll_instruments else None
     
+    # Обработка формы
     if form.validate_on_submit():
         try:
             prediction = UserPrediction(
-                user_id=session['user_id'],
+                user_id=user_id,
                 poll_id=current_poll.id,
                 instrument_id=form.instrument.data,
                 predicted_price=form.predicted_price.data
@@ -223,15 +229,73 @@ def vote():
             db.session.add(prediction)
             db.session.commit()
             flash('Ваше предсказание успешно отправлено.', 'success')
-            logger.info(f"Пользователь ID {session['user_id']} отправил предсказание для инструмента ID {form.instrument.data}.")
-            return redirect(url_for('index'))
+            logger.info(f"Пользователь ID {user_id} отправил предсказание для инструмента ID {form.instrument.data}.")
+            return redirect(url_for('vote'))
         except Exception as e:
             db.session.rollback()
             flash('Произошла ошибка при отправке предсказания.', 'danger')
             logger.error(f"Ошибка при отправке предсказания: {e}")
             logger.error(traceback.format_exc())
     
-    return render_template('vote.html', form=form)
+    # Генерация ценового графика
+    price_plot_url = None
+    if poll_instrument:
+        price_history = PriceHistory.query.filter_by(instrument_id=poll_instrument.id).order_by(PriceHistory.date.asc()).limit(30).all()
+        if price_history:
+            dates = [ph.date for ph in price_history]
+            closes = [ph.close for ph in price_history]
+            
+            # Создание графика с помощью matplotlib
+            plt.figure(figsize=(10,5))
+            plt.plot(dates, closes, marker='o')
+            plt.title(f'Цена закрытия {poll_instrument.name} за последние 30 дней')
+            plt.xlabel('Дата')
+            plt.ylabel('Цена закрытия')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            
+            # Сохранение графика в буфер
+            img = io.BytesIO()
+            plt.savefig(img, format='png')
+            img.seek(0)
+            plt.close()
+            
+            # Кодирование изображения в base64
+            price_plot_url = base64.b64encode(img.getvalue()).decode('utf-8')
+    
+    # Проверка, завершён ли опрос для отображения победителей
+    poll_status = current_poll.status  # 'active' или 'completed'
+    winners = []
+    real_price = None
+    if poll_status == 'completed':
+        # Получение реальной цены из Poll.real_prices
+        # Предполагается, что real_prices хранит реальные цены в формате {instrument_id: real_price}
+        real_prices = current_poll.real_prices or {}
+        real_price = real_prices.get(str(poll_instrument.id), None) if poll_instrument else None
+        
+        if real_price:
+            # Получение всех предсказаний для этого инструмента
+            predictions = UserPrediction.query.filter_by(poll_id=current_poll.id, instrument_id=poll_instrument.id).all()
+            
+            # Вычисление отклонений
+            for pred in predictions:
+                pred.deviation = abs(pred.predicted_price - real_price) / real_price * 100
+            
+            # Сортировка предсказаний по минимальному отклонению
+            sorted_predictions = sorted(predictions, key=lambda x: x.deviation)
+            
+            # Выбор победителей (например, топ-3)
+            winners = sorted_predictions[:3]
+    
+    return render_template(
+        'vote.html',
+        form=form,
+        selected_instrument=poll_instrument,
+        price_plot_url=price_plot_url,
+        winners=winners,
+        real_price=real_price,
+        poll_status=poll_status
+    )
 
 # Интеграция Telegram бота
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
