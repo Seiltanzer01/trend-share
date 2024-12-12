@@ -43,6 +43,7 @@ class Instrument(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
     trades = db.relationship('Trade', backref='instrument', lazy=True)
     poll_instruments = db.relationship('PollInstrument', backref='instrument', lazy=True)
+    price_history = db.relationship('PriceHistory', backref='instrument', lazy=True)  # Добавлено отношение
 
 class CriterionCategory(db.Model):
     __tablename__ = 'criterion_category'
@@ -165,3 +166,19 @@ class Config(db.Model):
     __tablename__ = 'config'
     key = db.Column(db.String(50), primary_key=True)
     value = db.Column(db.String(50), nullable=False)
+
+# **Добавление Модели PriceHistory**
+
+class PriceHistory(db.Model):
+    __tablename__ = 'price_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    open = db.Column(db.Float, nullable=False)
+    high = db.Column(db.Float, nullable=False)
+    low = db.Column(db.Float, nullable=False)
+    close = db.Column(db.Float, nullable=False)
+    volume = db.Column(db.BigInteger, nullable=False)
+    
+    instrument = db.relationship('Instrument', backref='price_history')
