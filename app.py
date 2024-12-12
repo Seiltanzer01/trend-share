@@ -422,6 +422,39 @@ def create_predefined_data():
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
+# Добавление функций для работы с S3
+
+def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
+    """
+    Загружает файл в S3.
+    :param file: Объект файла Flask (FileStorage).
+    :param filename: Имя файла в S3.
+    :return: True если успешно, False иначе.
+    """
+    try:
+        s3_client.upload_fileobj(file, app.config['AWS_S3_BUCKET'], filename)
+        logger.info(f"Файл '{filename}' успешно загружен в S3.")
+        return True
+    except ClientError as e:
+        logger.error(f"Ошибка при загрузке файла '{filename}' в S3: {e}")
+        return False
+
+def delete_file_from_s3(filename: str) -> bool:
+    """
+    Удаляет файл из S3.
+    :param filename: Имя файла в S3.
+    :return: True если успешно, False иначе.
+    """
+    try:
+        s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=filename)
+        logger.info(f"Файл '{filename}' успешно удалён из S3.")
+        return True
+    except ClientError as e:
+        logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
+        return False
+
+# Функция для создания предопределённых данных уже определена выше
+
 # Инициализация данных при первом запуске
 @app.before_first_request
 def initialize_all():
@@ -434,9 +467,6 @@ def initialize_all():
     except Exception as e:
         logger.error(f"Ошибка при инициализации базы данных или мониторинга цен: {e}")
         logger.error(traceback.format_exc())
-
-# Добавление маршрутов
-from routes import *
 
 # Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
@@ -656,6 +686,9 @@ def get_presigned_url(filename: str, expiration=3600) -> str:
 ##################################################
 # Запуск Flask-приложения
 ##################################################
+
+# Импорт маршрутов должен быть последним, чтобы избежать циклического импорта
+from routes import *
 
 if __name__ == '__main__':
     # Запуск приложения
