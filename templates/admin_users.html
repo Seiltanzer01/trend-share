@@ -13,7 +13,8 @@
 <form action="{{ url_for('toggle_voting') }}" method="post" style="margin-bottom: 20px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="nes-btn is-warning">
-        {% if voting_feature_enabled %}
+        {% set voting_config = Config.query.filter_by(key='voting_enabled').first() %}
+        {% if voting_config and voting_config.value == 'true' %}
             Отключить Голосование
         {% else %}
             Включить Голосование
