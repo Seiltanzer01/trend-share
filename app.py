@@ -13,7 +13,6 @@ from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-# Добавление OpenAI
 import openai
 
 # Импорт расширений
@@ -22,7 +21,10 @@ from extensions import db, migrate
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 
-# Административные Telegram ID
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.date import DateTrigger
+
 ADMIN_TELEGRAM_IDS = [427032240]
 
 # Инициализация Flask-приложения
@@ -98,6 +100,28 @@ migrate.init_app(app, db)
 def inject_datetime():
     return {'datetime': datetime}
 
+# Фильтр для генерации URL изображений
+@app.template_filter('image_url')
+def image_url_filter(filename):
+    if filename:
+        return generate_s3_url(filename)
+    return ''
+
+# Функция для генерации URL из S3
+def generate_s3_url(filename: str) -> str:
+    bucket_name = app.config['AWS_S3_BUCKET']
+    region = app.config['AWS_S3_REGION']
+
+    if region == 'us-east-1':
+        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+    else:
+        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
+    return url
+
+# Функция для получения APP_HOST
+def get_app_host():
+    return app.config['APP_HOST']
+
 # Вспомогательные функции для работы с S3
 
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
@@ -135,32 +159,6 @@ def delete_file_from_s3(filename: str) -> bool:
     except ClientError as e:
         logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
         return False
-
-def generate_s3_url(filename: str) -> str:
-    """
-    Генерирует публичный URL для файла в S3.
-    :param filename: Имя файла в S3.
-    :return: URL файла.
-    """
-    bucket_name = app.config['AWS_S3_BUCKET']
-    region = app.config['AWS_S3_REGION']
-
-    if region == 'us-east-1':
-        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
-    else:
-        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
-    return url
-
-# Фильтр для генерации URL изображений
-@app.template_filter('image_url')
-def image_url_filter(filename):
-    if filename:
-        return generate_s3_url(filename)
-    return ''
-
-# Функция для получения APP_HOST
-def get_app_host():
-    return app.config['APP_HOST']
 
 # Функция для создания предопределённых данных
 def create_predefined_data():
@@ -474,55 +472,247 @@ def create_predefined_data():
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
-# Инициализация данных при первом запуске
-@app.before_first_request
-def initialize():
-    try:
-        db.create_all()
-        logger.info("База данных создана или уже существует.")
-        create_predefined_data()
-    except Exception as e:
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
-        logger.error(traceback.format_exc())
+    # Инициализация данных при первом запуске
+    @app.before_first_request
+    def initialize():
+        try:
+            db.create_all()
+            logger.info("База данных создана или уже существует.")
+            create_predefined_data()
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации базы данных: {e}")
+            logger.error(traceback.format_exc())
 
-# Добавление ADMIN_TELEGRAM_IDS в конфигурацию приложения
-app.config['ADMIN_TELEGRAM_IDS'] = ADMIN_TELEGRAM_IDS
+    @app.context_processor
+    def inject_admin_ids():
+        return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-# Импорт маршрутов
-import routes  # Изменено на 'import routes', вместо 'from routes import *'
+    # Добавление OpenAI API Key
+    app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+    if not app.config['OPENAI_API_KEY']:
+        logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
+        raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
 
-# Добавление OpenAI API Key
-app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
-if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+    # Инициализация OpenAI
+    openai.api_key = app.config['OPENAI_API_KEY']
 
-# Инициализация OpenAI
-openai.api_key = app.config['OPENAI_API_KEY']
+    # Добавление Robokassa настроек
+    app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+    app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+    app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+    app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+    app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+    app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
 
-# Добавление Robokassa настроек
-app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
-app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
-app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
-app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
-app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
-app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
+    # Проверка наличия необходимых Robokassa настроек
+    if not all([
+        app.config['ROBOKASSA_MERCHANT_LOGIN'],
+        app.config['ROBOKASSA_PASSWORD1'],
+        app.config['ROBOKASSA_PASSWORD2'],
+        app.config['ROBOKASSA_RESULT_URL'],
+        app.config['ROBOKASSA_SUCCESS_URL'],
+        app.config['ROBOKASSA_FAIL_URL']
+    ]):
+        logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+        raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
-# Проверка наличия необходимых Robokassa настроек
-if not all([
-    app.config['ROBOKASSA_MERCHANT_LOGIN'],
-    app.config['ROBOKASSA_PASSWORD1'],
-    app.config['ROBOKASSA_PASSWORD2'],
-    app.config['ROBOKASSA_RESULT_URL'],
-    app.config['ROBOKASSA_SUCCESS_URL'],
-    app.config['ROBOKASSA_FAIL_URL']
-]):
-    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    # Импорт маршрутов
+    from routes import *
 
-# **Запуск Flask-приложения**
+    ##################################################
+    # Планировщик задач для голосования и диаграмм
+    ##################################################
 
-if __name__ == '__main__':
-    # Запуск приложения
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    scheduler = BackgroundScheduler()
+
+    def select_random_instruments():
+        """
+        Выбирает по одному случайному инструменту из каждой категории: Товары, Криптовалюты, Форекс, Индексы.
+        Создаёт новый Poll и связанные PollInstrument записи.
+        """
+        try:
+            with app.app_context():
+                # Проверяем, активен ли голосование
+                voting_enabled = models.Config.query.filter_by(key='voting_enabled').first()
+                if voting_enabled and voting_enabled.value.lower() == 'false':
+                    logger.info("Голосование отключено администратором. Пропуск создания опроса.")
+                    return
+
+                # Проверяем, нет ли уже активного опроса
+                active_poll = models.Poll.query.filter_by(status='active').first()
+                if active_poll:
+                    logger.info("Активный опрос уже существует. Пропуск создания нового опроса.")
+                    return
+
+                # Определяем категории
+                required_categories = ['Товары', 'Криптовалюты', 'Форекс', 'Индексы']
+                selected_instruments = []
+
+                for category_name in required_categories:
+                    category = models.InstrumentCategory.query.filter_by(name=category_name).first()
+                    if category and category.instruments:
+                        instrument = random.choice(category.instruments)
+                        selected_instruments.append(instrument)
+                        logger.info(f"Выбран инструмент '{instrument.name}' из категории '{category_name}'.")
+                    else:
+                        logger.warning(f"Категория '{category_name}' пуста или не найдена.")
+
+                if not selected_instruments:
+                    logger.error("Не удалось выбрать ни одного инструмента для опроса.")
+                    return
+
+                # Создаём новый опрос
+                start_date = datetime.utcnow()
+                end_date = start_date + timedelta(days=3)  # Голосование длится 3 дня
+
+                poll = models.Poll(
+                    start_date=start_date,
+                    end_date=end_date,
+                    status='active'
+                )
+                db.session.add(poll)
+                db.session.flush()
+
+                # Добавляем инструменты к опросу
+                for instrument in selected_instruments:
+                    poll_instrument = models.PollInstrument(
+                        poll_id=poll.id,
+                        instrument_id=instrument.id
+                    )
+                    db.session.add(poll_instrument)
+
+                db.session.commit()
+                logger.info(f"Новый опрос ID {poll.id} создан с инструментами {[instr.name for instr in selected_instruments]}.")
+
+                # Планируем задачу по завершению опроса
+                scheduler.add_job(
+                    func=process_poll_results,
+                    trigger=DateTrigger(run_date=end_date),
+                    args=[poll.id],
+                    id=f"process_poll_{poll.id}"
+                )
+        except Exception as e:
+            logger.error(f"Ошибка при выборе случайных инструментов: {e}")
+            logger.error(traceback.format_exc())
+
+    def process_poll_results(poll_id):
+        """
+        Обрабатывает результаты опроса: получает реальные цены, находит наиболее точные прогнозы и награждает победителей.
+        """
+        try:
+            with app.app_context():
+                poll = models.Poll.query.get(poll_id)
+                if not poll:
+                    logger.error(f"Опрос ID {poll_id} не найден.")
+                    return
+
+                if poll.status != 'active':
+                    logger.info(f"Опрос ID {poll_id} уже обработан.")
+                    return
+
+                # Получаем реальные цены для каждого инструмента через 3 дня
+                real_prices = {}
+                for poll_instrument in poll.poll_instruments:
+                    instrument = poll_instrument.instrument
+                    # Здесь предполагается, что реальные цены можно получить через yfinance
+                    # Например, для 'BTC/USDT' использовать 'BTC-USD'
+                    yf_ticker = instrument.name.replace('/USDT', '-USD') if '/USDT' in instrument.name else instrument.name
+                    data = yf.download(yf_ticker, period='1d')
+                    if not data.empty:
+                        real_close_price = data['Close'].iloc[-1]
+                        real_prices[instrument.id] = real_close_price
+                        logger.info(f"Реальная цена для '{instrument.name}': {real_close_price}")
+                    else:
+                        logger.warning(f"Не удалось получить реальные цены для '{instrument.name}'.")
+
+                poll.real_prices = real_prices
+                poll.status = 'completed'
+                db.session.commit()
+                logger.info(f"Опрос ID {poll.id} завершен. Реальные цены: {real_prices}")
+
+                # Находим победителей для каждого инструмента
+                winners = []
+                for instrument_id, real_price in real_prices.items():
+                    predictions = models.UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument_id).all()
+                    if not predictions:
+                        logger.info(f"Нет прогнозов для инструмента ID {instrument_id}.")
+                        continue
+
+                    # Находим прогноз с минимальным отклонением
+                    closest_prediction = min(
+                        predictions,
+                        key=lambda pred: abs(pred.predicted_price - real_price)
+                    )
+                    closest_prediction.deviation = abs(closest_prediction.predicted_price - real_price) / real_price * 100
+                    winners.append(closest_prediction)
+
+                    # Награждаем пользователя, если он еще не имеет премиум
+                    user = closest_prediction.user
+                    if not user.assistant_premium:
+                        user.assistant_premium = True
+                        db.session.commit()
+                        logger.info(f"Пользователь ID {user.id} ({user.username}) награждён премиум за точный прогноз инструмента ID {instrument_id}.")
+
+                db.session.commit()
+                logger.info(f"Победители опроса ID {poll.id} обработаны.")
+
+        except Exception as e:
+            logger.error(f"Ошибка при обработке результатов опроса ID {poll_id}: {e}")
+            logger.error(traceback.format_exc())
+
+    # Инициализация планировщика задач
+    scheduler = BackgroundScheduler()
+    scheduler.start()
+
+    # Планируем периодическую задачу для создания опросов каждые 3 дня
+    scheduler.add_job(
+        func=select_random_instruments,
+        trigger=IntervalTrigger(days=3),
+        id='select_random_instruments',
+        name='Создание новых опросов каждые 3 дня',
+        replace_existing=True
+    )
+    logger.info("Планировщик задач запущен и задача по созданию опросов добавлена.")
+
+    # Добавляем задачу для проверки и завершения опросов при запуске приложения
+    def check_active_polls():
+        """
+        Проверяет активные опросы и планирует задачи по их завершению, если срок опроса уже прошел.
+        """
+        try:
+            with app.app_context():
+                active_polls = models.Poll.query.filter_by(status='active').all()
+                for poll in active_polls:
+                    if poll.end_date <= datetime.utcnow():
+                        process_poll_results(poll.id)
+                    else:
+                        # Планируем задачу по завершению опроса
+                        scheduler.add_job(
+                            func=process_poll_results,
+                            trigger=DateTrigger(run_date=poll.end_date),
+                            args=[poll.id],
+                            id=f"process_poll_{poll.id}"
+                        )
+                        logger.info(f"Задача по завершению опроса ID {poll.id} запланирована на {poll.end_date}.")
+        except Exception as e:
+            logger.error(f"Ошибка при проверке активных опросов: {e}")
+            logger.error(traceback.format_exc())
+
+    scheduler.add_job(
+        func=check_active_polls,
+        trigger=IntervalTrigger(hours=1),
+        id='check_active_polls',
+        name='Проверка активных опросов каждый час',
+        replace_existing=True
+    )
+    logger.info("Задача по проверке активных опросов добавлена.")
+
+    # Добавление Robokassa настроек
+    # (Этот блок уже присутствует выше, поэтому его можно удалить здесь)
+    # Убедитесь, что все настройки Robokassa уже добавлены в app.py выше
+
+    # **Запуск Flask-приложения**
+
+    if __name__ == '__main__':
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port, debug=False)
