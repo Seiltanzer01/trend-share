@@ -4,6 +4,7 @@ import os
 import logging
 import traceback
 from datetime import datetime, timedelta
+import json
 
 import boto3
 from botocore.exceptions import ClientError
@@ -14,6 +15,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 import openai
+import yfinance as yf
 
 # Импорт расширений
 from extensions import db, migrate
@@ -96,59 +98,6 @@ migrate.init_app(app, db)
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
-
-# Вспомогательные функции для работы с S3
-
-def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
-    """
-    Загружает файл в S3.
-    :param file: FileStorage объект.
-    :param filename: Имя файла в S3.
-    :return: True при успешной загрузке, False иначе.
-    """
-    try:
-        s3_client.upload_fileobj(
-            file,
-            app.config['AWS_S3_BUCKET'],
-            filename,
-            ExtraArgs={
-                "ContentType": file.content_type
-            }
-        )
-        logger.info(f"Файл '{filename}' успешно загружен в S3.")
-        return True
-    except ClientError as e:
-        logger.error(f"Ошибка при загрузке файла '{filename}' в S3: {e}")
-        return False
-
-def delete_file_from_s3(filename: str) -> bool:
-    """
-    Удаляет файл из S3.
-    :param filename: Имя файла в S3.
-    :return: True при успешном удалении, False иначе.
-    """
-    try:
-        s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=filename)
-        logger.info(f"Файл '{filename}' успешно удалён из S3.")
-        return True
-    except ClientError as e:
-        logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
-        return False
-
-def generate_s3_url(filename: str) -> str:
-    """
-    Генерирует публичный URL для файла в S3.
-    :param filename: Имя файла в S3.
-    :return: URL файла.
-    """
-    bucket_name = app.config['AWS_S3_BUCKET']
-    region = app.config['AWS_S3_REGION']
-
-    if region == 'us-east-1':
-        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
-    else:
-        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
-    return url
 
 # Фильтр для генерации URL изображений
 @app.template_filter('image_url')
@@ -475,20 +424,18 @@ def create_predefined_data():
 
 # Инициализация данных при первом запуске
 @app.before_first_request
-def initialize():
+def initialize_all():
     try:
         db.create_all()
         logger.info("База данных создана или уже существует.")
         create_predefined_data()
+        initialize_price_monitor()
+        initialize_poll_monitor()
     except Exception as e:
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        logger.error(f"Ошибка при инициализации базы данных или мониторинга цен: {e}")
         logger.error(traceback.format_exc())
 
-@app.context_processor
-def inject_admin_ids():
-    return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
-    
-# Импорт маршрутов
+# Добавление маршрутов
 from routes import *
 
 # Добавление OpenAI API Key
@@ -525,8 +472,7 @@ if not all([
 ##################################################
 
 from apscheduler.schedulers.background import BackgroundScheduler
-import yfinance as yf
-from models import PriceHistory, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion
+from models import PriceHistory, InstrumentCategory, Instrument, CriterionCategory, CriterionSubcategory, Criterion, Poll, PollInstrument, UserPrediction
 
 def fetch_and_store_prices():
     """
@@ -619,12 +565,45 @@ def start_price_scheduler():
     """
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=fetch_and_store_prices, trigger="interval", minutes=60)  # Обновление каждый час
+    scheduler.add_job(func=check_polls, trigger="interval", minutes=5)  # Проверка опросов каждые 5 минут
     scheduler.start()
-    logger.info("Фоновый планировщик запущен для обновления цен через Yahoo Finance.")
+    logger.info("Фоновый планировщик запущен для обновления цен и проверки опросов.")
+
+def check_polls():
+    """
+    Проверяет активные опросы и завершает те, которые закончились.
+    """
+    with app.app_context():
+        now = datetime.utcnow()
+        active_polls = Poll.query.filter(Poll.status == 'active', Poll.end_date <= now).all()
+        for poll in active_polls:
+            poll.status = 'completed'
+            real_prices = {}
+            for poll_instrument in poll.poll_instruments:
+                instrument = poll_instrument.instrument
+                ticker = get_yahoo_ticker(instrument.name)
+                if not ticker:
+                    logger.warning(f"Не удалось определить тикер для инструмента: {instrument.name}")
+                    continue
+                try:
+                    # Получение текущей цены закрытия
+                    data = yf.download(ticker, period="1d", interval="1d")
+                    if data.empty:
+                        logger.warning(f"Данные для тикера {ticker} пусты.")
+                        continue
+                    real_price = data['Close'][0]
+                    real_prices[str(instrument.id)] = real_price
+                    logger.info(f"Реальная цена для {instrument.name} ({ticker}): {real_price}")
+                except Exception as e:
+                    logger.error(f"Ошибка при получении реальной цены для {instrument.name} ({ticker}): {e}")
+                    logger.error(traceback.format_exc())
+            poll.real_prices = json.dumps(real_prices)  # Сохраняем в формате JSON
+            db.session.commit()
+            logger.info(f"Опрос ID {poll.id} завершён. Реальные цены: {real_prices}")
 
 def initialize_price_monitor():
     """
-    Инициализирует мониторинг цен при запуске приложения.
+    Инициализирует мониторинг цен и проверку опросов при запуске приложения.
     """
     try:
         fetch_and_store_prices()  # Первоначальная загрузка данных
@@ -633,16 +612,46 @@ def initialize_price_monitor():
         logger.error(f"Ошибка при инициализации мониторинга цен: {e}")
         logger.error(traceback.format_exc())
 
-@app.before_first_request
-def initialize_all():
+def initialize_poll_monitor():
+    """
+    Инициализирует мониторинг опросов. В данном случае, работа выполняется в рамках
+    уже существующего планировщика задач.
+    """
+    # Функция check_polls уже добавлена в планировщик в start_price_scheduler
+    pass  # Здесь можно добавить дополнительную инициализацию, если необходимо
+
+def generate_s3_url(filename: str) -> str:
+    """
+    Генерирует публичный URL для файла в S3.
+    :param filename: Имя файла в S3.
+    :return: URL файла.
+    """
+    bucket_name = app.config['AWS_S3_BUCKET']
+    region = app.config['AWS_S3_REGION']
+
+    if region == 'us-east-1':
+        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+    else:
+        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
+    return url
+
+# Функция для получения подписанного URL (если требуется)
+def get_presigned_url(filename: str, expiration=3600) -> str:
+    """
+    Генерирует подписанный URL для файла в S3.
+    :param filename: Имя файла в S3.
+    :param expiration: Время жизни ссылки в секундах.
+    :return: Подписанный URL.
+    """
     try:
-        db.create_all()
-        logger.info("База данных создана или уже существует.")
-        create_predefined_data()
-        initialize_price_monitor()
-    except Exception as e:
-        logger.error(f"Ошибка при инициализации базы данных или мониторинга цен: {e}")
-        logger.error(traceback.format_exc())
+        response = s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': app.config['AWS_S3_BUCKET'],
+                                                            'Key': filename},
+                                                    ExpiresIn=expiration)
+    except ClientError as e:
+        logger.error(f"Ошибка при генерации подписанного URL для '{filename}': {e}")
+        return ""
+    return response
 
 ##################################################
 # Запуск Flask-приложения
