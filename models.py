@@ -3,7 +3,7 @@
 from datetime import datetime
 from extensions import db
 
-# Таблицы для связи многих ко многим
+# Таблицы для связи многие-ко-многим
 trade_criteria = db.Table('trade_criteria',
     db.Column('trade_id', db.Integer, db.ForeignKey('trade.id'), primary_key=True),
     db.Column('criterion_id', db.Integer, db.ForeignKey('criterion.id'), primary_key=True)
@@ -25,43 +25,47 @@ class User(db.Model):
     auth_token_creation_time = db.Column(db.DateTime, nullable=True)
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     assistant_premium = db.Column(db.Boolean, default=False)
-    trades = db.relationship('Trade', backref='user', lazy=True)
-    setups = db.relationship('Setup', backref='user', lazy=True)
+    trades = db.relationship('Trade', back_populates='user', lazy=True)
+    setups = db.relationship('Setup', back_populates='user', lazy=True)
     predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
-    instruments = db.relationship('Instrument', backref='category', lazy=True)
+    instruments = db.relationship('Instrument', back_populates='category', lazy=True)
 
 class Instrument(db.Model):
     __tablename__ = 'instrument'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
     category_id = db.Column(db.Integer, db.ForeignKey('instrument_category.id'), nullable=False)
-    trades = db.relationship('Trade', backref='instrument', lazy=True)
-    poll_instruments = db.relationship('PollInstrument', back_populates='instrument', lazy=True)  # Используем back_populates
+    category = db.relationship('InstrumentCategory', back_populates='instruments')
+    trades = db.relationship('Trade', back_populates='instrument', lazy=True)
+    poll_instruments = db.relationship('PollInstrument', back_populates='instrument', lazy=True)
     price_history = db.relationship('PriceHistory', back_populates='instrument', lazy=True)
 
 class CriterionCategory(db.Model):
     __tablename__ = 'criterion_category'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
-    subcategories = db.relationship('CriterionSubcategory', backref='category', lazy=True)
+    subcategories = db.relationship('CriterionSubcategory', back_populates='category', lazy=True)
 
 class CriterionSubcategory(db.Model):
     __tablename__ = 'criterion_subcategory'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('criterion_category.id'), nullable=False)
-    criteria = db.relationship('Criterion', backref='subcategory', lazy=True)
+    category = db.relationship('CriterionCategory', back_populates='subcategories')
+    criteria = db.relationship('Criterion', back_populates='subcategory', lazy=True)
 
 class Criterion(db.Model):
     __tablename__ = 'criterion'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
+    
+    subcategory = db.relationship('CriterionSubcategory', back_populates='criteria')
 
     # Отношение с Trade
     trades = db.relationship(
@@ -100,6 +104,10 @@ class Trade(db.Model):
         back_populates='trades'
     )
 
+    user = db.relationship('User', back_populates='trades')
+    instrument = db.relationship('Instrument', back_populates='trades')
+    setup = db.relationship('Setup', back_populates='trades')
+
 class Setup(db.Model):
     __tablename__ = 'setup'
     id = db.Column(db.Integer, primary_key=True)
@@ -115,7 +123,8 @@ class Setup(db.Model):
         back_populates='setups'
     )
 
-    trades = db.relationship('Trade', backref='setup', lazy=True)
+    trades = db.relationship('Trade', back_populates='setup', lazy=True)
+    user = db.relationship('User', back_populates='setups')
 
 class LoginToken(db.Model):
     __tablename__ = 'login_token'
@@ -145,8 +154,8 @@ class PollInstrument(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
-    instrument = db.relationship('Instrument', back_populates='poll_instruments')  # Используем back_populates
-    poll = db.relationship('Poll', back_populates='poll_instruments')  # Связь с Poll
+    instrument = db.relationship('Instrument', back_populates='poll_instruments')
+    poll = db.relationship('Poll', back_populates='poll_instruments')
 
 class UserPrediction(db.Model):
     __tablename__ = 'user_prediction'
@@ -159,7 +168,7 @@ class UserPrediction(db.Model):
 
     user = db.relationship('User', back_populates='predictions')
     poll = db.relationship('Poll', back_populates='predictions')
-    instrument = db.relationship('Instrument')
+    instrument = db.relationship('Instrument')  # Односторонняя связь
 
 # Модель Config для хранения настроек приложения
 class Config(db.Model):
