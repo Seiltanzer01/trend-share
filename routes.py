@@ -865,6 +865,30 @@ def admin_users():
     users = User.query.all()
     return render_template('admin_users.html', users=users)
 
+@app.route('/admin/toggle_voting', methods=['POST'])
+@admin_required
+def toggle_voting():
+    try:
+        voting_config = Config.query.filter_by(key='voting_enabled').first()
+        if not voting_config:
+            # Если конфигурация голосования не существует, создаём её
+            voting_config = Config(key='voting_enabled', value='false')
+            db.session.add(voting_config)
+        
+        # Переключаем значение голосования
+        voting_config.value = 'false' if voting_config.value == 'true' else 'true'
+        db.session.commit()
+        
+        flash(f"Голосование {'отключено' if voting_config.value == 'false' else 'включено'}.", 'success')
+        logger.info(f"Голосование {'отключено' if voting_config.value == 'false' else 'включено'} администратором.")
+    except Exception as e:
+        db.session.rollback()
+        flash('Произошла ошибка при переключении голосования.', 'danger')
+        logger.error(f"Ошибка при переключении голосования: {e}")
+        logger.error(traceback.format_exc())
+    
+    return redirect(url_for('admin_users'))
+    
 @app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
 @admin_required
 def toggle_premium(user_id):
