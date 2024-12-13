@@ -1,5 +1,6 @@
 # routes.py
 
+import pytz
 import os
 import logging
 import traceback
@@ -112,8 +113,9 @@ openai.api_key = app.config['OPENAI_API_KEY']
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5)
+# Инициализация APScheduler с временной зоной UTC
+scheduler = BackgroundScheduler(timezone=pytz.UTC)
+scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
 scheduler.start()
 
 # Остановка планировщика при завершении приложения
