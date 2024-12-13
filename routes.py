@@ -107,6 +107,19 @@ if not app.config['OPENAI_API_KEY']:
 openai.api_key = app.config['OPENAI_API_KEY']
 
 ##################################################
+# Инициализация APScheduler
+##################################################
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5)
+scheduler.start()
+
+# Остановка планировщика при завершении приложения
+atexit.register(lambda: scheduler.shutdown())
+
+##################################################
 # Модель тренда (trend_model.pth)
 ##################################################
 
