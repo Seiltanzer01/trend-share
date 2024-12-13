@@ -14,45 +14,6 @@
 
 <br>
 
-<!-- Форма голосования -->
-<form method="POST">
-    {{ form.hidden_tag() }}
-    <div class="nes-field">
-        {{ form.instrument.label }}<br>
-        {{ form.instrument(class="nes-select") }}
-        {% for error in form.instrument.errors %}
-            <span style="color: red;">[{{ error }}]</span>
-        {% endfor %}
-    </div>
-    <div class="nes-field">
-        {{ form.predicted_price.label }}<br>
-        {{ form.predicted_price(class="nes-input", placeholder="Введите ожидаемую цену") }}
-        {% for error in form.predicted_price.errors %}
-            <span style="color: red;">[{{ error }}]</span>
-        {% endfor %}
-    </div>
-    <div class="nes-field">
-        {{ form.submit(class="nes-btn is-primary") }}
-    </div>
-</form>
-
-<hr>
-
-<!-- Отображение результатов после голосования -->
-{% if prediction_result %}
-    <div class="nes-container is-rounded is-primary">
-        <h2>Результаты Вашего Предсказания</h2>
-        <p><strong>Ваша предсказанная цена:</strong> {{ prediction_result.predicted_price }}</p>
-        <p><strong>Реальная цена:</strong> {{ prediction_result.real_price }}</p>
-        <p><strong>Отклонение:</strong> {{ prediction_result.deviation }}</p>
-        {% if prediction_result.is_closest %}
-            <p><strong>Поздравляем!</strong> Ваше предсказание было самым точным.</p>
-        {% else %}
-            <p><strong>Информация:</strong> Ваше предсказание было менее точным.</p>
-        {% endif %}
-    </div>
-{% endif %}
-
 <!-- Отображение сообщений -->
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -63,5 +24,59 @@
     {% endfor %}
   {% endif %}
 {% endwith %}
+
+<!-- Проверяем, есть ли предсказание пользователя -->
+{% if existing_prediction %}
+    <div class="nes-container is-rounded is-primary">
+        <h2>Ваше Предсказание</h2>
+        <p><strong>Инструмент:</strong> {{ existing_prediction.instrument.name }}</p>
+        <p><strong>Предсказанная цена:</strong> {{ existing_prediction.predicted_price }}</p>
+        {% if existing_prediction.real_price %}
+            <p><strong>Реальная цена:</strong> {{ existing_prediction.real_price }}</p>
+        {% else %}
+            <p><strong>Реальная цена:</strong> Еще не определена.</p>
+        {% endif %}
+        {% if existing_prediction.deviation is not none %}
+            <p><strong>Отклонение:</strong> {{ existing_prediction.deviation }}</p>
+        {% else %}
+            <p><strong>Отклонение:</strong> Еще не рассчитано.</p>
+        {% endif %}
+    </div>
+    
+    {% if existing_prediction.real_price and existing_prediction.deviation is not none %}
+        <!-- Отображение диаграммы -->
+        <div class="nes-container is-rounded">
+            <h2>Диаграмма Вашего Предсказания</h2>
+            {% if chart_base64 %}
+                <img src="data:image/png;base64,{{ chart_base64 }}" alt="Диаграмма предсказания" class="responsive-img">
+            {% else %}
+                <p>Диаграмма еще не доступна.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+    
+{% else %}
+    <!-- Форма голосования -->
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="nes-field">
+            {{ form.instrument.label }}<br>
+            {{ form.instrument(class="nes-select") }}
+            {% for error in form.instrument.errors %}
+                <span style="color: red;">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+        <div class="nes-field">
+            {{ form.predicted_price.label }}<br>
+            {{ form.predicted_price(class="nes-input", placeholder="Введите ожидаемую цену") }}
+            {% for error in form.predicted_price.errors %}
+                <span style="color: red;">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+        <div class="nes-field">
+            {{ form.submit(class="nes-btn is-primary") }}
+        </div>
+    </form>
+{% endif %}
 
 {% endblock %}
