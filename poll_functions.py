@@ -88,16 +88,20 @@ def process_poll_results():
     """
     try:
         # Получение завершённых опросов
-        completed_polls = Poll.query.filter_by(status='active').filter(Poll.end_date <= datetime.utcnow()).all()
+        completed_polls = Poll.query.filter_by(status='completed').all()
         for poll in completed_polls:
-            real_prices = {}
-            for poll_instrument in poll.poll_instruments:
-                instrument = poll_instrument.instrument
-                real_price = get_real_price(instrument.name)
-                if real_price is not None:
-                    real_prices[instrument.name] = real_price
-                else:
-                    logger.error(f"Не удалось получить реальную цену для инструмента '{instrument.name}' в опросе ID {poll.id}.")
+            for prediction in poll.predictions:
+                # Получение реальной цены (реализуйте логику получения реальной цены)
+                real_price = get_real_price(prediction.instrument_id)
+                prediction.real_price = real_price
+                # Расчёт отклонения
+                prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+            db.session.commit()
+            logger.info(f"Результаты опроса ID {poll.id} обработаны успешно.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Ошибка при обработке результатов опроса: {e}")
+        logger.error(traceback.format_exc())
 
             # Сохранение реальных цен и обновление статуса опроса
             poll.real_prices = real_prices  # Убедитесь, что поле real_prices поддерживает JSON
