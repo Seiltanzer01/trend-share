@@ -30,7 +30,7 @@ from functools import wraps
 
 # **Интеграция OpenAI**
 import openai
-
+import yfinance as yf
 # **Интеграция Robokassa**
 app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
 app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
