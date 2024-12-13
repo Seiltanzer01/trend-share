@@ -466,7 +466,7 @@ def vote():
                     return redirect(url_for('vote'))
 
                 # Сохранение реальной цены в опросе
-                if active_poll.real_prices is None:
+                if not active_poll.real_prices:
                     active_poll.real_prices = {}
                 active_poll.real_prices[instrument.name] = real_price
                 db.session.commit()
@@ -488,6 +488,9 @@ def vote():
                 else:
                     flash(f'Ваше предсказание отклонилось на {deviation:.2f} от реальной цены.', 'info')
 
+                # Вызов обработки результатов опроса (если необходимо)
+                # process_poll_results()
+
                 return redirect(url_for('vote'))
             else:
                 flash('Форма не валидна. Проверьте введённые данные.', 'danger')
@@ -498,7 +501,7 @@ def vote():
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
 
-    return render_template('vote.html', form=form)
+    return render_template('vote.html', form=form, active_poll=active_poll)
 
 @app.route('/predictions_chart', methods=['GET'])
 def predictions_chart():
