@@ -4,14 +4,13 @@
 
 {% block content %}
 <h1>Диаграммы Предсказаний</h1>
-{% if charts %}
-    {% for instrument, plot_url in charts.items() %}
-        <div style="margin-bottom: 40px;">
-            <h2>{{ instrument }}</h2>
-            <img src="data:image/png;base64,{{ plot_url }}" alt="Диаграмма для {{ instrument }}" class="lazyload">
-        </div>
-    {% endfor %}
-{% else %}
-    <p>Нет данных для отображения диаграмм.</p>
-{% endif %}
+
+{% for instrument, image in charts.items() %}
+    <div class="nes-container with-title">
+        <p class="title">{{ instrument }}</p>
+        <img src="data:image/png;base64,{{ image }}" alt="Диаграмма предсказаний для {{ instrument }}">
+    </div>
+    <br>
+{% endfor %}
+
 {% endblock %}
