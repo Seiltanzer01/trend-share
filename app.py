@@ -168,7 +168,7 @@ def get_app_host():
 # Функция для создания предопределённых данных
 def create_predefined_data():
     # Проверяем, есть ли уже данные
-    if InstrumentCategory.query.first():
+    if models.InstrumentCategory.query.first():
         logger.info("Предопределённые данные уже существуют. Пропуск создания.")
         return
 
@@ -221,17 +221,17 @@ def create_predefined_data():
         instrument_name = instrument_data['name']
 
         # Получаем или создаём категорию
-        category = InstrumentCategory.query.filter_by(name=category_name).first()
+        category = models.InstrumentCategory.query.filter_by(name=category_name).first()
         if not category:
-            category = InstrumentCategory(name=category_name)
+            category = models.InstrumentCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
             logger.info(f"Категория '{category_name}' добавлена.")
 
         # Проверяем, существует ли инструмент
-        instrument = Instrument.query.filter_by(name=instrument_name).first()
+        instrument = models.Instrument.query.filter_by(name=instrument_name).first()
         if not instrument:
-            instrument = Instrument(name=instrument_name, category_id=category.id)
+            instrument = models.Instrument(name=instrument_name, category_id=category.id)
             db.session.add(instrument)
             logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{category_name}'.")
 
@@ -381,17 +381,17 @@ def create_predefined_data():
     }
 
     for category_name, subcategories in categories_data.items():
-        category = CriterionCategory.query.filter_by(name=category_name).first()
+        category = models.CriterionCategory.query.filter_by(name=category_name).first()
         if not category:
-            category = CriterionCategory(name=category_name)
+            category = models.CriterionCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
             logger.info(f"Категория критерия '{category_name}' добавлена.")
 
         for subcategory_name, criteria_list in subcategories.items():
-            subcategory = CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
+            subcategory = models.CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
             if not subcategory:
-                subcategory = CriterionSubcategory(
+                subcategory = models.CriterionSubcategory(
                     name=subcategory_name,
                     category_id=category.id
                 )
@@ -400,9 +400,9 @@ def create_predefined_data():
                 logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
 
             for criterion_name in criteria_list:
-                criterion = Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
+                criterion = models.Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
                 if not criterion:
-                    criterion = Criterion(
+                    criterion = models.Criterion(
                         name=criterion_name,
                         subcategory_id=subcategory.id
                     )
