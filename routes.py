@@ -538,11 +538,18 @@ def init():
         logger.warning("initData отсутствует в AJAX-запросе.")
         return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
 
-@app.route('/admin/users')
+@app.route('/admin/users', methods=['GET'])
 @admin_required
 def admin_users():
-    users = User.query.all()
-    return render_template('admin_users.html', users=users)
+    try:
+        users = User.query.all()
+        voting_config = Config.query.filter_by(key='voting_enabled').first()
+        return render_template('admin_users.html', users=users, voting_config=voting_config)
+    except Exception as e:
+        logger.error(f"Ошибка при получении пользователей: {e}")
+        logger.error(traceback.format_exc())
+        flash('Произошла ошибка при загрузке пользователей.', 'danger')
+        return redirect(url_for('index'))
 
 @app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
 @admin_required
