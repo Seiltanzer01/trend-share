@@ -95,7 +95,10 @@ def process_poll_results():
                 real_price = get_real_price(prediction.instrument_id)
                 prediction.real_price = real_price
                 # Расчёт отклонения
-                prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+                if prediction.predicted_price != 0:
+                    prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+                else:
+                    prediction.deviation = None
             db.session.commit()
             logger.info(f"Результаты опроса ID {poll.id} обработаны успешно.")
     except Exception as e:
