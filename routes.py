@@ -519,11 +519,11 @@ def predictions_chart():
         return redirect(url_for('index'))
 
     # Получение всех завершённых опросов
-    completed_polls = Poll.query.filter(Poll.status == 'completed').all()
+    completed_polls = Poll.query.filter_by(status='completed').all()
 
     charts = {}
     for poll in completed_polls:
-        if not poll.real_prices:
+        if not poll.real_prices or not isinstance(poll.real_prices, dict):
             continue
         for instrument_name, real_price in poll.real_prices.items():
             instrument = Instrument.query.filter_by(name=instrument_name).first()
