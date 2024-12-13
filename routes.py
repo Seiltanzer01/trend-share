@@ -92,26 +92,11 @@ from skimage.segmentation import clear_border
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-# **Добавление yfinance для получения реальных цен**
-import yfinance as yf
+from torchvision import transforms
+from PIL import Image
 
 # Импорт функций для голосования и диаграмм
 from poll_functions import start_new_poll, process_poll_results
-
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Проверяем, авторизован ли пользователь
-        if 'user_id' not in session or 'telegram_id' not in session:
-            flash('Пожалуйста, войдите в систему.', 'warning')
-            return redirect(url_for('login'))
-        # Проверяем, является ли пользователь администратором
-        if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
-            flash('Доступ запрещён.', 'danger')
-            return redirect(url_for('index'))
-        return f(*args, **kwargs)
-    return decorated_function
 
 # Инициализация OpenAI API
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
@@ -156,7 +141,7 @@ def get_trend_model():
         model_path = 'trend_model.pth'
         if os.path.exists(model_path):
             trend_model = TrendCNN(num_classes=3)
-            # Установка weights_only=True для повышения безопасности
+            # Установка map_location для обеспечения совместимости с разными устройствами
             trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
             trend_model.eval()
             logger.info("Модель тренда загружена из 'trend_model.pth'.")
@@ -170,9 +155,6 @@ def preprocess_for_trend(image_path):
     Предобработка изображения для модели тренда.
     """
     try:
-        from torchvision import transforms
-        from PIL import Image
-
         if not os.path.exists(image_path):
             return None
 
@@ -205,7 +187,7 @@ def predict_trend(image_path):
     with torch.no_grad():
         outputs = model(img_tensor)
         _, predicted = torch.max(outputs.data, 1)
-    # 0: uptrend, 1: downtrend, 2: sideways
+    # 0: downtrend, 1: sideways, 2: uptrend
     classes = ["downtrend", "sideways", "uptrend"]
     return f"Прогноз направления тренда: {classes[predicted.item()]}"
 
@@ -257,6 +239,20 @@ if not TOKEN:
 
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Проверяем, авторизован ли пользователь
+        if 'user_id' not in session or 'telegram_id' not in session:
+            flash('Пожалуйста, войдите в систему.', 'warning')
+            return redirect(url_for('login'))
+        # Проверяем, является ли пользователь администратором
+        if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
+            flash('Доступ запрещён.', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def start_command(update, context):
     user = update.effective_user
@@ -545,6 +541,7 @@ def predictions_chart():
                 continue
 
             # Построение диаграммы
+            import matplotlib.pyplot as plt
             plt.figure(figsize=(10, 6))
             plt.bar(df['user'], df['predicted_price'], color='blue', label='Предсказанная цена')
             plt.axhline(y=real_price, color='red', linestyle='--', label='Реальная цена')
@@ -709,6 +706,177 @@ def assistant_page():
         return redirect(url_for('index'))
 
     return render_template('assistant.html')
+
+@app.route('/assistant/chat', methods=['POST'])
+@csrf.exempt
+def assistant_chat():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.assistant_premium:
+        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
+
+    data = request.get_json()
+    user_question = data.get('question')
+
+    if not user_question:
+        return jsonify({'error': 'No question provided'}), 400
+
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+
+        trades = Trade.query.filter_by(user_id=user_id).all()
+        if not trades:
+            trade_data = "У вас пока нет сделок."
+            comments = "Нет комментариев к сделкам."
+        else:
+            trade_data = "\n\n".join([
+                f"**Сделка ID {trade.id}:**\n"
+                f" - **Инструмент:** {trade.instrument.name}\n"
+                f" - **Направление:** {trade.direction}\n"
+                f" - **Цена входа:** {trade.entry_price}\n"
+                f" - **Цена выхода:** {trade.exit_price}\n"
+                f" - **Время открытия:** {trade.trade_open_time}\n"
+                f" - **Время закрытия:** {trade.trade_close_time}\n"
+                f" - **Прибыль/Убыток:** {trade.profit_loss} ({trade.profit_loss_percentage}%)\n"
+                f" - **Сетап:** {trade.setup.setup_name if trade.setup else 'Без сетапа'}\n"
+                f" - **Критерии:** {', '.join([criterion.name for criterion in trade.criteria]) if trade.criteria else 'Без критериев'}"
+                for trade in trades
+            ])
+            comments = "\n\n".join([
+                f"**Сделка ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
+            ]) if any(trade.comment for trade in trades) else "Нет комментариев к сделкам."
+
+        system_message = f"""
+Ты — дядя Джон, крутой спец, который помогает пользователю анализировать его торговые сделки, предлагает конкретные решения с конкретными расчетами для торговых ситуаций пользователя, считает статистику по сделкам и находит закономерности.
+Данные пользователя о сделках:
+{trade_data}
+
+Комментарии к сделкам:
+{comments}
+
+Предоставь подробный анализ и рекомендации на основе этих данных, если пользователь попросит.
+"""
+        logger.debug(f"System message for OpenAI: {system_message}")
+        session['chat_history'].append({'role': 'system', 'content': system_message})
+
+    session['chat_history'].append({'role': 'user', 'content': user_question})
+    assistant_response = generate_openai_response(session['chat_history'])
+    session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
+
+    MAX_CHAT_HISTORY = 20
+    if len(session['chat_history']) > MAX_CHAT_HISTORY:
+        session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
+
+    return jsonify({'response': assistant_response}), 200
+
+@app.route('/get_chat_history', methods=['GET'])
+def get_chat_history():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    chat_history = session.get('chat_history', [])
+    display_history = [msg for msg in chat_history if msg['role'] != 'system']
+    return jsonify({'chat_history': display_history}), 200
+
+@app.route('/clear_chat_history', methods=['POST'])
+@csrf.exempt
+def clear_chat_history():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    session.pop('chat_history', None)
+    return jsonify({'status': 'success'}), 200
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Вы успешно вышли из системы.', 'success')
+    logger.info("Пользователь вышел из системы.")
+    return redirect(url_for('login'))
+
+@app.route('/health', methods=['GET'])
+def health():
+    return 'OK', 200
+
+@app.route('/debug_session')
+def debug_session():
+    return jsonify(dict(session))
+
+@app.route('/init', methods=['POST'])
+@csrf.exempt
+def init():
+    if 'user_id' in session:
+        logger.info(f"Пользователь ID {session['user_id']} уже авторизован.")
+        return jsonify({'status': 'success'}), 200
+
+    data = request.get_json()
+    init_data = data.get('initData')
+    logger.debug(f"Получен initData через AJAX: {init_data}")
+    if init_data:
+        try:
+            webapp_data = parse_webapp_data(init_data)
+            logger.debug(f"Parsed WebAppInitData: {webapp_data}")
+            secret_key = get_secret_key(app.config['TELEGRAM_BOT_TOKEN'])
+            is_valid = validate_webapp_data(webapp_data, secret_key)
+            logger.debug(f"Validation result: {is_valid}")
+
+            if not is_valid:
+                logger.warning("Невалидные данные авторизации.")
+                return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
+
+            telegram_id = int(webapp_data.user.id)
+            first_name = webapp_data.user.first_name
+            last_name = webapp_data.user.last_name or ''
+            username = webapp_data.user.username or ''
+
+            user = User.query.filter_by(telegram_id=telegram_id).first()
+            if not user:
+                user = User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+
+            session['user_id'] = user.id
+            session['telegram_id'] = user.telegram_id
+            session['assistant_premium'] = user.assistant_premium
+
+            logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
+            return jsonify({'status': 'success'}), 200
+        except Exception as e:
+            logger.error(f"Ошибка при верификации initData: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
+    else:
+        logger.warning("initData отсутствует в AJAX-запросе.")
+        return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
+
+@app.route('/admin/user/<int:user_id>/toggle_premium', methods=['POST'])
+@admin_required
+def toggle_premium(user_id):
+    user = User.query.get_or_404(user_id)
+    user.assistant_premium = not user.assistant_premium
+    db.session.commit()
+    flash(f"Премиум статус пользователя {user.username} обновлён.", 'success')
+    if user.id == session.get('user_id'):
+        session['assistant_premium'] = user.assistant_premium
+        flash('Ваш премиум статус обновлён.', 'success')
+        
+    return redirect(url_for('admin_users'))
 
 @app.route('/', methods=['GET'])
 def index():
@@ -1241,3 +1409,91 @@ def view_setup(setup_id):
         setup.screenshot_url = None
 
     return render_template('view_setup.html', setup=setup)
+
+##################################################
+# Flask Route for Home Page (index) and Login
+##################################################
+
+@app.route('/', methods=['GET'])
+def index():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    categories = InstrumentCategory.query.all()
+    criteria_categories = CriterionCategory.query.all()
+
+    instrument_id = request.args.get('instrument_id', type=int)
+    direction = request.args.get('direction')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    selected_criteria = request.args.getlist('filter_criteria', type=int)
+
+    trades_query = Trade.query.filter_by(user_id=user_id)
+
+    if instrument_id:
+        trades_query = trades_query.filter(Trade.instrument_id == instrument_id)
+    if direction:
+        trades_query = trades_query.filter(Trade.direction == direction)
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            trades_query = trades_query.filter(Trade.trade_open_time >= start_date_obj)
+        except ValueError:
+            flash('Некорректный формат даты начала.', 'danger')
+            logger.error(f"Некорректный формат даты начала: {start_date}.")
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            trades_query = trades_query.filter(Trade.trade_open_time <= end_date_obj)
+        except ValueError:
+            flash('Некорректный формат даты окончания.', 'danger')
+            logger.error(f"Некорректный формат даты окончания: {end_date}.")
+    if selected_criteria:
+        trades_query = trades_query.join(Trade.criteria).filter(Criterion.id.in_(selected_criteria)).distinct()
+
+    trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
+    logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
+
+    for trade in trades:
+        if trade.screenshot:
+            trade.screenshot_url = generate_s3_url(trade.screenshot)
+        else:
+            trade.screenshot_url = None
+
+    for trade in trades:
+        if trade.setup:
+            if trade.setup.screenshot:
+                trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+            else:
+                trade.setup.screenshot_url = None
+
+    return render_template(
+        'index.html',
+        trades=trades,
+        categories=categories,
+        criteria_categories=criteria_categories,
+        selected_instrument_id=instrument_id,
+        selected_criteria=selected_criteria
+    )
+
+@app.route('/login', methods=['GET'])
+def login():
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+##################################################
+# Маршруты для ассоциаций
+##################################################
+
+# Все остальные маршруты уже определены выше
+
+# **Запуск Flask-приложения**
+# Обычно Flask-приложение запускается из файла app.py,
+# но если необходимо, можно оставить этот блок
+
+if __name__ == '__main__':
+    # Запуск приложения
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
