@@ -167,7 +167,7 @@ class UserPrediction(db.Model):
     deviation = db.Column(db.Float, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint('user_id', 'poll_id', name='unique_user_poll'),
+        db.UniqueConstraint('user_id', 'poll_id', 'instrument_id', name='unique_user_poll_instrument'),
     )
 
     user = db.relationship('User', backref='predictions')
