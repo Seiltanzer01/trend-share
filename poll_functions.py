@@ -1,13 +1,42 @@
 # poll_functions.py
 
 import random
+import traceback
 from datetime import datetime, timedelta
-from models import Poll, PollInstrument, Instrument, UserPrediction, db
+import yfinance as yf
+from models import (
+    Poll,
+    PollInstrument,
+    Instrument,
+    UserPrediction,
+    InstrumentCategory,
+    db
+)
 from app import logger
+
+def get_real_price(instrument_name):
+    """
+    Получает текущую цену инструмента с использованием yfinance.
+    :param instrument_name: Название инструмента (например, 'EUR/USD')
+    :return: Текущая цена или None, если не удалось получить
+    """
+    try:
+        ticker = yf.Ticker(instrument_name)
+        data = ticker.history(period="1d")
+        if data.empty:
+            logger.warning(f"Данные для {instrument_name} пусты.")
+            return None
+        current_price = data['Close'][0]
+        logger.info(f"Реальная цена для {instrument_name}: {current_price}")
+        return current_price
+    except Exception as e:
+        logger.error(f"Ошибка при получении реальной цены для {instrument_name}: {e}")
+        logger.error(traceback.format_exc())
+        return None
 
 def start_new_poll():
     """
-    Создает новый опрос, выбирая по одному инструменту из 4 категорий.
+    Создаёт новый опрос, выбирая по одному инструменту из 4 случайных категорий.
     """
     existing_active_poll = Poll.query.filter_by(status='active').first()
     if existing_active_poll:
@@ -20,7 +49,9 @@ def start_new_poll():
         return
 
     selected_instruments = []
-    for category in categories[:4]:  # Выбираем первые 4 категории
+    # Выбираем 4 случайные категории
+    selected_categories = random.sample(categories, min(4, len(categories)))
+    for category in selected_categories:
         instruments = category.instruments
         if not instruments:
             logger.warning(f"Категория '{category.name}' не содержит инструментов.")
@@ -53,47 +84,58 @@ def start_new_poll():
 
 def process_poll_results():
     """
-    Обрабатывает результаты опросов, завершенных на текущий момент.
+    Обрабатывает результаты опросов, завершённых на текущий момент, и инициирует новые опросы.
     """
-    completed_polls = Poll.query.filter_by(status='active').filter(Poll.end_date <= datetime.utcnow()).all()
-    for poll in completed_polls:
-        real_prices = {}
-        for poll_instrument in poll.poll_instruments:
-            instrument = poll_instrument.instrument
-            real_price = get_real_price(instrument.name)
-            if real_price is not None:
-                real_prices[instrument.name] = real_price
-            else:
-                logger.error(f"Не удалось получить реальную цену для инструмента '{instrument.name}' в опросе ID {poll.id}.")
+    try:
+        # Получение завершённых опросов
+        completed_polls = Poll.query.filter_by(status='active').filter(Poll.end_date <= datetime.utcnow()).all()
+        for poll in completed_polls:
+            real_prices = {}
+            for poll_instrument in poll.poll_instruments:
+                instrument = poll_instrument.instrument
+                real_price = get_real_price(instrument.name)
+                if real_price is not None:
+                    real_prices[instrument.name] = real_price
+                else:
+                    logger.error(f"Не удалось получить реальную цену для инструмента '{instrument.name}' в опросе ID {poll.id}.")
 
-        poll.real_prices = real_prices
-        poll.status = 'completed'
-        db.session.commit()
-        logger.info(f"Опрос ID {poll.id} завершен с реальными ценами: {real_prices}.")
-
-        # Определение ближайших предсказаний
-        for poll_instrument in poll.poll_instruments:
-            instrument_name = poll_instrument.instrument.name
-            real_price = real_prices.get(instrument_name)
-            if real_price is None:
-                continue
-
-            predictions = UserPrediction.query.filter_by(
-                poll_id=poll.id,
-                instrument_id=poll_instrument.instrument.id
-            ).all()
-
-            if not predictions:
-                continue
-
-            # Находим минимальное отклонение
-            min_deviation = min(pred.deviation for pred in predictions if pred.deviation is not None)
-            closest_predictions = [pred for pred in predictions if pred.deviation == min_deviation]
-
-            for pred in closest_predictions:
-                # Здесь можно добавить логику награждения пользователей, например, предоставить им премиум-доступ
-                user = pred.user
-                if not user.assistant_premium:
-                    user.assistant_premium = True
-                    logger.info(f"Пользователь ID {user.id} получил премиум-доступ за точное предсказание в опросе ID {poll.id}.")
+            # Сохранение реальных цен и обновление статуса опроса
+            poll.real_prices = real_prices  # Убедитесь, что поле real_prices поддерживает JSON
+            poll.status = 'completed'
             db.session.commit()
+            logger.info(f"Опрос ID {poll.id} завершен с реальными ценами: {real_prices}.")
+
+            # Определение ближайших предсказаний для каждого инструмента
+            for poll_instrument in poll.poll_instruments:
+                instrument_name = poll_instrument.instrument.name
+                real_price = real_prices.get(instrument_name)
+                if real_price is None:
+                    continue
+
+                predictions = UserPrediction.query.filter_by(
+                    poll_id=poll.id,
+                    instrument_id=poll_instrument.instrument.id
+                ).all()
+
+                if not predictions:
+                    continue
+
+                # Находим минимальное отклонение
+                min_deviation = min(pred.deviation for pred in predictions if pred.deviation is not None)
+                closest_predictions = [pred for pred in predictions if pred.deviation == min_deviation]
+
+                for pred in closest_predictions:
+                    # Логика награждения пользователей, например, предоставление премиум-доступа
+                    user = pred.user
+                    if not user.assistant_premium:
+                        user.assistant_premium = True
+                        logger.info(f"Пользователь ID {user.id} получил премиум-доступ за точное предсказание в опросе ID {poll.id}.")
+            db.session.commit()
+
+        # Запуск нового опроса после обработки текущих
+        start_new_poll()
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Ошибка при обработке результатов опроса: {e}")
+        logger.error(traceback.format_exc())
