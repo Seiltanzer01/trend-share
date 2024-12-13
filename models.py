@@ -164,11 +164,15 @@ class UserPrediction(db.Model):
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
     predicted_price = db.Column(db.Float, nullable=False)
-    deviation = db.Column(db.Float, nullable=True)  # Отклонение от реальной цены после завершения голосования
+    deviation = db.Column(db.Float, nullable=True)
 
-    user = db.relationship('User', back_populates='predictions')
-    poll = db.relationship('Poll', back_populates='predictions')
-    instrument = db.relationship('Instrument')  # Односторонняя связь
+    __table_args__ = (
+        UniqueConstraint('user_id', 'poll_id', name='unique_user_poll'),
+    )
+
+    user = db.relationship('User', backref='predictions')
+    poll = db.relationship('Poll', backref='predictions')
+    instrument = db.relationship('Instrument', backref='predictions')
 
 # Модель Config для хранения настроек приложения
 class Config(db.Model):
