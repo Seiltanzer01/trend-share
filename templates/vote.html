@@ -7,7 +7,7 @@
 
 <div class="nes-container is-rounded">
     <h2>О голосовании</h2>
-    <p>Голосование проводится для прогнозирования цен на различные инструменты. Кто будет ближе всего к реальной цене актива, тот получит премиум-доступ к дополнительным функциям.</p>
+    <p>Голосование проводится для прогнозирования цен на различные инструменты. Участвуя в голосовании, вы помогаете определить наиболее точные предсказания пользователей и получаете возможность выиграть премиум-доступ к дополнительным функциям.</p>
     <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
     <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
 </div>
@@ -37,6 +37,21 @@
 </form>
 
 <hr>
+
+<!-- Отображение результатов после голосования -->
+{% if prediction_result %}
+    <div class="nes-container is-rounded is-primary">
+        <h2>Результаты Вашего Предсказания</h2>
+        <p><strong>Ваша предсказанная цена:</strong> {{ prediction_result.predicted_price }}</p>
+        <p><strong>Реальная цена:</strong> {{ prediction_result.real_price }}</p>
+        <p><strong>Отклонение:</strong> {{ prediction_result.deviation }}</p>
+        {% if prediction_result.is_closest %}
+            <p><strong>Поздравляем!</strong> Ваше предсказание было самым точным.</p>
+        {% else %}
+            <p><strong>Информация:</strong> Ваше предсказание было менее точным.</p>
+        {% endif %}
+    </div>
+{% endif %}
 
 <!-- Отображение сообщений -->
 {% with messages = get_flashed_messages(with_categories=true) %}
