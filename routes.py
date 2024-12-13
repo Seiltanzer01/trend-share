@@ -426,14 +426,22 @@ def vote():
         flash('Сейчас нет активного голосования.', 'info')
         return redirect(url_for('index'))
 
+    # Проверка, голосовал ли пользователь уже в этом опросе
+    existing_prediction = UserPrediction.query.filter_by(
+        user_id=user_id,
+        poll_id=active_poll.id
+    ).first()
+
+    if existing_prediction:
+        flash('Вы уже голосовали в этом опросе.', 'info')
+        return render_template('vote.html', form=None, active_poll=active_poll, existing_prediction=existing_prediction)
+
     # Получение инструментов опроса
     poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
     instruments = [pi.instrument for pi in poll_instruments]
 
     form = SubmitPredictionForm()
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
-
-    prediction_result = None  # Переменная для хранения результатов после отправки формы
 
     if request.method == 'POST':
         try:
@@ -442,14 +450,7 @@ def vote():
                 predicted_price = form.predicted_price.data
 
                 # Проверка, голосовал ли пользователь уже в этом опросе для выбранного инструмента
-                existing_prediction = UserPrediction.query.filter_by(
-                    user_id=user_id,
-                    poll_id=active_poll.id,
-                    instrument_id=selected_instrument_id
-                ).first()
-                if existing_prediction:
-                    flash('Вы уже голосовали в этом опросе для выбранного инструмента.', 'warning')
-                    return redirect(url_for('vote'))
+                # Эта проверка теперь не нужна, так как мы уже проверили общее голосование
 
                 # Сохранение предсказания
                 user_prediction = UserPrediction(
@@ -463,10 +464,7 @@ def vote():
                 flash('Ваше предсказание успешно сохранено.', 'success')
                 logger.info(f"Пользователь ID {user_id} сделал предсказание для инструмента ID {selected_instrument_id} в опросе ID {active_poll.id}.")
 
-                # Не сохраняем реальную цену и отклонение здесь
-                # Эти данные будут обработаны в process_poll_results после завершения опроса
-
-                return render_template('vote.html', form=form, active_poll=active_poll, prediction_result=prediction_result)
+                return redirect(url_for('vote'))
             else:
                 flash('Форма не валидна. Проверьте введённые данные.', 'danger')
         except Exception as e:
@@ -476,8 +474,8 @@ def vote():
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
 
-    return render_template('vote.html', form=form, active_poll=active_poll, prediction_result=prediction_result)
-
+    return render_template('vote.html', form=form, active_poll=active_poll, existing_prediction=None)
+    
 @app.route('/fetch_charts', methods=['GET'])
 def fetch_charts():
     """
