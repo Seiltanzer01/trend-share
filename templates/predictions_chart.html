@@ -5,12 +5,16 @@
 {% block content %}
 <h1>Диаграммы Предсказаний</h1>
 
-{% for instrument, image in charts.items() %}
-    <div class="nes-container with-title">
-        <p class="title">{{ instrument }}</p>
-        <img src="data:image/png;base64,{{ image }}" alt="Диаграмма предсказаний для {{ instrument }}">
-    </div>
-    <br>
-{% endfor %}
+{% if charts %}
+    {% for instrument, image in charts.items() %}
+        <div class="nes-container with-title">
+            <p class="title">{{ instrument }}</p>
+            <img src="data:image/png;base64,{{ image }}" alt="Диаграмма предсказаний для {{ instrument }}">
+        </div>
+        <br>
+    {% endfor %}
+{% else %}
+    <p>Нет доступных диаграмм для отображения.</p>
+{% endif %}
 
 {% endblock %}
