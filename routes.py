@@ -96,7 +96,7 @@ from torchvision import transforms
 from PIL import Image
 
 # Импорт функций для голосования и диаграмм
-from poll_functions import start_new_poll, process_poll_results
+from poll_functions import start_new_poll, process_poll_results, get_real_price  # Импортируем get_real_price
 
 # Инициализация OpenAI API
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
@@ -213,24 +213,11 @@ def analyze_chart(image_path):
         logger.error(traceback.format_exc())
         return {'error': 'Произошла ошибка при анализе графика.'}
 
-def get_real_price(instrument_name):
-    """
-    Получает текущую цену инструмента с использованием yfinance.
-    """
-    try:
-        ticker = yf.Ticker(instrument_name)
-        data = ticker.history(period="1d")
-        if data.empty:
-            return None
-        current_price = data['Close'][0]
-        return current_price
-    except Exception as e:
-        logger.error(f"Ошибка при получении реальной цены для {instrument_name}: {e}")
-        logger.error(traceback.format_exc())
-        return None
-
+##################################################
 # Восстановление авторизации и Telegram бота
 # Инициализация Telegram бота
+##################################################
+
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
 TOKEN = app.config['TELEGRAM_BOT_TOKEN']
 if not TOKEN:
@@ -439,13 +426,14 @@ def vote():
                 selected_instrument_id = form.instrument.data
                 predicted_price = form.predicted_price.data
 
-                # Проверка, голосовал ли пользователь уже в этом опросе
+                # Проверка, голосовал ли пользователь уже в этом опросе для выбранного инструмента
                 existing_prediction = UserPrediction.query.filter_by(
                     user_id=user_id,
-                    poll_id=active_poll.id
+                    poll_id=active_poll.id,
+                    instrument_id=selected_instrument_id
                 ).first()
                 if existing_prediction:
-                    flash('Вы уже голосовали в этом опросе.', 'warning')
+                    flash('Вы уже голосовали в этом опросе для выбранного инструмента.', 'warning')
                     return redirect(url_for('vote'))
 
                 # Сохранение предсказания
@@ -460,50 +448,8 @@ def vote():
                 flash('Ваше предсказание успешно сохранено.', 'success')
                 logger.info(f"Пользователь ID {user_id} сделал предсказание для инструмента ID {selected_instrument_id} в опросе ID {active_poll.id}.")
 
-                # Получение реальной цены
-                instrument = Instrument.query.get(selected_instrument_id)
-                real_price = get_real_price(instrument.name)
-                if real_price is None:
-                    flash('Не удалось получить реальную цену. Пожалуйста, попробуйте позже.', 'danger')
-                    return redirect(url_for('vote'))
-
-                # Сохранение реальной цены в опросе
-                if not active_poll.real_prices:
-                    active_poll.real_prices = {}
-                active_poll.real_prices[instrument.name] = real_price
-                db.session.commit()
-
-                # Расчет отклонения
-                deviation = abs(predicted_price - real_price)
-                user_prediction.deviation = deviation
-                db.session.commit()
-
-                # Определение, был ли пользователь ближе всех
-                all_predictions = UserPrediction.query.filter_by(
-                    poll_id=active_poll.id,
-                    instrument_id=selected_instrument_id
-                ).all()
-                closest_user = min(all_predictions, key=lambda x: x.deviation, default=None)
-
-                if closest_user and closest_user.id == user_prediction.id:
-                    result_message = 'Поздравляем! Ваше предсказание было самым точным.'
-                    result_category = 'success'
-                else:
-                    result_message = f'Ваше предсказание отклонилось на {deviation:.2f} от реальной цены.'
-                    result_category = 'info'
-
-                flash(result_message, result_category)
-
-                # Подготовка данных для отображения на странице
-                prediction_result = {
-                    'predicted_price': predicted_price,
-                    'real_price': real_price,
-                    'deviation': deviation,
-                    'is_closest': closest_user and closest_user.id == user_prediction.id
-                }
-
-                # Вызов обработки результатов опроса (если необходимо)
-                # process_poll_results()
+                # Не сохраняем реальную цену и отклонение здесь
+                # Эти данные будут обработаны в process_poll_results после завершения опроса
 
                 return render_template('vote.html', form=form, active_poll=active_poll, prediction_result=prediction_result)
             else:
