@@ -30,13 +30,13 @@ import models  # Убедитесь, что models.py импортирует db 
 ADMIN_TELEGRAM_IDS = [427032240]
 
 # Конфигурация APScheduler
-class Config:
+class ConfigScheduler:
     SCHEDULER_API_ENABLED = True
     SCHEDULER_TIMEZONE = "UTC"  # Устанавливаем таймзону
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
-app.config.from_object(Config())
+app.config.from_object(ConfigScheduler())
 
 # Настройка CSRF защиты
 csrf = CSRFProtect(app)
