@@ -467,17 +467,36 @@ scheduler.start()
 # Импорт дополнительных функций для голосования и диаграмм
 from poll_functions import start_new_poll, process_poll_results
 
-# Планирование задач голосования
+# Определение обёрток для задач APScheduler, чтобы обеспечить контекст приложения
+def start_new_poll_job():
+    with app.app_context():
+        try:
+            start_new_poll()
+            logger.info("Задача 'Start Poll' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
+            logger.error(traceback.format_exc())
+
+def process_poll_results_job():
+    with app.app_context():
+        try:
+            process_poll_results()
+            logger.info("Задача 'Process Poll Results' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
+            logger.error(traceback.format_exc())
+
+# Планирование задач голосования с использованием обёрток
 scheduler.add_job(
     id='Start Poll',
-    func=start_new_poll,
+    func=start_new_poll_job,  # Используем обёртку
     trigger='interval',
     days=3,
     next_run_time=datetime.now(pytz.utc)  # Используем timezone-aware datetime
 )
 scheduler.add_job(
     id='Process Poll Results',
-    func=process_poll_results,
+    func=process_poll_results_job,  # Используем обёртку
     trigger='interval',
     days=3,
     next_run_time=datetime.now(pytz.utc) + timedelta(days=3, hours=1)  # timezone-aware
