@@ -564,6 +564,27 @@ def toggle_premium(user_id):
         
     return redirect(url_for('admin_users'))
 
+@app.route('/toggle_voting', methods=['POST'])
+@admin_required
+def toggle_voting():
+    try:
+        voting_config = Config.query.filter_by(key='voting_enabled').first()
+        if voting_config:
+            voting_config.value = 'false' if voting_config.value == 'true' else 'true'
+            db.session.commit()
+            flash(f"Голосование {'отключено' if voting_config.value == 'false' else 'включено'}.", 'success')
+        else:
+            # Если конфигурация не найдена, создаём её
+            new_config = Config(key='voting_enabled', value='true')
+            db.session.add(new_config)
+            db.session.commit()
+            flash("Голосование включено.", 'success')
+    except Exception as e:
+        logger.error(f"Ошибка при переключении голосования: {e}")
+        logger.error(traceback.format_exc())
+        flash("Произошла ошибка при переключении голосования.", 'danger')
+    return redirect(url_for('admin_users'))
+    
 @app.route('/admin/toggle_voting', methods=['POST'])
 @admin_required
 def toggle_voting():
@@ -587,6 +608,7 @@ def toggle_voting():
         logger.error(traceback.format_exc())
     return redirect(url_for('admin_users'))
 
+№
 @app.route('/vote', methods=['GET', 'POST'])
 def vote():
     """
