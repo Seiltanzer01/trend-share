@@ -5,6 +5,15 @@
 {% block content %}
 <h1>Участвовать в Голосовании</h1>
 
+<div class="nes-container is-rounded">
+    <h2>О голосовании</h2>
+    <p>Голосование проводится для прогнозирования цен на различные инструменты. Кто будет ближе всего к реальной цене актива, тот получит премиум-доступ к дополнительным функциям.</p>
+    <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+    <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+</div>
+
+<br>
+
 <!-- Форма голосования -->
 <form method="POST">
     {{ form.hidden_tag() }}
@@ -29,7 +38,7 @@
 
 <hr>
 
-<!-- Отображение результатов голосования -->
+<!-- Отображение сообщений -->
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     {% for category, message in messages %}
