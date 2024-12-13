@@ -427,37 +427,7 @@ def initialize():
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-# Импорт маршрутов
-from routes import *
-
-# Добавление OpenAI API Key
-app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
-if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
-
-# Инициализация OpenAI
-openai.api_key = app.config['OPENAI_API_KEY']
-
-# Добавление Robokassa настроек
-app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
-app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
-app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
-app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
-app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
-app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
-
-# Проверка наличия необходимых Robokassa настроек
-if not all([
-    app.config['ROBOKASSA_MERCHANT_LOGIN'],
-    app.config['ROBOKASSA_PASSWORD1'],
-    app.config['ROBOKASSA_PASSWORD2'],
-    app.config['ROBOKASSA_RESULT_URL'],
-    app.config['ROBOKASSA_SUCCESS_URL'],
-    app.config['ROBOKASSA_FAIL_URL']
-]):
-    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+# **Инициализация APScheduler ДО импорта маршрутов**
 
 # Инициализация APScheduler
 scheduler = APScheduler()
@@ -501,6 +471,38 @@ scheduler.add_job(
     days=3,
     next_run_time=datetime.now(pytz.utc) + timedelta(days=3, hours=1)  # timezone-aware
 )
+
+# **Импорт маршрутов после инициализации APScheduler**
+from routes import *
+
+# Добавление OpenAI API Key
+app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+if not app.config['OPENAI_API_KEY']:
+    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
+    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+
+# Инициализация OpenAI
+openai.api_key = app.config['OPENAI_API_KEY']
+
+# Добавление Robokassa настроек
+app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
+
+# Проверка наличия необходимых Robokassa настроек
+if not all([
+    app.config['ROBOKASSA_MERCHANT_LOGIN'],
+    app.config['ROBOKASSA_PASSWORD1'],
+    app.config['ROBOKASSA_PASSWORD2'],
+    app.config['ROBOKASSA_RESULT_URL'],
+    app.config['ROBOKASSA_SUCCESS_URL'],
+    app.config['ROBOKASSA_FAIL_URL']
+]):
+    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
 # **Запуск Flask-приложения**
 
