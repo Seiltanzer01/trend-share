@@ -476,7 +476,26 @@ def vote():
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
 
-    return render_template('vote.html', form=form, active_poll=active_poll, existing_prediction=None, chart_base64=None)
+    # Получение всех предсказаний пользователя в активном опросе
+    existing_predictions = UserPrediction.query.filter_by(
+        user_id=user_id,
+        poll_id=active_poll.id
+    ).all()
+
+    # Генерация диаграмм для существующих предсказаний
+    charts = {}
+    for prediction in existing_predictions:
+        if prediction.real_price and prediction.deviation is not None:
+            chart_base64 = generate_chart_base64(prediction)  # Функция, описанная выше
+            charts[prediction.instrument.name] = chart_base64
+
+    return render_template(
+        'vote.html',
+        form=form if not existing_predictions else None,
+        active_poll=active_poll,
+        existing_predictions=existing_predictions,
+        charts=charts
+    )
     
 @app.route('/fetch_charts', methods=['GET'])
 def fetch_charts():
