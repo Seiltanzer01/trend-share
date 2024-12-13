@@ -84,3 +84,4 @@ torchvision
 APScheduler
 yfinance
 matplotlib
+Flask-APScheduler
