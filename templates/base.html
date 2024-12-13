@@ -72,13 +72,14 @@
                     <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> Главная</a>
                     <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
+                    <!-- Ссылка на голосование доступна всем авторизованным пользователям -->
+                    <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> Голосование</a>
                     
                     {% if not session.get('assistant_premium') %}
                         <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка на Дядю Джона</a>
                     {% else %}
                         <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
-                        <!-- Добавляем ссылки на голосование и диаграммы -->
-                        <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> Голосование</a>
+                        <!-- Ссылка на диаграммы доступна только премиум-пользователям -->
                         <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> Диаграммы</a>
                     {% endif %}
                     
