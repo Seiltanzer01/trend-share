@@ -430,7 +430,8 @@ def vote():
     # Проверка, голосовал ли пользователь уже в этом опросе
     existing_prediction = UserPrediction.query.filter_by(
         user_id=user_id,
-        poll_id=active_poll.id
+        poll_id=active_poll.id,
+        instrument_id=selected_instrument_id
     ).first()
 
     if existing_prediction:
