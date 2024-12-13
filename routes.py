@@ -801,6 +801,7 @@ def robokassa_fail():
     return redirect(url_for('index'))
 
 @app.route('/webhook', methods=['POST'])
+@csrf.exempt
 def webhook():
     if request.method == 'POST':
         try:
@@ -1340,3 +1341,49 @@ def delete_setup(setup_id):
         flash('Произошла ошибка при удалении сетапа.', 'danger')
         logger.error(f"Ошибка при удалении сетапа ID {setup_id}: {e}")
     return redirect(url_for('manage_setups'))
+
+@app.route('/view_trade/<int:trade_id>')
+def view_trade(trade_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    trade = Trade.query.get_or_404(trade_id)
+    if trade.user_id != user_id:
+        flash('У вас нет прав для просмотра этой сделки.', 'danger')
+        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сделку ID {trade_id}, которая ему не принадлежит.")
+        return redirect(url_for('index'))
+    logger.info(f"Пользователь ID {user_id} просматривает сделку ID {trade_id}.")
+
+    if trade.screenshot:
+        trade.screenshot_url = generate_s3_url(trade.screenshot)
+    else:
+        trade.screenshot_url = None
+
+    if trade.setup:
+        if trade.setup.screenshot:
+            trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+        else:
+            trade.setup.screenshot_url = None
+
+    return render_template('view_trade.html', trade=trade)
+
+@app.route('/view_setup/<int:setup_id>')
+def view_setup(setup_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    setup = Setup.query.get_or_404(setup_id)
+    if setup.user_id != user_id:
+        flash('У вас нет прав для просмотра этого сетапа.', 'danger')
+        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сетап ID {setup_id}, который ему не принадлежит.")
+        return redirect(url_for('manage_setups'))
+    logger.info(f"Пользователь ID {user_id} просматривает сетап ID {setup_id}.")
+
+    if setup.screenshot:
+        setup.screenshot_url = generate_s3_url(setup.screenshot)
+    else:
+        setup.screenshot_url = None
+
+    return render_template('view_setup.html', setup=setup)
