@@ -5,6 +5,7 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 
+import pytz  # Импортируем pytz
 import boto3
 from botocore.exceptions import ClientError
 
@@ -31,6 +32,7 @@ ADMIN_TELEGRAM_IDS = [427032240]
 # Конфигурация APScheduler
 class Config:
     SCHEDULER_API_ENABLED = True
+    SCHEDULER_TIMEZONE = "UTC"  # Устанавливаем таймзону
 
 # Инициализация Flask-приложения
 app = Flask(__name__)
@@ -466,8 +468,20 @@ scheduler.start()
 from poll_functions import start_new_poll, process_poll_results
 
 # Планирование задач голосования
-scheduler.add_job(id='Start Poll', func=start_new_poll, trigger='interval', days=3, next_run_time=datetime.utcnow())
-scheduler.add_job(id='Process Poll Results', func=process_poll_results, trigger='interval', days=3, next_run_time=datetime.utcnow() + timedelta(days=3, hours=1))
+scheduler.add_job(
+    id='Start Poll',
+    func=start_new_poll,
+    trigger='interval',
+    days=3,
+    next_run_time=datetime.now(pytz.utc)  # Используем timezone-aware datetime
+)
+scheduler.add_job(
+    id='Process Poll Results',
+    func=process_poll_results,
+    trigger='interval',
+    days=3,
+    next_run_time=datetime.now(pytz.utc) + timedelta(days=3, hours=1)  # timezone-aware
+)
 
 # **Запуск Flask-приложения**
 
