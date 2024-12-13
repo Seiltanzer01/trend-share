@@ -9,7 +9,7 @@
     {% for instrument, image in charts.items() %}
         <div class="nes-container with-title">
             <p class="title">{{ instrument }}</p>
-            <img src="data:image/png;base64,{{ image }}" alt="Диаграмма предсказаний для {{ instrument }}">
+            <img id="chart-{{ loop.index }}" src="data:image/png;base64,{{ image }}" alt="Диаграмма предсказаний для {{ instrument }}" class="responsive-chart">
         </div>
         <br>
     {% endfor %}
@@ -17,4 +17,25 @@
     <p>Нет доступных диаграмм для отображения.</p>
 {% endif %}
 
+<!-- Добавляем скрипт для обновления диаграмм -->
+<script>
+    function fetchCharts() {
+        fetch("{{ url_for('fetch_charts') }}")
+            .then(response => response.json())
+            .then(data => {
+                const charts = data.charts;
+                for (const [instrument, image] of Object.entries(charts)) {
+                    // Находим соответствующий элемент по имени инструмента
+                    const chartElement = document.querySelector(`img[alt="Диаграмма предсказаний для ${instrument.split(' (')[0]}"]`);
+                    if (chartElement) {
+                        chartElement.src = `data:image/png;base64,${image}`;
+                    }
+                }
+            })
+            .catch(error => console.error('Error fetching charts:', error));
+    }
+
+    // Обновляем диаграммы каждые 30 секунд
+    setInterval(fetchCharts, 30000);
+</script>
 {% endblock %}
