@@ -118,6 +118,7 @@ if not app.config['OPENAI_API_KEY']:
 
 openai.api_key = app.config['OPENAI_API_KEY']
 
+
 ##################################################
 # Модель тренда (trend_model.pth)
 ##################################################
@@ -154,7 +155,7 @@ def get_trend_model():
         if os.path.exists(model_path):
             trend_model = TrendCNN(num_classes=3)
             # Установка weights_only=True для повышения безопасности
-            trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'), weights_only=True))
+            trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
             trend_model.eval()
             logger.info("Модель тренда загружена из 'trend_model.pth'.")
         else:
@@ -227,6 +228,109 @@ def analyze_chart(image_path):
         logger.error(f"Ошибка при анализе графика: {e}")
         logger.error(traceback.format_exc())
         return {'error': 'Произошла ошибка при анализе графика.'}
+
+# Восстановление авторизации и Telegram бота
+# Инициализация Telegram бота
+app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+TOKEN = app.config['TELEGRAM_BOT_TOKEN']
+if not TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
+    exit(1)
+
+bot = Bot(token=TOKEN)
+dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
+
+def start_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
+    try:
+        with app.app_context():
+            user_record = User.query.filter_by(telegram_id=user.id).first()
+            if not user_record:
+                user_record = User(
+                    telegram_id=user.id,
+                    username=user.username,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    registered_at=datetime.utcnow()
+                )
+                db.session.add(user_record)
+                db.session.commit()
+                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
+
+        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
+        web_app_url = f"https://{get_app_host()}/webapp"
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        text="Открыть приложение",
+                        web_app=WebAppInfo(url=web_app_url)
+                    )
+                ]
+            ]
+        )
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message_text,
+            reply_markup=keyboard
+        )
+        logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке команды /start: {e}")
+        logger.error(traceback.format_exc())
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
+
+def help_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
+    help_text = (
+        "Доступные команды:\n"
+        "/start - Начать общение с ботом и открыть приложение\n"
+        "/help - Получить справку\n"
+        "/test - Тестовая команда для проверки работы бота\n"
+    )
+    try:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
+        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /help: {e}")
+        logger.error(traceback.format_exc())
+
+def test_command(update, context):
+    user = update.effective_user
+    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
+    try:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
+        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ответа на /test: {e}")
+        logger.error(traceback.format_exc())
+
+def button_click(update, context):
+    query = update.callback_query
+    query.answer()
+    user = update.effective_user
+    data = query.data
+    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
+
+    try:
+        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
+        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
+        logger.error(traceback.format_exc())
+
+# Добавление обработчиков команд в диспетчер
+dispatcher.add_handler(CommandHandler('start', start_command))
+dispatcher.add_handler(CommandHandler('help', help_command))
+dispatcher.add_handler(CommandHandler('test', test_command))
+dispatcher.add_handler(CallbackQueryHandler(button_click))
+
+##################################################
+# Маршруты для голосования и ассистента
+##################################################
 
 @app.route('/assistant/analyze_chart', methods=['POST'])
 @csrf.exempt
@@ -677,7 +781,7 @@ def robokassa_result():
                 if user.id == session.get('user_id'):
                     session['assistant_premium'] = user.assistant_premium
                     flash('Ваша подписка активирована.', 'success')
-    
+
             return 'YES', 200
         except Exception as e:
             logger.error(f"Ошибка при обработке inv_id: {e}")
@@ -1236,49 +1340,3 @@ def delete_setup(setup_id):
         flash('Произошла ошибка при удалении сетапа.', 'danger')
         logger.error(f"Ошибка при удалении сетапа ID {setup_id}: {e}")
     return redirect(url_for('manage_setups'))
-
-@app.route('/view_trade/<int:trade_id>')
-def view_trade(trade_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    trade = Trade.query.get_or_404(trade_id)
-    if trade.user_id != user_id:
-        flash('У вас нет прав для просмотра этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сделку ID {trade_id}, которая ему не принадлежит.")
-        return redirect(url_for('index'))
-    logger.info(f"Пользователь ID {user_id} просматривает сделку ID {trade_id}.")
-
-    if trade.screenshot:
-        trade.screenshot_url = generate_s3_url(trade.screenshot)
-    else:
-        trade.screenshot_url = None
-
-    if trade.setup:
-        if trade.setup.screenshot:
-            trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
-        else:
-            trade.setup.screenshot_url = None
-
-    return render_template('view_trade.html', trade=trade)
-
-@app.route('/view_setup/<int:setup_id>')
-def view_setup(setup_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    setup = Setup.query.get_or_404(setup_id)
-    if setup.user_id != user_id:
-        flash('У вас нет прав для просмотра этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сетап ID {setup_id}, который ему не принадлежит.")
-        return redirect(url_for('manage_setups'))
-    logger.info(f"Пользователь ID {user_id} просматривает сетап ID {setup_id}.")
-
-    if setup.screenshot:
-        setup.screenshot_url = generate_s3_url(setup.screenshot)
-    else:
-        setup.screenshot_url = None
-
-    return render_template('view_setup.html', setup=setup)
