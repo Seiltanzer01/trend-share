@@ -419,7 +419,7 @@ def vote():
         return redirect(url_for('index'))
 
     # Получение активного опроса
-    active_poll = Poll.query.filter(Poll.status == 'active').first()
+    active_poll = Poll.query.filter_by(status='active').first()
     if not active_poll:
         flash('Сейчас нет активного голосования.', 'info')
         return redirect(url_for('index'))
@@ -430,6 +430,8 @@ def vote():
 
     form = SubmitPredictionForm()
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
+
+    prediction_result = None  # Переменная для хранения результатов после отправки формы
 
     if request.method == 'POST':
         try:
@@ -484,14 +486,26 @@ def vote():
                 closest_user = min(all_predictions, key=lambda x: x.deviation, default=None)
 
                 if closest_user and closest_user.id == user_prediction.id:
-                    flash('Поздравляем! Ваше предсказание было самым точным.', 'success')
+                    result_message = 'Поздравляем! Ваше предсказание было самым точным.'
+                    result_category = 'success'
                 else:
-                    flash(f'Ваше предсказание отклонилось на {deviation:.2f} от реальной цены.', 'info')
+                    result_message = f'Ваше предсказание отклонилось на {deviation:.2f} от реальной цены.'
+                    result_category = 'info'
+
+                flash(result_message, result_category)
+
+                # Подготовка данных для отображения на странице
+                prediction_result = {
+                    'predicted_price': predicted_price,
+                    'real_price': real_price,
+                    'deviation': deviation,
+                    'is_closest': closest_user and closest_user.id == user_prediction.id
+                }
 
                 # Вызов обработки результатов опроса (если необходимо)
                 # process_poll_results()
 
-                return redirect(url_for('vote'))
+                return render_template('vote.html', form=form, active_poll=active_poll, prediction_result=prediction_result)
             else:
                 flash('Форма не валидна. Проверьте введённые данные.', 'danger')
         except Exception as e:
@@ -501,7 +515,7 @@ def vote():
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
 
-    return render_template('vote.html', form=form, active_poll=active_poll)
+    return render_template('vote.html', form=form, active_poll=active_poll, prediction_result=prediction_result)
 
 @app.route('/fetch_charts', methods=['GET'])
 def fetch_charts():
