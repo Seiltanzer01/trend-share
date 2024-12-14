@@ -165,7 +165,8 @@ class UserPrediction(db.Model):
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
     predicted_price = db.Column(db.Float, nullable=False)
-    deviation = db.Column(db.Float, nullable=True)
+    real_price = db.Column(db.Float, nullable=True)        # Добавлено поле real_price
+    deviation = db.Column(db.Float, nullable=True)         # Добавлено поле deviation
 
     __table_args__ = (
         db.UniqueConstraint('user_id', 'poll_id', 'instrument_id', name='unique_user_poll_instrument'),
