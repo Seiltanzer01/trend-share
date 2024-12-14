@@ -13,6 +13,7 @@ from models import (
     db
 )
 from app import logger
+from flask import current_app
 
 def get_real_price(instrument_name):
     """
@@ -86,62 +87,63 @@ def process_poll_results():
     """
     Обрабатывает результаты опросов, завершённых на текущий момент, и инициирует новые опросы.
     """
-    try:
-        # Получение завершённых опросов
-        completed_polls = Poll.query.filter_by(status='completed').all()
-        for poll in completed_polls:
-            real_prices = {}  # Хранит реальные цены для инструментов опроса
-            for prediction in poll.predictions:
-                # Получение реальной цены
-                instrument_name = prediction.instrument.name
-                real_price = get_real_price(instrument_name)
-                if real_price is not None:
-                    real_prices[instrument_name] = real_price
-                    prediction.real_price = real_price
-                    # Расчёт отклонения
-                    if prediction.predicted_price != 0:
-                        prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
-                    else:
-                        prediction.deviation = None
+    with current_app.app_context():
+        try:
+            # Получение завершённых опросов
+            completed_polls = Poll.query.filter_by(status='completed').all()
+            for poll in completed_polls:
+                real_prices = {}  # Хранит реальные цены для инструментов опроса
+                for prediction in poll.predictions:
+                    # Получение реальной цены
+                    instrument_name = prediction.instrument.name
+                    real_price = get_real_price(instrument_name)
+                    if real_price is not None:
+                        real_prices[instrument_name] = real_price
+                        prediction.real_price = real_price
+                        # Расчёт отклонения
+                        if prediction.predicted_price != 0:
+                            prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+                        else:
+                            prediction.deviation = None
 
-            # Сохранение реальных цен и обновление статуса опроса
-            poll.real_prices = real_prices  # Убедитесь, что поле real_prices поддерживает JSON
-            poll.status = 'completed'
-            db.session.commit()
-            logger.info(f"Опрос ID {poll.id} завершен с реальными ценами: {real_prices}.")
+                # Сохранение реальных цен и обновление статуса опроса
+                poll.real_prices = real_prices  # Убедитесь, что поле real_prices поддерживает JSON
+                poll.status = 'completed'
+                db.session.commit()
+                logger.info(f"Опрос ID {poll.id} завершен с реальными ценами: {real_prices}.")
 
-            # Определение ближайших предсказаний для каждого инструмента
-            for poll_instrument in poll.poll_instruments:
-                instrument_name = poll_instrument.instrument.name
-                real_price = real_prices.get(instrument_name)
-                if real_price is None:
-                    continue
+                # Определение ближайших предсказаний для каждого инструмента
+                for poll_instrument in poll.poll_instruments:
+                    instrument_name = poll_instrument.instrument.name
+                    real_price = real_prices.get(instrument_name)
+                    if real_price is None:
+                        continue
 
-                predictions = UserPrediction.query.filter_by(
-                    poll_id=poll.id,
-                    instrument_id=poll_instrument.instrument.id
-                ).all()
+                    predictions = UserPrediction.query.filter_by(
+                        poll_id=poll.id,
+                        instrument_id=poll_instrument.instrument.id
+                    ).all()
 
-                if not predictions:
-                    continue
+                    if not predictions:
+                        continue
 
-                # Находим минимальное отклонение
-                min_deviation = min(pred.deviation for pred in predictions if pred.deviation is not None)
-                closest_predictions = [pred for pred in predictions if pred.deviation == min_deviation]
+                    # Находим минимальное отклонение
+                    min_deviation = min(pred.deviation for pred in predictions if pred.deviation is not None)
+                    closest_predictions = [pred for pred in predictions if pred.deviation == min_deviation]
 
-                for pred in closest_predictions:
-                    # Логика награждения пользователей, например, предоставление премиум-доступа
-                    user = pred.user
-                    if not user.assistant_premium:
-                        user.assistant_premium = True
-                        logger.info(f"Пользователь ID {user.id} получил премиум-доступ за точное предсказание в опросе ID {poll.id}.")
+                    for pred in closest_predictions:
+                        # Логика награждения пользователей, например, предоставление премиум-доступа
+                        user = pred.user
+                        if not user.assistant_premium:
+                            user.assistant_premium = True
+                            logger.info(f"Пользователь ID {user.id} получил премиум-доступ за точное предсказание в опросе ID {poll.id}.")
 
-            db.session.commit()
+                db.session.commit()
 
-        # Запуск нового опроса после обработки текущих
-        start_new_poll()
+            # Запуск нового опроса после обработки текущих
+            start_new_poll()
 
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Ошибка при обработке результатов опроса: {e}")
-        logger.error(traceback.format_exc())
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка при обработке результатов опроса: {e}")
+            logger.error(traceback.format_exc())
