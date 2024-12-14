@@ -9,7 +9,7 @@ import pytz  # Импортируем pytz
 import boto3
 from botocore.exceptions import ClientError
 
-from flask import Flask
+from flask import Flask, current_app
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
@@ -26,6 +26,9 @@ from extensions import db, migrate
 
 # Импорт моделей
 import models  # Убедитесь, что models.py импортирует db из extensions.py
+
+# Импорт функций для голосования и диаграмм
+from poll_functions import start_new_poll, process_poll_results
 
 ADMIN_TELEGRAM_IDS = [427032240]
 
@@ -427,34 +430,27 @@ def initialize():
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-# **Инициализация APScheduler ДО импорта маршрутов**
-
 # Инициализация APScheduler
 scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.start()
 
-# Импорт дополнительных функций для голосования и диаграмм
-from poll_functions import start_new_poll, process_poll_results
-
 # Определение обёрток для задач APScheduler, чтобы обеспечить контекст приложения
 def start_new_poll_job():
-    with app.app_context():
-        try:
-            start_new_poll()
-            logger.info("Задача 'Start Poll' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
-            logger.error(traceback.format_exc())
+    try:
+        start_new_poll()
+        logger.info("Задача 'Start Poll' выполнена успешно.")
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
+        logger.error(traceback.format_exc())
 
 def process_poll_results_job():
-    with app.app_context():
-        try:
-            process_poll_results()
-            logger.info("Задача 'Process Poll Results' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
-            logger.error(traceback.format_exc())
+    try:
+        process_poll_results()
+        logger.info("Задача 'Process Poll Results' выполнена успешно.")
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
+        logger.error(traceback.format_exc())
 
 # Планирование задач голосования с использованием обёрток
 scheduler.add_job(
@@ -468,11 +464,11 @@ scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,  # Используем обёртку
     trigger='interval',
-    days=3,
-    next_run_time=datetime.now(pytz.utc) + timedelta(days=3, hours=1)  # timezone-aware
+    minutes=5,  # Запускать каждые 5 минут
+    next_run_time=datetime.now(pytz.utc) + timedelta(minutes=5)  # timezone-aware
 )
 
-# **Импорт маршрутов после инициализации APScheduler**
+# Импорт маршрутов после инициализации APScheduler
 from routes import *
 
 # Добавление OpenAI API Key
