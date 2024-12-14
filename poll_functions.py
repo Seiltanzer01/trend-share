@@ -14,29 +14,75 @@ from models import (
 )
 from flask import current_app
 
+# Маппинг инструментов к тикерам yfinance
+YFINANCE_TICKERS = {
+    'Crude Oil': 'CL=F',
+    'Gold': 'GC=F',
+    'Silver': 'SI=F',
+    'Natural Gas': 'NG=F',
+    'Copper': 'HG=F',
+    'Corn': 'C=F',
+    'Wheat': 'W=F',
+    'Soybean': 'S=F',
+    'Coffee': 'KC=F',
+    'Sugar': 'SB=F',
+    'BTC-USD': 'BTC-USD',
+    'ETH-USD': 'ETH-USD',
+    'LTC-USD': 'LTC-USD',
+    'XRP-USD': 'XRP-USD',
+    'BCH-USD': 'BCH-USD',
+    'EUR/USD': 'EURUSD=X',
+    'GBP/USD': 'GBPUSD=X',
+    'USD/JPY': 'JPY=X',
+    'USD/CHF': 'CHF=X',
+    'AUD/USD': 'AUDUSD=X',
+    'USD/CAD': 'CAD=X',
+    'NZD/USD': 'NZDUSD=X',
+    'EUR/GBP': 'EURGBP=X',
+    'EUR/JPY': 'EURJPY=X',
+    'GBP/JPY': 'GBPJPY=X',
+    'S&P 500': '^GSPC',
+    'Dow Jones': '^DJI',
+    'NASDAQ': '^IXIC',
+    'DAX': '^GDAXI',
+    'FTSE 100': '^FTSE',
+    'CAC 40': '^FCHI',
+    'Nikkei 225': '^N225',
+    'Hang Seng': '^HSI',
+    'ASX 200': '^AXJO',
+    'Euro Stoxx 50': '^STOXX50E',
+    # Добавьте другие маппинги по необходимости
+}
+
 def get_real_price(instrument_name):
     """
     Получает текущую цену инструмента с использованием yfinance.
-    :param instrument_name: Название инструмента (например, 'EURUSD=X')
+    :param instrument_name: Название инструмента (например, 'Crude Oil')
     :return: Текущая цена или None, если не удалось получить
     """
     try:
-        ticker = yf.Ticker(instrument_name)
+        ticker_symbol = YFINANCE_TICKERS.get(instrument_name)
+        if not ticker_symbol:
+            current_app.logger.error(f"No yfinance ticker mapping found for instrument: {instrument_name}")
+            return None
+
+        ticker = yf.Ticker(ticker_symbol)
         data = ticker.history(period="1d")
         if data.empty:
-            current_app.logger.warning(f"Данные для {instrument_name} пусты.")
+            current_app.logger.warning(f"Данные для {ticker_symbol} пусты.")
             return None
         current_price = data['Close'][0]
-        current_app.logger.info(f"Реальная цена для {instrument_name}: {current_price}")
+        current_app.logger.info(f"Реальная цена для {instrument_name} ({ticker_symbol}): {current_price}")
         return current_price
     except Exception as e:
         current_app.logger.error(f"Ошибка при получении реальной цены для {instrument_name}: {e}")
         current_app.logger.error(traceback.format_exc())
         return None
 
-def start_new_poll():
+def start_new_poll(test_mode=False):
     """
     Создаёт новый опрос, выбирая по одному инструменту из 4 случайных категорий.
+    :param test_mode: Если True, устанавливает короткую длительность опроса для тестирования.
     """
     existing_active_poll = Poll.query.filter_by(status='active').first()
     if existing_active_poll:
@@ -63,10 +109,16 @@ def start_new_poll():
         current_app.logger.error("Не удалось выбрать инструменты для опроса.")
         return
 
+    # Установка длительности опроса
+    if test_mode:
+        duration = timedelta(minutes=1)  # Для тестирования устанавливаем 1 минуту
+    else:
+        duration = timedelta(days=3)     # В продакшене устанавливайте 3 дня
+
     # Создание опроса
     poll = Poll(
         start_date=datetime.utcnow(),
-        end_date=datetime.utcnow() + timedelta(days=3),
+        end_date=datetime.utcnow() + duration,
         status='active'
     )
     db.session.add(poll)
@@ -81,14 +133,19 @@ def start_new_poll():
 
     db.session.commit()
     current_app.logger.info(f"Новый опрос ID {poll.id} создан с инструментами {[instr.name for instr in selected_instruments]}.")
+    if test_mode:
+        current_app.logger.info("Опрос создан в тестовом режиме с короткой длительностью.")
 
 def process_poll_results():
     """
     Обрабатывает результаты опросов, завершённых на текущий момент, и инициирует новые опросы.
     """
     try:
-        # Получение завершённых опросов
-        completed_polls = Poll.query.filter_by(status='completed').all()
+        # Получение завершённых опросов (status='active' и end_date <= сейчас)
+        now = datetime.utcnow()
+        completed_polls = Poll.query.filter_by(status='active').filter(Poll.end_date <= now).all()
+        current_app.logger.info(f"Обработка {len(completed_polls)} завершённых опросов.")
+
         for poll in completed_polls:
             real_prices = {}  # Хранит реальные цены для инструментов опроса
             for prediction in poll.predictions:
@@ -126,8 +183,12 @@ def process_poll_results():
                     continue
 
                 # Находим минимальное отклонение
-                min_deviation = min(pred.deviation for pred in predictions if pred.deviation is not None)
-                closest_predictions = [pred for pred in predictions if pred.deviation == min_deviation]
+                valid_predictions = [pred for pred in predictions if pred.deviation is not None]
+                if not valid_predictions:
+                    continue
+
+                min_deviation = min(pred.deviation for pred in valid_predictions)
+                closest_predictions = [pred for pred in valid_predictions if pred.deviation == min_deviation]
 
                 for pred in closest_predictions:
                     # Логика награждения пользователей, например, предоставление премиум-доступа
@@ -145,3 +206,15 @@ def process_poll_results():
         db.session.rollback()
         current_app.logger.error(f"Ошибка при обработке результатов опроса: {e}")
         current_app.logger.error(traceback.format_exc())
+
+# Автоматическое создание тестового опроса при запуске приложения (только для тестирования)
+def create_test_poll_on_startup():
+    """
+    Создаёт тестовый опрос при запуске приложения для быстрого тестирования.
+    """
+    existing_active_poll = Poll.query.filter_by(status='active').first()
+    if not existing_active_poll:
+        start_new_poll(test_mode=True)
+
+# Вызов функции при импорте модуля
+create_test_poll_on_startup()
