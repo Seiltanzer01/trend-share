@@ -206,15 +206,3 @@ def process_poll_results():
         db.session.rollback()
         current_app.logger.error(f"Ошибка при обработке результатов опроса: {e}")
         current_app.logger.error(traceback.format_exc())
-
-# Автоматическое создание тестового опроса при запуске приложения (только для тестирования)
-def create_test_poll_on_startup():
-    """
-    Создаёт тестовый опрос при запуске приложения для быстрого тестирования.
-    """
-    existing_active_poll = Poll.query.filter_by(status='active').first()
-    if not existing_active_poll:
-        start_new_poll(test_mode=True)
-
-# Вызов функции при импорте модуля
-create_test_poll_on_startup()
