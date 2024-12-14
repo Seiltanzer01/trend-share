@@ -20,9 +20,6 @@ from werkzeug.datastructures import FileStorage
 import openai
 
 # Добавление APScheduler для планирования задач
-from flask_apscheduler import APScheduler
-
-# Импорт APScheduler BackgroundScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
 # Импорт расширений
@@ -437,8 +434,25 @@ def inject_admin_ids():
 # Инициализация APScheduler с временной зоной UTC
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
+
+# Обёртка для тестового опроса
+def start_new_poll_test_job():
+    with app.app_context():
+        try:
+            start_new_poll(test_mode=True)
+            logger.info("Задача 'Start Test Poll' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
+            logger.error(traceback.format_exc())
+
 # Добавление тестового опроса при запуске приложения
-scheduler.add_job(func=lambda: start_new_poll(test_mode=True), trigger='date', run_date=datetime.utcnow() + timedelta(seconds=10), id='start_test_poll')
+scheduler.add_job(
+    id='Start Test Poll',
+    func=start_new_poll_test_job,  # Используем обёртку
+    trigger='date',
+    run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
+)
+
 scheduler.start()
 
 # Остановка планировщика при завершении приложения
@@ -463,20 +477,20 @@ def process_poll_results_job():
             logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
             logger.error(traceback.format_exc())
 
-# Планирование задач голосования с использованием обёрток
+# Планирование основных задач голосования с использованием обёрток
 scheduler.add_job(
     id='Start Poll',
     func=start_new_poll_job,  # Используем обёртку
     trigger='interval',
     days=3,
-    next_run_time=datetime.now(pytz.utc)  # Используем timezone-aware datetime
+    next_run_time=datetime.now(pytz.UTC)  # Используем timezone-aware datetime
 )
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,  # Используем обёртку
     trigger='interval',
     minutes=5,  # Запускать каждые 5 минут
-    next_run_time=datetime.now(pytz.utc) + timedelta(minutes=5)  # timezone-aware
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
 )
 
 # Импорт маршрутов после инициализации APScheduler
