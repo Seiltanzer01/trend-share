@@ -71,7 +71,7 @@ if not secret_key_env:
 app.secret_key = secret_key_env
 
 # Настройки базы данных
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://trades_wbm9_user:1DXEp45E2DKtoUlKeiQqPhnACGd9rVr6@dpg-ct7noetds78s7397rtk0-a.oregon-postgres.render.com:5432/trades_wbm9'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Настройки APP_HOST для формирования ссылок
