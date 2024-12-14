@@ -22,6 +22,9 @@ import openai
 # Добавление APScheduler для планирования задач
 from flask_apscheduler import APScheduler
 
+# Импорт APScheduler BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+
 # Импорт расширений
 from extensions import db, migrate
 
