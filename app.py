@@ -9,7 +9,7 @@ import pytz  # Импортируем pytz
 import boto3
 from botocore.exceptions import ClientError
 
-from flask import Flask, current_app
+from flask import Flask
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
