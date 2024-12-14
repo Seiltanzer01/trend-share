@@ -401,7 +401,6 @@ def assistant_analyze_chart():
             return jsonify({'error': 'Error processing the image.'}), 500
     else:
         return jsonify({'error': 'Invalid image'}), 400
-        
 
 @app.route('/vote', methods=['GET', 'POST'])
 def vote():
@@ -427,32 +426,30 @@ def vote():
         flash('Сейчас нет активного голосования.', 'info')
         return redirect(url_for('index'))
 
-    # Проверка, голосовал ли пользователь уже в этом опросе
-    existing_prediction = UserPrediction.query.filter_by(
-        user_id=user_id,
-        poll_id=active_poll.id,
-        instrument_id=selected_instrument_id
-    ).first()
-
-    if existing_prediction:
-        flash('Вы уже голосовали в этом опросе.', 'info')
-        # Предполагается, что диаграмма генерируется отдельно и передается как chart_base64
-        # Например, вы можете генерировать диаграмму здесь или использовать AJAX для её загрузки
-        chart_base64 = generate_chart_base64(existing_prediction)  # Реализуйте эту функцию
-        return render_template('vote.html', form=None, active_poll=active_poll, existing_prediction=existing_prediction, chart_base64=chart_base64)
-
-    # Получение инструментов опроса
-    poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
-    instruments = [pi.instrument for pi in poll_instruments]
-
     form = SubmitPredictionForm()
-    form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
 
     if request.method == 'POST':
+        # Получение инструментов опроса
+        poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
+        instruments = [pi.instrument for pi in poll_instruments]
+        form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
+
         try:
             if form.validate_on_submit():
                 selected_instrument_id = form.instrument.data
                 predicted_price = form.predicted_price.data
+
+                # Проверка, голосовал ли пользователь уже в этом опросе для выбранного инструмента
+                existing_prediction = UserPrediction.query.filter_by(
+                    user_id=user_id,
+                    poll_id=active_poll.id,
+                    instrument_id=selected_instrument_id
+                ).first()
+
+                if existing_prediction:
+                    flash('Вы уже голосовали для этого инструмента в этом опросе.', 'info')
+                    chart_base64 = generate_chart_base64(existing_prediction)  # Реализуйте эту функцию
+                    return render_template('vote.html', form=None, active_poll=active_poll, existing_prediction=existing_prediction, chart_base64=chart_base64)
 
                 # Создаём предсказание
                 user_prediction = UserPrediction(
@@ -475,6 +472,11 @@ def vote():
             logger.error(f"Ошибка при сохранении предсказания пользователя ID {user_id}: {e}")
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
+    else:
+        # Получение инструментов опроса для отображения формы
+        poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
+        instruments = [pi.instrument for pi in poll_instruments]
+        form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
 
     # Получение всех предсказаний пользователя в активном опросе
     existing_predictions = UserPrediction.query.filter_by(
@@ -496,7 +498,7 @@ def vote():
         existing_predictions=existing_predictions,
         charts=charts
     )
-    
+
 @app.route('/fetch_charts', methods=['GET'])
 def fetch_charts():
     """
@@ -558,7 +560,7 @@ def fetch_charts():
             charts[f"{instrument.name} (Опрос {poll.id})"] = image_base64
 
     return jsonify({'charts': charts})
-    
+
 @app.route('/predictions_chart', methods=['GET'])
 def predictions_chart():
     """
@@ -622,7 +624,7 @@ def predictions_chart():
             charts[f"{instrument.name} (Опрос {poll.id})"] = image_base64
 
     return render_template('predictions_chart.html', charts=charts)
-    
+
 def generate_chart_base64(user_prediction):
     """
     Генерирует диаграмму для существующего предсказания и возвращает её в формате base64.
@@ -636,6 +638,7 @@ def generate_chart_base64(user_prediction):
             return None
 
         # Построение диаграммы
+        import matplotlib.pyplot as plt
         plt.figure(figsize=(6, 4))
         plt.bar(['Предсказанная цена', 'Реальная цена'], [user_prediction.predicted_price, real_price], color=['blue', 'green'])
         plt.title('Сравнение Предсказанной и Реальной Цен')
@@ -654,7 +657,7 @@ def generate_chart_base64(user_prediction):
         logger.error(f"Ошибка при генерации диаграммы: {e}")
         logger.error(traceback.format_exc())
         return None
-        
+
 @app.route('/vote_results', methods=['GET'])
 @admin_required
 def vote_results():
@@ -1167,6 +1170,12 @@ def edit_trade(trade_id):
         trade.screenshot_url = generate_s3_url(trade.screenshot)
     else:
         trade.screenshot_url = None
+
+    if trade.setup:
+        if trade.setup.screenshot:
+            trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+        else:
+            trade.setup.screenshot_url = None
 
     form = TradeForm(obj=trade)
     setups = Setup.query.filter_by(user_id=user_id).all()
