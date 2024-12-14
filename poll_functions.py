@@ -17,7 +17,7 @@ from app import logger
 def get_real_price(instrument_name):
     """
     Получает текущую цену инструмента с использованием yfinance.
-    :param instrument_name: Название инструмента (например, 'EUR/USD')
+    :param instrument_name: Название инструмента (например, 'EURUSD=X')
     :return: Текущая цена или None, если не удалось получить
     """
     try:
@@ -90,21 +90,19 @@ def process_poll_results():
         # Получение завершённых опросов
         completed_polls = Poll.query.filter_by(status='completed').all()
         for poll in completed_polls:
+            real_prices = {}  # Хранит реальные цены для инструментов опроса
             for prediction in poll.predictions:
-                # Получение реальной цены (реализуйте логику получения реальной цены)
-                real_price = get_real_price(prediction.instrument_id)
-                prediction.real_price = real_price
-                # Расчёт отклонения
-                if prediction.predicted_price != 0:
-                    prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
-                else:
-                    prediction.deviation = None
-            db.session.commit()
-            logger.info(f"Результаты опроса ID {poll.id} обработаны успешно.")
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Ошибка при обработке результатов опроса: {e}")
-        logger.error(traceback.format_exc())
+                # Получение реальной цены
+                instrument_name = prediction.instrument.name
+                real_price = get_real_price(instrument_name)
+                if real_price is not None:
+                    real_prices[instrument_name] = real_price
+                    prediction.real_price = real_price
+                    # Расчёт отклонения
+                    if prediction.predicted_price != 0:
+                        prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+                    else:
+                        prediction.deviation = None
 
             # Сохранение реальных цен и обновление статуса опроса
             poll.real_prices = real_prices  # Убедитесь, что поле real_prices поддерживает JSON
@@ -137,6 +135,7 @@ def process_poll_results():
                     if not user.assistant_premium:
                         user.assistant_premium = True
                         logger.info(f"Пользователь ID {user.id} получил премиум-доступ за точное предсказание в опросе ID {poll.id}.")
+
             db.session.commit()
 
         # Запуск нового опроса после обработки текущих
