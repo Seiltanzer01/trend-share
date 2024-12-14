@@ -437,20 +437,22 @@ scheduler.start()
 
 # Определение обёрток для задач APScheduler, чтобы обеспечить контекст приложения
 def start_new_poll_job():
-    try:
-        start_new_poll()
-        logger.info("Задача 'Start Poll' выполнена успешно.")
-    except Exception as e:
-        logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
-        logger.error(traceback.format_exc())
+    with app.app_context():
+        try:
+            start_new_poll()
+            logger.info("Задача 'Start Poll' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
+            logger.error(traceback.format_exc())
 
 def process_poll_results_job():
-    try:
-        process_poll_results()
-        logger.info("Задача 'Process Poll Results' выполнена успешно.")
-    except Exception as e:
-        logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
-        logger.error(traceback.format_exc())
+    with app.app_context():
+        try:
+            process_poll_results()
+            logger.info("Задача 'Process Poll Results' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
+            logger.error(traceback.format_exc())
 
 # Планирование задач голосования с использованием обёрток
 scheduler.add_job(
