@@ -487,7 +487,10 @@ def vote():
     # Генерация диаграмм для существующих предсказаний
     charts = {}
     for prediction in existing_predictions:
-        if prediction.real_price and prediction.deviation is not None:
+        # Проверяем, существуют ли атрибуты real_price и deviation и имеют ли они значения
+        real_price = getattr(prediction, 'real_price', None)
+        deviation = getattr(prediction, 'deviation', None)
+        if real_price is not None and deviation is not None:
             chart_base64 = generate_chart_base64(prediction)  # Функция, описанная выше
             charts[prediction.instrument.name] = chart_base64
 
@@ -631,8 +634,8 @@ def generate_chart_base64(user_prediction):
     """
     try:
         # Получение реальной цены и отклонения
-        real_price = user_prediction.real_price
-        deviation = user_prediction.deviation
+        real_price = getattr(user_prediction, 'real_price', None)
+        deviation = getattr(user_prediction, 'deviation', None)
 
         if real_price is None or deviation is None:
             return None
