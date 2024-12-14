@@ -44,6 +44,7 @@ class Instrument(db.Model):
     trades = db.relationship('Trade', back_populates='instrument', lazy=True)
     poll_instruments = db.relationship('PollInstrument', back_populates='instrument', lazy=True)
     price_history = db.relationship('PriceHistory', back_populates='instrument', lazy=True)
+    predictions = db.relationship('UserPrediction', back_populates='instrument', lazy=True)
 
 class CriterionCategory(db.Model):
     __tablename__ = 'criterion_category'
@@ -170,9 +171,9 @@ class UserPrediction(db.Model):
         db.UniqueConstraint('user_id', 'poll_id', 'instrument_id', name='unique_user_poll_instrument'),
     )
 
-    user = db.relationship('User', backref='predictions')
-    poll = db.relationship('Poll', backref='predictions')
-    instrument = db.relationship('Instrument', backref='predictions')
+    user = db.relationship('User', back_populates='predictions')
+    poll = db.relationship('Poll', back_populates='predictions')
+    instrument = db.relationship('Instrument', back_populates='predictions')
 
 # Модель Config для хранения настроек приложения
 class Config(db.Model):
