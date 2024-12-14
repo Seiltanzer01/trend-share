@@ -110,16 +110,16 @@ openai.api_key = app.config['OPENAI_API_KEY']
 ##################################################
 # Инициализация APScheduler
 ##################################################
-from apscheduler.schedulers.background import BackgroundScheduler
-import atexit
+# from apscheduler.schedulers.background import BackgroundScheduler
+# import atexit
 
 # Инициализация APScheduler с временной зоной UTC
-scheduler = BackgroundScheduler(timezone=pytz.UTC)
-scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
-scheduler.start()
+# scheduler = BackgroundScheduler(timezone=pytz.UTC)
+# scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
+# scheduler.start()
 
 # Остановка планировщика при завершении приложения
-atexit.register(lambda: scheduler.shutdown())
+# atexit.register(lambda: scheduler.shutdown())
 
 ##################################################
 # Модель тренда (trend_model.pth)
