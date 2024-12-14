@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 import pytz  # Импортируем pytz
 import boto3
+import atexit
 from botocore.exceptions import ClientError
 
 from flask import Flask
@@ -430,10 +431,15 @@ def initialize():
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-# Инициализация APScheduler
-scheduler = APScheduler()
-scheduler.init_app(app)
+# Инициализация APScheduler с временной зоной UTC
+scheduler = BackgroundScheduler(timezone=pytz.UTC)
+scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
+# Добавление тестового опроса при запуске приложения
+scheduler.add_job(func=lambda: start_new_poll(test_mode=True), trigger='date', run_date=datetime.utcnow() + timedelta(seconds=10), id='start_test_poll')
 scheduler.start()
+
+# Остановка планировщика при завершении приложения
+atexit.register(lambda: scheduler.shutdown())
 
 # Определение обёрток для задач APScheduler, чтобы обеспечить контекст приложения
 def start_new_poll_job():
