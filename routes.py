@@ -64,16 +64,16 @@ openai.api_key = app.config['OPENAI_API_KEY']
 ##################################################
 # Инициализация APScheduler
 ##################################################
-# from apscheduler.schedulers.background import BackgroundScheduler
-# import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 # Инициализация APScheduler с временной зоной UTC
-# scheduler = BackgroundScheduler(timezone=pytz.UTC)
-# scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
-# scheduler.start()
+scheduler = BackgroundScheduler(timezone=pytz.UTC)
+scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
+scheduler.start()
 
 # Остановка планировщика при завершении приложения
-# atexit.register(lambda: scheduler.shutdown())
+atexit.register(lambda: scheduler.shutdown())
 
 ##################################################
 # Модель тренда (trend_model.pth)
@@ -173,9 +173,14 @@ def analyze_chart(image_path):
         # Прогноз тренда
         trend_prediction = predict_trend(image_path)
 
+        # Получение реальной цены
+        instrument_name = extract_instrument_name(image_path)  # Предполагается, что функция извлекает название инструмента из изображения
+        real_price = get_real_price(instrument_name)
+
         # Возвращаем результаты
         return {
-            'trend_prediction': trend_prediction
+            'trend_prediction': trend_prediction,
+            'real_price': real_price
         }
     except Exception as e:
         logger.error(f"Ошибка при анализе графика: {e}")
@@ -355,11 +360,11 @@ def assistant_analyze_chart():
             if 'error' in analysis_result:
                 # Возвращаем ошибку
                 return jsonify({'error': analysis_result['error']}), 400
-            elif 'trend_prediction' in analysis_result:
+            elif 'trend_prediction' in analysis_result and 'real_price' in analysis_result:
                 # Возвращаем корректный результат
                 return jsonify({'result': analysis_result}), 200
             else:
-                # На всякий случай, если нет ни error, ни trend_prediction
+                # На всякий случай, если нет ни error, ни необходимых полей
                 return jsonify({'error': 'Неизвестная ошибка при анализе графика.'}), 500
 
         except Exception as e:
@@ -415,8 +420,8 @@ def vote():
 
                 if existing_prediction:
                     flash('Вы уже голосовали для этого инструмента в этом опросе.', 'info')
-                    return render_template('vote.html', form=None, active_poll=active_poll, existing_predictions=existing_predictions)
-
+                    return render_template('vote.html', form=None, active_poll=active_poll, existing_predictions=existing_prediction)
+    
                 # Создаём предсказание
                 user_prediction = UserPrediction(
                     user_id=user_id,
@@ -445,16 +450,16 @@ def vote():
         form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
 
     # Получение всех предсказаний пользователя в активном опросе
-    existing_predictions = UserPrediction.query.filter_by(
+    existing_prediction = UserPrediction.query.filter_by(
         user_id=user_id,
         poll_id=active_poll.id
-    ).all()
+    ).first()
 
     return render_template(
         'vote.html',
-        form=form if not existing_predictions else None,
+        form=form if not existing_prediction else None,
         active_poll=active_poll,
-        existing_predictions=existing_predictions
+        existing_prediction=existing_prediction
     )
 
 @app.route('/fetch_charts', methods=['GET'])
@@ -487,18 +492,22 @@ def fetch_charts():
             # Создание DataFrame для текущих предсказаний
             df = pd.DataFrame([{
                 'user': pred.user.username or pred.user.first_name,
-                'predicted_price': pred.predicted_price
-            } for pred in predictions])
+                'predicted_price': pred.predicted_price,
+                'real_price': pred.real_price,
+                'deviation': pred.deviation
+            } for pred in predictions if pred.real_price is not None and pred.deviation is not None])
 
             if df.empty:
                 continue
 
-            # Построение диаграммы (например, распределение предсказанных цен)
+            # Построение диаграммы: распределение предсказанных цен и реальной цены
             plt.figure(figsize=(10, 6))
-            plt.hist(df['predicted_price'], bins=20, color='green', alpha=0.7)
-            plt.xlabel('Предсказанная Цена')
+            plt.hist(df['predicted_price'], bins=20, color='green', alpha=0.7, label='Предсказанная Цена')
+            plt.axvline(x=df['real_price'].mean(), color='red', linestyle='dashed', linewidth=2, label='Средняя Реальная Цена')
+            plt.xlabel('Цена')
             plt.ylabel('Количество Предсказаний')
             plt.title(f'Распределение Предсказанных Цен для {instrument.name} в Опросе {poll.id} (Активный)')
+            plt.legend()
             plt.tight_layout()
 
             # Сохранение диаграммы в буфер и преобразование в base64
@@ -1129,7 +1138,7 @@ def edit_trade(trade_id):
                     delete_success = delete_file_from_s3(trade.screenshot)
                     if not delete_success:
                         flash('Ошибка при удалении старого изображения.', 'danger')
-                        logger.error(f"Не удалось удалить старое изображение сетапа ID {setup_id} из S3.")
+                        logger.error(f"Не удалось удалить старое изображение сделки ID {trade_id} из S3.")
                         return redirect(url_for('edit_trade', trade_id=trade_id))
                 filename = secure_filename(screenshot_file.filename)
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
