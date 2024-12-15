@@ -475,13 +475,18 @@ def fetch_charts():
 
     # Обработка активных опросов
     active_polls = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).all()
+    logger.debug(f"Найдено {len(active_polls)} активных опросов.")
 
     for poll in active_polls:
+    logger.debug(f"Обработка опроса ID {poll.id} с инструментами {[pi.instrument.name for pi in poll.poll_instruments]}.")
         for poll_instrument in poll.poll_instruments:
             instrument = poll_instrument.instrument
             instrument_name = instrument.name
             predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
+            logger.debug(f"Найдено {len(predictions)} предсказаний для инструмента {instrument_name} в опросе ID {poll.id}.")
+            
             if not predictions:
+                logger.debug(f"Нет предсказаний для инструмента {instrument_name} в опросе ID {poll.id}.")
                 continue
 
             # Создание DataFrame для текущих предсказаний
@@ -493,6 +498,9 @@ def fetch_charts():
             if df.empty:
                 continue
 
+            # Получение реальной цены (предполагается, что она одинакова для всех предсказаний данного инструмента в опросе)
+            real_price = predictions[0].real_price
+            
             # Построение диаграммы (например, распределение предсказанных цен)
             plt.figure(figsize=(10, 6))
             plt.hist(df['predicted_price'], bins=20, color='green', alpha=0.7)
@@ -501,6 +509,11 @@ def fetch_charts():
             plt.title(f'Распределение Предсказанных Цен для {instrument.name} в Опросе {poll.id} (Активный)')
             plt.tight_layout()
 
+            # Добавление реальной цены на диаграмму, если она доступна
+            if real_price is not None:
+                plt.axvline(real_price, color='red', linestyle='dashed', linewidth=2, label=f'Реальная цена: {real_price}')
+                plt.legend()
+                
             # Сохранение диаграммы в буфер и преобразование в base64
             buf = io.BytesIO()
             plt.savefig(buf, format='png')
@@ -509,7 +522,9 @@ def fetch_charts():
             plt.close()
 
             charts[f"Active - {instrument.name} (Опрос {poll.id})"] = image_base64
-
+            logger.debug(f"Диаграмма для инструмента {instrument.name} в опросе ID {poll.id} добавлена.")
+            
+    logger.debug(f"Всего диаграмм для отправки: {len(charts)}.")
     return jsonify({'charts': charts})
 
 @app.route('/predictions_chart', methods=['GET'])
