@@ -5,7 +5,7 @@ import os
 import logging
 import traceback
 import hashlib
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # Импорт перенесён в начало
 import io
 import base64
 from datetime import datetime, timedelta
@@ -20,7 +20,6 @@ from flask_wtf.csrf import CSRFProtect
 from wtforms.validators import DataRequired, Optional
 
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
-# from extensions import db  # Импортируем db из extensions.py
 from models import *
 from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
 
@@ -35,54 +34,6 @@ from functools import wraps
 # **Интеграция OpenAI**
 import openai
 import yfinance as yf
-# **Интеграция Robokassa**
-app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
-app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
-app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
-app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
-app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
-app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
-
-# Проверка наличия необходимых Robokassa настроек
-if not all([
-    app.config['ROBOKASSA_MERCHANT_LOGIN'],
-    app.config['ROBOKASSA_PASSWORD1'],
-    app.config['ROBOKASSA_PASSWORD2'],
-    app.config['ROBOKASSA_RESULT_URL'],
-    app.config['ROBOKASSA_SUCCESS_URL'],
-    app.config['ROBOKASSA_FAIL_URL']
-]):
-    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-
-def generate_robokassa_signature(out_sum, inv_id, password1):
-    """
-    Генерирует подпись для Robokassa.
-    """
-    signature = hashlib.md5(f"{app.config['ROBOKASSA_MERCHANT_LOGIN']}:{out_sum}:{inv_id}:{password1}".encode()).hexdigest()
-    return signature
-
-def generate_openai_response(messages):
-    """
-    Получает ответ от OpenAI GPT-3.5-turbo с учётом истории сообщений.
-    """
-    try:
-        logger.debug(f"Sending messages to OpenAI: {messages}")
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=1500,  # Увеличено для более подробных ответов
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
-        )
-        logger.debug(f"Received response from OpenAI: {response}")
-        return response.choices[0].message['content'].strip()
-    except Exception as e:
-        logger.error(f"Ошибка при обращении к OpenAI API: {e}")
-        logger.error(traceback.format_exc())
-        return "Произошла ошибка при обработке вашего запроса."
 
 # **Импорт дополнительных библиотек для обработки изображений и упрощённой нейросети**
 import cv2
@@ -259,6 +210,19 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def premium_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Пожалуйста, войдите в систему.', 'warning')
+            return redirect(url_for('login'))
+        user = User.query.get(session['user_id'])
+        if not user or not user.assistant_premium:
+            flash('Доступ запрещён. Пожалуйста, приобретите премиум-подписку.', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 def start_command(update, context):
     user = update.effective_user
     logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
@@ -276,7 +240,7 @@ def start_command(update, context):
                 db.session.add(user_record)
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
-    
+
         message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
         web_app_url = f"https://{get_app_host()}/webapp"
         keyboard = InlineKeyboardMarkup(
@@ -289,7 +253,7 @@ def start_command(update, context):
                 ]
             ]
         )
-    
+
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=message_text,
@@ -451,8 +415,7 @@ def vote():
 
                 if existing_prediction:
                     flash('Вы уже голосовали для этого инструмента в этом опросе.', 'info')
-                    chart_base64 = generate_chart_base64(existing_prediction)  # Реализуйте эту функцию
-                    return render_template('vote.html', form=None, active_poll=active_poll, existing_prediction=existing_prediction, chart_base64=chart_base64)
+                    return render_template('vote.html', form=None, active_poll=active_poll, existing_predictions=existing_predictions)
 
                 # Создаём предсказание
                 user_prediction = UserPrediction(
@@ -487,22 +450,11 @@ def vote():
         poll_id=active_poll.id
     ).all()
 
-    # Генерация диаграмм для существующих предсказаний
-    charts = {}
-    for prediction in existing_predictions:
-        # Проверяем, существуют ли атрибуты real_price и deviation и имеют ли они значения
-        real_price = getattr(prediction, 'real_price', None)
-        deviation = getattr(prediction, 'deviation', None)
-        if real_price is not None and deviation is not None:
-            chart_base64 = generate_chart_base64(prediction)  # Функция, описанная выше
-            charts[prediction.instrument.name] = chart_base64
-
     return render_template(
         'vote.html',
         form=form if not existing_predictions else None,
         active_poll=active_poll,
-        existing_predictions=existing_predictions,
-        charts=charts
+        existing_predictions=existing_predictions
     )
 
 @app.route('/fetch_charts', methods=['GET'])
@@ -561,66 +513,12 @@ def fetch_charts():
     return jsonify({'charts': charts})
 
 @app.route('/predictions_chart', methods=['GET'])
+@premium_required  # Добавлен декоратор для проверки премиум-доступа
 def predictions_chart():
     """
     Маршрут для просмотра диаграмм предсказаний. Премиум часть.
     """
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для доступа к диаграммам.', 'warning')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user.assistant_premium:
-        flash('Доступ к диаграммам доступен только по подписке.', 'danger')
-        return redirect(url_for('index'))
-
-    # Получение всех завершённых опросов
-    completed_polls = Poll.query.filter_by(status='completed').all()
-
-    charts = {}
-    for poll in completed_polls:
-        if not poll.real_prices or not isinstance(poll.real_prices, dict):
-            continue
-        for instrument_name, real_price in poll.real_prices.items():
-            instrument = Instrument.query.filter_by(name=instrument_name).first()
-            if not instrument:
-                continue
-            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
-            if not predictions:
-                continue
-
-            # Создание DataFrame для построения диаграммы
-            df = pd.DataFrame([{
-                'user': pred.user.username or pred.user.first_name,
-                'predicted_price': pred.predicted_price,
-                'deviation': pred.deviation
-            } for pred in predictions if pred.deviation is not None])
-
-            if df.empty:
-                continue
-
-            # Построение диаграммы
-            import matplotlib.pyplot as plt
-            plt.figure(figsize=(10, 6))
-            plt.bar(df['user'], df['predicted_price'], color='blue', label='Предсказанная цена')
-            plt.axhline(y=real_price, color='red', linestyle='--', label='Реальная цена')
-            plt.xlabel('Пользователь')
-            plt.ylabel('Цена')
-            plt.title(f'Предсказания для {instrument.name} в опросе {poll.id}')
-            plt.legend()
-            plt.tight_layout()
-
-            # Сохранение диаграммы в буфер и преобразование в base64
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png')
-            buf.seek(0)
-            image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close()
-
-            charts[f"{instrument.name} (Опрос {poll.id})"] = image_base64
-
-    return render_template('predictions_chart.html', charts=charts)
+    return render_template('predictions_chart.html')  # Убрана серверная обработка диаграмм
 
 def generate_chart_base64(user_prediction):
     """
@@ -635,7 +533,6 @@ def generate_chart_base64(user_prediction):
             return None
 
         # Построение диаграммы
-        import matplotlib.pyplot as plt
         plt.figure(figsize=(6, 4))
         plt.bar(['Предсказанная цена', 'Реальная цена'], [user_prediction.predicted_price, real_price], color=['blue', 'green'])
         plt.title('Сравнение Предсказанной и Реальной Цен')
@@ -1232,7 +1129,7 @@ def edit_trade(trade_id):
                     delete_success = delete_file_from_s3(trade.screenshot)
                     if not delete_success:
                         flash('Ошибка при удалении старого изображения.', 'danger')
-                        logger.error(f"Не удалось удалить старое изображение сделки ID {trade_id} из S3.")
+                        logger.error(f"Не удалось удалить старое изображение сетапа ID {setup_id} из S3.")
                         return redirect(url_for('edit_trade', trade_id=trade_id))
                 filename = secure_filename(screenshot_file.filename)
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
