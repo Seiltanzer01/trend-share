@@ -26,7 +26,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 # Импорт моделей и форм
 import models  # Убедитесь, что models.py импортирует db из extensions.py
-from poll_functions import start_new_poll, process_poll_results
+from poll_functions import start_new_poll, process_poll_results, update_real_prices_for_active_polls
 
 ADMIN_TELEGRAM_IDS = [427032240]
 
@@ -460,6 +460,15 @@ def process_poll_results_job():
             logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
             logger.error(traceback.format_exc())
 
+def update_real_prices_job():
+    with app.app_context():
+        try:
+            update_real_prices_for_active_polls()
+            logger.info("Задача 'Update Real Prices' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
+            logger.error(traceback.format_exc())
+
 # Инициализация данных при первом запуске
 @app.before_first_request
 def initialize():
@@ -502,6 +511,15 @@ scheduler.add_job(
     trigger='interval',
     minutes=5,  # Запускать каждые 5 минут
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
+)
+
+# Добавляем задачу обновления реальных цен
+scheduler.add_job(
+    id='Update Real Prices',
+    func=update_real_prices_job,  # Используем обёртку
+    trigger='interval',
+    minutes=1,  # Запускать каждые 1 минуту
+    next_run_time=datetime.utcnow() + timedelta(minutes=1)  # Запуск через 1 минуту после старта
 )
 
 # Запуск планировщика
