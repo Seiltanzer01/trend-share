@@ -4,14 +4,15 @@ import os
 import logging
 import traceback
 from datetime import datetime, timedelta
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
 import pytz
 import boto3
-import atexit
 from botocore.exceptions import ClientError
-
-from flask import Flask
+from flask import Flask, flash, redirect, render_template, request, session, url_for, jsonify
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
@@ -22,13 +23,8 @@ import openai
 # Добавление APScheduler для планирования задач
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# Импорт расширений
-from extensions import db, migrate
-
-# Импорт моделей
+# Импорт моделей и форм
 import models  # Убедитесь, что models.py импортирует db из extensions.py
-
-# Импорт функций для голосования и диаграмм
 from poll_functions import start_new_poll, process_poll_results
 
 ADMIN_TELEGRAM_IDS = [427032240]
@@ -72,7 +68,27 @@ if not secret_key_env:
 app.secret_key = secret_key_env
 
 # Настройки базы данных
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://trades_wbm9_user:1DXEp45E2DKtoUlKeiQqPhnACGd9rVr6@dpg-ct7noetds78s7397rtk0-a.oregon-postgres.render.com/trades_wbm9?sslmode=require')
+raw_database_url = os.environ.get('DATABASE_URL')
+
+if not raw_database_url:
+    logger.error("DATABASE_URL не установлен в переменных окружения.")
+    raise ValueError("DATABASE_URL не установлен в переменных окружения.")
+
+# Парсинг и корректировка строки подключения к базе данных
+parsed_url = urlparse(raw_database_url)
+
+# Проверка и добавление 'sslmode=require' если необходимо
+query_params = parse_qs(parsed_url.query)
+if 'sslmode' not in query_params:
+    query_params['sslmode'] = ['require']
+
+new_query = urlencode(query_params, doseq=True)
+parsed_url = parsed_url._replace(query=new_query)
+
+# Обновлённая строка подключения
+DATABASE_URL = urlunparse(parsed_url)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Настройки APP_HOST для формирования ссылок
@@ -104,8 +120,8 @@ s3_client = boto3.client(
 )
 
 # Инициализация расширений с приложением
-db.init_app(app)
-migrate.init_app(app, db)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # Контекстный процессор для предоставления datetime в шаблонах
 @app.context_processor
