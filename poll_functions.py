@@ -54,6 +54,38 @@ YFINANCE_TICKERS = {
     # Добавьте другие маппинги по необходимости
 }
 
+def update_real_prices_for_active_polls():
+    """
+    Обновляет real_price и deviation для предсказаний в активных опросах.
+    """
+    try:
+        now = datetime.utcnow()
+        active_polls = Poll.query.filter_by(status='active').filter(Poll.end_date > now).all()
+        current_app.logger.info(f"Обновление real_price для {len(active_polls)} активных опросов.")
+        
+        for poll in active_polls:
+            for prediction in poll.predictions:
+                instrument_name = prediction.instrument.name
+                real_price = get_real_price(instrument_name)
+                
+                if real_price is not None:
+                    prediction.real_price = real_price
+                    if prediction.predicted_price != 0:
+                        prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+                    else:
+                        prediction.deviation = None
+                    current_app.logger.debug(
+                        f"Обновлена real_price для пользователя ID {prediction.user_id} в опросе ID {poll.id}: "
+                        f"Предсказано {prediction.predicted_price}, Реальная цена {real_price}, Отклонение {prediction.deviation}%."
+                    )
+        
+        db.session.commit()
+        current_app.logger.info("Обновление real_price и deviation завершено.")
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Ошибка при обновлении real_price для активных опросов: {e}")
+        current_app.logger.error(traceback.format_exc())
+        
 def get_real_price(instrument_name):
     """
     Получает текущую цену инструмента с использованием yfinance.
