@@ -17,7 +17,7 @@ from flask_wtf.csrf import CSRFProtect
 from wtforms.validators import DataRequired, Optional
 
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
-from extensions import db  # Импортируем db из extensions.py
+# from extensions import db  # Импортируем db из extensions.py
 from models import *
 from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
 
