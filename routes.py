@@ -273,7 +273,7 @@ def start_command(update, context):
                 db.session.add(user_record)
                 db.session.commit()
                 logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
-
+    
         message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
         web_app_url = f"https://{get_app_host()}/webapp"
         keyboard = InlineKeyboardMarkup(
@@ -286,7 +286,7 @@ def start_command(update, context):
                 ]
             ]
         )
-
+    
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=message_text,
@@ -417,11 +417,11 @@ def vote():
     # Проверка, включена ли функция голосования
     voting_config = Config.query.filter_by(key='voting_enabled').first()
     if not voting_config or voting_config.value != 'true':
-        flash('Функция голосования отключена.', 'info')
+        flash('Сейчас голосование отключено.', 'info')
         return redirect(url_for('index'))
 
-    # Получение активного опроса
-    active_poll = Poll.query.filter_by(status='active').first()
+    # Получение активного опроса с дополнительным фильтром по end_date
+    active_poll = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).first()
     if not active_poll:
         flash('Сейчас нет активного голосования.', 'info')
         return redirect(url_for('index'))
