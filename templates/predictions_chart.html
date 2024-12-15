@@ -5,21 +5,12 @@
 {% block content %}
 <h1>Диаграммы Предсказаний</h1>
 
-{% if charts %}
-    {% for instrument, image in charts.items() %}
-        <div class="nes-container with-title">
-            <p class="title">{{ instrument }}</p>
-            <img id="chart-{{ loop.index }}" src="data:image/png;base64,{{ image }}" alt="Диаграмма предсказаний для {{ instrument.split(' (')[0] }}" class="responsive-chart">
-            <p class="update-time">Последнее обновление: {{ datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC') }}</p>
-            <div id="loader-{{ loop.index }}" class="loader" style="display: none;"></div>
-        </div>
-        <br>
-    {% endfor %}
-{% else %}
-    <p>Нет доступных диаграмм для отображения.</p>
-{% endif %}
+<!-- Контейнер для диаграмм -->
+<div id="charts-container">
+    <p>Загрузка диаграмм...</p>
+</div>
 
-<!-- Добавляем стили для индикатора загрузки -->
+<!-- Добавляем стили для индикатора загрузки и диаграмм -->
 <style>
     .loader {
         border: 8px solid #f3f3f3;
@@ -40,47 +31,62 @@
         max-width: 100%;
         height: auto;
     }
+
+    .chart-container {
+        margin-bottom: 20px;
+    }
 </style>
 
-<!-- Добавляем скрипт для обновления диаграмм -->
+<!-- Скрипт для обновления диаграмм -->
 <script>
     function fetchCharts() {
         fetch("{{ url_for('fetch_charts') }}")
             .then(response => response.json())
             .then(data => {
+                const container = document.getElementById('charts-container');
+                container.innerHTML = '';  // Очистить контейнер перед загрузкой новых диаграмм
+
                 if (data.error) {
                     console.error('Error:', data.error);
+                    container.innerHTML = `<div class="nes-container is-rounded is-error"><p>${data.error}</p></div>`;
                     return;
                 }
+
                 const charts = data.charts;
+                if (Object.keys(charts).length === 0) {
+                    container.innerHTML = '<p>Нет доступных диаграмм для отображения.</p>';
+                    return;
+                }
+
                 for (const [instrument, image] of Object.entries(charts)) {
-                    // Находим соответствующий элемент по имени инструмента
-                    const chartElement = document.querySelector(`img[alt="Диаграмма предсказаний для ${instrument.split(' (')[0]}"]`);
-                    if (chartElement) {
-                        // Показать индикатор загрузки
-                        const loaderId = `loader-${Array.from(document.querySelectorAll('img')).indexOf(chartElement) + 1}`;
-                        const loaderElement = document.getElementById(loaderId);
-                        if (loaderElement) loaderElement.style.display = 'block';
+                    const chartDiv = document.createElement('div');
+                    chartDiv.classList.add('nes-container', 'with-title', 'chart-container');
 
-                        // Обновляем изображение
-                        chartElement.src = `data:image/png;base64,${image}`;
-                        // Обновляем время последнего обновления
-                        const updateTimeElement = chartElement.parentElement.querySelector('.update-time');
-                        if (updateTimeElement) {
-                            const now = new Date();
-                            const utcString = now.toISOString().slice(0, 19).replace('T', ' ');
-                            updateTimeElement.textContent = `Последнее обновление: ${utcString} UTC`;
-                        }
+                    const title = document.createElement('p');
+                    title.classList.add('title');
+                    title.textContent = instrument;
+                    chartDiv.appendChild(title);
 
-                        // Скрыть индикатор загрузки после обновления
-                        if (loaderElement) loaderElement.style.display = 'none';
-                    }
+                    const img = document.createElement('img');
+                    img.src = `data:image/png;base64,${image}`;
+                    img.alt = `Диаграмма предсказаний для ${instrument.split(' (')[0]}`;
+                    img.classList.add('responsive-chart');
+                    chartDiv.appendChild(img);
+
+                    const updateTime = document.createElement('p');
+                    updateTime.classList.add('update-time');
+                    const now = new Date();
+                    const utcString = now.toISOString().slice(0, 19).replace('T', ' ');
+                    updateTime.textContent = `Последнее обновление: ${utcString} UTC`;
+                    chartDiv.appendChild(updateTime);
+
+                    container.appendChild(chartDiv);
                 }
             })
             .catch(error => {
                 console.error('Error fetching charts:', error);
-                // Скрыть индикаторы загрузки при ошибке
-                document.querySelectorAll('.loader').forEach(loader => loader.style.display = 'none');
+                const container = document.getElementById('charts-container');
+                container.innerHTML = `<div class="nes-container is-rounded is-error"><p>Ошибка при загрузке диаграмм.</p></div>`;
             });
     }
 
