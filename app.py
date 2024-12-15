@@ -113,7 +113,6 @@ def inject_datetime():
     return {'datetime': datetime}
 
 # Вспомогательные функции для работы с S3
-
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     """
     Загружает файл в S3.
@@ -433,7 +432,13 @@ def inject_admin_ids():
 
 # Инициализация APScheduler с временной зоной UTC
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
-scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
+scheduler.add_job(
+    id='Process Poll Results',
+    func=process_poll_results_job,  # Используем обёртку
+    trigger='interval',
+    minutes=5,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
+)
 
 # Обёртка для тестового опроса
 def start_new_poll_test_job():
@@ -453,12 +458,7 @@ scheduler.add_job(
     run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
 )
 
-scheduler.start()
-
-# Остановка планировщика при завершении приложения
-atexit.register(lambda: scheduler.shutdown())
-
-# Определение обёрток для задач APScheduler, чтобы обеспечить контекст приложения
+# Обёртки для основных задач
 def start_new_poll_job():
     with app.app_context():
         try:
@@ -492,6 +492,11 @@ scheduler.add_job(
     minutes=5,  # Запускать каждые 5 минут
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
 )
+
+scheduler.start()
+
+# Остановка планировщика при завершении приложения
+atexit.register(lambda: scheduler.shutdown())
 
 # Импорт маршрутов после инициализации APScheduler
 from routes import *
