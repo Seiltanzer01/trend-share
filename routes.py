@@ -528,6 +528,33 @@ def fetch_charts():
 
     logger.debug(f"Всего диаграмм для отправки: {len(charts)}.")
     return jsonify({'charts': charts})
+
+@app.route('/fetch_predictions', methods=['GET'])
+def fetch_predictions():
+    """
+    API маршрут для получения обновлённых предсказаний пользователя в активном опросе.
+    """
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    user_id = session['user_id']
+    active_poll = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).first()
+    if not active_poll:
+        return jsonify({'error': 'No active poll.'}), 404
+
+    predictions = UserPrediction.query.filter_by(
+        user_id=user_id,
+        poll_id=active_poll.id
+    ).all()
+
+    predictions_data = [{
+        'instrument': pred.instrument.name,
+        'predicted_price': pred.predicted_price,
+        'real_price': pred.real_price,
+        'deviation': pred.deviation
+    } for pred in predictions]
+
+    return jsonify({'predictions': predictions_data}), 200
     
 @app.route('/predictions_chart', methods=['GET'])
 @premium_required  # Добавлен декоратор для проверки премиум-доступа
