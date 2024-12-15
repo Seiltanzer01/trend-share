@@ -430,16 +430,6 @@ def initialize():
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-# Инициализация APScheduler с временной зоной UTC
-scheduler = BackgroundScheduler(timezone=pytz.UTC)
-scheduler.add_job(
-    id='Process Poll Results',
-    func=process_poll_results_job,  # Используем обёртку
-    trigger='interval',
-    minutes=5,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
-)
-
 # Обёртка для тестового опроса
 def start_new_poll_test_job():
     with app.app_context():
@@ -450,15 +440,7 @@ def start_new_poll_test_job():
             logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
             logger.error(traceback.format_exc())
 
-# Добавление тестового опроса при запуске приложения
-scheduler.add_job(
-    id='Start Test Poll',
-    func=start_new_poll_test_job,  # Используем обёртку
-    trigger='date',
-    run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
-)
-
-# Обёртки для основных задач
+# Обёртка для основной задачи создания опроса
 def start_new_poll_job():
     with app.app_context():
         try:
@@ -468,6 +450,7 @@ def start_new_poll_job():
             logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
             logger.error(traceback.format_exc())
 
+# Обёртка для обработки результатов опроса
 def process_poll_results_job():
     with app.app_context():
         try:
@@ -477,7 +460,18 @@ def process_poll_results_job():
             logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
             logger.error(traceback.format_exc())
 
-# Планирование основных задач голосования с использованием обёрток
+# Инициализация APScheduler с временной зоной UTC
+scheduler = BackgroundScheduler(timezone=pytz.UTC)
+
+# Добавление тестового опроса при запуске приложения
+scheduler.add_job(
+    id='Start Test Poll',
+    func=start_new_poll_test_job,  # Используем обёртку
+    trigger='date',
+    run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
+)
+
+# Планирование основной задачи создания опроса каждые 3 дня
 scheduler.add_job(
     id='Start Poll',
     func=start_new_poll_job,  # Используем обёртку
@@ -485,6 +479,8 @@ scheduler.add_job(
     days=3,
     next_run_time=datetime.now(pytz.UTC)  # Используем timezone-aware datetime
 )
+
+# Планирование задачи обработки результатов опроса каждые 5 минут
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,  # Используем обёртку
@@ -493,6 +489,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
 )
 
+# Запуск планировщика
 scheduler.start()
 
 # Остановка планировщика при завершении приложения
