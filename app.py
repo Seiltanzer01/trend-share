@@ -3,6 +3,7 @@
 import os
 import logging
 import traceback
+import atexit  # Добавляем импорт atexit
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
