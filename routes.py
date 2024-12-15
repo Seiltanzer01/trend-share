@@ -5,6 +5,7 @@ import os
 import logging
 import traceback
 import hashlib
+import matplotlib.pyplot as plt
 import io
 import base64
 from datetime import datetime, timedelta
