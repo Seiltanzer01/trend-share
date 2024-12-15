@@ -478,7 +478,7 @@ def fetch_charts():
     logger.debug(f"Найдено {len(active_polls)} активных опросов.")
 
     for poll in active_polls:
-    logger.debug(f"Обработка опроса ID {poll.id} с инструментами {[pi.instrument.name for pi in poll.poll_instruments]}.")
+        logger.debug(f"Обработка опроса ID {poll.id} с инструментами {[pi.instrument.name for pi in poll.poll_instruments]}.")
         for poll_instrument in poll.poll_instruments:
             instrument = poll_instrument.instrument
             instrument_name = instrument.name
