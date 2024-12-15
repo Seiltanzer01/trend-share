@@ -506,6 +506,7 @@ def vote():
 def fetch_charts():
     """
     API маршрут для получения обновлённых диаграмм предсказаний.
+    Обрабатывает как завершённые, так и активные опросы.
     """
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -515,10 +516,11 @@ def fetch_charts():
     if not user.assistant_premium:
         return jsonify({'error': 'Forbidden'}), 403
 
-    # Получение всех завершённых опросов
+    charts = {}
+
+    # Обработка завершённых опросов
     completed_polls = Poll.query.filter_by(status='completed').all()
 
-    charts = {}
     for poll in completed_polls:
         if not poll.real_prices or not isinstance(poll.real_prices, dict):
             continue
@@ -541,7 +543,6 @@ def fetch_charts():
                 continue
 
             # Построение диаграммы
-            import matplotlib.pyplot as plt
             plt.figure(figsize=(10, 6))
             plt.bar(df['user'], df['predicted_price'], color='blue', label='Предсказанная цена')
             plt.axhline(y=real_price, color='red', linestyle='--', label='Реальная цена')
@@ -552,15 +553,50 @@ def fetch_charts():
             plt.tight_layout()
 
             # Сохранение диаграммы в буфер и преобразование в base64
-            import io
-            import base64
             buf = io.BytesIO()
             plt.savefig(buf, format='png')
             buf.seek(0)
             image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
             plt.close()
 
-            charts[f"{instrument.name} (Опрос {poll.id})"] = image_base64
+            charts[f"Completed - {instrument.name} (Опрос {poll.id})"] = image_base64
+
+    # Обработка активных опросов
+    active_polls = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).all()
+
+    for poll in active_polls:
+        for poll_instrument in poll.poll_instruments:
+            instrument = poll_instrument.instrument
+            instrument_name = instrument.name
+            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
+            if not predictions:
+                continue
+
+            # Создание DataFrame для текущих предсказаний
+            df = pd.DataFrame([{
+                'user': pred.user.username or pred.user.first_name,
+                'predicted_price': pred.predicted_price
+            } for pred in predictions])
+
+            if df.empty:
+                continue
+
+            # Построение диаграммы (например, распределение предсказанных цен)
+            plt.figure(figsize=(10, 6))
+            plt.hist(df['predicted_price'], bins=20, color='green', alpha=0.7)
+            plt.xlabel('Предсказанная Цена')
+            plt.ylabel('Количество Предсказаний')
+            plt.title(f'Распределение Предсказанных Цен для {instrument.name} в Опросе {poll.id} (Активный)')
+            plt.tight_layout()
+
+            # Сохранение диаграммы в буфер и преобразование в base64
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+            charts[f"Active - {instrument.name} (Опрос {poll.id})"] = image_base64
 
     return jsonify({'charts': charts})
 
