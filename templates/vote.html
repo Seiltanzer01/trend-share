@@ -8,8 +8,8 @@
 <div class="nes-container is-rounded">
     <h2>О голосовании</h2>
     <p>Голосование проводится для прогнозирования цен на различные инструменты. Участвуя в голосовании, вы помогаете определить наиболее точные предсказания пользователей и получаете возможность выиграть премиум-доступ к дополнительным функциям.</p>
-    <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') if active_poll else 'N/A' }}</p>
-    <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') if active_poll else 'N/A' }}</p>
+    <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+    <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
 </div>
 
 <br>
@@ -25,28 +25,29 @@
   {% endif %}
 {% endwith %}
 
-<!-- Отображение существующего предсказания -->
-{% if existing_prediction %}
+<!-- Проверяем, есть ли предсказания пользователя -->
+{% if existing_predictions %}
     <div class="nes-container is-rounded is-primary">
-        <h2>Ваше Предсказание</h2>
+        <h2>Ваши Предсказания</h2>
         <ul>
-            <li>
-                <strong>Инструмент:</strong> {{ existing_prediction.instrument.name }}<br>
-                <strong>Предсказанная цена:</strong> {{ existing_prediction.predicted_price }}<br>
-                {% if existing_prediction.real_price %}
-                    <strong>Реальная цена:</strong> {{ existing_prediction.real_price }}<br>
-                    <strong>Отклонение:</strong> {{ existing_prediction.deviation }}%
-                {% else %}
-                    <strong>Реальная цена:</strong> Еще не определена.<br>
-                    <strong>Отклонение:</strong> Еще не рассчитано.
-                {% endif %}
-            </li>
+            {% for prediction in existing_predictions %}
+                <li>
+                    <strong>Инструмент:</strong> {{ prediction.instrument.name }}<br>
+                    <strong>Предсказанная цена:</strong> {{ prediction.predicted_price }}<br>
+                    {% if prediction.real_price %}
+                        <strong>Реальная цена:</strong> {{ prediction.real_price }}<br>
+                        <strong>Отклонение:</strong> {{ prediction.deviation }}%
+                    {% else %}
+                        <strong>Реальная цена:</strong> Еще не определена.<br>
+                        <strong>Отклонение:</strong> Еще не рассчитано.
+                    {% endif %}
+                </li>
+                <hr>
+            {% endfor %}
         </ul>
         <p>Спасибо за участие в голосовании!</p>
     </div>
-{% endif %}
-
-{% if not existing_prediction %}
+{% else %}
     <!-- Форма голосования -->
     <form method="POST">
         {{ form.hidden_tag() }}
