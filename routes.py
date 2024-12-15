@@ -5,6 +5,8 @@ import os
 import logging
 import traceback
 import hashlib
+import io
+import base64
 from datetime import datetime, timedelta
 
 from flask import (
@@ -506,7 +508,7 @@ def vote():
 def fetch_charts():
     """
     API маршрут для получения обновлённых диаграмм предсказаний.
-    Обрабатывает как завершённые, так и активные опросы.
+    Обрабатывает только активные опросы.
     """
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -517,49 +519,6 @@ def fetch_charts():
         return jsonify({'error': 'Forbidden'}), 403
 
     charts = {}
-
-    # Обработка завершённых опросов
-    completed_polls = Poll.query.filter_by(status='completed').all()
-
-    for poll in completed_polls:
-        if not poll.real_prices or not isinstance(poll.real_prices, dict):
-            continue
-        for instrument_name, real_price in poll.real_prices.items():
-            instrument = Instrument.query.filter_by(name=instrument_name).first()
-            if not instrument:
-                continue
-            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
-            if not predictions:
-                continue
-
-            # Создание DataFrame для построения диаграммы
-            df = pd.DataFrame([{
-                'user': pred.user.username or pred.user.first_name,
-                'predicted_price': pred.predicted_price,
-                'deviation': pred.deviation
-            } for pred in predictions if pred.deviation is not None])
-
-            if df.empty:
-                continue
-
-            # Построение диаграммы
-            plt.figure(figsize=(10, 6))
-            plt.bar(df['user'], df['predicted_price'], color='blue', label='Предсказанная цена')
-            plt.axhline(y=real_price, color='red', linestyle='--', label='Реальная цена')
-            plt.xlabel('Пользователь')
-            plt.ylabel('Цена')
-            plt.title(f'Предсказания для {instrument.name} в опросе {poll.id}')
-            plt.legend()
-            plt.tight_layout()
-
-            # Сохранение диаграммы в буфер и преобразование в base64
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png')
-            buf.seek(0)
-            image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close()
-
-            charts[f"Completed - {instrument.name} (Опрос {poll.id})"] = image_base64
 
     # Обработка активных опросов
     active_polls = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).all()
@@ -652,8 +611,6 @@ def predictions_chart():
             plt.tight_layout()
 
             # Сохранение диаграммы в буфер и преобразование в base64
-            import io
-            import base64
             buf = io.BytesIO()
             plt.savefig(buf, format='png')
             buf.seek(0)
