@@ -26,49 +26,90 @@
 {% endwith %}
 
 <!-- Проверяем, есть ли предсказания пользователя -->
-{% if existing_predictions %}
-    <div class="nes-container is-rounded is-primary">
-        <h2>Ваши Предсказания</h2>
-        <ul>
-            {% for prediction in existing_predictions %}
-                <li>
-                    <strong>Инструмент:</strong> {{ prediction.instrument.name }}<br>
-                    <strong>Предсказанная цена:</strong> {{ prediction.predicted_price }}<br>
-                    {% if prediction.real_price %}
-                        <strong>Реальная цена:</strong> {{ prediction.real_price }}<br>
-                        <strong>Отклонение:</strong> {{ prediction.deviation }}%
-                    {% else %}
-                        <strong>Реальная цена:</strong> Еще не определена.<br>
-                        <strong>Отклонение:</strong> Еще не рассчитано.
-                    {% endif %}
-                </li>
-                <hr>
-            {% endfor %}
-        </ul>
-        <p>Спасибо за участие в голосовании!</p>
-    </div>
-{% else %}
-    <!-- Форма голосования -->
-    <form method="POST">
-        {{ form.hidden_tag() }}
-        <div class="nes-field">
-            {{ form.instrument.label }}<br>
-            {{ form.instrument(class="nes-select") }}
-            {% for error in form.instrument.errors %}
-                <span style="color: red;">[{{ error }}]</span>
-            {% endfor %}
+<div id="predictions-container">
+    {% if existing_predictions %}
+        <div class="nes-container is-rounded is-primary">
+            <h2>Ваши Предсказания</h2>
+            <ul id="predictions-list">
+                {% for prediction in existing_predictions %}
+                    <li>
+                        <strong>Инструмент:</strong> {{ prediction.instrument.name }}<br>
+                        <strong>Предсказанная цена:</strong> {{ prediction.predicted_price }}<br>
+                        {% if prediction.real_price %}
+                            <strong>Реальная цена:</strong> {{ prediction.real_price }}<br>
+                            <strong>Отклонение:</strong> {{ prediction.deviation }}%
+                        {% else %}
+                            <strong>Реальная цена:</strong> Еще не определена.<br>
+                            <strong>Отклонение:</strong> Еще не рассчитано.
+                        {% endif %}
+                    </li>
+                    <hr>
+                {% endfor %}
+            </ul>
+            <p>Спасибо за участие в голосовании!</p>
         </div>
-        <div class="nes-field">
-            {{ form.predicted_price.label }}<br>
-            {{ form.predicted_price(class="nes-input", placeholder="Введите ожидаемую цену") }}
-            {% for error in form.predicted_price.errors %}
-                <span style="color: red;">[{{ error }}]</span>
-            {% endfor %}
-        </div>
-        <div class="nes-field">
-            {{ form.submit(class="nes-btn is-primary") }}
-        </div>
-    </form>
-{% endif %}
+    {% else %}
+        <!-- Форма голосования -->
+        <form method="POST" id="prediction-form">
+            {{ form.hidden_tag() }}
+            <div class="nes-field">
+                {{ form.instrument.label }}<br>
+                {{ form.instrument(class="nes-select") }}
+                {% for error in form.instrument.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </div>
+            <div class="nes-field">
+                {{ form.predicted_price.label }}<br>
+                {{ form.predicted_price(class="nes-input", placeholder="Введите ожидаемую цену") }}
+                {% for error in form.predicted_price.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            </div>
+            <div class="nes-field">
+                {{ form.submit(class="nes-btn is-primary") }}
+            </div>
+        </form>
+    {% endif %}
+</div>
+
+<!-- Скрипт для автоматического обновления предсказаний -->
+<script>
+    function fetchPredictions() {
+        fetch("{{ url_for('fetch_predictions') }}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+
+                const predictionsList = document.getElementById('predictions-list');
+                predictionsList.innerHTML = ''; // Очистить текущие предсказания
+
+                data.predictions.forEach(prediction => {
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `
+                        <strong>Инструмент:</strong> ${prediction.instrument}<br>
+                        <strong>Предсказанная цена:</strong> ${prediction.predicted_price}<br>
+                        ${prediction.real_price !== null ? `<strong>Реальная цена:</strong> ${prediction.real_price}<br>
+                        <strong>Отклонение:</strong> ${prediction.deviation.toFixed(2)}%` : `<strong>Реальная цена:</strong> Еще не определена.<br>
+                        <strong>Отклонение:</strong> Еще не рассчитано.`}
+                        <hr>
+                    `;
+                    predictionsList.appendChild(listItem);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching predictions:', error);
+            });
+    }
+
+    // Обновлять предсказания каждые 30 секунд
+    setInterval(fetchPredictions, 30000);
+
+    // Вызовем функцию при загрузке страницы
+    window.onload = fetchPredictions;
+</script>
 
 {% endblock %}
