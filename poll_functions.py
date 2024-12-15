@@ -30,6 +30,7 @@ YFINANCE_TICKERS = {
     'ETH-USD': 'ETH-USD',
     'LTC-USD': 'LTC-USD',
     'XRP-USD': 'XRP-USD',
+    'NEO/USDT': 'NEO-USD',
     'BCH-USD': 'BCH-USD',
     'EUR/USD': 'EURUSD=X',
     'GBP/USD': 'GBPUSD=X',
