@@ -86,7 +86,7 @@ yfinance
 matplotlib
 Flask-APScheduler
 pytz
-
+psycopg2
 
 
 
