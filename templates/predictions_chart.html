@@ -86,5 +86,8 @@
 
     // Обновляем диаграммы каждые 30 секунд
     setInterval(fetchCharts, 30000);
+
+    // Вызовем функцию при загрузке страницы
+    window.onload = fetchCharts;
 </script>
 {% endblock %}
