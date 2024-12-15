@@ -5,7 +5,7 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 
-import pytz  # Импортируем pytz
+import pytz
 import boto3
 import atexit
 from botocore.exceptions import ClientError
@@ -72,7 +72,7 @@ if not secret_key_env:
 app.secret_key = secret_key_env
 
 # Настройки базы данных
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trades.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://user:password@host:port/dbname?sslmode=require')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Настройки APP_HOST для формирования ссылок
@@ -415,6 +415,34 @@ def create_predefined_data():
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
+# Обёртки для задач APScheduler
+def start_new_poll_test_job():
+    with app.app_context():
+        try:
+            start_new_poll(test_mode=True)
+            logger.info("Задача 'Start Test Poll' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
+            logger.error(traceback.format_exc())
+
+def start_new_poll_job():
+    with app.app_context():
+        try:
+            start_new_poll()
+            logger.info("Задача 'Start Poll' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
+            logger.error(traceback.format_exc())
+
+def process_poll_results_job():
+    with app.app_context():
+        try:
+            process_poll_results()
+            logger.info("Задача 'Process Poll Results' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
+            logger.error(traceback.format_exc())
+
 # Инициализация данных при первом запуске
 @app.before_first_request
 def initialize():
@@ -429,36 +457,6 @@ def initialize():
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
-
-# Обёртка для тестового опроса
-def start_new_poll_test_job():
-    with app.app_context():
-        try:
-            start_new_poll(test_mode=True)
-            logger.info("Задача 'Start Test Poll' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
-            logger.error(traceback.format_exc())
-
-# Обёртка для основной задачи создания опроса
-def start_new_poll_job():
-    with app.app_context():
-        try:
-            start_new_poll()
-            logger.info("Задача 'Start Poll' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
-            logger.error(traceback.format_exc())
-
-# Обёртка для обработки результатов опроса
-def process_poll_results_job():
-    with app.app_context():
-        try:
-            process_poll_results()
-            logger.info("Задача 'Process Poll Results' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
-            logger.error(traceback.format_exc())
 
 # Инициализация APScheduler с временной зоной UTC
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
