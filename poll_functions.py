@@ -146,7 +146,7 @@ def start_new_poll(test_mode=False):
     if test_mode:
         duration = timedelta(minutes=1)  # Для тестирования устанавливаем 1 минуту
     else:
-        duration = timedelta(days=3)     # В продакшене устанавливайте 3 дня
+        duration = timedelta(minutes=5)     # В продакшене устанавливайте 3 дня
 
     # Создание опроса
     poll = Poll(
