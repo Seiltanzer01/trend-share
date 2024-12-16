@@ -417,6 +417,38 @@ def vote():
                     flash('Вы уже голосовали для этого инструмента в этом опросе.', 'info')
                     return render_template('vote.html', form=None, active_poll=active_poll, existing_predictions=existing_predictions)
 
+                # **Добавленные проверки**
+
+                # 1. Ограничение по времени: предсказание должно быть отправлено за 1 день до закрытия опроса
+                now = datetime.utcnow()
+                one_day_before_end = active_poll.end_date - timedelta(days=1)
+                if now > one_day_before_end:
+                    flash('Вы не можете отправлять предсказания менее чем за 1 день до закрытия голосования.', 'danger')
+                    logger.info(f"Пользователь ID {user_id} попытался отправить предсказание слишком поздно для опроса ID {active_poll.id}.")
+                    return redirect(url_for('vote'))
+
+                # 2. Ограничение по цене: предсказанная цена должна быть в пределах ±20% от текущей реальной цены
+                instrument = Instrument.query.get(selected_instrument_id)
+                if not instrument:
+                    flash('Выбранный инструмент не существует.', 'danger')
+                    logger.error(f"Инструмент ID {selected_instrument_id} не найден.")
+                    return redirect(url_for('vote'))
+
+                real_price = get_real_price(instrument.name)
+                if real_price is None:
+                    flash('Не удалось получить текущую реальную цену для выбранного инструмента. Попробуйте позже.', 'danger')
+                    logger.error(f"Не удалось получить реальную цену для инструмента {instrument.name}.")
+                    return redirect(url_for('vote'))
+
+                lower_bound = 0.8 * real_price
+                upper_bound = 1.2 * real_price
+                if not (lower_bound <= predicted_price <= upper_bound):
+                    flash(f'Предсказанная цена должна быть в диапазоне от {lower_bound:.2f} до {upper_bound:.2f}.', 'danger')
+                    logger.info(f"Пользователь ID {user_id} отправил предсказание {predicted_price} вне допустимого диапазона для инструмента {instrument.name}. Реальная цена: {real_price}.")
+                    return redirect(url_for('vote'))
+
+                # **Конец добавленных проверок**
+
                 # Создаём предсказание
                 user_prediction = UserPrediction(
                     user_id=user_id,
