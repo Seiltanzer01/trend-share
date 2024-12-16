@@ -16,43 +16,43 @@ from flask import current_app
 
 # Маппинг инструментов к тикерам yfinance
 YFINANCE_TICKERS = {
-    'Crude Oil': 'CL=F',
-    'Gold': 'GC=F',
-    'Silver': 'SI=F',
-    'Natural Gas': 'NG=F',
-    'Copper': 'HG=F',
-    'Corn': 'C=F',
-    'Wheat': 'W=F',
-    'Soybean': 'S=F',
-    'Coffee': 'KC=F',
-    'Sugar': 'SB=F',
-    'BTC-USD': 'BTC-USD',
-    'ETH-USD': 'ETH-USD',
-    'LTC-USD': 'LTC-USD',
-    'XRP-USD': 'XRP-USD',
-    'NEO/USDT': 'NEO-USD',
-    'BCH-USD': 'BCH-USD',
-    'EUR/USD': 'EURUSD=X',
-    'GBP/USD': 'GBPUSD=X',
-    'USD/JPY': 'JPY=X',
-    'USD/CHF': 'CHF=X',
-    'AUD/USD': 'AUDUSD=X',
-    'USD/CAD': 'CAD=X',
-    'NZD/USD': 'NZDUSD=X',
-    'EUR/GBP': 'EURGBP=X',
-    'EUR/JPY': 'EURJPY=X',
-    'GBP/JPY': 'GBPJPY=X',
-    'S&P 500': '^GSPC',
-    'Dow Jones': '^DJI',
-    'NASDAQ': '^IXIC',
-    'DAX': '^GDAXI',
-    'FTSE 100': '^FTSE',
-    'CAC 40': '^FCHI',
-    'Nikkei 225': '^N225',
-    'Hang Seng': '^HSI',
-    'ASX 200': '^AXJO',
-    'Euro Stoxx 50': '^STOXX50E',
-    # Добавьте другие маппинги по необходимости
+    'Crude Oil': 'CL=F',        # WTI Crude Oil Futures
+    'Gold': 'GC=F',             # Gold Futures
+    'Silver': 'SI=F',           # Silver Futures
+    'Natural Gas': 'NG=F',      # Natural Gas Futures
+    'Copper': 'HG=F',           # Copper Futures
+    'Corn': 'ZC=F',             # Corn Futures
+    'Wheat': 'ZW=F',            # Wheat Futures
+    'Soybeans': 'ZS=F',         # Soybean Futures
+    'Coffee': 'KC=F',           # Coffee Futures
+    'Sugar': 'SB=F',            # Sugar Futures
+    'BTC-USD': 'BTC-USD',       # Bitcoin to USD
+    'ETH-USD': 'ETH-USD',       # Ethereum to USD
+    'LTC-USD': 'LTC-USD',       # Litecoin to USD
+    'XRP-USD': 'XRP-USD',       # Ripple to USD
+    'NEO/USDT': 'NEO-USD',      # NEO to USD
+    'BCH-USD': 'BCH-USD',       # Bitcoin Cash to USD
+    'EUR/USD': 'EURUSD=X',      # Euro to USD
+    'GBP/USD': 'GBPUSD=X',      # British Pound to USD
+    'USD/JPY': 'JPY=X',         # USD to Japanese Yen
+    'USD/CHF': 'CHF=X',         # USD to Swiss Franc
+    'AUD/USD': 'AUDUSD=X',      # Australian Dollar to USD
+    'USD/CAD': 'CAD=X',         # USD to Canadian Dollar
+    'NZD/USD': 'NZDUSD=X',      # New Zealand Dollar to USD
+    'EUR/GBP': 'EURGBP=X',      # Euro to British Pound
+    'EUR/JPY': 'EURJPY=X',      # Euro to Japanese Yen
+    'GBP/JPY': 'GBPJPY=X',      # British Pound to Japanese Yen
+    'S&P 500': '^GSPC',         # S&P 500 Index
+    'Dow Jones': '^DJI',        # Dow Jones Industrial Average
+    'NASDAQ': '^IXIC',          # NASDAQ Composite
+    'DAX': '^GDAXI',            # DAX Performance Index
+    'FTSE 100': '^FTSE',        # FTSE 100 Index
+    'CAC 40': '^FCHI',          # CAC 40 Index
+    'Nikkei 225': '^N225',      # Nikkei 225 Index
+    'Hang Seng': '^HSI',        # Hang Seng Index
+    'ASX 200': '^AXJO',         # S&P/ASX 200 Index
+    'Euro Stoxx 50': '^STOXX50E' # EURO STOXX 50 Index
+    #нужно добавить другие
 }
 
 def update_real_prices_for_active_polls():
