@@ -35,6 +35,28 @@ from functools import wraps
 import openai
 import yfinance as yf
 
+def generate_openai_response(messages):
+    """
+    Получает ответ от OpenAI GPT-3.5-turbo с учётом истории сообщений.
+    """
+    try:
+        logger.debug(f"Sending messages to OpenAI: {messages}")
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1500,  # Увеличено для более подробных ответов
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0
+        )
+        logger.debug(f"Received response from OpenAI: {response}")
+        return response.choices[0].message['content'].strip()
+    except Exception as e:
+        logger.error(f"Ошибка при обращении к OpenAI API: {e}")
+        logger.error(traceback.format_exc())
+        return "Произошла ошибка при обработке вашего запроса."
+        
 # **Импорт дополнительных библиотек для обработки изображений и упрощённой нейросети**
 import cv2
 import numpy as np
