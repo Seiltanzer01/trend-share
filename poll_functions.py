@@ -23,7 +23,7 @@ YFINANCE_TICKERS = {
     'Copper': 'HG=F',           # Copper Futures
     'Corn': 'ZC=F',             # Corn Futures
     'Wheat': 'ZW=F',            # Wheat Futures
-    'Soybeans': 'ZS=F',         # Soybean Futures
+    'Soybean': 'ZS=F',         # Soybean Futures
     'Coffee': 'KC=F',           # Coffee Futures
     'Sugar': 'SB=F',            # Sugar Futures
     'BTC-USD': 'BTC-USD',       # Bitcoin to USD
