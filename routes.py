@@ -1,5 +1,6 @@
 # routes.py
-
+from best_setup_voting import init_best_setup_voting_routes
+init_best_setup_voting_routes(app, db)
 import pytz
 import os
 import logging
