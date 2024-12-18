@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Установка адреса кошелька</h2>
+<p>Для получения токенов после голосования введите свой адрес кошелька в сети Base (формат 0x... 42 символа).</p>
+
+<form method="post" class="nes-container is-rounded" style="padding: 1em;">
+    <div class="nes-field">
+        <label for="wallet_address">Адрес кошелька:</label>
+        <input type="text" name="wallet_address" id="wallet_address" class="nes-input" placeholder="0x...">
+    </div>
+    <br>
+    <button type="submit" class="nes-btn is-primary"><i class="fas fa-save"></i> Сохранить</button>
+</form>
+{% endblock %}
