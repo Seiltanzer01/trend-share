@@ -496,6 +496,15 @@ scheduler.add_job(
     run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
 )
 
+# Добавляем в APScheduler задачу автозавершения каждые 5 минут
+scheduler.add_job(
+    id='Auto Finalize Best Setup Voting',
+    func=lambda: auto_finalize_best_setup_voting(),
+    trigger='interval',
+    minutes=5,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
+)
+
 # Планирование основной задачи создания опроса каждые 3 дня
 scheduler.add_job(
     id='Start Poll',
