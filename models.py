@@ -199,3 +199,26 @@ class PriceHistory(db.Model):
     instrument = db.relationship('Instrument', back_populates='price_history')
     
     __table_args__ = (db.UniqueConstraint('instrument_id', 'date', name='_instrument_date_uc'),)
+
+class BestSetupCandidate(db.Model):
+    __tablename__ = 'best_setup_candidate'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=False)
+    total_trades = db.Column(db.Integer, nullable=False)
+    win_rate = db.Column(db.Float, nullable=False)  # В процентах
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class BestSetupVote(db.Model):
+    __tablename__ = 'best_setup_vote'
+    id = db.Column(db.Integer, primary_key=True)
+    voter_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    candidate_id = db.Column(db.Integer, db.ForeignKey('best_setup_candidate.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class BestSetupPoll(db.Model):
+    __tablename__ = 'best_setup_poll'
+    id = db.Column(db.Integer, primary_key=True)
+    start_date = db.Column(db.DateTime, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default='active')  # active, completed
