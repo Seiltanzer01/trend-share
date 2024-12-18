@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Голосование за Лучший Сетап</h2>
+<p>Ниже представлены лучшие сетапы. Авторы анонимны. Посмотрите на описание, критерии и статистику, затем проголосуйте за один.</p>
+
+<form action="{{ url_for('best_setup_voting.vote_best_setup') }}" method="post" class="nes-container is-rounded" style="padding: 1.5em;">
+    <div class="nes-field">
+        <label><i class="fas fa-vote-yea"></i> Выберите один сетап для голосования:</label>
+    </div>
+
+    <div class="setups-container" style="display: flex; flex-wrap: wrap; gap: 1em; justify-content: center;">
+        {% for c in candidates %}
+        <div class="nes-container is-rounded with-title setup-card" style="width: 300px; position: relative;">
+            <p class="title">Сетап №{{ loop.index }}</p>
+            <label style="position: absolute; top: 10px; right: 10px;">
+                <input type="radio" name="candidate_id" value="{{ c.candidate_id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
+            </label>
+
+            {% set setup = setups[c.candidate_id] %}
+            {% if setup.screenshot_url %}
+                <div style="text-align: center; margin-bottom: 1em;">
+                    <img src="{{ setup.screenshot_url }}" alt="Сетап" class="screenshot lazyload" style="max-width: 100%; cursor: zoom-in;" data-src="{{ setup.screenshot_url }}">
+                </div>
+            {% endif %}
+
+            <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
+                <p><strong>Автор:</strong> Анонимный трейдер</p>
+                <p><strong>Название:</strong> {{ setup.setup_name }}</p>
+                <p><strong>Описание:</strong> {{ setup.description if setup.description else "Нет описания" }}</p>
+            </div>
+
+            <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
+                <strong>Критерии:</strong>
+                {% if setup.criteria %}
+                    <ul class="nes-list is-disc">
+                        {% for crit in setup.criteria %}
+                        <li>{{ crit.name }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>Нет критериев</p>
+                {% endif %}
+            </div>
+
+            <div class="nes-container is-rounded" style="background: #fff; color: #000;">
+                <p><strong>Количество сделок:</strong> {{ c.total_trades }}</p>
+                <p><strong>Win Rate:</strong> {{ c.win_rate }}%</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <br>
+    <div style="text-align: center;">
+        <button type="submit" class="nes-btn is-success"><i class="fas fa-check"></i> Проголосовать</button>
+    </div>
+</form>
+
+<div id="modal" class="modal" style="display:none;">
+    <span class="close">&times;</span>
+    <img class="modal-content" id="modal-img" alt="Full view">
+</div>
+
+<script>
+$(document).ready(function(){
+    const modal = document.getElementById("modal");
+    const modalImg = document.getElementById("modal-img");
+    const closeBtn = document.getElementsByClassName("close")[0];
+
+    $(".screenshot").on("click", function() {
+        modal.style.display = "block";
+        modalImg.src = $(this).attr("data-src");
+    });
+
+    closeBtn.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+});
+</script>
+{% endblock %}
