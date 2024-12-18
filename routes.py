@@ -21,8 +21,6 @@ from wtforms.validators import DataRequired, Optional
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
 from models import *
 from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
-from best_setup_voting import init_best_setup_voting_routes
-init_best_setup_voting_routes(app, db)
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 )
