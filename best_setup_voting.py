@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, request, render_template, flash, redirect, url_for, session, current_app
-from models import db, User, Trade, Setup, Criterion, Config
+from models import db, User, Trade, Setup, Criterion, Config, BestSetupCandidate, BestSetupVote, BestSetupPoll
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
 from eth_account import Account
@@ -14,29 +14,6 @@ from eth_account import Account
 logger = logging.getLogger(__name__)
 
 best_setup_voting_bp = Blueprint('best_setup_voting', __name__)
-
-class BestSetupCandidate(db.Model):
-    __tablename__ = 'best_setup_candidate'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    setup_id = db.Column(db.Integer, db.ForeignKey('setup.id'), nullable=False)
-    total_trades = db.Column(db.Integer, nullable=False)
-    win_rate = db.Column(db.Float, nullable=False)  # В процентах
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class BestSetupVote(db.Model):
-    __tablename__ = 'best_setup_vote'
-    id = db.Column(db.Integer, primary_key=True)
-    voter_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    candidate_id = db.Column(db.Integer, db.ForeignKey('best_setup_candidate.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class BestSetupPoll(db.Model):
-    __tablename__ = 'best_setup_poll'
-    id = db.Column(db.Integer, primary_key=True)
-    start_date = db.Column(db.DateTime, default=datetime.utcnow)
-    end_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='active')  # active, completed
 
 def admin_required(f):
     @wraps(f)
