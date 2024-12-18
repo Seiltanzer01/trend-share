@@ -13,6 +13,8 @@ from models import (
     db
 )
 from flask import current_app
+from best_setup_voting import init_best_setup_voting_routes, auto_finalize_best_setup_voting
+init_best_setup_voting_routes(app, db)
 
 # Маппинг инструментов к тикерам yfinance
 YFINANCE_TICKERS = {
