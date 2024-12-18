@@ -71,7 +71,7 @@ account = None
 
 if BASE_RPC_URL and PRIVATE_KEY and TOKEN_CONTRACT_ADDRESS:
     web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
-    if web3.isConnected():
+    if web3.is_connected():
         logger.info("Подключено к RPC сети Base.")
         web3.middleware_onion.inject(geth_poa_middleware, layer=0)
         account = Account.from_key(PRIVATE_KEY)
