@@ -81,6 +81,9 @@
                         <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
                         <!-- Ссылка на диаграммы доступна только премиум-пользователям -->
                         <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> Диаграммы</a>
+                 <!-- Новые пункты для премиум пользователей -->
+                        <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Установить Кошелек</a>
+                        <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> Лучший Сетап</a>
                     {% endif %}
                     
                     {% if session.get('telegram_id') in ADMIN_TELEGRAM_IDS %}
