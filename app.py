@@ -4,6 +4,7 @@ import os
 import logging
 import traceback
 import atexit  # Добавляем импорт atexit
+from best_setup_voting import init_best_setup_voting_routes, auto_finalize_best_setup_voting
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
