@@ -25,6 +25,7 @@ class User(db.Model):
     auth_token_creation_time = db.Column(db.DateTime, nullable=True)
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     assistant_premium = db.Column(db.Boolean, default=False)
+    wallet_address = db.Column(db.String(42), nullable=True)
     trades = db.relationship('Trade', back_populates='user', lazy=True)
     setups = db.relationship('Setup', back_populates='user', lazy=True)
     predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)
