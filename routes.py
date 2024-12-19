@@ -941,7 +941,7 @@ def init():
             return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
     else:
         logger.warning("initData отсутствует в AJAX-запросе.")
-        return jsonify({'status': 'failure', 'message': 'initData missing'}), 400
+        return jsonify({'status': 'failure', 'message': 'Go to Telegram'}), 400
 
 @app.route('/admin/users')
 @admin_required
