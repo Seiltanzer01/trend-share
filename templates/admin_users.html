@@ -13,7 +13,7 @@
 <h2>Админ Панель</h2>
 
 <form action="{{ url_for('best_setup_voting.start_best_setup_contest') }}" method="post" class="nes-container is-rounded" style="margin-bottom: 1em;">
-    {{ csrf_token }}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="nes-btn is-primary"><i class="fas fa-flag"></i> Запустить Голосование за Лучший Сетап (раз в месяц)</button>
 </form>
 
