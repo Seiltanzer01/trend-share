@@ -93,7 +93,7 @@ if BASE_RPC_URL and PRIVATE_KEY and TOKEN_CONTRACT_ADDRESS:
             }
         ]
 
-        token_contract = web3.eth.contract(address=Web3.toChecksumAddress(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+        token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
     else:
         logger.error("Не удалось подключиться к сети Base.")
 
