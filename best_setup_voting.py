@@ -25,7 +25,7 @@ def admin_required(f):
         if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
             flash('Доступ запрещён.', 'danger')
             return redirect(url_for('index'))
-        return f(*args, **kwargs)
+        return f(*args, **kwargs)  # Добавьте эту строку
     return decorated_function
 
 def premium_required(f):
@@ -38,7 +38,8 @@ def premium_required(f):
         if not user or not user.assistant_premium:
             flash('Доступ запрещён. Приобретите премиум-подписку.', 'danger')
             return redirect(url_for('index'))
-        return f(*args, **kwargs)
+        return f(*args, **kwargs)  # Добавьте эту строку
+    return decorated_function
 
 def ensure_wallet(f):
     @wraps(f)
@@ -51,7 +52,7 @@ def ensure_wallet(f):
         if not user.wallet_address:
             flash('Для участия в голосовании введите свой адрес кошелька.', 'info')
             return redirect(url_for('best_setup_voting.set_wallet'))
-        return f(*args, **kwargs)
+        return f(*args, **kwargs)  # Добавьте эту строку
     return decorated_function
 
 def get_active_poll():
