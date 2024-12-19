@@ -5,7 +5,7 @@
 <p>Для получения токенов после голосования введите свой адрес кошелька в сети Base (формат 0x... 42 символа).</p>
 
 <form method="post" class="nes-container is-rounded" style="padding: 1em;">
-    {{ csrf_token() }}
+    {{ csrf_token }}
     <div class="nes-field">
         <label for="wallet_address">Адрес кошелька:</label>
         <input type="text" name="wallet_address" id="wallet_address" class="nes-input" placeholder="0x...">
