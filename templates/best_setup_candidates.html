@@ -5,7 +5,7 @@
 <p>Ниже представлены лучшие сетапы. Авторы анонимны. Посмотрите на описание, критерии и статистику, затем проголосуйте за один.</p>
 
 <form action="{{ url_for('best_setup_voting.vote_best_setup') }}" method="post" class="nes-container is-rounded" style="padding: 1.5em;">
-    {{ csrf_token() }}
+    {{ csrf_token }}
     <div class="nes-field">
         <label><i class="fas fa-vote-yea"></i> Выберите один сетап для голосования:</label>
     </div>
