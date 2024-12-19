@@ -305,7 +305,8 @@ def set_wallet():
         else:
             flash('Некорректный адрес кошелька.', 'danger')
 
-    return render_template('set_wallet.html')
+    # Передаем user в шаблон
+    return render_template('set_wallet.html', user=user)
 
 def auto_finalize_best_setup_voting():
     """Вызывается APScheduler-ом каждые 5 минут. Завершает голосование при наступлении времени."""
