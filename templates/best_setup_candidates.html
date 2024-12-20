@@ -15,10 +15,10 @@
         <div class="nes-container is-rounded with-title setup-card" style="width: 300px; position: relative;">
             <p class="title">Сетап №{{ loop.index }}</p>
             <label style="position: absolute; top: 10px; right: 10px;">
-                <input type="radio" name="candidate_id" value="{{ c.candidate_id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
+                <input type="radio" name="candidate_id" value="{{ c.id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
             </label>
 
-            {% set setup = setups[c.candidate_id] %}
+            {% set setup = setups[c.id] %}
             {% if setup.screenshot_url %}
                 <div style="text-align: center; margin-bottom: 1em;">
                     <img src="{{ setup.screenshot_url }}" alt="Сетап" class="screenshot lazyload" style="max-width: 100%; cursor: zoom-in;" data-src="{{ setup.screenshot_url }}">
@@ -65,6 +65,13 @@
 
 <script>
 $(document).ready(function(){
+    $('form').on('submit', function(e) {
+        if (!$('input[name="candidate_id"]:checked').val()) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите сетап для голосования.');
+        }
+    });
+
     const modal = document.getElementById("modal");
     const modalImg = document.getElementById("modal-img");
     const closeBtn = document.getElementsByClassName("close")[0];
