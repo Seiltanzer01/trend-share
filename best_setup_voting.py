@@ -367,5 +367,24 @@ def auto_finalize_best_setup_voting():
         db.session.commit()
         logger.info("Голосование завершено автоматически.")
 
+@best_setup_voting_bp.route('/force_finalize_best_setup_voting', methods=['POST'])
+@admin_required
+def force_finalize_best_setup():
+    """Принудительно завершаем текущее голосование для тестирования."""
+    poll = BestSetupPoll.query.filter_by(status='active').first()
+    if not poll:
+        flash("Нет активного голосования для завершения.", "warning")
+        return redirect(url_for('admin_users'))
+
+    # Устанавливаем end_date в прошлое, чтобы оно было завершено
+    poll.end_date = datetime.utcnow() - timedelta(minutes=1)
+    db.session.commit()
+
+    # Вызываем логику финализации
+    auto_finalize_best_setup_voting()
+
+    flash("Активное голосование принудительно завершено.", "success")
+    return redirect(url_for('admin_users'))
+
 def init_best_setup_voting_routes(app, db_instance):
     app.register_blueprint(best_setup_voting_bp)
