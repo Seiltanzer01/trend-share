@@ -274,12 +274,17 @@ def best_setup_candidates():
 
     for c in candidates:
         setup = Setup.query.get(c.setup_id)
-        if setup.screenshot:
-            setup.screenshot_url = generate_s3_url(setup.screenshot)
+        if setup:
+            if setup.screenshot:
+                setup.screenshot_url = generate_s3_url(setup.screenshot)
+            else:
+                setup.screenshot_url = None
+            criteria_list = setup.criteria
+            setup.criteria = criteria_list
         else:
-            setup.screenshot_url = None
-        criteria_list = setup.criteria
-        setup.criteria = criteria_list
+            logger.warning(f"Setup with id {c.setup_id} not found for candidate {c.id}")
+            setup = None
+
         data[c.id] = {
             'candidate_id': c.id,
             'win_rate': c.win_rate,
