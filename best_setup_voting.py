@@ -300,9 +300,19 @@ def vote_best_setup():
         flash("Нет активного голосования.", "info")
         return redirect(url_for('index'))
 
+    # Добавляем логирование для отладки
+    logger.debug(f"Полученные данные формы: {request.form}")
+
     candidate_id = request.form.get('candidate_id')
     if not candidate_id:
         flash('Не выбран кандидат для голосования.', 'danger')
+        return redirect(url_for('best_setup_voting.best_setup_candidates'))
+
+    try:
+        candidate_id = int(candidate_id)
+    except ValueError:
+        flash('Некорректный идентификатор кандидата.', 'danger')
+        logger.error(f"Некорректный идентификатор кандидата: {candidate_id}")
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     candidate = BestSetupCandidate.query.get(candidate_id)
@@ -321,8 +331,7 @@ def vote_best_setup():
 
     vote = BestSetupVote(
         voter_user_id=user_id,
-        candidate_id=candidate_id,
-        poll_id=poll.id  # Связь с текущим опросом
+        candidate_id=candidate_id
     )
     db.session.add(vote)
     db.session.commit()
