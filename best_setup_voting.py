@@ -168,7 +168,7 @@ def start_best_setup_contest():
         # Если хотим запускать раз в месяц, это условие проверяет, 
         # что с последнего запуска прошло >=30 дней.
         # Чтобы изменить период, меняем число 30.
-        if (datetime.utcnow() - last_poll_date).days < 30:
+        if (datetime.utcnow() - last_poll_date).days < 1:
             flash("Голосование запускается раз в месяц, ещё рано.", "warning")
             return redirect(url_for('admin_users'))
 
@@ -203,7 +203,8 @@ def start_best_setup_contest():
         for setup in setups:
             trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
             total_trades = len(trades)
-            if total_trades < 30:
+            #количество сделок для оценки
+            if total_trades < 2:
                 continue
             wins = sum(1 for t in trades if t.profit_loss and t.profit_loss > 0)
             win_rate = (wins / total_trades) * 100.0 if total_trades > 0 else 0.0
