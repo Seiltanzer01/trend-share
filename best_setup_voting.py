@@ -168,7 +168,7 @@ def start_best_setup_contest():
         # Если хотим запускать раз в месяц, это условие проверяет, 
         # что с последнего запуска прошло >=30 дней.
         # Чтобы изменить период, меняем число 30.
-        if (datetime.utcnow() - last_poll_date).days < 1:
+        if (datetime.utcnow() - last_poll_date).minutes < 15:
             flash("Голосование запускается раз в месяц, ещё рано.", "warning")
             return redirect(url_for('admin_users'))
 
