@@ -107,36 +107,44 @@ def send_token_reward(user_wallet, amount):
         logger.warning(f"Некорректный адрес кошелька: {user_wallet}")
         return False
 
-    nonce = web3.eth.get_transaction_count(account.address)
-    token_amount = int(amount * (10**TOKEN_DECIMALS))
+    try:
+        nonce = web3.eth.get_transaction_count(account.address)
+        token_amount = int(amount * (10**TOKEN_DECIMALS))
 
-    tx = token_contract.functions.transfer(Web3.to_checksum_address(user_wallet), token_amount).build_transaction({
-        'from': account.address,
-        'nonce': nonce,
-        'gas': 100000,
-        'gasPrice': web3.toWei('1', 'gwei')
-    })
+        tx = token_contract.functions.transfer(Web3.to_checksum_address(user_wallet), token_amount).build_transaction({
+            'from': account.address,
+            'nonce': nonce,
+            'gas': 100000,
+            'gasPrice': web3.toWei('1', 'gwei')
+        })
 
-    signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-    if receipt and receipt.status == 1:
-        logger.info(f"Отправлено {amount} токенов на {user_wallet}. TX: {receipt.transactionHash.hex()}")
-        return True
-    else:
-        logger.error(f"Транзакция неудачна или нет статуса: {receipt}")
+        signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        if receipt and receipt.status == 1:
+            logger.info(f"Отправлено {amount} токенов на {user_wallet}. TX: {receipt.transactionHash.hex()}")
+            return True
+        else:
+            logger.error(f"Транзакция неудачна или нет статуса: {receipt}")
+            return False
+    except Exception as e:
+        logger.error(f"Ошибка при отправке токенов: {e}")
+        logger.error(traceback.format_exc())
         return False
 
 ### АНТИ-СПАМ МЕХАНИЗМ ###
 def is_spammer(user_id):
-    # Изменение логики анти-спама:
     # Если хотя бы 2 дня из последних 7 дней было >=10 сделок в день, то спамщик.
     now = datetime.utcnow()
     spam_days = 0
     for i in range(7):
         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
-        daily_count = Trade.query.filter(Trade.user_id == user_id, Trade.trade_open_time >= day_start, Trade.trade_open_time < day_end).count()
+        daily_count = Trade.query.filter(
+            Trade.user_id == user_id,
+            Trade.trade_open_time >= day_start,
+            Trade.trade_open_time < day_end
+        ).count()
         if daily_count >= 10:
             spam_days += 1
     if spam_days >= 2:
@@ -164,35 +172,42 @@ def start_best_setup_contest():
 
     last_poll_conf = Config.query.filter_by(key='last_best_setup_poll').first()
     if last_poll_conf:
-        last_poll_date = datetime.strptime(last_poll_conf.value, '%Y-%m-%d')
-        # Если хотим запускать раз в месяц, это условие проверяет, 
-        # что с последнего запуска прошло >=30 дней.
-        # Чтобы изменить период, меняем число 30.
-        if (datetime.utcnow() - last_poll_date).minutes < 15:
-            flash("Голосование запускается раз в месяц, ещё рано.", "warning")
+        try:
+            last_poll_date = datetime.strptime(last_poll_conf.value, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            flash("Неверный формат даты последнего голосования.", "danger")
+            logger.error("Неверный формат даты в last_best_setup_poll.")
             return redirect(url_for('admin_users'))
 
-    # Изменено: длительность голосования 10 минут вместо 7 дней
-    # Чтобы изменить длительность голосования, меняем timedelta(minutes=10).
-    start_date = datetime.utcnow()
-    end_date = start_date + timedelta(minutes=10)  # 10 минут голосование
+        time_diff = datetime.utcnow() - last_poll_date
+        if time_diff.total_seconds() / 60 < 15:
+            flash("Голосование запускается раз в 15 минут, ещё рано.", "warning")
+            return redirect(url_for('admin_users'))
 
+    # Установка длительности голосования на 15 минут
+    start_date = datetime.utcnow()
+    end_date = start_date + timedelta(minutes=15)  # 15 минут голосование
+
+    # Очистка предыдущих данных голосования
     BestSetupCandidate.query.delete()
     BestSetupVote.query.delete()
     BestSetupPoll.query.delete()
     db.session.commit()
 
+    # Создание нового голосования
     poll = BestSetupPoll(start_date=start_date, end_date=end_date, status='active')
     db.session.add(poll)
     db.session.commit()
 
+    # Обновление конфигурации последнего голосования с полным временем
     if not last_poll_conf:
-        last_poll_conf = Config(key='last_best_setup_poll', value=start_date.strftime('%Y-%m-%d'))
+        last_poll_conf = Config(key='last_best_setup_poll', value=start_date.strftime('%Y-%m-%d %H:%M:%S'))
         db.session.add(last_poll_conf)
     else:
-        last_poll_conf.value = start_date.strftime('%Y-%m-%d')
+        last_poll_conf.value = start_date.strftime('%Y-%m-%d %H:%M:%S')
     db.session.commit()
 
+    # Подготовка кандидатов
     premium_users = User.query.filter_by(assistant_premium=True).all()
     candidates = []
 
@@ -203,7 +218,7 @@ def start_best_setup_contest():
         for setup in setups:
             trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
             total_trades = len(trades)
-            #количество сделок для оценки
+            # Количество сделок для оценки
             if total_trades < 2:
                 continue
             wins = sum(1 for t in trades if t.profit_loss and t.profit_loss > 0)
@@ -230,7 +245,7 @@ def start_best_setup_contest():
         db.session.add(candidate)
     db.session.commit()
 
-    flash("Голосование запущено на 10 минут.", "success")
+    flash("Голосование запущено на 15 минут.", "success")
     return redirect(url_for('admin_users'))
 
 @best_setup_voting_bp.route('/best_setup_candidates', methods=['GET'])
@@ -241,7 +256,10 @@ def best_setup_candidates():
         flash("Сейчас нет активного голосования.", "info")
         return redirect(url_for('index'))
 
-    candidates = BestSetupCandidate.query.order_by(BestSetupCandidate.win_rate.desc(), BestSetupCandidate.total_trades.desc()).all()
+    candidates = BestSetupCandidate.query.order_by(
+        BestSetupCandidate.win_rate.desc(),
+        BestSetupCandidate.total_trades.desc()
+    ).all()
     data = {}
     setups_map = {}
 
@@ -284,7 +302,10 @@ def vote_best_setup():
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     user_id = session['user_id']
-    existing_vote = BestSetupVote.query.filter_by(voter_user_id=user_id, candidate_id=candidate_id).first()
+    existing_vote = BestSetupVote.query.filter_by(
+        voter_user_id=user_id,
+        candidate_id=candidate_id
+    ).first()
     if existing_vote:
         flash('Вы уже голосовали за этот сетап.', 'info')
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
@@ -342,21 +363,17 @@ def auto_finalize_best_setup_voting():
                 else:
                     logger.error(f"Не удалось отправить токены пользователю {winner_user.id}.")
 
-        voter_reward = 10
+        voter_reward = 0.00005  # Изменено на 0.00005 токенов для голосующих
         winner_candidate_ids = [w[0].id for w in winners]
-        winning_votes = BestSetupVote.query.filter(BestSetupVote.candidate_id.in_(winner_candidate_ids)).all()
+        winning_votes = BestSetupVote.query.filter(
+            BestSetupVote.candidate_id.in_(winner_candidate_ids)
+        ).all()
         rewarded_voters = set()
         for vote in winning_votes:
             if vote.voter_user_id not in rewarded_voters:
                 rewarded_voters.add(vote.voter_user_id)
                 voter_user = User.query.get(vote.voter_user_id)
                 if voter_user and voter_user.wallet_address:
-                    # Можно также уменьшить награду для голосующих, если нужно
-                    # Но в задании не указано менять voter_reward, оставим как есть или изменим по желанию
-                    # Например, сделать 0.00005 для голосующих
-                    # В задании не сказано менять для голосующих, только для топ-3,
-                    # но если хотим и для голосующих: 
-                    voter_reward = 0.00005  # Дополнительно меняем, если нужно
                     success = send_token_reward(voter_user.wallet_address, voter_reward)
                     if success:
                         logger.info(f"Пользователь {voter_user.id} награждён {voter_reward} токенами за голос.")
