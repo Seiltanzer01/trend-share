@@ -2,6 +2,7 @@
 
 import os
 import logging
+import traceback
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -175,9 +176,17 @@ def start_best_setup_contest():
         try:
             last_poll_date = datetime.strptime(last_poll_conf.value, '%Y-%m-%d %H:%M:%S')
         except ValueError:
-            flash("Неверный формат даты последнего голосования.", "danger")
-            logger.error("Неверный формат даты в last_best_setup_poll.")
-            return redirect(url_for('admin_users'))
+            # Попытка парсинга старого формата
+            try:
+                last_poll_date = datetime.strptime(last_poll_conf.value, '%Y-%m-%d')
+                # Обновление до нового формата
+                last_poll_conf.value = last_poll_date.strftime('%Y-%m-%d %H:%M:%S')
+                db.session.commit()
+                logger.info("last_best_setup_poll обновлён до нового формата.")
+            except ValueError:
+                flash("Неверный формат даты последнего голосования.", "danger")
+                logger.error("Неверный формат даты в last_best_setup_poll.")
+                return redirect(url_for('admin_users'))
 
         time_diff = datetime.utcnow() - last_poll_date
         if time_diff.total_seconds() / 60 < 15:
@@ -312,7 +321,8 @@ def vote_best_setup():
 
     vote = BestSetupVote(
         voter_user_id=user_id,
-        candidate_id=candidate_id
+        candidate_id=candidate_id,
+        poll_id=poll.id  # Связь с текущим опросом
     )
     db.session.add(vote)
     db.session.commit()
