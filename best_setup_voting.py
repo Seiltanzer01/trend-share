@@ -292,6 +292,8 @@ def best_setup_candidates():
         }
         candidates_list.append(candidate_dict)
 
+    logger.debug(f"Переданные кандидаты: {candidates_list}")  # Добавлено логирование
+
     return render_template('best_setup_candidates.html', candidates=candidates_list)
 
 @best_setup_voting_bp.route('/vote_best_setup', methods=['POST'])
