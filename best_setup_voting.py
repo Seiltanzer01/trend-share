@@ -121,14 +121,15 @@ def send_token_reward(user_wallet, amount):
         return False
 
     try:
-        nonce = web3.eth.get_transaction_count(account.address)
+        # Изменено: Использование параметра 'pending' для корректного получения nonce
+        nonce = web3.eth.get_transaction_count(account.address, 'pending')
         token_amount = int(amount * (10**TOKEN_DECIMALS))
 
         tx = token_contract.functions.transfer(Web3.to_checksum_address(user_wallet), token_amount).build_transaction({
             'from': account.address,
             'nonce': nonce,
             'gas': 100000,
-            'gasPrice': Web3.to_wei('1', 'gwei')
+            'gasPrice': Web3.to_wei('1', 'gwei')  # Использование to_wei
         })
 
         signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
