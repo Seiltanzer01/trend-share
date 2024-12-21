@@ -76,28 +76,40 @@ if BASE_RPC_URL and PRIVATE_KEY and TOKEN_CONTRACT_ADDRESS:
     if web3.is_connected():
         logger.info("Подключено к RPC сети Base.")
         web3.middleware_onion.inject(geth_poa_middleware, layer=0)
-        account = Account.from_key(PRIVATE_KEY)
+        try:
+            account = Account.from_key(PRIVATE_KEY)
+            logger.info(f"Аккаунт инициализирован: {account.address}")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации аккаунта: {e}")
+            account = None
 
         ERC20_ABI = [
             {
-                "constant":False,
-                "inputs":[{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],
-                "name":"transfer",
-                "outputs":[{"name":"success","type":"bool"}],
-                "type":"function"
+                "constant": False,
+                "inputs": [{"name": "_to", "type": "address"}, {"name": "_value", "type": "uint256"}],
+                "name": "transfer",
+                "outputs": [{"name": "success", "type": "bool"}],
+                "type": "function"
             },
             {
-                "constant":True,
-                "inputs":[{"name":"_owner","type":"address"}],
-                "name":"balanceOf",
-                "outputs":[{"name":"balance","type":"uint256"}],
-                "type":"function"
+                "constant": True,
+                "inputs": [{"name": "_owner", "type": "address"}],
+                "name": "balanceOf",
+                "outputs": [{"name": "balance", "type": "uint256"}],
+                "type": "function"
             }
         ]
 
-        token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+        try:
+            token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+            logger.info(f"Токен-контракт инициализирован: {TOKEN_CONTRACT_ADDRESS}")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации токен-контракта: {e}")
+            token_contract = None
     else:
         logger.error("Не удалось подключиться к сети Base.")
+else:
+    logger.error("Не все необходимые переменные окружения установлены (BASE_RPC_URL, PRIVATE_KEY, TOKEN_CONTRACT_ADDRESS).")
 
 def send_token_reward(user_wallet, amount):
     if not account or not token_contract:
@@ -198,64 +210,85 @@ def start_best_setup_contest():
     end_date = start_date + timedelta(minutes=15)  # 15 минут голосование
 
     # Очистка предыдущих данных голосования
-    BestSetupCandidate.query.delete()
-    BestSetupVote.query.delete()
-    BestSetupPoll.query.delete()
-    db.session.commit()
+    try:
+        # Изменено: порядок удаления записей для предотвращения нарушения внешних ключей
+        BestSetupVote.query.delete()
+        BestSetupCandidate.query.delete()
+        BestSetupPoll.query.delete()
+        db.session.commit()
+        logger.info("Предыдущие данные голосования успешно удалены.")
+    except Exception as e:
+        logger.error(f"Ошибка при удалении предыдущих данных голосования: {e}")
+        db.session.rollback()
+        flash("Ошибка при инициализации нового голосования.", "danger")
+        return redirect(url_for('admin_users'))
 
     # Создание нового голосования
-    poll = BestSetupPoll(start_date=start_date, end_date=end_date, status='active')
-    db.session.add(poll)
-    db.session.commit()
+    try:
+        poll = BestSetupPoll(start_date=start_date, end_date=end_date, status='active')
+        db.session.add(poll)
+        db.session.commit()
+        logger.info("Новое голосование успешно создано.")
 
-    # Обновление конфигурации последнего голосования с полным временем
-    if not last_poll_conf:
-        last_poll_conf = Config(key='last_best_setup_poll', value=start_date.strftime('%Y-%m-%d %H:%M:%S'))
-        db.session.add(last_poll_conf)
-    else:
-        last_poll_conf.value = start_date.strftime('%Y-%m-%d %H:%M:%S')
-    db.session.commit()
+        # Обновление конфигурации последнего голосования с полным временем
+        if not last_poll_conf:
+            last_poll_conf = Config(key='last_best_setup_poll', value=start_date.strftime('%Y-%m-%d %H:%M:%S'))
+            db.session.add(last_poll_conf)
+        else:
+            last_poll_conf.value = start_date.strftime('%Y-%m-%d %H:%M:%S')
+        db.session.commit()
+        logger.info("Конфигурация последнего голосования обновлена.")
 
-    # Подготовка кандидатов
-    premium_users = User.query.filter_by(assistant_premium=True).all()
-    candidates = []
+        # Подготовка кандидатов
+        premium_users = User.query.filter_by(assistant_premium=True).all()
+        candidates = []
 
-    for user in premium_users:
-        if is_spammer(user.id):
-            continue
-        setups = user.setups
-        for setup in setups:
-            trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
-            total_trades = len(trades)
-            # Количество сделок для оценки
-            if total_trades < 2:
+        for user in premium_users:
+            if is_spammer(user.id):
+                logger.info(f"Пользователь {user.id} помечен как спамер и пропущен.")
                 continue
-            wins = sum(1 for t in trades if t.profit_loss and t.profit_loss > 0)
-            win_rate = (wins / total_trades) * 100.0 if total_trades > 0 else 0.0
-            if win_rate < 70:
-                continue
-            candidates.append({
-                'user_id': user.id,
-                'setup_id': setup.id,
-                'total_trades': total_trades,
-                'win_rate': win_rate
-            })
+            setups = user.setups
+            for setup in setups:
+                trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
+                total_trades = len(trades)
+                # Количество сделок для оценки
+                if total_trades < 2:
+                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет недостаточное количество сделок и пропущен.")
+                    continue
+                wins = sum(1 for t in trades if t.profit_loss and t.profit_loss > 0)
+                win_rate = (wins / total_trades) * 100.0 if total_trades > 0 else 0.0
+                if win_rate < 70:
+                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет низкий Win Rate ({win_rate}%) и пропущен.")
+                    continue
+                candidates.append({
+                    'user_id': user.id,
+                    'setup_id': setup.id,
+                    'total_trades': total_trades,
+                    'win_rate': win_rate
+                })
 
-    candidates.sort(key=lambda x: (x['win_rate'], x['total_trades']), reverse=True)
-    top_candidates = candidates[:15]
+        candidates.sort(key=lambda x: (x['win_rate'], x['total_trades']), reverse=True)
+        top_candidates = candidates[:15]
+        logger.info(f"Найдено {len(top_candidates)} топ кандидатов для голосования.")
 
-    for c in top_candidates:
-        candidate = BestSetupCandidate(
-            user_id=c['user_id'],
-            setup_id=c['setup_id'],
-            total_trades=c['total_trades'],
-            win_rate=c['win_rate']
-        )
-        db.session.add(candidate)
-    db.session.commit()
+        for c in top_candidates:
+            candidate = BestSetupCandidate(
+                user_id=c['user_id'],
+                setup_id=c['setup_id'],
+                total_trades=c['total_trades'],
+                win_rate=c['win_rate']
+            )
+            db.session.add(candidate)
+        db.session.commit()
+        logger.info("Кандидаты успешно добавлены в новое голосование.")
 
-    flash("Голосование запущено на 15 минут.", "success")
-    return redirect(url_for('admin_users'))
+        flash("Голосование запущено на 15 минут.", "success")
+        return redirect(url_for('admin_users'))
+    except Exception as e:
+        logger.error(f"Ошибка при создании кандидатов или голосования: {e}")
+        db.session.rollback()
+        flash("Ошибка при инициализации нового голосования.", "danger")
+        return redirect(url_for('admin_users'))
 
 @best_setup_voting_bp.route('/best_setup_candidates', methods=['GET'])
 @premium_required
