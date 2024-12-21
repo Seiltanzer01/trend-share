@@ -14,9 +14,10 @@
         {% for c in candidates %}
         <div class="nes-container is-rounded with-title setup-card" style="width: 300px; position: relative;">
             <p class="title">Сетап №{{ loop.index }}</p>
-            <label style="position: absolute; top: 10px; right: 10px;">
-                <input type="radio" name="candidate_id" value="{{ c.id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
-            </label>
+            
+            <!-- Радиокнопка с уникальным ID -->
+            <input type="radio" id="candidate-{{ c.id }}" name="candidate_id" value="{{ c.id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
+            <label for="candidate-{{ c.id }}" style="position: absolute; top: 10px; right: 10px;"></label>
 
             {% if c.screenshot_url %}
                 <div style="text-align: center; margin-bottom: 1em;">
