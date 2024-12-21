@@ -104,7 +104,7 @@ def send_token_reward(user_wallet, amount):
         logger.error("Нет настроек для отправки токенов.")
         return False
 
-    if not user_wallet or not user_wallet.startswith('0x'):
+    if not user_wallet or not user_wallet.startswith('0x') or len(user_wallet) != 42:
         logger.warning(f"Некорректный адрес кошелька: {user_wallet}")
         return False
 
@@ -269,32 +269,30 @@ def best_setup_candidates():
         BestSetupCandidate.win_rate.desc(),
         BestSetupCandidate.total_trades.desc()
     ).all()
-    data = {}
-    setups_map = {}
+    candidates_list = []
 
     for c in candidates:
         setup = Setup.query.get(c.setup_id)
         if setup:
-            if setup.screenshot:
-                setup.screenshot_url = generate_s3_url(setup.screenshot)
-            else:
-                setup.screenshot_url = None
-            criteria_list = setup.criteria
-            setup.criteria = criteria_list
+            screenshot_url = generate_s3_url(setup.screenshot) if setup.screenshot else None
+            criteria_list = [criterion.name for criterion in setup.criteria]
         else:
             logger.warning(f"Setup with id {c.setup_id} not found for candidate {c.id}")
-            setup = None
+            screenshot_url = None
+            criteria_list = []
 
-        data[c.id] = {
-            'candidate_id': c.id,
-            'win_rate': c.win_rate,
-            'total_trades': c.total_trades
+        candidate_dict = {
+            'id': c.id,
+            'setup_name': setup.setup_name if setup else "Неизвестно",
+            'description': setup.description if setup else "Нет описания",
+            'screenshot_url': screenshot_url,
+            'criteria': criteria_list,
+            'total_trades': c.total_trades,
+            'win_rate': c.win_rate
         }
-        setups_map[c.id] = setup
+        candidates_list.append(candidate_dict)
 
-    candidates_list = list(data.values())
-
-    return render_template('best_setup_candidates.html', candidates=candidates_list, setups=setups_map)
+    return render_template('best_setup_candidates.html', candidates=candidates_list)
 
 @best_setup_voting_bp.route('/vote_best_setup', methods=['POST'])
 @premium_required
@@ -376,7 +374,7 @@ def auto_finalize_best_setup_voting():
         results.sort(key=lambda x: x[1], reverse=True)
         winners = results[:3]
 
-        # Изменено: награда 0.001, 0.0005, 0.0001 токенов вместо 100,50,25
+        # Награды
         rewards = [0.001, 0.0005, 0.0001]
         for i, (candidate, votes) in enumerate(winners):
             winner_user = User.query.get(candidate.user_id)
@@ -387,7 +385,7 @@ def auto_finalize_best_setup_voting():
                 else:
                     logger.error(f"Не удалось отправить токены пользователю {winner_user.id}.")
 
-        voter_reward = 0.00005  # Изменено на 0.00005 токенов для голосующих
+        voter_reward = 0.00005  # Награда для голосующих
         winner_candidate_ids = [w[0].id for w in winners]
         winning_votes = BestSetupVote.query.filter(
             BestSetupVote.candidate_id.in_(winner_candidate_ids)
