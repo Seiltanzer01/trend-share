@@ -128,7 +128,7 @@ def send_token_reward(user_wallet, amount):
             'from': account.address,
             'nonce': nonce,
             'gas': 100000,
-            'gasPrice': Web3.toWei('1', 'gwei')
+            'gasPrice': Web3.to_wei('1', 'gwei')
         })
 
         signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
