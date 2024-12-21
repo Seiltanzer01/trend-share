@@ -15,28 +15,27 @@
         <div class="nes-container is-rounded with-title setup-card" style="width: 300px; position: relative;">
             <p class="title">Сетап №{{ loop.index }}</p>
             <label style="position: absolute; top: 10px; right: 10px;">
-                <input type="radio" name="candidate_id" value="{{ c.candidate_id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
+                <input type="radio" name="candidate_id" value="{{ c.id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 5px;">
             </label>
 
-            {% set setup = setups[c.candidate_id] %}
-            {% if setup and setup.screenshot_url %}
+            {% if c.screenshot_url %}
                 <div style="text-align: center; margin-bottom: 1em;">
-                    <img src="{{ setup.screenshot_url }}" alt="Сетап" class="screenshot lazyload" style="max-width: 100%; cursor: zoom-in;" data-src="{{ setup.screenshot_url }}">
+                    <img src="{{ c.screenshot_url }}" alt="Сетап" class="screenshot lazyload" style="max-width: 100%; cursor: zoom-in;" data-src="{{ c.screenshot_url }}">
                 </div>
             {% endif %}
 
             <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
                 <p><strong>Автор:</strong> Анонимный трейдер</p>
-                <p><strong>Название:</strong> {{ setup.setup_name }}</p>
-                <p><strong>Описание:</strong> {{ setup.description if setup.description else "Нет описания" }}</p>
+                <p><strong>Название:</strong> {{ c.setup_name }}</p>
+                <p><strong>Описание:</strong> {{ c.description if c.description else "Нет описания" }}</p>
             </div>
 
             <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
                 <strong>Критерии:</strong>
-                {% if setup.criteria %}
+                {% if c.criteria %}
                     <ul class="nes-list is-disc">
-                        {% for crit in setup.criteria %}
-                        <li>{{ crit.name }}</li>
+                        {% for crit in c.criteria %}
+                        <li>{{ crit }}</li>
                         {% endfor %}
                     </ul>
                 {% else %}
