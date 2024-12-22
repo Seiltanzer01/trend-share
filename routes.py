@@ -988,66 +988,66 @@ def toggle_premium(user_id):
 
 @app.route('/', methods=['GET'])
 def index():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+    if 'user_id' in session:
+        user_id = session['user_id']
+        categories = InstrumentCategory.query.all()
+        criteria_categories = CriterionCategory.query.all()
 
-    user_id = session['user_id']
-    categories = InstrumentCategory.query.all()
-    criteria_categories = CriterionCategory.query.all()
+        instrument_id = request.args.get('instrument_id', type=int)
+        direction = request.args.get('direction')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        selected_criteria = request.args.getlist('filter_criteria', type=int)
 
-    instrument_id = request.args.get('instrument_id', type=int)
-    direction = request.args.get('direction')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    selected_criteria = request.args.getlist('filter_criteria', type=int)
+        trades_query = Trade.query.filter_by(user_id=user_id)
 
-    trades_query = Trade.query.filter_by(user_id=user_id)
+        if instrument_id:
+            trades_query = trades_query.filter(Trade.instrument_id == instrument_id)
+        if direction:
+            trades_query = trades_query.filter(Trade.direction == direction)
+        if start_date:
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                trades_query = trades_query.filter(Trade.trade_open_time >= start_date_obj)
+            except ValueError:
+                flash('Некорректный формат даты начала.', 'danger')
+                logger.error(f"Некорректный формат даты начала: {start_date}.")
+        if end_date:
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+                trades_query = trades_query.filter(Trade.trade_open_time <= end_date_obj)
+            except ValueError:
+                flash('Некорректный формат даты окончания.', 'danger')
+                logger.error(f"Некорректный формат даты окончания: {end_date}.")
+        if selected_criteria:
+            trades_query = trades_query.join(Trade.criteria).filter(Criterion.id.in_(selected_criteria)).distinct()
 
-    if instrument_id:
-        trades_query = trades_query.filter(Trade.instrument_id == instrument_id)
-    if direction:
-        trades_query = trades_query.filter(Trade.direction == direction)
-    if start_date:
-        try:
-            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
-            trades_query = trades_query.filter(Trade.trade_open_time >= start_date_obj)
-        except ValueError:
-            flash('Некорректный формат даты начала.', 'danger')
-            logger.error(f"Некорректный формат даты начала: {start_date}.")
-    if end_date:
-        try:
-            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-            trades_query = trades_query.filter(Trade.trade_open_time <= end_date_obj)
-        except ValueError:
-            flash('Некорректный формат даты окончания.', 'danger')
-            logger.error(f"Некорректный формат даты окончания: {end_date}.")
-    if selected_criteria:
-        trades_query = trades_query.join(Trade.criteria).filter(Criterion.id.in_(selected_criteria)).distinct()
+        trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
+        logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
 
-    trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
-    logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
-
-    for trade in trades:
-        if trade.screenshot:
-            trade.screenshot_url = generate_s3_url(trade.screenshot)
-        else:
-            trade.screenshot_url = None
-
-    for trade in trades:
-        if trade.setup:
-            if trade.setup.screenshot:
-                trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+        for trade in trades:
+            if trade.screenshot:
+                trade.screenshot_url = generate_s3_url(trade.screenshot)
             else:
-                trade.setup.screenshot_url = None
+                trade.screenshot_url = None
 
-    return render_template(
-        'index.html',
-        trades=trades,
-        categories=categories,
-        criteria_categories=criteria_categories,
-        selected_instrument_id=instrument_id,
-        selected_criteria=selected_criteria
-    )
+        for trade in trades:
+            if trade.setup:
+                if trade.setup.screenshot:
+                    trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+                else:
+                    trade.setup.screenshot_url = None
+
+        return render_template(
+            'index.html',
+            trades=trades,
+            categories=categories,
+            criteria_categories=criteria_categories,
+            selected_instrument_id=instrument_id,
+            selected_criteria=selected_criteria
+        )
+    else:
+        return render_template('info.html')
 
 @app.route('/login', methods=['GET'])
 def login():
