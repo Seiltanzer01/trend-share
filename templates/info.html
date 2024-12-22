@@ -2,35 +2,235 @@
 
 {% extends "base.html" %}
 
+{% block head_meta %}
+    {{ super() }}
+    <!-- AOS CSS for scroll animations -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" rel="stylesheet">
+    <!-- Swiper CSS for sliders -->
+    <link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.min.css" />
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SweetAlert2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <!-- New Advanced CSS for Info Page -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='advanced-styles.css') }}">
+</{% block head_meta %}
+
 {% block content %}
 <div class="container">
-    <h1>Добро пожаловать в Trend Share!</h1>
-    <p>Trend Share — это платформа для обмена торговыми стратегиями и анализа рыночных тенденций. Наша миссия — помочь трейдерам принимать обоснованные решения и достигать успеха на финансовых рынках.</p>
+    <!-- Hero Section -->
+    <section class="hero-section" data-aos="fade-down">
+        <div class="hero-content">
+            <h1>Welcome to Trend Share!</h1>
+            <p>Empowering Traders with Shared Strategies and Market Insights</p>
+            <a href="https://t.me/TrendShare_bot" class="nes-btn is-primary">
+                <i class="fab fa-telegram-plane"></i> Join Our Telegram Bot
+            </a>
+        </div>
+    </section>
 
-    <h2>Наши Преимущества</h2>
-    <ul>
-        <li>Обмен торговыми стратегиями между пользователями</li>
-        <li>Интерактивные графики и аналитика</li>
-        <li>Голосования и конкурсы с наградами</li>
-        <li>Премиум-функции для продвинутых трейдеров</li>
-    </ul>
+    <!-- Features Section -->
+    <section class="features-section" data-aos="fade-up">
+        <h2>Our Advantages</h2>
+        <div class="features-grid">
+            <div class="feature-card" data-aos="zoom-in" data-aos-delay="100">
+                <i class="fas fa-exchange-alt fa-3x"></i>
+                <h3>Strategy Sharing</h3>
+                <p>Exchange trading strategies with fellow users to enhance your trading approach.</p>
+            </div>
+            <div class="feature-card" data-aos="zoom-in" data-aos-delay="200">
+                <i class="fas fa-chart-line fa-3x"></i>
+                <h3>Interactive Charts</h3>
+                <p>Utilize interactive charts and analytics tools to make informed market decisions.</p>
+            </div>
+            <div class="feature-card" data-aos="zoom-in" data-aos-delay="300">
+                <i class="fas fa-vote-yea fa-3x"></i>
+                <h3>Voting & Contests</h3>
+                <p>Participate in voting and contests with rewards to recognize top strategies.</p>
+            </div>
+            <div class="feature-card" data-aos="zoom-in" data-aos-delay="400">
+                <i class="fas fa-user-tie fa-3x"></i>
+                <h3>Premium Features</h3>
+                <p>Access advanced tools and features tailored for professional traders.</p>
+            </div>
+        </div>
+    </section>
 
-    <h2>Контакты</h2>
-    <p>Если у вас есть вопросы или предложения, свяжитесь с нами:</p>
-    <ul>
-        <li>Email: <a href="mailto:support@trend-share.com">support@trend-share.com</a></li>
-        <li>Telegram: <a href="https://t.me/TrendShare_bot" target="_blank">@TrendShare_bot</a></li>
-    </ul>
+    <!-- Roadmap Section -->
+    <section class="roadmap-section" data-aos="fade-up">
+        <h2>Roadmap</h2>
+        <div class="roadmap-container">
+            <img src="{{ url_for('static', filename='images/roadmap.png') }}" alt="Roadmap" class="roadmap-image">
+        </div>
+    </section>
 
-    <a href="https://t.me/TrendShare_bot" class="btn-back nes-btn custom-primary">
-        <i class="fab fa-telegram-plane"></i> Перейти в Telegram
-    </a>
+    <!-- Video Section -->
+    <section class="video-section" data-aos="fade-up">
+        <h2>Learn More About Us</h2>
+        <div class="video-container">
+            <iframe width="560" height="315" src="https://www.youtube.com/embed/VIDEO_ID" 
+                title="YouTube video player" frameborder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowfullscreen></iframe>
+        </div>
+    </section>
+
+    <!-- Interactive Charts Section -->
+    <section class="charts-section" data-aos="fade-up">
+        <h2>Market Trends Analysis</h2>
+        <canvas id="trendChart"></canvas>
+    </section>
+
+    <!-- Animated Counters Section -->
+    <section class="counters-section" data-aos="fade-up">
+        <div class="counters-grid">
+            <div class="counter-card">
+                <i class="fas fa-users fa-3x"></i>
+                <h3 class="counter" data-target="5000">0</h3>
+                <p>Active Users</p>
+            </div>
+            <div class="counter-card">
+                <i class="fas fa-chart-pie fa-3x"></i>
+                <h3 class="counter" data-target="120">0</h3>
+                <p>Strategies Shared</p>
+            </div>
+            <div class="counter-card">
+                <i class="fas fa-award fa-3x"></i>
+                <h3 class="counter" data-target="250">0</h3>
+                <p>Awards Given</p>
+            </div>
+            <div class="counter-card">
+                <i class="fas fa-dollar-sign fa-3x"></i>
+                <h3 class="counter" data-target="1000000">0</h3>
+                <p>Trade Volume</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Image Gallery Section -->
+    <section class="gallery-section" data-aos="fade-up">
+        <h2>Our Community</h2>
+        <!-- Swiper -->
+        <div class="swiper-container">
+            <div class="swiper-wrapper">
+                <div class="swiper-slide">
+                    <img src="{{ url_for('static', filename='images/community1.jpg') }}" alt="Community 1" class="gallery-image clickable-image">
+                </div>
+                <div class="swiper-slide">
+                    <img src="{{ url_for('static', filename='images/community2.jpg') }}" alt="Community 2" class="gallery-image clickable-image">
+                </div>
+                <div class="swiper-slide">
+                    <img src="{{ url_for('static', filename='images/community3.jpg') }}" alt="Community 3" class="gallery-image clickable-image">
+                </div>
+                <div class="swiper-slide">
+                    <img src="{{ url_for('static', filename='images/community4.jpg') }}" alt="Community 4" class="gallery-image clickable-image">
+                </div>
+                <!-- Add more slides as needed -->
+            </div>
+            <!-- Add Arrows -->
+            <div class="swiper-button-next"></div>
+            <div class="swiper-button-prev"></div>
+            <!-- Add Pagination -->
+            <div class="swiper-pagination"></div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="testimonials-section" data-aos="fade-up">
+        <h2>What Our Users Say</h2>
+        <!-- Swiper for Testimonials -->
+        <div class="swiper-container testimonials-swiper">
+            <div class="swiper-wrapper">
+                <div class="swiper-slide testimonial-card">
+                    <i class="fas fa-user fa-2x"></i>
+                    <p>"Trend Share has revolutionized the way I approach trading. The shared strategies are invaluable!"</p>
+                    <h4>- Alex T.</h4>
+                </div>
+                <div class="swiper-slide testimonial-card">
+                    <i class="fas fa-user fa-2x"></i>
+                    <p>"The interactive charts and analytics tools helped me make better-informed decisions in real-time."</p>
+                    <h4>- Maria S.</h4>
+                </div>
+                <div class="swiper-slide testimonial-card">
+                    <i class="fas fa-user fa-2x"></i>
+                    <p>"Participating in contests with rewards keeps me motivated to refine my strategies continually."</p>
+                    <h4>- John D.</h4>
+                </div>
+                <!-- Add more testimonials as needed -->
+            </div>
+            <!-- Add Pagination -->
+            <div class="swiper-pagination"></div>
+            <!-- Add Navigation -->
+            <div class="swiper-button-next"></div>
+            <div class="swiper-button-prev"></div>
+        </div>
+    </section>
+
+    <!-- Interactive Sliders Section -->
+    <section class="sliders-section" data-aos="fade-up">
+        <h2>Explore Our Features</h2>
+        <div class="sliders-grid">
+            <div class="slider-card">
+                <h3>Strategy Explorer</h3>
+                <p>Browse and filter through a vast collection of trading strategies shared by our community.</p>
+                <button class="nes-btn is-success" onclick="Swal.fire('Coming Soon!', 'Strategy Explorer feature is under development.', 'info')">
+                    <i class="fas fa-search"></i> Explore
+                </button>
+            </div>
+            <div class="slider-card">
+                <h3>Real-Time Analytics</h3>
+                <p>Access real-time market data and analytics to stay ahead in your trading decisions.</p>
+                <button class="nes-btn is-success" onclick="Swal.fire('Coming Soon!', 'Real-Time Analytics feature is under development.', 'info')">
+                    <i class="fas fa-chart-pie"></i> Analyze
+                </button>
+            </div>
+            <div class="slider-card">
+                <h3>Community Forums</h3>
+                <p>Engage with other traders, share insights, and discuss market trends in our community forums.</p>
+                <button class="nes-btn is-success" onclick="Swal.fire('Coming Soon!', 'Community Forums feature is under development.', 'info')">
+                    <i class="fas fa-comments"></i> Join
+                </button>
+            </div>
+            <!-- Add more slider cards as needed -->
+        </div>
+    </section>
+
+    <!-- Video Modal Trigger Section -->
+    <section class="video-modal-section" data-aos="fade-up">
+        <h2>Watch Our Introductory Video</h2>
+        <button class="nes-btn is-warning open-video-btn">
+            <i class="fas fa-play-circle"></i> Play Video
+        </button>
+    </section>
+
+    <!-- Footer Section -->
+    <footer class="footer-section">
+        <div class="footer-links">
+            <!-- Removed Privacy Policy and Additional Information links as per instructions -->
+            <!-- Removed all creator information -->
+            <a href="https://t.me/TrendShare_bot" class="nes-btn is-primary">
+                <i class="fab fa-telegram-plane"></i> Telegram Bot
+            </a>
+        </div>
+        <p>&copy; {{ datetime.utcnow().year }} Trend Share. All rights reserved.</p>
+    </footer>
 </div>
 
-<footer>
-    <div class="footer-links">
-        <a href="{{ url_for('privacy_policy') }}" class="nes-btn">Публичная оферта</a>
-        <a href="{{ url_for('additional_info') }}" class="nes-btn">Доп. информация</a>
-    </div>
-</footer>
+<!-- Video Modal -->
+<div id="videoModal" class="modal">
+    <span class="close-video">&times;</span>
+    <iframe id="videoIframe" width="560" height="315" src="" 
+        title="YouTube video player" frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+</div>
+
+<!-- Include AOS JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+<!-- Include Swiper JS -->
+<script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
+<!-- Include SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- Include the new Advanced JS file for Info Page -->
+<script src="{{ url_for('static', filename='advanced-interactions.js') }}" defer></script>
 {% endblock %}
