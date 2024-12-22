@@ -13,8 +13,7 @@ $(document).ready(function() {
         try {
             const tg = window.Telegram.WebApp;
             if (!tg) {
-                console.error('Telegram WebApp не найден');
-                alert('Telegram WebApp не найден');
+                console.log('Telegram WebApp не найден, не инициируем авторизацию.');
                 return;
             }
 
@@ -67,7 +66,7 @@ $(document).ready(function() {
             }
         } catch (error) {
             console.error('Ошибка при обработке initData:', error);
-            alert('Ошибка при обработке initData: ' + error.message);
+            // alert('Ошибка при обработке initData: ' + error.message); // Удалено или закомментировано
         }
     })();
 
