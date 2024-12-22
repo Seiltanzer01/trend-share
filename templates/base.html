@@ -47,10 +47,11 @@
     <!-- Подключение Lazysizes JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js" async></script>
     
-    <!-- Подключение Telegram WebApps JS API -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- **Удалено подключение Telegram WebApps JS API** -->
+    <!-- <script src="https://telegram.org/js/telegram-web-app.js"></script> -->
     
-    <!-- Дополнительный скрипт для управления Telegram WebApp -->
+    <!-- **Удалён дополнительный скрипт для управления Telegram WebApp** -->
+    <!--
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         if (window.Telegram && window.Telegram.WebApp) {
@@ -59,6 +60,7 @@
         }
     });
     </script>
+    -->
     
     <!-- Подключение внешнего скрипта -->
     <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
@@ -81,7 +83,7 @@
                         <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
                         <!-- Ссылка на диаграммы доступна только премиум-пользователям -->
                         <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> Диаграммы</a>
-                 <!-- Новые пункты для премиум пользователей -->
+                        <!-- Новые пункты для премиум пользователей -->
                         <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Установить Кошелек</a>
                         <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> Лучший Сетап</a>
                     {% endif %}
