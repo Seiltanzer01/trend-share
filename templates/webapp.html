@@ -36,30 +36,52 @@
             document.getElementById('loading').innerHTML = `<h1>Ошибка: ${message}</h1>`;
         }
 
-        // Отправка initData через AJAX POST запрос на маршрут /init
-        fetch('/init', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                initData: tg.initData // Инициализационные данные от Telegram
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'success') {
-                // Авторизация прошла успешно, перенаправляем на главную страницу приложения
-                redirectToMainApp();
+        // Проверяем, существует ли Telegram WebApp
+        if (tg) {
+            const initData = tg.initData || tg.initDataUnsafe || '';
+
+            console.log('initData:', initData);
+            if (initData === '') {
+                // Инициализация Web App
+                console.log('initData пустое, вызываем tg.ready()');
+                tg.ready(); // Уведомляем Telegram, что Web App готов
             } else {
-                // Ошибка при авторизации
-                showError(data.message || 'Неизвестная ошибка при авторизации.');
+                // Отправка initData на сервер через AJAX POST запрос
+                fetch('/init', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        initData: initData // Отправляем без Base64-кодирования
+                    }),
+                    credentials: 'include' // Включает куки в запрос
+                })
+                .then(response => {
+                    console.log('Получен ответ от сервера:', response);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Данные от сервера:', data);
+                    if(data.status === 'success') {
+                        console.log('Авторизация успешна');
+                        // Автоматическое перенаправление на главную страницу
+                        redirectToMainApp();
+                    } else {
+                        console.error('Ошибка авторизации:', data.message);
+                        showError(data.message || 'Неизвестная ошибка при авторизации.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при отправке initData:', error);
+                    showError('Произошла ошибка при авторизации.');
+                });
             }
-        })
-        .catch(error => {
-            console.error('Ошибка при отправке initData:', error);
-            showError('Произошла ошибка при авторизации.');
-        });
+        } else {
+            console.log('Telegram WebApp не найден, не инициируем авторизацию.');
+            // Дополнительные действия, если необходимо
+            showError('Telegram WebApp не обнаружен. Пожалуйста, используйте Telegram для доступа к приложению.');
+        }
     </script>
 </body>
 </html>
