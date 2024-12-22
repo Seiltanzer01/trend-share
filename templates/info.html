@@ -1,0 +1,36 @@
+<!-- templates/info.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Добро пожаловать в Trend Share!</h1>
+    <p>Trend Share — это платформа для обмена торговыми стратегиями и анализа рыночных тенденций. Наша миссия — помочь трейдерам принимать обоснованные решения и достигать успеха на финансовых рынках.</p>
+
+    <h2>Наши Преимущества</h2>
+    <ul>
+        <li>Обмен торговыми стратегиями между пользователями</li>
+        <li>Интерактивные графики и аналитика</li>
+        <li>Голосования и конкурсы с наградами</li>
+        <li>Премиум-функции для продвинутых трейдеров</li>
+    </ul>
+
+    <h2>Контакты</h2>
+    <p>Если у вас есть вопросы или предложения, свяжитесь с нами:</p>
+    <ul>
+        <li>Email: <a href="mailto:support@trend-share.com">support@trend-share.com</a></li>
+        <li>Telegram: <a href="https://t.me/TrendShare_bot" target="_blank">@TrendShare_bot</a></li>
+    </ul>
+
+    <a href="https://t.me/TrendShare_bot" class="btn-back nes-btn custom-primary">
+        <i class="fab fa-telegram-plane"></i> Перейти в Telegram
+    </a>
+</div>
+
+<footer>
+    <div class="footer-links">
+        <a href="{{ url_for('privacy_policy') }}" class="nes-btn">Публичная оферта</a>
+        <a href="{{ url_for('additional_info') }}" class="nes-btn">Доп. информация</a>
+    </div>
+</footer>
+{% endblock %}
