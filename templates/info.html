@@ -58,8 +58,8 @@
                 <li><a href="#about" class="nes-btn is-link">About Us</a></li>
                 <li><a href="#tokenomics" class="nes-btn is-link">Tokenomics</a></li>
                 <li><a href="#roadmap" class="nes-btn is-link">Roadmap</a></li>
-                <li><a href="#features" class="nes-btn is-link">Features</a></li>
-                <li><a href="#analytics" class="nes-btn is-link">Analytics</a></li>
+                <!-- Удалена ссылка на Features -->
+                <li><a href="#chart" class="nes-btn is-link">Chart</a></li>
                 <li><a href="#game" class="nes-btn is-link">Mini-Game</a></li>
                 <li><a href="#subscription" class="nes-btn is-link">Subscription</a></li>
             </ul>
@@ -80,7 +80,9 @@
     <section id="about" class="about-section">
         <div class="container" data-aos="fade-up">
             <h2 class="nes-text is-error">About Us</h2>
-            <p class="nes-text is-primary">Uncle John DAO is a decentralized autonomous organization managing the UJO meme coin. We create a community focused on fun and active participation of every member.</p>
+            <p class="nes-text is-primary">
+                Uncle John DAO is a decentralized autonomous organization managing the UJO meme coin. We create a community focused on fun and active participation of every member. Our Web3 application is an innovative SocialFi project that brings together traders to collaboratively study the market and identify its inefficiencies. The system of interactive voting and forecasting helps analyze market movements, share the best setups, and form collective intelligence for more accurate price predictions. Integrated into the ecosystem is the AI "Uncle John," which analyzes your trade journal, identifies mistakes, and suggests ways to correct them, making your trading as efficient as possible. This is complemented by a trained neural network that provides trend forecasts and key market levels. Activity on the platform is rewarded with tokens, premium access, and unique analytical data. Professional traders monetize their strategies by earning through subscriptions and attracting new participants. Blockchain integration, automatic payouts, and powerful analytics tools make the application the ideal assistant for every trader, turning trading into a team-oriented, cohesive, and profitable activity.
+            </p>
             <div class="threejs-container" id="threejs-scene"></div>
             <div id="lottie-animation" class="lottie-animation"></div>
         </div>
@@ -122,47 +124,10 @@
         </div>
     </section>
 
-    <!-- Features Section -->
-    <section id="features" class="features-section">
+    <!-- Chart Section (ранее Analytics) -->
+    <section id="chart" class="chart-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Features</h2>
-            <p class="nes-text is-primary">
-                Our Web3 application is an innovative SocialFi project that brings together traders to collaboratively study the market and identify its inefficiencies. The system of interactive voting and forecasting helps analyze market movements, share the best setups, and form collective intelligence for more accurate price predictions. Integrated into the ecosystem is the AI "Uncle John," which analyzes your trade journal, identifies mistakes, and suggests ways to correct them, making your trading as efficient as possible. This is complemented by a trained neural network that provides trend forecasts and key market levels. Activity on the platform is rewarded with tokens, premium access, and unique analytical data. Professional traders monetize their strategies by earning through subscriptions and attracting new participants. Blockchain integration, automatic payouts, and powerful analytics tools make the application the ideal assistant for every trader, turning trading into a team-oriented, cohesive, and profitable activity.
-            </p>
-            <div class="features-grid">
-                <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
-                    <i class="nes-icon is-medium coin is-warning"></i>
-                    <h3 class="nes-text is-success">Staking</h3>
-                    <p class="nes-text is-primary">Stake UJO to earn rewards and participate in governance.</p>
-                </div>
-                <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
-                    <i class="nes-icon is-medium trophy is-success"></i>
-                    <h3 class="nes-text is-success">Contests</h3>
-                    <p class="nes-text is-primary">Participate in contests and win unique prizes.</p>
-                </div>
-                <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
-                    <i class="nes-icon is-medium message is-primary"></i>
-                    <h3 class="nes-text is-success">Discussions</h3>
-                    <p class="nes-text is-primary">Engage with the community through forums and chats.</p>
-                </div>
-                <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
-                    <i class="nes-icon is-medium graph is-success"></i>
-                    <h3 class="nes-text is-success">Analytics</h3>
-                    <p class="nes-text is-primary">Access advanced analytical tools and reports.</p>
-                </div>
-                <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
-                    <i class="nes-icon is-medium star is-warning"></i>
-                    <h3 class="nes-text is-success">DAO Rewards</h3>
-                    <p class="nes-text is-primary">Earn rewards for active participation in DAO governance.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Analytics Section -->
-    <section id="analytics" class="analytics-section">
-        <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Analytics</h2>
+            <h2 class="nes-text is-error">Chart</h2>
             <div id="tradingview_chart"></div>
         </div>
     </section>
@@ -193,7 +158,7 @@
                 </div>
                 <div class="subscription-card nes-container is-rounded is-dark" data-aos="flip-right">
                     <h3 class="nes-text is-success">Premium</h3>
-                    <p class="nes-text is-primary">Full access to analytics, staking, and DAO governance for 5000 UJO.</p>
+                    <p class="nes-text is-primary">Full access to chart, staking, and DAO governance for 5000 UJO.</p>
                     <button class="nes-btn is-success" id="premium-subscription">Buy for 5000 UJO</button>
                 </div>
             </div>
