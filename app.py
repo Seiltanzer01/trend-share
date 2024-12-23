@@ -47,7 +47,11 @@ csrf = CSRFProtect(app)
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
-
+    
+@app.route('/info')
+def info():
+    return render_template('info.html')
+    
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
     r"/*": {
