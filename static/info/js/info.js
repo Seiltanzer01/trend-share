@@ -82,7 +82,7 @@ function initTradingViewChart() {
     new TradingView.widget({
         "width": "100%", // Соответствует CSS
         "height": 250,   // Соответствует CSS
-        "symbol": "BINANCE:UJOUSDT", // Замените на нужный символ
+        "symbol": "BINANCE:BTCSDT", // Замените на нужный символ
         "interval": "D",
         "timezone": "Etc/UTC",
         "theme": "dark",
