@@ -349,7 +349,7 @@ document.addEventListener('keydown', (e) => {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
-    } else if (e.code === 'KeyF') { // Изменено с 'ArrowUp' на 'KeyF'
+    } else if (e.code === 'ArrowUp') { // ОСТАВИТЬ 'ArrowUp'
         e.preventDefault(); // Предотвращение прокрутки страницы
         shootBullet();
     }
