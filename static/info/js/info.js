@@ -270,14 +270,7 @@ function detectCollision() {
                 enemies.splice(eIndex, 1);
                 bullets.splice(bIndex, 1);
                 score += 10;
-                // Increment score or handle accordingly
-                Swal.fire({
-                    title: 'Hit!',
-                    text: 'You destroyed an enemy!',
-                    icon: 'success',
-                    timer: 1000,
-                    showConfirmButton: false
-                });
+                // Удалены уведомления о попадании
             }
         });
     });
@@ -356,7 +349,7 @@ document.addEventListener('keydown', (e) => {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
-    } else if (e.code === 'ArrowUp') { // Изменено с 'Space' на 'KeyF'
+    } else if (e.code === 'KeyF') { // Изменено с 'ArrowUp' на 'KeyF'
         e.preventDefault(); // Предотвращение прокрутки страницы
         shootBullet();
     }
