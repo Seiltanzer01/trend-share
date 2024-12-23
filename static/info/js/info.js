@@ -164,7 +164,6 @@ gsap.from(".logo-img", { duration: 2, y: -100, opacity: 0, ease: "bounce" });
 gsap.from(".hero-content h1", { duration: 1.5, x: -300, opacity: 0, ease: "power2.out" });
 gsap.from(".hero-content p", { duration: 1.5, x: 300, opacity: 0, ease: "power2.out", delay: 0.5 });
 gsap.from(".interactive-btn", { duration: 1.5, scale: 0, opacity: 0, ease: "back.out(1.7)", delay: 1 });
-gsap.from(".feature-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 gsap.from(".subscription-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 
 /* Initialize Mini-Game */
@@ -418,7 +417,7 @@ document.getElementById('basic-subscription').addEventListener('click', () => {
 document.getElementById('premium-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Premium Subscription',
-        text: 'Unlock full access to analytics, staking, and DAO governance for 5000 UJO.',
+        text: 'Unlock full access to chart, staking, and DAO governance for 5000 UJO.',
         icon: 'warning',
         confirmButtonText: 'Proceed to Payment'
     }).then((result) => {
