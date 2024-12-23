@@ -77,38 +77,46 @@ AOS.init({
     once: true
 });
 
-/* Initialize Swiper.js (If needed for any sliders) */
-/* Uncomment and configure if using Swiper sliders */
-/*
-const swiper = new Swiper('.swiper-container', {
-    loop: true,
-    autoplay: {
-        delay: 7000,
-    },
-    pagination: {
-        el: '.swiper-pagination',
-        clickable: true,
-    },
-    navigation: {
-        nextEl: '.swiper-button-next',
-        prevEl: '.swiper-button-prev',
-    },
-});
-*/
+/* Initialize TradingView Chart */
+function initTradingViewChart() {
+    new TradingView.widget({
+        "width": "100%", // Соответствует CSS
+        "height": 250,   // Соответствует CSS
+        "symbol": "BINANCE:UJOUSDT", // Замените на нужный символ
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "toolbar_bg": "#f39c12",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "container_id": "tradingview_chart"
+    });
+}
+
+initTradingViewChart();
 
 /* Initialize Three.js for 3D Elements */
 function initThreeJS() {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 250, 0.1, 1000); // Соответствует CSS
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, 400);
+    renderer.setSize(window.innerWidth, 250); // Соответствует CSS
     document.getElementById('threejs-scene').appendChild(renderer.domElement);
 
     // Create Torus Knot
-    const geometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
-    const material = new THREE.MeshStandardMaterial({ color: 0xf39c12, wireframe: true });
-    const torusKnot = new THREE.Mesh(geometry, material);
+    const torusGeometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+    const torusMaterial = new THREE.MeshStandardMaterial({ color: 0xf39c12, wireframe: true });
+    const torusKnot = new THREE.Mesh(torusGeometry, torusMaterial);
     scene.add(torusKnot);
+
+    // Create Rotating Cube
+    const cubeGeometry = new THREE.BoxGeometry();
+    const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+    cube.position.x = 25;
+    scene.add(cube);
 
     // Add Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -125,6 +133,8 @@ function initThreeJS() {
         requestAnimationFrame(animate);
         torusKnot.rotation.x += 0.01;
         torusKnot.rotation.y += 0.01;
+        cube.rotation.x += 0.02;
+        cube.rotation.y += 0.02;
         renderer.render(scene, camera);
     }
 
@@ -132,9 +142,9 @@ function initThreeJS() {
 
     // Handle Window Resize
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / 400;
+        camera.aspect = window.innerWidth / 250; // Соответствует CSS
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, 400);
+        renderer.setSize(window.innerWidth, 250); // Соответствует CSS
     });
 }
 
@@ -146,28 +156,8 @@ var rocketAnimation = lottie.loadAnimation({
     renderer: 'svg',
     loop: true,
     autoplay: true,
-    path: '/static/info/animations/rocket.json' // Ensure this path is correct
+    path: '/static/info/animations/rocket.json' // Убедитесь, что путь корректен
 });
-
-/* Initialize TradingView Chart */
-function initTradingViewChart() {
-    new TradingView.widget({
-        "width": 800,
-        "height": 400,
-        "symbol": "BINANCE:UJOUSDT", // Замените на нужный символ
-        "interval": "D",
-        "timezone": "Etc/UTC",
-        "theme": "dark",
-        "style": "1",
-        "locale": "en",
-        "toolbar_bg": "#f39c12",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview_chart"
-    });
-}
-
-initTradingViewChart();
 
 /* GSAP Animations */
 gsap.from(".logo-img", { duration: 2, y: -100, opacity: 0, ease: "bounce" });
@@ -366,8 +356,8 @@ document.addEventListener('keydown', (e) => {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
-    } else if (e.code === 'ArrowUp') {
-        e.preventDefault(); // Prevent page scrolling
+    } else if (e.code === 'ArrowUp') { // Изменено с 'Space' на 'KeyF'
+        e.preventDefault(); // Предотвращение прокрутки страницы
         shootBullet();
     }
 });
@@ -405,31 +395,15 @@ gameCanvas.addEventListener('touchend', () => {
     touchStartX = null;
 }, false);
 
+// Mobile Shoot Button Handler
+document.getElementById('mobile-shoot').addEventListener('click', () => {
+    shootBullet();
+});
+
 // Start Game Button
 document.getElementById('start-game').addEventListener('click', () => {
     startGame();
 });
-
-/* Initialize TradingView Chart */
-/* Ensure to include TradingView's library in your HTML if not already done */
-function initTradingViewChart() {
-    new TradingView.widget({
-        "width": "100%",
-        "height": 400,
-        "symbol": "BINANCE:UJOUSDT", // Замените на нужный символ
-        "interval": "D",
-        "timezone": "Etc/UTC",
-        "theme": "dark",
-        "style": "1",
-        "locale": "en",
-        "toolbar_bg": "#f39c12",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview_chart"
-    });
-}
-
-initTradingViewChart();
 
 /* Interactive Buttons */
 
@@ -462,7 +436,8 @@ document.getElementById('premium-subscription').addEventListener('click', () => 
 });
 
 /* DAO Button Interaction */
-/* Assuming there's a button with id 'interactive-btn' */
+/* Если в вашем HTML есть кнопка с id 'interactive-btn', раскомментируйте и используйте следующий код */
+/*
 document.getElementById('interactive-btn').addEventListener('click', () => {
     Swal.fire({
         title: 'Join the DAO',
@@ -477,9 +452,10 @@ document.getElementById('interactive-btn').addEventListener('click', () => {
         }
     });
 });
+*/
 
 /* Initialize Background Music */
-const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Ensure the path is correct
+const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Убедитесь, что путь корректен
 backgroundMusic.loop = true;
 backgroundMusic.volume = 0.5;
 
@@ -551,57 +527,3 @@ buttons.forEach(button => {
         gsap.to(button, { scale: 1, duration: 0.3, ease: "power2.out" });
     });
 });
-
-/* Initialize Additional Three.js Scene Enhancements */
-function enhanceThreeJSScene() {
-    // Example: Add a rotating cube alongside the Torus Knot
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, 400);
-    document.getElementById('threejs-scene').appendChild(renderer.domElement);
-
-    // Torus Knot
-    const torusGeometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
-    const torusMaterial = new THREE.MeshStandardMaterial({ color: 0xf39c12, wireframe: true });
-    const torusKnot = new THREE.Mesh(torusGeometry, torusMaterial);
-    scene.add(torusKnot);
-
-    // Rotating Cube
-    const cubeGeometry = new THREE.BoxGeometry();
-    const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
-    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-    cube.position.x = 25;
-    scene.add(cube);
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-
-    const pointLight = new THREE.PointLight(0xffffff, 1);
-    pointLight.position.set(50, 50, 50);
-    scene.add(pointLight);
-
-    camera.position.z = 30;
-
-    // Animation Loop
-    function animate() {
-        requestAnimationFrame(animate);
-        torusKnot.rotation.x += 0.01;
-        torusKnot.rotation.y += 0.01;
-        cube.rotation.x += 0.02;
-        cube.rotation.y += 0.02;
-        renderer.render(scene, camera);
-    }
-
-    animate();
-
-    // Handle Window Resize
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / 400;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, 400);
-    });
-}
-
-enhanceThreeJSScene();
