@@ -19,9 +19,6 @@
     <!-- Swiper.js for Sliders -->
     <link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.min.css">
     
-    <!-- Chart.js for Charts -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <!-- GSAP for Animations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
     
@@ -36,6 +33,9 @@
     
     <!-- Lottie for Animations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
+    
+    <!-- TradingView Widget Script -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='info/css/info.css') }}">
@@ -160,8 +160,8 @@
     <section id="analytics" class="analytics-section">
         <div class="container" data-aos="fade-up">
             <h2 class="nes-text is-error">Analytics</h2>
-            <canvas id="analyticsChart" width="400" height="200"></canvas>
-            <button class="nes-btn is-primary interactive-btn" id="update-chart">Update Data</button>
+            <div id="tradingview_chart"></div> <!-- Заменено вместо canvas -->
+            <!-- <button class="nes-btn is-primary interactive-btn" id="update-chart">Update Data</button> -->
         </div>
     </section>
 
@@ -170,7 +170,10 @@
         <div class="container" data-aos="fade-up">
             <h2 class="nes-text is-error">Mini-Game</h2>
             <p class="nes-text is-primary">Play our retro-style mini-game and earn UJO tokens!</p>
-            <canvas id="gameCanvas" width="600" height="400" class="nes-container is-rounded is-dark"></canvas>
+            <div style="position: relative;">
+                <canvas id="gameCanvas" width="600" height="400" class="nes-container is-rounded is-dark"></canvas>
+                <button class="nes-btn is-primary mobile-shoot-btn" id="mobile-shoot">Shoot</button> <!-- Новая кнопка для мобильных -->
+            </div>
             <button class="nes-btn is-success" id="start-game">Start Game</button>
         </div>
     </section>
@@ -216,7 +219,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
-    
+    <script src="https://s3.tradingview.com/tv.js"></script> <!-- Добавлен скрипт TradingView -->
+
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='info/js/info.js') }}"></script>
     
