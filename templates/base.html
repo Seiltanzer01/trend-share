@@ -5,7 +5,7 @@
 <head>
     {% block head_meta %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    {% endblock %}
+    {% endblock head_meta %}
     
     <meta charset="UTF-8">
     <title>Trend Share</title>
@@ -47,20 +47,38 @@
     <!-- Подключение Lazysizes JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js" async></script>
     
-    <!-- **Удалено подключение Telegram WebApps JS API** -->
-    <!-- <script src="https://telegram.org/js/telegram-web-app.js"></script> -->
-    
-    <!-- **Удалён дополнительный скрипт для управления Telegram WebApp** -->
-    <!--
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.disableVerticalSwipes();
-            window.Telegram.WebApp.setHeaderColor("bg_color");
+    <!-- Встроенные стили для управления прокруткой -->
+    <style>
+        /* Отключение глобальной прокрутки и предотвращение передачи событий прокрутки */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
         }
-    });
+
+        /* Контейнер с внутренней прокруткой и предотвращением передачи событий прокрутки наружу */
+        .container {
+            height: 100%;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+    </style>
+    
+    <!-- Включение Telegram WebApp JS API и инициализация -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.Telegram && window.Telegram.WebApp) {
+                // Отключение вертикальных свайпов, чтобы предотвратить сворачивание приложения
+                window.Telegram.WebApp.disableVerticalSwipes();
+                
+                // Сообщение Telegram, что приложение готово
+                window.Telegram.WebApp.ready();
+            }
+        });
     </script>
-    -->
     
     <!-- Подключение внешнего скрипта -->
     <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
@@ -115,6 +133,7 @@
             {% block content %}{% endblock %}
         </main>
 
+        <!-- Footer -->
         <footer>
             &copy; {{ datetime.utcnow().year }} Trend Share
         </footer>
