@@ -4,7 +4,7 @@
 particlesJS("particles-js", {
     "particles": {
         "number": {
-            "value": 150,
+            "value": 200,
             "density": {
                 "enable": true,
                 "value_area": 800
@@ -14,30 +14,30 @@ particlesJS("particles-js", {
             "value": "#f39c12"
         },
         "shape": {
-            "type": "circle",
+            "type": "star",
             "stroke": {
                 "width": 0,
                 "color": "#000000"
             },
         },
         "opacity": {
-            "value": 0.5,
+            "value": 0.7,
             "random": true,
         },
         "size": {
-            "value": 3,
+            "value": 4,
             "random": true,
         },
         "line_linked": {
             "enable": true,
             "distance": 150,
             "color": "#f39c12",
-            "opacity": 0.4,
+            "opacity": 0.5,
             "width": 1
         },
         "move": {
             "enable": true,
-            "speed": 4,
+            "speed": 6,
             "direction": "none",
             "random": false,
             "straight": false,
@@ -49,7 +49,7 @@ particlesJS("particles-js", {
         "events": {
             "onhover": {
                 "enable": true,
-                "mode": "repulse"
+                "mode": "grab"
             },
             "onclick": {
                 "enable": true,
@@ -57,12 +57,14 @@ particlesJS("particles-js", {
             },
         },
         "modes": {
-            "repulse": {
-                "distance": 100,
-                "duration": 0.4
+            "grab": {
+                "distance": 200,
+                "line_linked": {
+                    "opacity": 1
+                }
             },
             "push": {
-                "particles_nb": 4
+                "particles_nb": 5
             },
         }
     },
@@ -136,12 +138,12 @@ function initThreeJS() {
 initThreeJS();
 
 /* Initialize Lottie Animation */
-var animation = lottie.loadAnimation({
-    container: document.getElementById('lottie-animation'), // the dom element
+var rocketAnimation = lottie.loadAnimation({
+    container: document.getElementById('lottie-animation'),
     renderer: 'svg',
     loop: true,
     autoplay: true,
-    path: '{{ url_for("static", filename="info/animations/rocket.json") }}' // the path to the animation json
+    path: '/static/info/animations/rocket.json' // Ensure this path is correct
 });
 
 /* Initialize Chart.js for Analytics */
@@ -221,16 +223,7 @@ gsap.from(".interactive-btn", { duration: 1.5, scale: 0, opacity: 0, ease: "back
 gsap.from(".feature-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 gsap.from(".subscription-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 
-/* Initialize Lottie Animation */
-var rocketAnimation = lottie.loadAnimation({
-    container: document.getElementById('lottie-animation'),
-    renderer: 'svg',
-    loop: true,
-    autoplay: true,
-    path: '/static/info/animations/rocket.json' // Ensure this path is correct
-});
-
-/* Initialize Three.js for 3D Elements */
+/* Initialize Lottie Animation (Rocket) */
 /* Already initialized above */
 
 /* Initialize Mini-Game */
@@ -255,6 +248,7 @@ const enemies = [];
 const enemySpeed = 2;
 const bulletSpeed = 7;
 const enemySpawnInterval = 1000; // Spawn enemy every 1 second
+let score = 0;
 
 // Draw Player
 function drawPlayer() {
@@ -276,6 +270,13 @@ function drawEnemies() {
     enemies.forEach(enemy => {
         ctxGame.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
     });
+}
+
+// Draw Score
+function drawScore() {
+    ctxGame.fillStyle = '#ffffff';
+    ctxGame.font = '20px Press Start 2P';
+    ctxGame.fillText(`Score: ${score}`, 10, 30);
 }
 
 // Move Player
@@ -309,6 +310,7 @@ function moveEnemies() {
         // Remove enemies that go off-screen
         if (enemy.y > gameCanvas.height) {
             enemies.splice(index, 1);
+            // Optionally, decrement score or handle life
         }
     });
 }
@@ -326,6 +328,7 @@ function detectCollision() {
                 // Remove both enemy and bullet
                 enemies.splice(eIndex, 1);
                 bullets.splice(bIndex, 1);
+                score += 10;
                 // Increment score or handle accordingly
                 Swal.fire({
                     title: 'Hit!',
@@ -354,6 +357,7 @@ function draw() {
     drawPlayer();
     drawBullets();
     drawEnemies();
+    drawScore();
 }
 
 // Update Game
@@ -369,6 +373,7 @@ function update() {
 function startGame() {
     if (gameRunning) return;
     gameRunning = true;
+    score = 0;
     gameInterval = setInterval(update, 30);
     setInterval(spawnEnemies, enemySpawnInterval);
     Swal.fire({
@@ -387,7 +392,7 @@ function stopGame() {
     ctxGame.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
     Swal.fire({
         title: 'Game Over!',
-        text: 'Thanks for playing.',
+        text: `Your Score: ${score}`,
         icon: 'error',
         confirmButtonText: 'Play Again'
     }).then(() => {
@@ -426,23 +431,8 @@ document.getElementById('start-game').addEventListener('click', () => {
     startGame();
 });
 
-// Initialize Lottie Animation (Rocket)
-var rocketAnimation = lottie.loadAnimation({
-    container: document.getElementById('lottie-animation'),
-    renderer: 'svg',
-    loop: true,
-    autoplay: true,
-    path: '/static/info/animations/rocket.json' // Ensure this path is correct
-});
-
-/* Initialize Three.js for 3D Elements */
+/* Initialize Lottie Animation (Rocket) */
 /* Already initialized above */
-
-/* Initialize Lottie Animation */
-/* Already initialized above */
-
-/* Initialize Mini-Game */
-/* Already implemented above */
 
 /* Interactive Buttons */
 document.getElementById('basic-subscription').addEventListener('click', () => {
@@ -490,4 +480,115 @@ document.getElementById('interactive-btn').addEventListener('click', () => {
 /* Initialize Three.js for 3D Elements */
 /* Already initialized above */
 
-/* Initialize Game */
+/* Initialize Lottie Animation */
+/* Already initialized above */
+
+/* Initialize Mini-Game */
+/* Already implemented above */
+
+/* Initialize Background Music (Optional) */
+const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Add your audio file in the specified path
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.5;
+
+// Play music on user interaction
+document.body.addEventListener('click', () => {
+    if (backgroundMusic.paused) {
+        backgroundMusic.play();
+    }
+}, { once: true });
+
+// Toggle Music Button
+const musicToggleBtn = document.createElement('button');
+musicToggleBtn.className = 'nes-btn is-primary music-toggle';
+musicToggleBtn.innerText = '🔊';
+document.body.appendChild(musicToggleBtn);
+
+musicToggleBtn.addEventListener('click', () => {
+    if (backgroundMusic.paused) {
+        backgroundMusic.play();
+        musicToggleBtn.innerText = '🔊';
+    } else {
+        backgroundMusic.pause();
+        musicToggleBtn.innerText = '🔇';
+    }
+});
+
+/* Initialize Easter Egg (Optional) */
+let secretCode = '';
+const secret = 'UJOTOKEN';
+
+document.addEventListener('keydown', (e) => {
+    secretCode += e.key.toUpperCase();
+    if (secretCode.includes(secret)) {
+        secretCode = '';
+        Swal.fire({
+            title: '🎉 Surprise!',
+            text: 'You have unlocked the secret feature!',
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonText: 'Redeem Reward',
+            cancelButtonText: 'Close'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Handle reward redemption, e.g., redirect to Telegram bot
+                window.location.href = "https://t.me/TrendShare_bot";
+            }
+        });
+    }
+    if (secretCode.length > secret.length) {
+        secretCode = secretCode.slice(-secret.length);
+    }
+});
+
+/* Interactive Elements Animations */
+const buttons = document.querySelectorAll('.nes-btn');
+buttons.forEach(button => {
+    button.addEventListener('mouseenter', () => {
+        gsap.to(button, { scale: 1.1, duration: 0.3, ease: "power2.out" });
+    });
+    button.addEventListener('mouseleave', () => {
+        gsap.to(button, { scale: 1, duration: 0.3, ease: "power2.out" });
+    });
+});
+
+/* Initialize Three.js Scene Enhancements */
+function enhanceThreeJSScene() {
+    // Example: Add a rotating cube
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, 400);
+    document.getElementById('threejs-scene').appendChild(renderer.domElement);
+
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+
+    const ambientLightNew = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLightNew);
+
+    const pointLightNew = new THREE.PointLight(0xffffff, 1);
+    pointLightNew.position.set(50, 50, 50);
+    scene.add(pointLightNew);
+
+    camera.position.z = 5;
+
+    function animateThree() {
+        requestAnimationFrame(animateThree);
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+        renderer.render(scene, camera);
+    }
+
+    animateThree();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / 400;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, 400);
+    });
+}
+
+enhanceThreeJSScene();
