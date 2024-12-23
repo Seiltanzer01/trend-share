@@ -25,14 +25,14 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap; /* Добавлено для адаптивности */
+    flex-wrap: nowrap; /* Изменено с wrap на nowrap */
 }
 
 .nav-links {
     list-style: none;
     display: flex;
     gap: 15px;
-    flex-wrap: wrap; /* Добавлено для адаптивности */
+    flex-wrap: nowrap; /* Изменено с wrap на nowrap */
 }
 
 .nav-links li a {
