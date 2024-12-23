@@ -1,7 +1,7 @@
 <!-- templates/info.html -->
 
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -34,6 +34,9 @@
     <!-- SweetAlert2 for Alerts -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
+    <!-- Lottie for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
+    
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='info/css/info.css') }}">
     
@@ -41,155 +44,166 @@
     <link rel="icon" href="{{ url_for('static', filename='info/images/favicon.ico') }}">
 </head>
 <body>
-
-    <!-- Частицы для фона -->
+    <!-- Particles.js Background -->
     <div id="particles-js"></div>
 
-    <!-- Навигационная Панель -->
+    <!-- Navigation Bar -->
     <nav class="navbar nes-container is-rounded is-dark">
         <div class="container">
             <a href="#" class="nes-btn is-primary logo">
                 <img src="{{ url_for('static', filename='info/images/logo.png') }}" alt="Uncle John DAO" class="logo-img">
             </a>
             <ul class="nav-links">
-                <li><a href="#hero" class="nes-btn is-link">Главная</a></li>
-                <li><a href="#about" class="nes-btn is-link">О Нас</a></li>
-                <li><a href="#tokenomics" class="nes-btn is-link">Токеномика</a></li>
-                <li><a href="#roadmap" class="nes-btn is-link">Дорожная Карта</a></li>
-                <li><a href="#features" class="nes-btn is-link">Функции</a></li>
-                <li><a href="#analytics" class="nes-btn is-link">Аналитика</a></li>
-                <li><a href="#subscription" class="nes-btn is-link">Подписка</a></li>
+                <li><a href="#hero" class="nes-btn is-link">Home</a></li>
+                <li><a href="#about" class="nes-btn is-link">About Us</a></li>
+                <li><a href="#tokenomics" class="nes-btn is-link">Tokenomics</a></li>
+                <li><a href="#roadmap" class="nes-btn is-link">Roadmap</a></li>
+                <li><a href="#features" class="nes-btn is-link">Features</a></li>
+                <li><a href="#analytics" class="nes-btn is-link">Analytics</a></li>
+                <li><a href="#game" class="nes-btn is-link">Mini-Game</a></li>
+                <li><a href="#subscription" class="nes-btn is-link">Subscription</a></li>
             </ul>
             <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning telegram-btn">Telegram Bot 🚀</a>
         </div>
     </nav>
 
-    <!-- Геро Секция -->
+    <!-- Hero Section -->
     <section id="hero" class="hero-section">
         <div class="hero-content" data-aos="fade-down">
-            <h1 class="nes-text is-warning">Добро пожаловать в Uncle John DAO</h1>
-            <p class="nes-text is-success">Управление мемкоином UJO токеном в стиле ретро!</p>
-            <a href="#subscription" class="nes-btn is-primary interactive-btn">Присоединиться Сейчас 🚀</a>
+            <h1 class="nes-text is-warning">Welcome to Uncle John DAO</h1>
+            <p class="nes-text is-success">Managing the UJO Meme Coin with Retro Style!</p>
+            <a href="#subscription" class="nes-btn is-primary interactive-btn">Join Now 🚀</a>
         </div>
     </section>
 
-    <!-- О Нас Секция -->
+    <!-- About Us Section -->
     <section id="about" class="about-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">О Нас</h2>
-            <p class="nes-text is-primary">Uncle John DAO - это децентрализованная автономная организация, которая управляет мемкоином UJO. Мы создаем сообщество, ориентированное на развлечения и активное участие каждого участника.</p>
+            <h2 class="nes-text is-error">About Us</h2>
+            <p class="nes-text is-primary">Uncle John DAO is a decentralized autonomous organization managing the UJO meme coin. We create a community focused on fun and active participation of every member.</p>
             <div class="threejs-container" id="threejs-scene"></div>
+            <div id="lottie-animation" class="lottie-animation"></div>
         </div>
     </section>
 
-    <!-- Токеномика Секция -->
+    <!-- Tokenomics Section -->
     <section id="tokenomics" class="tokenomics-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Токеномика</h2>
+            <h2 class="nes-text is-error">Tokenomics</h2>
             <div class="tokenomics-grid">
                 <div class="nes-container is-rounded is-dark token-box">
-                    <h3 class="nes-text is-success">Общее Предложение</h3>
+                    <h3 class="nes-text is-success">Total Supply</h3>
                     <p class="nes-text is-primary">1,000,000,000 UJO</p>
                 </div>
                 <div class="nes-container is-rounded is-dark token-box">
-                    <h3 class="nes-text is-success">Распределение</h3>
+                    <h3 class="nes-text is-success">Distribution</h3>
                     <ul class="nes-list is-disc">
-                        <li>50% Сообщество</li>
-                        <li>30% Управление DAO</li>
-                        <li>10% Команда & Развитие</li>
-                        <li>10% Партнерства & Маркетинг</li>
+                        <li>50% Community</li>
+                        <li>30% DAO Governance</li>
+                        <li>10% Team & Development</li>
+                        <li>10% Partnerships & Marketing</li>
                     </ul>
                 </div>
                 <div class="nes-container is-rounded is-dark token-box">
-                    <h3 class="nes-text is-success">Стейкинг</h3>
-                    <p class="nes-text is-primary">Стейкайте UJO и получайте пассивный доход.</p>
+                    <h3 class="nes-text is-success">Staking</h3>
+                    <p class="nes-text is-primary">Stake UJO and earn passive income.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Дорожная Карта Секция -->
+    <!-- Roadmap Section -->
     <section id="roadmap" class="roadmap-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Дорожная Карта</h2>
+            <h2 class="nes-text is-error">Roadmap</h2>
             <div class="roadmap-image-container">
                 <img src="{{ url_for('static', filename='info/images/roadmap-placeholder.png') }}" alt="Roadmap" class="roadmap-image nes-container is-rounded is-dark">
             </div>
         </div>
     </section>
 
-    <!-- Функции Секция -->
+    <!-- Features Section -->
     <section id="features" class="features-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Основные Функции</h2>
+            <h2 class="nes-text is-error">Features</h2>
             <div class="features-grid">
                 <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
                     <i class="nes-icon is-medium coin is-warning"></i>
-                    <h3 class="nes-text is-success">Стейкинг</h3>
-                    <p class="nes-text is-primary">Стейкайте UJO и получайте вознаграждения за удержание токенов.</p>
+                    <h3 class="nes-text is-success">Staking</h3>
+                    <p class="nes-text is-primary">Stake UJO to earn rewards and participate in governance.</p>
                 </div>
                 <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
                     <i class="nes-icon is-medium trophy is-success"></i>
-                    <h3 class="nes-text is-success">Конкурсы</h3>
-                    <p class="nes-text is-primary">Участвуйте в конкурсах и выигрывайте уникальные призы.</p>
+                    <h3 class="nes-text is-success">Contests</h3>
+                    <p class="nes-text is-primary">Participate in contests and win unique prizes.</p>
                 </div>
                 <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
                     <i class="nes-icon is-medium message is-primary"></i>
-                    <h3 class="nes-text is-success">Обсуждения</h3>
-                    <p class="nes-text is-primary">Общайтесь с сообществом через форумы и чаты.</p>
+                    <h3 class="nes-text is-success">Discussions</h3>
+                    <p class="nes-text is-primary">Engage with the community through forums and chats.</p>
                 </div>
                 <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
                     <i class="nes-icon is-medium graph is-success"></i>
-                    <h3 class="nes-text is-success">Аналитика</h3>
-                    <p class="nes-text is-primary">Доступ к продвинутым аналитическим инструментам и отчетам.</p>
+                    <h3 class="nes-text is-success">Analytics</h3>
+                    <p class="nes-text is-primary">Access advanced analytical tools and reports.</p>
                 </div>
                 <div class="feature-card nes-container is-rounded is-dark" data-aos="zoom-in">
                     <i class="nes-icon is-medium star is-warning"></i>
-                    <h3 class="nes-text is-success">Награды DAO</h3>
-                    <p class="nes-text is-primary">Получайте награды за активное участие в управлении DAO.</p>
+                    <h3 class="nes-text is-success">DAO Rewards</h3>
+                    <p class="nes-text is-primary">Earn rewards for active participation in DAO governance.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Аналитика Секция -->
+    <!-- Analytics Section -->
     <section id="analytics" class="analytics-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Аналитика</h2>
+            <h2 class="nes-text is-error">Analytics</h2>
             <canvas id="analyticsChart" width="400" height="200"></canvas>
-            <button class="nes-btn is-primary interactive-btn" id="update-chart">Обновить Данные</button>
+            <button class="nes-btn is-primary interactive-btn" id="update-chart">Update Data</button>
         </div>
     </section>
 
-    <!-- Подписка Секция -->
+    <!-- Mini-Game Section -->
+    <section id="game" class="game-section">
+        <div class="container" data-aos="fade-up">
+            <h2 class="nes-text is-error">Mini-Game</h2>
+            <p class="nes-text is-primary">Play our retro-style mini-game and earn UJO tokens!</p>
+            <canvas id="gameCanvas" width="600" height="400" class="nes-container is-rounded is-dark"></canvas>
+            <button class="nes-btn is-success" id="start-game">Start Game</button>
+        </div>
+    </section>
+
+    <!-- Subscription Section -->
     <section id="subscription" class="subscription-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Подписка</h2>
-            <p class="nes-text is-primary">Получите премиум-доступ к эксклюзивным функциям DAO.</p>
+            <h2 class="nes-text is-error">Subscription</h2>
+            <p class="nes-text is-primary">Get premium access to exclusive DAO features.</p>
             <div class="subscription-options">
                 <div class="subscription-card nes-container is-rounded is-dark" data-aos="flip-left">
-                    <h3 class="nes-text is-success">Базовый</h3>
-                    <p class="nes-text is-primary">Доступ к основным функциям DAO.</p>
-                    <button class="nes-btn is-success" id="basic-subscription">Купить за 1000 UJO</button>
+                    <h3 class="nes-text is-success">Basic</h3>
+                    <p class="nes-text is-primary">Access to basic DAO features for 1000 UJO.</p>
+                    <button class="nes-btn is-success" id="basic-subscription">Buy for 1000 UJO</button>
                 </div>
                 <div class="subscription-card nes-container is-rounded is-dark" data-aos="flip-right">
-                    <h3 class="nes-text is-success">Премиум</h3>
-                    <p class="nes-text is-primary">Полный доступ к аналитике, стейкингу и управлению DAO.</p>
-                    <button class="nes-btn is-success" id="premium-subscription">Купить за 5000 UJO</button>
+                    <h3 class="nes-text is-success">Premium</h3>
+                    <p class="nes-text is-primary">Full access to analytics, staking, and DAO governance for 5000 UJO.</p>
+                    <button class="nes-btn is-success" id="premium-subscription">Buy for 5000 UJO</button>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Footer Секция -->
+    <!-- Footer Section -->
     <footer class="footer-section">
         <div class="container">
-            <p class="nes-text is-primary">&copy; 2024 Uncle John DAO. Все права защищены.</p>
-            <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning">Наш Telegram Bot 🚀</a>
+            <p class="nes-text is-primary">&copy; 2024 Uncle John DAO. All rights reserved.</p>
+            <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning">Telegram Bot 🚀</a>
         </div>
     </footer>
 
-    <!-- Модальное Окно Видео -->
+    <!-- Video Modal -->
     <div id="videoModal" class="modal">
         <span class="close-video nes-icon close is-small">✖</span>
         <iframe id="videoIframe" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -201,6 +215,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
     
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='info/js/info.js') }}"></script>
