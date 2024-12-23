@@ -1,153 +1,226 @@
 /* static/info/js/info.js */
 
-// Инициализация AOS
-document.addEventListener('DOMContentLoaded', function() {
-    AOS.init();
+/* Инициализация Частиц Фона */
+particlesJS("particles-js", {
+    "particles": {
+        "number": {
+            "value": 80,
+            "density": {
+                "enable": true,
+                "value_area": 800
+            }
+        },
+        "color": {
+            "value": "#f39c12"
+        },
+        "shape": {
+            "type": "circle",
+            "stroke": {
+                "width": 0,
+                "color": "#000000"
+            },
+        },
+        "opacity": {
+            "value": 0.5,
+            "random": true,
+        },
+        "size": {
+            "value": 3,
+            "random": true,
+        },
+        "line_linked": {
+            "enable": true,
+            "distance": 150,
+            "color": "#f39c12",
+            "opacity": 0.4,
+            "width": 1
+        },
+        "move": {
+            "enable": true,
+            "speed": 4,
+            "direction": "none",
+            "random": false,
+            "straight": false,
+            "out_mode": "out",
+        }
+    },
+    "interactivity": {
+        "detect_on": "canvas",
+        "events": {
+            "onhover": {
+                "enable": true,
+                "mode": "repulse"
+            },
+            "onclick": {
+                "enable": true,
+                "mode": "push"
+            },
+        },
+        "modes": {
+            "repulse": {
+                "distance": 100,
+                "duration": 0.4
+            },
+            "push": {
+                "particles_nb": 4
+            },
+        }
+    },
+    "retina_detect": true
 });
 
-// Инициализация Swiper для галереи
-var gallerySwiper = new Swiper('.gallery-swiper', {
-    slidesPerView: 3,
-    spaceBetween: 30,
-    loop: true,
-    autoplay: {
-        delay: 5000,
-        disableOnInteraction: false,
-    },
-    pagination: {
-        el: '.gallery-swiper .swiper-pagination',
-        clickable: true,
-    },
-    navigation: {
-        nextEl: '.gallery-swiper .swiper-button-next',
-        prevEl: '.gallery-swiper .swiper-button-prev',
-    },
-    breakpoints: {
-        768: {
-            slidesPerView: 1,
-        },
-        1024: {
-            slidesPerView: 2,
-        },
-        1440: {
-            slidesPerView: 3,
-        },
-    }
+/* Инициализация AOS (Animate On Scroll) */
+AOS.init({
+    duration: 1000,
+    once: true
 });
 
-// Инициализация Swiper для отзывов
-var testimonialsSwiper = new Swiper('.testimonials-swiper', {
-    slidesPerView: 1,
-    spaceBetween: 30,
+/* Инициализация Swiper.js для Слайдера Функций */
+const swiper = new Swiper('.swiper-container', {
     loop: true,
     autoplay: {
         delay: 7000,
-        disableOnInteraction: false,
     },
     pagination: {
-        el: '.testimonials-swiper .swiper-pagination',
+        el: '.swiper-pagination',
         clickable: true,
     },
     navigation: {
-        nextEl: '.testimonials-swiper .swiper-button-next',
-        prevEl: '.testimonials-swiper .swiper-button-prev',
+        nextEl: '.swiper-button-next',
+        prevEl: '.swiper-button-prev',
     },
 });
 
-// Инициализация слайдера галереи
-var gallerySwiper = new Swiper('.gallery-swiper', {
-    slidesPerView: 3,
-    spaceBetween: 30,
-    loop: true,
-    autoplay: {
-        delay: 5000,
-        disableOnInteraction: false,
-    },
-    pagination: {
-        el: '.gallery-swiper .swiper-pagination',
-        clickable: true,
-    },
-    navigation: {
-        nextEl: '.gallery-swiper .swiper-button-next',
-        prevEl: '.gallery-swiper .swiper-button-prev',
-    },
-    breakpoints: {
-        768: {
-            slidesPerView: 1,
-        },
-        1024: {
-            slidesPerView: 2,
-        },
-        1440: {
-            slidesPerView: 3,
-        },
+/* Инициализация Three.js для 3D Элементов */
+function initThreeJS() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, 400);
+    document.getElementById('threejs-scene').appendChild(renderer.domElement);
+
+    const geometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+    const material = new THREE.MeshStandardMaterial({ color: 0xf39c12, wireframe: true });
+    const torusKnot = new THREE.Mesh(geometry, material);
+    scene.add(torusKnot);
+
+    const light = new THREE.PointLight(0xffffff, 1);
+    light.position.set(50, 50, 50);
+    scene.add(light);
+
+    camera.position.z = 30;
+
+    function animate() {
+        requestAnimationFrame(animate);
+        torusKnot.rotation.x += 0.01;
+        torusKnot.rotation.y += 0.01;
+        renderer.render(scene, camera);
     }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / 400;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, 400);
+    });
+}
+
+initThreeJS();
+
+/* Обработчики Кнопок Подписки */
+document.getElementById('basic-subscription').addEventListener('click', () => {
+    Swal.fire({
+        title: 'Базовая Подписка',
+        text: 'Вы получите доступ к основным функциям DAO за 1000 UJO.',
+        icon: 'info',
+        confirmButtonText: 'Перейти к оплате'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = "https://t.me/TrendShare_bot"; // Ссылка на бота или оплату
+        }
+    });
 });
 
-// Инициализация диаграммы Chart.js
-var ctx = document.getElementById('trendChart').getContext('2d');
-var trendChart = new Chart(ctx, {
+document.getElementById('premium-subscription').addEventListener('click', () => {
+    Swal.fire({
+        title: 'Премиум Подписка',
+        text: 'Получите полный доступ к аналитике, стейкингу и управлению DAO за 5000 UJO.',
+        icon: 'warning',
+        confirmButtonText: 'Перейти к оплате'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = "https://t.me/TrendShare_bot"; // Ссылка на бота или оплату
+        }
+    });
+});
+
+/* Обработчик Кнопки Присоединиться в DAO */
+document.getElementById('dao-button').addEventListener('click', () => {
+    Swal.fire({
+        title: 'Присоединиться к DAO',
+        text: 'Стать участником децентрализованного управления и голосовать за предложения.',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Присоединиться',
+        cancelButtonText: 'Отмена'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = "https://t.me/TrendShare_bot"; // Ссылка на бота или другое действие
+        }
+    });
+});
+
+/* Инициализация Chart.js для Аналитики */
+const ctx = document.getElementById('analyticsChart').getContext('2d');
+const analyticsChart = new Chart(ctx, {
     type: 'line',
     data: {
-        labels: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл'],
+        labels: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'],
         datasets: [{
-            label: 'Рыночные Тренды',
-            data: [120, 190, 30, 50, 200, 30, 400],
-            backgroundColor: 'rgba(255, 152, 0, 0.2)',
-            borderColor: '#ff9800',
+            label: 'Цена UJO токена',
+            data: [50, 60, 55, 70, 65, 80, 75, 90, 85, 100, 95, 110],
+            backgroundColor: 'rgba(243, 156, 18, 0.2)',
+            borderColor: '#f39c12',
             borderWidth: 2,
             fill: true,
             tension: 0.4,
-            pointBackgroundColor: '#ff9800',
             pointRadius: 5,
-            pointHoverRadius: 7,
+            pointBackgroundColor: '#f39c12'
         }]
     },
     options: {
         responsive: true,
         plugins: {
             legend: {
-                position: 'top',
                 labels: {
-                    color: '#333',
-                    font: {
-                        size: 14,
-                        weight: 'bold'
-                    }
+                    color: '#ffffff'
                 }
             },
             tooltip: {
                 enabled: true,
-                backgroundColor: '#ff9800',
-                titleColor: '#fff',
-                bodyColor: '#fff',
-                borderColor: '#fff',
-                borderWidth: 1,
+                backgroundColor: '#f39c12',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                borderColor: '#ffffff',
+                borderWidth: 1
             }
         },
         scales: {
             x: {
                 ticks: {
-                    color: '#333',
-                    font: {
-                        size: 14,
-                        weight: 'bold'
-                    }
+                    color: '#ffffff'
                 },
                 grid: {
-                    display: false,
+                    color: '#444444'
                 }
             },
             y: {
                 ticks: {
-                    color: '#333',
-                    font: {
-                        size: 14,
-                        weight: 'bold'
-                    }
+                    color: '#ffffff'
                 },
                 grid: {
-                    color: '#ddd',
+                    color: '#444444'
                 },
                 beginAtZero: true
             }
@@ -155,57 +228,48 @@ var trendChart = new Chart(ctx, {
     }
 });
 
-// Инициализация анимированных счетчиков
-function animateCounters() {
-    const counters = document.querySelectorAll('.counter');
-    counters.forEach(counter => {
-        const updateCount = () => {
-            const target = +counter.getAttribute('data-target');
-            const count = +counter.innerText;
-            const speed = 200; // Скорость анимации
-
-            const inc = target / speed;
-
-            if (count < target) {
-                counter.innerText = Math.ceil(count + inc);
-                setTimeout(updateCount, 10);
-            } else {
-                counter.innerText = target;
-            }
-        };
-        updateCount();
-    });
-}
-
-window.addEventListener('scroll', () => {
-    const countersSection = document.querySelector('#counters');
-    const position = countersSection.getBoundingClientRect();
-
-    if(position.top < window.innerHeight && position.bottom >=0 && !countersSection.classList.contains('counters-animated')) {
-        animateCounters();
-        countersSection.classList.add('counters-animated');
+/* Обновление Данных Графика */
+document.getElementById('update-chart').addEventListener('click', () => {
+    // Генерация случайных данных для примера
+    const newData = [];
+    for (let i = 0; i < 12; i++) {
+        newData.push(Math.floor(Math.random() * 100) + 50);
     }
+    analyticsChart.data.datasets[0].data = newData;
+    analyticsChart.update();
+    Swal.fire('Обновлено!', 'Данные графика были обновлены.', 'success');
 });
 
-// Обработчик открытия видео модала
-const openVideoBtn = document.querySelector('.open-video-btn');
-const videoModal = document.getElementById('videoModal');
-const videoIframe = document.getElementById('videoIframe');
-const closeVideoBtn = document.querySelector('.close-video');
+/* Инициализация GSAP для Дополнительных Анимаций */
+gsap.from(".logo-img", { duration: 2, y: -100, opacity: 0, ease: "bounce" });
+gsap.from(".hero-content h1", { duration: 1.5, x: -300, opacity: 0, ease: "power2.out" });
+gsap.from(".hero-content p", { duration: 1.5, x: 300, opacity: 0, ease: "power2.out", delay: 0.5 });
+gsap.from(".interactive-btn", { duration: 1.5, scale: 0, opacity: 0, ease: "back.out(1.7)", delay: 1 });
 
-openVideoBtn.addEventListener('click', () => {
-    videoModal.style.display = 'block';
-    videoIframe.src = 'https://www.youtube.com/embed/VIDEO_ID?autoplay=1';
+/* Обработчики Кнопок для Открытия Видео Модала */
+document.querySelectorAll('.open-video-btn').forEach(button => {
+    button.addEventListener('click', () => {
+        const modal = document.getElementById('videoModal');
+        const iframe = document.getElementById('videoIframe');
+        iframe.src = 'https://www.youtube.com/embed/VIDEO_ID?autoplay=1'; // Замените VIDEO_ID на ID вашего видео
+        modal.style.display = 'block';
+    });
 });
 
-closeVideoBtn.addEventListener('click', () => {
-    videoModal.style.display = 'none';
-    videoIframe.src = '';
+/* Обработчик Закрытия Видео Модала */
+document.querySelector('.close-video').addEventListener('click', () => {
+    const modal = document.getElementById('videoModal');
+    const iframe = document.getElementById('videoIframe');
+    iframe.src = '';
+    modal.style.display = 'none';
 });
 
-window.addEventListener('click', (e) => {
-    if (e.target == videoModal) {
-        videoModal.style.display = 'none';
-        videoIframe.src = '';
+/* Закрытие Модального Окна При Клиниге Вне Его */
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('videoModal');
+    if (event.target == modal) {
+        const iframe = document.getElementById('videoIframe');
+        iframe.src = '';
+        modal.style.display = 'none';
     }
 });
