@@ -81,7 +81,7 @@ AOS.init({
 function initTradingViewChart() {
     new TradingView.widget({
         "width": "100%", // Соответствует CSS
-        "height": 250,   // Соответствует CSS
+        "height": 400,   // Изменено с 250px на 400px
         "symbol": "BINANCE:BTCUSDT", // Замените на нужный символ
         "interval": "D",
         "timezone": "Etc/UTC",
@@ -100,9 +100,9 @@ initTradingViewChart();
 /* Initialize Three.js for 3D Elements */
 function initThreeJS() {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 250, 0.1, 1000); // Соответствует CSS
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000); // Соответствует CSS
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, 250); // Соответствует CSS
+    renderer.setSize(window.innerWidth, 400); // Соответствует CSS
     document.getElementById('threejs-scene').appendChild(renderer.domElement);
 
     // Create Torus Knot
@@ -142,9 +142,9 @@ function initThreeJS() {
 
     // Handle Window Resize
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / 250; // Соответствует CSS
+        camera.aspect = window.innerWidth / 400; // Соответствует CSS
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, 250); // Соответствует CSS
+        renderer.setSize(window.innerWidth, 400); // Соответствует CSS
     });
 }
 
@@ -349,7 +349,7 @@ document.addEventListener('keydown', (e) => {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
-    } else if (e.code === 'ArrowUp') { // Изменено с 'ArrowUp' на 'KeyF'
+    } else if (e.code === 'KeyF') { // Изменено с 'ArrowUp' на 'KeyF'
         e.preventDefault(); // Предотвращение прокрутки страницы
         shootBullet();
     }
