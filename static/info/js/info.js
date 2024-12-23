@@ -78,7 +78,9 @@ AOS.init({
 });
 
 /* Initialize Swiper.js (If needed for any sliders) */
-/* const swiper = new Swiper('.swiper-container', {
+/* Uncomment and configure if using Swiper sliders */
+/*
+const swiper = new Swiper('.swiper-container', {
     loop: true,
     autoplay: {
         delay: 7000,
@@ -91,7 +93,8 @@ AOS.init({
         nextEl: '.swiper-button-next',
         prevEl: '.swiper-button-prev',
     },
-}); */
+});
+*/
 
 /* Initialize Three.js for 3D Elements */
 function initThreeJS() {
@@ -146,74 +149,25 @@ var rocketAnimation = lottie.loadAnimation({
     path: '/static/info/animations/rocket.json' // Ensure this path is correct
 });
 
-/* Initialize Chart.js for Analytics */
-const ctx = document.getElementById('analyticsChart').getContext('2d');
-const analyticsChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-        datasets: [{
-            label: 'UJO Token Price',
-            data: [50, 60, 55, 70, 65, 80, 75, 90, 85, 100, 95, 110],
-            backgroundColor: 'rgba(243, 156, 18, 0.2)',
-            borderColor: '#f39c12',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 5,
-            pointBackgroundColor: '#f39c12'
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            legend: {
-                labels: {
-                    color: '#ffffff'
-                }
-            },
-            tooltip: {
-                enabled: true,
-                backgroundColor: '#f39c12',
-                titleColor: '#ffffff',
-                bodyColor: '#ffffff',
-                borderColor: '#ffffff',
-                borderWidth: 1
-            }
-        },
-        scales: {
-            x: {
-                ticks: {
-                    color: '#ffffff'
-                },
-                grid: {
-                    color: '#444444'
-                }
-            },
-            y: {
-                ticks: {
-                    color: '#ffffff'
-                },
-                grid: {
-                    color: '#444444'
-                },
-                beginAtZero: true
-            }
-        }
-    }
-});
+/* Initialize TradingView Chart */
+function initTradingViewChart() {
+    new TradingView.widget({
+        "width": 800,
+        "height": 400,
+        "symbol": "BINANCE:UJOUSDT", // Замените на нужный символ
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "toolbar_bg": "#f39c12",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "container_id": "tradingview_chart"
+    });
+}
 
-/* Update Chart Data on Button Click */
-document.getElementById('update-chart').addEventListener('click', () => {
-    // Generate random data for demonstration
-    const newData = [];
-    for (let i = 0; i < 12; i++) {
-        newData.push(Math.floor(Math.random() * 100) + 50);
-    }
-    analyticsChart.data.datasets[0].data = newData;
-    analyticsChart.update();
-    Swal.fire('Updated!', 'The chart data has been updated.', 'success');
-});
+initTradingViewChart();
 
 /* GSAP Animations */
 gsap.from(".logo-img", { duration: 2, y: -100, opacity: 0, ease: "bounce" });
@@ -222,9 +176,6 @@ gsap.from(".hero-content p", { duration: 1.5, x: 300, opacity: 0, ease: "power2.
 gsap.from(".interactive-btn", { duration: 1.5, scale: 0, opacity: 0, ease: "back.out(1.7)", delay: 1 });
 gsap.from(".feature-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 gsap.from(".subscription-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
-
-/* Initialize Lottie Animation (Rocket) */
-/* Already initialized above */
 
 /* Initialize Mini-Game */
 const gameCanvas = document.getElementById('gameCanvas');
@@ -378,7 +329,7 @@ function startGame() {
     setInterval(spawnEnemies, enemySpawnInterval);
     Swal.fire({
         title: 'Game Started!',
-        text: 'Use Arrow Keys to Move and Space to Shoot.',
+        text: 'Use Arrow Keys or Swipe to Move and Tap to Shoot.',
         icon: 'info',
         timer: 2000,
         showConfirmButton: false
@@ -409,13 +360,14 @@ function shootBullet() {
     bullets.push({ x: bulletX, y: bulletY, width: bulletWidth, height: bulletHeight });
 }
 
-// Key Handlers
+// Key Handlers (Desktop)
 document.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowRight') {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
     } else if (e.code === 'Space') {
+        e.preventDefault(); // Prevent page scrolling
         shootBullet();
     }
 });
@@ -426,15 +378,62 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
+// Touch Controls (Mobile)
+let touchStartX = null;
+
+gameCanvas.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    shootBullet();
+}, false);
+
+gameCanvas.addEventListener('touchmove', (e) => {
+    if (!touchStartX) return;
+    const touch = e.touches[0];
+    const touchX = touch.clientX;
+    const diffX = touchX - touchStartX;
+
+    if (diffX > 50) {
+        player.dx = player.speed;
+    } else if (diffX < -50) {
+        player.dx = -player.speed;
+    }
+}, false);
+
+gameCanvas.addEventListener('touchend', () => {
+    player.dx = 0;
+    touchStartX = null;
+}, false);
+
 // Start Game Button
 document.getElementById('start-game').addEventListener('click', () => {
     startGame();
 });
 
-/* Initialize Lottie Animation (Rocket) */
-/* Already initialized above */
+/* Initialize TradingView Chart */
+/* Ensure to include TradingView's library in your HTML if not already done */
+function initTradingViewChart() {
+    new TradingView.widget({
+        "width": "100%",
+        "height": 400,
+        "symbol": "BINANCE:UJOUSDT", // Замените на нужный символ
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "toolbar_bg": "#f39c12",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "container_id": "tradingview_chart"
+    });
+}
+
+initTradingViewChart();
 
 /* Interactive Buttons */
+
+/* Basic Subscription Button */
 document.getElementById('basic-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Basic Subscription',
@@ -448,6 +447,7 @@ document.getElementById('basic-subscription').addEventListener('click', () => {
     });
 });
 
+/* Premium Subscription Button */
 document.getElementById('premium-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Premium Subscription',
@@ -462,6 +462,7 @@ document.getElementById('premium-subscription').addEventListener('click', () => 
 });
 
 /* DAO Button Interaction */
+/* Assuming there's a button with id 'interactive-btn' */
 document.getElementById('interactive-btn').addEventListener('click', () => {
     Swal.fire({
         title: 'Join the DAO',
@@ -477,17 +478,8 @@ document.getElementById('interactive-btn').addEventListener('click', () => {
     });
 });
 
-/* Initialize Three.js for 3D Elements */
-/* Already initialized above */
-
-/* Initialize Lottie Animation */
-/* Already initialized above */
-
-/* Initialize Mini-Game */
-/* Already implemented above */
-
-/* Initialize Background Music (Optional) */
-const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Add your audio file in the specified path
+/* Initialize Background Music */
+const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Ensure the path is correct
 backgroundMusic.loop = true;
 backgroundMusic.volume = 0.5;
 
@@ -502,6 +494,14 @@ document.body.addEventListener('click', () => {
 const musicToggleBtn = document.createElement('button');
 musicToggleBtn.className = 'nes-btn is-primary music-toggle';
 musicToggleBtn.innerText = '🔊';
+musicToggleBtn.style.position = 'fixed';
+musicToggleBtn.style.bottom = '20px';
+musicToggleBtn.style.right = '20px';
+musicToggleBtn.style.zIndex = '3000';
+musicToggleBtn.style.borderRadius = '50%';
+musicToggleBtn.style.width = '50px';
+musicToggleBtn.style.height = '50px';
+musicToggleBtn.style.fontSize = '1.5em';
 document.body.appendChild(musicToggleBtn);
 
 musicToggleBtn.addEventListener('click', () => {
@@ -514,7 +514,7 @@ musicToggleBtn.addEventListener('click', () => {
     }
 });
 
-/* Initialize Easter Egg (Optional) */
+/* Initialize Easter Egg */
 let secretCode = '';
 const secret = 'UJOTOKEN';
 
@@ -552,38 +552,51 @@ buttons.forEach(button => {
     });
 });
 
-/* Initialize Three.js Scene Enhancements */
+/* Initialize Additional Three.js Scene Enhancements */
 function enhanceThreeJSScene() {
-    // Example: Add a rotating cube
+    // Example: Add a rotating cube alongside the Torus Knot
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(window.innerWidth, 400);
     document.getElementById('threejs-scene').appendChild(renderer.domElement);
 
-    const geometry = new THREE.BoxGeometry();
-    const material = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
-    const cube = new THREE.Mesh(geometry, material);
+    // Torus Knot
+    const torusGeometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+    const torusMaterial = new THREE.MeshStandardMaterial({ color: 0xf39c12, wireframe: true });
+    const torusKnot = new THREE.Mesh(torusGeometry, torusMaterial);
+    scene.add(torusKnot);
+
+    // Rotating Cube
+    const cubeGeometry = new THREE.BoxGeometry();
+    const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+    cube.position.x = 25;
     scene.add(cube);
 
-    const ambientLightNew = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLightNew);
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
 
-    const pointLightNew = new THREE.PointLight(0xffffff, 1);
-    pointLightNew.position.set(50, 50, 50);
-    scene.add(pointLightNew);
+    const pointLight = new THREE.PointLight(0xffffff, 1);
+    pointLight.position.set(50, 50, 50);
+    scene.add(pointLight);
 
-    camera.position.z = 5;
+    camera.position.z = 30;
 
-    function animateThree() {
-        requestAnimationFrame(animateThree);
-        cube.rotation.x += 0.01;
-        cube.rotation.y += 0.01;
+    // Animation Loop
+    function animate() {
+        requestAnimationFrame(animate);
+        torusKnot.rotation.x += 0.01;
+        torusKnot.rotation.y += 0.01;
+        cube.rotation.x += 0.02;
+        cube.rotation.y += 0.02;
         renderer.render(scene, camera);
     }
 
-    animateThree();
+    animate();
 
+    // Handle Window Resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / 400;
         camera.updateProjectionMatrix();
