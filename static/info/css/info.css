@@ -1,6 +1,6 @@
 /* static/info/css/info.css */
 
-/* Общие Стили */
+/* General Styles */
 body {
     font-family: 'Press Start 2P', cursive;
     background-color: #1e1e1e;
@@ -10,19 +10,7 @@ body {
     overflow-x: hidden;
 }
 
-a {
-    text-decoration: none;
-    color: inherit;
-}
-
-.container {
-    width: 90%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 80px 0;
-}
-
-/* Навигационная Панель */
+/* Navbar Styles */
 .navbar {
     position: fixed;
     top: 0;
@@ -60,7 +48,7 @@ a {
     height: auto;
 }
 
-/* Герой Секция */
+/* Hero Section */
 .hero-section {
     height: 100vh;
     background: url('../images/hero-bg.gif') no-repeat center center/cover;
@@ -68,23 +56,27 @@ a {
     align-items: center;
     justify-content: center;
     position: relative;
+    overflow: hidden;
 }
 
 .hero-content {
     text-align: center;
     padding: 20px;
-    background-color: rgba(0,0,0,0.5);
+    background-color: rgba(0,0,0,0.6);
     border-radius: 15px;
+    animation: fadeIn 2s ease-in-out;
 }
 
 .hero-content h1 {
     font-size: 2em;
     margin-bottom: 20px;
+    color: #f39c12;
 }
 
 .hero-content p {
-    font-size: 0.8em;
+    font-size: 0.9em;
     margin-bottom: 30px;
+    color: #2ecc71;
 }
 
 .hero-content .interactive-btn {
@@ -100,7 +92,7 @@ a {
     height: 100%;
     top: 0;
     left: -100%;
-    background: rgba(255, 152, 0, 0.2);
+    background: rgba(243, 156, 18, 0.2);
     transition: left 0.3s ease;
     z-index: -1;
 }
@@ -109,7 +101,7 @@ a {
     left: 0;
 }
 
-/* О Нас Секция */
+/* About Section */
 .about-section {
     background-color: #2c2c2c;
     padding: 80px 0;
@@ -128,7 +120,13 @@ a {
     border-radius: 15px;
 }
 
-/* Токеномика Секция */
+.lottie-animation {
+    width: 100%;
+    height: 300px;
+    margin-top: 40px;
+}
+
+/* Tokenomics Section */
 .tokenomics-section {
     background-color: #2c2c2c;
     padding: 80px 0;
@@ -144,18 +142,27 @@ a {
 .tokenomics-grid .token-box {
     padding: 20px;
     text-align: center;
+    background-color: #1f1f1f;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tokenomics-grid .token-box:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(243, 156, 18, 0.5);
 }
 
 .tokenomics-grid h3 {
     font-size: 1em;
     margin-bottom: 10px;
+    color: #f39c12;
 }
 
 .tokenomics-grid p, .tokenomics-grid ul {
     font-size: 0.8em;
+    color: #2ecc71;
 }
 
-/* Дорожная Карта Секция */
+/* Roadmap Section */
 .roadmap-section {
     background-color: #1f1f1f;
     padding: 80px 0;
@@ -172,9 +179,10 @@ a {
     max-width: 600px;
     border: 2px solid #f39c12;
     border-radius: 15px;
+    animation: shake 5s infinite;
 }
 
-/* Функции Секция */
+/* Features Section */
 .features-section {
     background-color: #2c2c2c;
     padding: 80px 0;
@@ -192,6 +200,8 @@ a {
     text-align: center;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     position: relative;
+    background-color: #1f1f1f;
+    cursor: pointer;
 }
 
 .feature-card:hover {
@@ -203,18 +213,21 @@ a {
 .feature-card i {
     font-size: 2em;
     margin-bottom: 10px;
+    color: #f39c12;
 }
 
 .feature-card h3 {
     font-size: 1em;
     margin-bottom: 10px;
+    color: #2ecc71;
 }
 
 .feature-card p {
     font-size: 0.7em;
+    color: #ffffff;
 }
 
-/* Аналитика Секция */
+/* Analytics Section */
 .analytics-section {
     background-color: #1f1f1f;
     padding: 80px 0;
@@ -233,7 +246,25 @@ a {
     font-size: 0.8em;
 }
 
-/* Подписка Секция */
+/* Mini-Game Section */
+.game-section {
+    background-color: #2c2c2c;
+    padding: 80px 0;
+    text-align: center;
+}
+
+.game-section canvas {
+    border: 2px solid #f39c12;
+    border-radius: 15px;
+    background-color: #1e1e1e;
+}
+
+.game-section button {
+    margin-top: 20px;
+    font-size: 0.8em;
+}
+
+/* Subscription Section */
 .subscription-section {
     background-color: #2c2c2c;
     padding: 80px 0;
@@ -252,10 +283,12 @@ a {
     width: 200px;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     position: relative;
+    background-color: #1f1f1f;
+    cursor: pointer;
 }
 
 .subscription-card:hover {
-    transform: translateY(-10px);
+    transform: scale(1.05);
     box-shadow: 0 0 15px rgba(243, 156, 18, 0.5);
     background-color: #333333;
 }
@@ -263,18 +296,20 @@ a {
 .subscription-card h3 {
     font-size: 1em;
     margin-bottom: 10px;
+    color: #f39c12;
 }
 
 .subscription-card p {
     font-size: 0.8em;
-    margin-bottom: 15px;
+    color: #2ecc71;
 }
 
 .subscription-card button {
     font-size: 0.8em;
+    margin-top: 10px;
 }
 
-/* Footer Секция */
+/* Footer Section */
 .footer-section {
     background-color: #1f1f1f;
     padding: 40px 0;
@@ -284,13 +319,14 @@ a {
 .footer-section p {
     font-size: 0.7em;
     margin-bottom: 10px;
+    color: #ffffff;
 }
 
 .footer-section .telegram-btn {
     font-size: 0.8em;
 }
 
-/* Модальное Окно Видео */
+/* Modal Styles */
 .modal {
     display: none;
     position: fixed;
@@ -320,7 +356,43 @@ a {
     cursor: pointer;
 }
 
-/* Адаптивные Стили */
+/* Animations */
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+
+@keyframes shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    10% { transform: translate(-1px, -2px) rotate(-1deg); }
+    20% { transform: translate(-3px, 0px) rotate(1deg); }
+    30% { transform: translate(3px, 2px) rotate(0deg); }
+    40% { transform: translate(1px, -1px) rotate(1deg); }
+    50% { transform: translate(-1px, 2px) rotate(-1deg); }
+    60% { transform: translate(-3px, 1px) rotate(0deg); }
+    70% { transform: translate(3px, 1px) rotate(-1deg); }
+    80% { transform: translate(-1px, -1px) rotate(1deg); }
+    90% { transform: translate(1px, 2px) rotate(0deg); }
+    100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
+
+/* Three.js Scene */
+.threejs-container {
+    width: 100%;
+    height: 400px;
+    margin-top: 40px;
+    border: 2px solid #f39c12;
+    border-radius: 15px;
+}
+
+/* Lottie Animation */
+.lottie-animation {
+    width: 100%;
+    height: 300px;
+    margin-top: 40px;
+}
+
+/* Responsive Styles */
 @media (max-width: 1200px) {
     .navbar .nav-links {
         gap: 10px;
@@ -329,6 +401,10 @@ a {
     .subscription-options {
         flex-direction: column;
         align-items: center;
+    }
+
+    .features-grid, .tokenomics-grid, .subscription-options {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -359,11 +435,13 @@ a {
         font-size: 1.5em;
     }
 
-    .tokenomics-grid, .features-grid, .subscription-options {
-        grid-template-columns: 1fr;
-    }
-
     .roadmap-image {
         width: 100%;
     }
+}
+
+/* Game Canvas */
+#gameCanvas {
+    background-image: url('../images/game-background.png');
+    background-size: cover;
 }
