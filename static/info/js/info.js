@@ -403,9 +403,9 @@ document.getElementById('start-game').addEventListener('click', () => {
 document.getElementById('basic-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Basic Subscription',
-        text: 'Get access to basic DAO features for 1000 UJO.',
+        text: 'Go to basic DAO features',
         icon: 'info',
-        confirmButtonText: 'Proceed to Payment'
+        confirmButtonText: 'Go to Bot.'
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = "https://t.me/TrendShare_bot"; // Redirect to your Telegram bot or payment gateway
@@ -417,9 +417,9 @@ document.getElementById('basic-subscription').addEventListener('click', () => {
 document.getElementById('premium-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Premium Subscription',
-        text: 'Unlock full access to chart, staking, and DAO governance for 5000 UJO.',
+        text: 'Unlock full access DAO for 20$ UJO.',
         icon: 'warning',
-        confirmButtonText: 'Proceed to Payment'
+        confirmButtonText: 'Proceed to stake'
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = "https://t.me/TrendShare_bot"; // Redirect to your Telegram bot or payment gateway
