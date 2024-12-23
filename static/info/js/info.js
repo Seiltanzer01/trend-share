@@ -4,7 +4,7 @@
 particlesJS("particles-js", {
     "particles": {
         "number": {
-            "value": 200,
+            "value": 150,
             "density": {
                 "enable": true,
                 "value_area": 800
@@ -14,30 +14,30 @@ particlesJS("particles-js", {
             "value": "#f39c12"
         },
         "shape": {
-            "type": "star",
+            "type": "circle",
             "stroke": {
                 "width": 0,
                 "color": "#000000"
             },
         },
         "opacity": {
-            "value": 0.7,
+            "value": 0.5,
             "random": true,
         },
         "size": {
-            "value": 4,
+            "value": 3,
             "random": true,
         },
         "line_linked": {
             "enable": true,
             "distance": 150,
             "color": "#f39c12",
-            "opacity": 0.5,
+            "opacity": 0.4,
             "width": 1
         },
         "move": {
             "enable": true,
-            "speed": 6,
+            "speed": 4,
             "direction": "none",
             "random": false,
             "straight": false,
@@ -49,7 +49,7 @@ particlesJS("particles-js", {
         "events": {
             "onhover": {
                 "enable": true,
-                "mode": "grab"
+                "mode": "repulse"
             },
             "onclick": {
                 "enable": true,
@@ -57,14 +57,12 @@ particlesJS("particles-js", {
             },
         },
         "modes": {
-            "grab": {
-                "distance": 200,
-                "line_linked": {
-                    "opacity": 1
-                }
+            "repulse": {
+                "distance": 100,
+                "duration": 0.4
             },
             "push": {
-                "particles_nb": 5
+                "particles_nb": 4
             },
         }
     },
@@ -78,9 +76,7 @@ AOS.init({
 });
 
 /* Initialize Swiper.js (If needed for any sliders) */
-/* Uncomment and configure if using Swiper sliders */
-/*
-const swiper = new Swiper('.swiper-container', {
+/* const swiper = new Swiper('.swiper-container', {
     loop: true,
     autoplay: {
         delay: 7000,
@@ -93,8 +89,7 @@ const swiper = new Swiper('.swiper-container', {
         nextEl: '.swiper-button-next',
         prevEl: '.swiper-button-prev',
     },
-});
-*/
+}); */
 
 /* Initialize Three.js for 3D Elements */
 function initThreeJS() {
@@ -141,12 +136,12 @@ function initThreeJS() {
 initThreeJS();
 
 /* Initialize Lottie Animation */
-var rocketAnimation = lottie.loadAnimation({
-    container: document.getElementById('lottie-animation'),
+var animation = lottie.loadAnimation({
+    container: document.getElementById('lottie-animation'), // the dom element
     renderer: 'svg',
     loop: true,
     autoplay: true,
-    path: '/static/info/animations/rocket.json' // Ensure this path is correct
+    path: '{{ url_for("static", filename="info/animations/rocket.json") }}' // the path to the animation json
 });
 
 /* Initialize Chart.js for Analytics */
@@ -226,6 +221,18 @@ gsap.from(".interactive-btn", { duration: 1.5, scale: 0, opacity: 0, ease: "back
 gsap.from(".feature-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 gsap.from(".subscription-card", { duration: 1, y: 50, opacity: 0, stagger: 0.2, ease: "power2.out" });
 
+/* Initialize Lottie Animation */
+var rocketAnimation = lottie.loadAnimation({
+    container: document.getElementById('lottie-animation'),
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    path: '/static/info/animations/rocket.json' // Ensure this path is correct
+});
+
+/* Initialize Three.js for 3D Elements */
+/* Already initialized above */
+
 /* Initialize Mini-Game */
 const gameCanvas = document.getElementById('gameCanvas');
 const ctxGame = gameCanvas.getContext('2d');
@@ -248,7 +255,6 @@ const enemies = [];
 const enemySpeed = 2;
 const bulletSpeed = 7;
 const enemySpawnInterval = 1000; // Spawn enemy every 1 second
-let score = 0;
 
 // Draw Player
 function drawPlayer() {
@@ -270,13 +276,6 @@ function drawEnemies() {
     enemies.forEach(enemy => {
         ctxGame.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
     });
-}
-
-// Draw Score
-function drawScore() {
-    ctxGame.fillStyle = '#ffffff';
-    ctxGame.font = '20px Press Start 2P';
-    ctxGame.fillText(`Score: ${score}`, 10, 30);
 }
 
 // Move Player
@@ -310,7 +309,6 @@ function moveEnemies() {
         // Remove enemies that go off-screen
         if (enemy.y > gameCanvas.height) {
             enemies.splice(index, 1);
-            // Optionally, decrement score or handle life
         }
     });
 }
@@ -328,7 +326,6 @@ function detectCollision() {
                 // Remove both enemy and bullet
                 enemies.splice(eIndex, 1);
                 bullets.splice(bIndex, 1);
-                score += 10;
                 // Increment score or handle accordingly
                 Swal.fire({
                     title: 'Hit!',
@@ -357,7 +354,6 @@ function draw() {
     drawPlayer();
     drawBullets();
     drawEnemies();
-    drawScore();
 }
 
 // Update Game
@@ -373,7 +369,6 @@ function update() {
 function startGame() {
     if (gameRunning) return;
     gameRunning = true;
-    score = 0;
     gameInterval = setInterval(update, 30);
     setInterval(spawnEnemies, enemySpawnInterval);
     Swal.fire({
@@ -392,7 +387,7 @@ function stopGame() {
     ctxGame.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
     Swal.fire({
         title: 'Game Over!',
-        text: `Your Score: ${score}`,
+        text: 'Thanks for playing.',
         icon: 'error',
         confirmButtonText: 'Play Again'
     }).then(() => {
@@ -431,9 +426,25 @@ document.getElementById('start-game').addEventListener('click', () => {
     startGame();
 });
 
-/* Interactive Buttons */
+// Initialize Lottie Animation (Rocket)
+var rocketAnimation = lottie.loadAnimation({
+    container: document.getElementById('lottie-animation'),
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    path: '/static/info/animations/rocket.json' // Ensure this path is correct
+});
 
-/* Basic Subscription Button */
+/* Initialize Three.js for 3D Elements */
+/* Already initialized above */
+
+/* Initialize Lottie Animation */
+/* Already initialized above */
+
+/* Initialize Mini-Game */
+/* Already implemented above */
+
+/* Interactive Buttons */
 document.getElementById('basic-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Basic Subscription',
@@ -447,7 +458,6 @@ document.getElementById('basic-subscription').addEventListener('click', () => {
     });
 });
 
-/* Premium Subscription Button */
 document.getElementById('premium-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Premium Subscription',
@@ -462,8 +472,7 @@ document.getElementById('premium-subscription').addEventListener('click', () => 
 });
 
 /* DAO Button Interaction */
-/* Assuming there's a button with id 'dao-button' */
-document.getElementById('dao-button').addEventListener('click', () => {
+document.getElementById('interactive-btn').addEventListener('click', () => {
     Swal.fire({
         title: 'Join the DAO',
         text: 'Become a part of the decentralized governance and vote on proposals.',
@@ -478,221 +487,7 @@ document.getElementById('dao-button').addEventListener('click', () => {
     });
 });
 
-/* Initialize Background Music (Optional) */
-const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Add your audio file in the specified path
-backgroundMusic.loop = true;
-backgroundMusic.volume = 0.5;
-
-// Play music on user interaction
-document.body.addEventListener('click', () => {
-    if (backgroundMusic.paused) {
-        backgroundMusic.play();
-    }
-}, { once: true });
-
-// Toggle Music Button
-const musicToggleBtn = document.createElement('button');
-musicToggleBtn.className = 'nes-btn is-primary music-toggle';
-musicToggleBtn.innerText = '🔊';
-musicToggleBtn.style.position = 'fixed';
-musicToggleBtn.style.bottom = '20px';
-musicToggleBtn.style.right = '20px';
-musicToggleBtn.style.zIndex = '3000';
-document.body.appendChild(musicToggleBtn);
-
-musicToggleBtn.addEventListener('click', () => {
-    if (backgroundMusic.paused) {
-        backgroundMusic.play();
-        musicToggleBtn.innerText = '🔊';
-    } else {
-        backgroundMusic.pause();
-        musicToggleBtn.innerText = '🔇';
-    }
-});
-
-/* Initialize Easter Egg */
-let secretCode = '';
-const secret = 'UJOTOKEN';
-
-document.addEventListener('keydown', (e) => {
-    secretCode += e.key.toUpperCase();
-    if (secretCode.includes(secret)) {
-        secretCode = '';
-        Swal.fire({
-            title: '🎉 Surprise!',
-            text: 'You have unlocked the secret feature!',
-            icon: 'success',
-            showCancelButton: true,
-            confirmButtonText: 'Redeem Reward',
-            cancelButtonText: 'Close'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // Handle reward redemption, e.g., redirect to Telegram bot
-                window.location.href = "https://t.me/TrendShare_bot";
-            }
-        });
-    }
-    if (secretCode.length > secret.length) {
-        secretCode = secretCode.slice(-secret.length);
-    }
-});
-
-/* Interactive Elements Animations */
-const buttons = document.querySelectorAll('.nes-btn');
-buttons.forEach(button => {
-    button.addEventListener('mouseenter', () => {
-        gsap.to(button, { scale: 1.1, duration: 0.3, ease: "power2.out" });
-    });
-    button.addEventListener('mouseleave', () => {
-        gsap.to(button, { scale: 1, duration: 0.3, ease: "power2.out" });
-    });
-});
-
-/* Initialize Additional Three.js Scene Enhancements */
-function enhanceThreeJSScene() {
-    // Example: Add a rotating cube alongside the Torus Knot
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, 400);
-    document.getElementById('threejs-scene').appendChild(renderer.domElement);
-
-    // Torus Knot
-    const torusGeometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
-    const torusMaterial = new THREE.MeshStandardMaterial({ color: 0xf39c12, wireframe: true });
-    const torusKnot = new THREE.Mesh(torusGeometry, torusMaterial);
-    scene.add(torusKnot);
-
-    // Rotating Cube
-    const cubeGeometry = new THREE.BoxGeometry();
-    const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
-    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-    cube.position.x = 25;
-    scene.add(cube);
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-
-    const pointLight = new THREE.PointLight(0xffffff, 1);
-    pointLight.position.set(50, 50, 50);
-    scene.add(pointLight);
-
-    camera.position.z = 30;
-
-    // Animation Loop
-    function animate() {
-        requestAnimationFrame(animate);
-        torusKnot.rotation.x += 0.01;
-        torusKnot.rotation.y += 0.01;
-        cube.rotation.x += 0.02;
-        cube.rotation.y += 0.02;
-        renderer.render(scene, camera);
-    }
-
-    animate();
-
-    // Handle Window Resize
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / 400;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, 400);
-    });
-}
-
-enhanceThreeJSScene();
-
-/* Initialize Lottie Animation */
-var rocketAnimation = lottie.loadAnimation({
-    container: document.getElementById('lottie-animation'),
-    renderer: 'svg',
-    loop: true,
-    autoplay: true,
-    path: '/static/info/animations/rocket.json' // Ensure this path is correct
-});
-
-/* Initialize Background Music */
-const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Ensure the path is correct
-backgroundMusic.loop = true;
-backgroundMusic.volume = 0.5;
-
-// Play music on user interaction
-document.body.addEventListener('click', () => {
-    if (backgroundMusic.paused) {
-        backgroundMusic.play();
-    }
-}, { once: true });
-
-// Toggle Music Button
-const musicToggleBtn = document.createElement('button');
-musicToggleBtn.className = 'nes-btn is-primary music-toggle';
-musicToggleBtn.innerText = '🔊';
-musicToggleBtn.style.position = 'fixed';
-musicToggleBtn.style.bottom = '20px';
-musicToggleBtn.style.right = '20px';
-musicToggleBtn.style.zIndex = '3000';
-musicToggleBtn.style.borderRadius = '50%';
-musicToggleBtn.style.width = '50px';
-musicToggleBtn.style.height = '50px';
-musicToggleBtn.style.fontSize = '1.5em';
-document.body.appendChild(musicToggleBtn);
-
-musicToggleBtn.addEventListener('click', () => {
-    if (backgroundMusic.paused) {
-        backgroundMusic.play();
-        musicToggleBtn.innerText = '🔊';
-    } else {
-        backgroundMusic.pause();
-        musicToggleBtn.innerText = '🔇';
-    }
-});
-
-/* Initialize Easter Egg */
-let secretCode = '';
-const secret = 'UJOTOKEN';
-
-document.addEventListener('keydown', (e) => {
-    secretCode += e.key.toUpperCase();
-    if (secretCode.includes(secret)) {
-        secretCode = '';
-        Swal.fire({
-            title: '🎉 Surprise!',
-            text: 'You have unlocked the secret feature!',
-            icon: 'success',
-            showCancelButton: true,
-            confirmButtonText: 'Redeem Reward',
-            cancelButtonText: 'Close'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // Handle reward redemption, e.g., redirect to Telegram bot
-                window.location.href = "https://t.me/TrendShare_bot";
-            }
-        });
-    }
-    if (secretCode.length > secret.length) {
-        secretCode = secretCode.slice(-secret.length);
-    }
-});
-
-/* Interactive Elements Animations */
-const buttons = document.querySelectorAll('.nes-btn');
-buttons.forEach(button => {
-    button.addEventListener('mouseenter', () => {
-        gsap.to(button, { scale: 1.1, duration: 0.3, ease: "power2.out" });
-    });
-    button.addEventListener('mouseleave', () => {
-        gsap.to(button, { scale: 1, duration: 0.3, ease: "power2.out" });
-    });
-});
-
-/* Initialize Additional Three.js Scene Enhancements */
+/* Initialize Three.js for 3D Elements */
 /* Already initialized above */
 
-/* Initialize Lottie Animation */
-/* Already initialized above */
-
-/* Initialize Mini-Game */
-/* Already implemented above */
-
-/* Initialize Background Music */
-/* Already implemented above */
+/* Initialize Game */
