@@ -366,7 +366,7 @@ document.addEventListener('keydown', (e) => {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
-    } else if (e.code === 'Space') {
+    } else if (e.code === 'ArrowUp') {
         e.preventDefault(); // Prevent page scrolling
         shootBullet();
     }
