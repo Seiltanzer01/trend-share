@@ -879,7 +879,7 @@ def logout():
     session.clear()
     flash('Вы успешно вышли из системы.', 'success')
     logger.info("Пользователь вышел из системы.")
-    return redirect(url_for('login'))
+    return redirect(url_for('info'))
 
 @app.route('/health', methods=['GET'])
 def health():
