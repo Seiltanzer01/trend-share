@@ -31,23 +31,24 @@ class User(db.Model):
     trades = db.relationship('Trade', back_populates='user', lazy=True)
     setups = db.relationship('Setup', back_populates='user', lazy=True)
     predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)
+    user_stakings = db.relationship('UserStaking', back_populates='user', lazy=True)
 
 class UserStaking(db.Model):
     __tablename__ = 'user_staking'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    tx_hash = db.Column(db.String(66), unique=True, nullable=False)
+    staked_usd = db.Column(db.Float, nullable=False)   # реальный эквивалент
+    staked_amount = db.Column(db.Float, nullable=False)# токены
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    unlocked_at = db.Column(db.DateTime, nullable=False)
     
-    tx_hash = db.Column(db.String(66), unique=True, nullable=False)  # 0x + 64 hex
-    staked_usd = db.Column(db.Float, nullable=False)  # 20$
-    fee_usd = db.Column(db.Float, nullable=False)     # 5$
-    staked_amount = db.Column(db.Float, nullable=False)  # в токенах
-    fee_amount = db.Column(db.Float, nullable=False)     # в токенах
-    
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    unlocked_at = db.Column(db.DateTime, nullable=False)  # +30 days
-    
-    # Relationship:
-    user = db.relationship('User', backref='user_staking', lazy=True)
+    # Для наград
+    pending_rewards = db.Column(db.Float, default=0.0)  
+    last_claim_at   = db.Column(db.DateTime, nullable=False)
+
+    user = db.relationship('User', back_populates='user_stakings')
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
