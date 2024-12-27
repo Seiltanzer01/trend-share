@@ -1,9 +1,8 @@
 <!-- templates/subscription.html -->
-
 {% extends "base.html" %}
 
 {% block head_meta %}
-<!-- Мета-тег viewport отключён на странице Подписки -->
+<!-- Отключим глобальный viewport -->
 {% endblock %}
 
 {% block content %}
@@ -12,24 +11,63 @@
     <div class="nes-container is-rounded with-title">
         <p class="title">Преимущества подписки:</p>
         <ul>
-            <li>Доступ к интеллектуальному ассистенту для анализа сделок.</li>
-            <li>Анализ загруженных графиков.</li>
-            <li>Персонализированные рекомендации и советы.</li>
-            <li>Приоритетная поддержка.</li>
+            <li>Индивидуальный AI-ассистент анализа сделок</li>
+            <li>Анализ загруженных графиков</li>
+            <li>Персональные рекомендации</li>
+            <li>Приоритетная поддержка</li>
         </ul>
-        <p>Стоимость подписки: <strong>400 ₽</strong></p>
-        <p>Одноразовая оплата за месячную подписку.</p>
-        <a href="{{ url_for('buy_assistant') }}" class="nes-btn is-primary">
-            <i class="fas fa-credit-card"></i> Купить Подписку
-        </a>
+        <p>Чтобы получить подписку, нужно застейкать эквивалент $20 в нашем токене (минимум 20$).</p>
+        
+        <button class="nes-btn is-primary" id="stake20-btn">
+            <i class="fas fa-coins"></i> Застейкать 20$
+        </button>
+        
+        <button class="nes-btn is-warning" id="unstake-btn">
+            <i class="fas fa-hand-holding-usd"></i> Вывести Стейк
+        </button>
+        
+        <p>После стейка вам будет автоматически включён премиум, пока ваш стейк > 0.</p>
     </div>
 </div>
 
-<!-- Добавляем подвал с двумя кнопками -->
 <footer>
     <div class="footer-links">
         <a href="{{ url_for('privacy_policy') }}" class="nes-btn">Публичная оферта</a>
         <a href="{{ url_for('additional_info') }}" class="nes-btn">Доп. информация</a>
     </div>
 </footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // При нажатии "Застейкать 20$"
+    document.getElementById('stake20-btn').addEventListener('click', async() => {
+        try {
+            const resp = await fetch('/stake', {
+                method: 'POST',
+                headers: { 'Content-Type':'application/json' },
+                body: JSON.stringify({ amount_usd: 20 })
+            });
+            if(resp.redirected) {
+                window.location.href = resp.url;
+            }
+        } catch(e) {
+            alert('Ошибка stake: ' + e);
+        }
+    });
+
+    // При нажатии "Вывести Стейк"
+    document.getElementById('unstake-btn').addEventListener('click', async() => {
+        try {
+            const resp = await fetch('/unstake', {
+                method: 'POST'
+            });
+            if(resp.redirected) {
+                window.location.href = resp.url;
+            }
+        } catch(e) {
+            alert('Ошибка unstake: ' + e);
+        }
+    });
+});
+</script>
 {% endblock %}
