@@ -1525,75 +1525,83 @@ def view_setup(setup_id):
     return render_template('view_setup.html', setup=setup)
 
 
-@app.route('/stake', methods=['POST'])
-def stake():
-    """
-    Пользователь нажимает "застейкать 20$" на фронте.
-    Здесь просто проверяем, что user есть в сессии, 
-    выдаём flash, что "Пожалуйста, отправьте токены 
-    из вашего кошелька. Мы ждём транзакцию".
-    """
+app.route('/get_user_stakes', methods=['GET'])
+def get_user_stakes():
     if 'user_id' not in session:
-        flash("Сначала войдите в систему", "danger")
-        return redirect(url_for('login'))
-
+        return jsonify({'error':'Unauthorized'}), 401
     user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user.wallet_address:
-        flash("Нет кошелька. Укажите в /set_wallet", "danger")
-        return redirect(url_for('subscription_page'))
-
-    # Здесь можно ничего не делать, 
-    # т.к. сканирование блокчейна само найдёт транзакцию.
-    flash("Отправьте токены на наш общий кошелёк, мы ждём подтверждения (скоро появится в дашборде)", "info")
-    return redirect(url_for('subscription_page'))
-
-@app.route('/unstake', methods=['POST'])
-def unstake():
-    """
-    Вывод стейка. Аналог "claim" или "un-stake".
-    Допустим, сразу возвращаем все токены, 
-    если >30 дней. (Упрощённая логика).
-    """
-    if 'user_id' not in session:
-        flash("Сначала войдите в систему", "danger")
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-
-    # Проверим, есть ли активный стейк
     from models import UserStaking
-    staking = UserStaking.query.filter_by(user_id=user.id, is_active=True).first()
-    if not staking:
-        flash("У вас нет активного стейка", "danger")
-        return redirect(url_for('subscription_page'))
+    user_stakes = UserStaking.query.filter_by(user_id=user_id).all()
+    stakes_list = []
+    for s in user_stakes:
+        stakes_list.append({
+            'tx_hash': s.tx_hash,
+            'staked_usd': s.staked_usd,
+            'fee_usd': s.fee_usd,
+            'staked_amount': s.staked_amount,
+            'fee_amount': s.fee_amount,
+            'unlocked_at': s.unlocked_at.isoformat()
+        })
+    return jsonify({'stakes': stakes_list}), 200
 
-    # Проверим дату
-    delta = datetime.utcnow() - staking.created_at
-    if delta.days < 30:
-        flash(f"Вывести можно через {30 - delta.days} дней.", "danger")
-        return redirect(url_for('subscription_page'))
-
-    # Вызываем send_token_reward(...)
+@app.route('/claim_staking_rewards', methods=['POST'])
+def claim_staking_rewards():
+    if 'user_id' not in session:
+        return jsonify({'error':'Unauthorized'}), 401
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error':'User not found'}), 404
+    
+    # Имитация начисления наград. Допустим награда = 1 UJO.
     from best_setup_voting import send_token_reward
-    tokens_to_return = staking.staked_amount_tokens  # Сколько вернуть
-    success = send_token_reward(user.wallet_address, tokens_to_return)
-
+    success = send_token_reward(user.wallet_address, 1.0)
     if success:
-        # Делаем staking is_active = False
-        staking.is_active = False
-        db.session.commit()
-
-        # Можно убрать premium, если хотите
-        user.assistant_premium = False
-        db.session.commit()
-
-        flash(f"Стейк возвращён. {tokens_to_return} токенов отправлены.", "success")
+        return jsonify({'message':'Награда 1 UJO успешно отправлена!'}), 200
     else:
-        flash("Ошибка при возврате стейка, попробуйте позже.", "danger")
+        return jsonify({'error':'Не удалось отправить награду'}), 400
 
-    return redirect(url_for('subscription_page'))
+@app.route('/unstake_staking', methods=['POST'])
+def unstake_staking():
+    """
+    Пользователь выводит стейк. Проверяем, что 30 дней прошло.
+    Отправляем staked_amount обратно на его адрес.
+    """
+    if 'user_id' not in session:
+        return jsonify({'error':'Unauthorized'}), 401
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error':'User not found'}), 404
+    
+    from models import UserStaking
+    # Для упрощения — выведите сразу весь стейк, 
+    # если уже прошло 30 дней с момента created_at.
+    now = datetime.utcnow()
+    stakings = UserStaking.query.filter_by(user_id=user_id).all()
+    total_unstake_amount = 0.0
+    any_unstaked = False
+    for st in stakings:
+        if now >= st.unlocked_at:
+            # можем unstake
+            total_unstake_amount += st.staked_amount
+            # "обнулим" staked_amount, чтобы один раз только снять
+            st.staked_amount = 0.0
+            db.session.commit()
+            any_unstaked = True
+    
+    if not any_unstaked:
+        return jsonify({'error':'Ещё не прошло 30 дней либо нет активных стейков'}), 400
+    
+    if total_unstake_amount > 0:
+        from best_setup_voting import send_token_reward
+        success = send_token_reward(user.wallet_address, total_unstake_amount)
+        if success:
+            return jsonify({'message':f'Вы вывели {total_unstake_amount:.4f} UJO!'}), 200
+        else:
+            return jsonify({'error':'Не удалось отправить unstake'}), 400
+    else:
+        return jsonify({'message':'У вас нет доступных к выводу стейков'}), 200
 
 ##################################################
 # Flask Route for Home Page (index) and Login
