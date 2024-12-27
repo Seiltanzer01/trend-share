@@ -1,5 +1,4 @@
 <!-- templates/base.html -->
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -49,7 +48,6 @@
     
     <!-- Встроенные стили для управления прокруткой -->
     <style>
-        /* Отключение глобальной прокрутки и предотвращение передачи событий прокрутки */
         html, body {
             height: 100%;
             margin: 0;
@@ -57,8 +55,6 @@
             overflow: hidden;
             overscroll-behavior: none;
         }
-
-        /* Контейнер с внутренней прокруткой и предотвращением передачи событий прокрутки наружу */
         .container {
             height: 100%;
             overflow-y: auto;
@@ -66,21 +62,18 @@
         }
     </style>
     
-    <!-- Включение Telegram WebApp JS API и инициализация -->
+    <!-- Telegram WebApp JS API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (window.Telegram && window.Telegram.WebApp) {
-                // Отключение вертикальных свайпов, чтобы предотвратить сворачивание приложения
                 window.Telegram.WebApp.disableVerticalSwipes();
-                
-                // Сообщение Telegram, что приложение готово
                 window.Telegram.WebApp.ready();
             }
         });
     </script>
     
-    <!-- Подключение внешнего скрипта -->
+    <!-- Подключим скрипты -->
     <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
 </head>
 <body>
@@ -92,22 +85,19 @@
                     <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> Главная</a>
                     <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
-                    <!-- Ссылка на голосование доступна всем авторизованным пользователям -->
                     <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> Голосование</a>
                     
                     {% if not session.get('assistant_premium') %}
-                        <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка на Дядю Джона</a>
+                        <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка</a>
                     {% else %}
                         <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
-                        <!-- Ссылка на диаграммы доступна только премиум-пользователям -->
                         <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> Диаграммы</a>
-                        <!-- Новые пункты для премиум пользователей -->
-                        <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Установить Кошелек</a>
+                        <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Кошелек</a>
                         <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> Лучший Сетап</a>
                     {% endif %}
                     
                     {% if session.get('telegram_id') in ADMIN_TELEGRAM_IDS %}
-                        <a href="{{ url_for('admin_users') }}" class="nav-button nes-btn"><i class="fas fa-users-cog"></i> Админ Панель</a>
+                        <a href="{{ url_for('admin_users') }}" class="nav-button nes-btn"><i class="fas fa-users-cog"></i> Админ</a>
                     {% endif %}
                     
                     <a href="{{ url_for('logout') }}" class="nav-button nes-btn"><i class="fas fa-sign-out-alt"></i> Выйти</a>
@@ -117,7 +107,6 @@
             </nav>
         </header>
 
-        <!-- Вывод flash сообщений -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <ul class="flashes">
@@ -132,13 +121,11 @@
             {% block content %}{% endblock %}
         </main>
 
-        <!-- Footer -->
         <footer>
             &copy; {{ datetime.utcnow().year }} Trend Share
         </footer>
     </div>
 
-    <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
