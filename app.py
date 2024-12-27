@@ -538,6 +538,15 @@ scheduler.add_job(
     next_run_time=datetime.utcnow() + timedelta(minutes=1)  # Запуск через 1 минуту после старта
 )
 
+from staking_listener import scan_for_staking_transfers
+
+scheduler.add_job(
+    id='Scan for Staking Transfers',
+    func=lambda: scan_for_staking_transfers(app),
+    trigger='interval',
+    minutes=1,  # Раз в минуту
+    next_run_time=datetime.utcnow() + timedelta(seconds=30)
+)
 # Запуск планировщика
 scheduler.start()
 
