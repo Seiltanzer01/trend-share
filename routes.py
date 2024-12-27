@@ -1524,6 +1524,77 @@ def view_setup(setup_id):
 
     return render_template('view_setup.html', setup=setup)
 
+
+@app.route('/stake', methods=['POST'])
+def stake():
+    """
+    Пользователь нажимает "застейкать 20$" на фронте.
+    Здесь просто проверяем, что user есть в сессии, 
+    выдаём flash, что "Пожалуйста, отправьте токены 
+    из вашего кошелька. Мы ждём транзакцию".
+    """
+    if 'user_id' not in session:
+        flash("Сначала войдите в систему", "danger")
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user.wallet_address:
+        flash("Нет кошелька. Укажите в /set_wallet", "danger")
+        return redirect(url_for('subscription_page'))
+
+    # Здесь можно ничего не делать, 
+    # т.к. сканирование блокчейна само найдёт транзакцию.
+    flash("Отправьте токены на наш общий кошелёк, мы ждём подтверждения (скоро появится в дашборде)", "info")
+    return redirect(url_for('subscription_page'))
+
+@app.route('/unstake', methods=['POST'])
+def unstake():
+    """
+    Вывод стейка. Аналог "claim" или "un-stake".
+    Допустим, сразу возвращаем все токены, 
+    если >30 дней. (Упрощённая логика).
+    """
+    if 'user_id' not in session:
+        flash("Сначала войдите в систему", "danger")
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+
+    # Проверим, есть ли активный стейк
+    from models import UserStaking
+    staking = UserStaking.query.filter_by(user_id=user.id, is_active=True).first()
+    if not staking:
+        flash("У вас нет активного стейка", "danger")
+        return redirect(url_for('subscription_page'))
+
+    # Проверим дату
+    delta = datetime.utcnow() - staking.created_at
+    if delta.days < 30:
+        flash(f"Вывести можно через {30 - delta.days} дней.", "danger")
+        return redirect(url_for('subscription_page'))
+
+    # Вызываем send_token_reward(...)
+    from best_setup_voting import send_token_reward
+    tokens_to_return = staking.staked_amount_tokens  # Сколько вернуть
+    success = send_token_reward(user.wallet_address, tokens_to_return)
+
+    if success:
+        # Делаем staking is_active = False
+        staking.is_active = False
+        db.session.commit()
+
+        # Можно убрать premium, если хотите
+        user.assistant_premium = False
+        db.session.commit()
+
+        flash(f"Стейк возвращён. {tokens_to_return} токенов отправлены.", "success")
+    else:
+        flash("Ошибка при возврате стейка, попробуйте позже.", "danger")
+
+    return redirect(url_for('subscription_page'))
+
 ##################################################
 # Flask Route for Home Page (index) and Login
 ##################################################
