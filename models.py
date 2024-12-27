@@ -26,9 +26,29 @@ class User(db.Model):
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     assistant_premium = db.Column(db.Boolean, default=False)
     wallet_address = db.Column(db.String(42), nullable=True)
+
+    # Связи
     trades = db.relationship('Trade', back_populates='user', lazy=True)
     setups = db.relationship('Setup', back_populates='user', lazy=True)
     predictions = db.relationship('UserPrediction', back_populates='user', lazy=True)
+    # Новое: user_stakings - список записей стейкинга
+    user_stakings = db.relationship('UserStaking', back_populates='user', lazy=True)
+
+class UserStaking(db.Model):
+    """
+    Запись о том, что пользователь внёс N токенов, эквивалентных >=25$, 
+    и у него "активная подписка". 
+    """
+    __tablename__ = 'user_staking'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    staked_amount_tokens = db.Column(db.Float, nullable=False)   # Сколько токенов
+    staked_amount_usd = db.Column(db.Float, nullable=False)      # По какому курсу это в USD
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # можно хранить, можно нет
+    is_active = db.Column(db.Boolean, default=True)
+
+    user = db.relationship('User', back_populates='user_stakings')
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
@@ -177,13 +197,11 @@ class UserPrediction(db.Model):
     poll = db.relationship('Poll', back_populates='predictions')
     instrument = db.relationship('Instrument', back_populates='predictions')
 
-# Модель Config для хранения настроек приложения
 class Config(db.Model):
     __tablename__ = 'config'
     key = db.Column(db.String(50), primary_key=True)
     value = db.Column(db.String(50), nullable=False)
 
-# Добавление Модели PriceHistory
 class PriceHistory(db.Model):
     __tablename__ = 'price_history'
     
