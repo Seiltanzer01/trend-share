@@ -16,17 +16,23 @@
             <li>Персональные рекомендации</li>
             <li>Приоритетная поддержка</li>
         </ul>
-        <p>Чтобы получить подписку, нужно застейкать эквивалент $20 в нашем токене (минимум 20$).</p>
+        <p>Чтобы получить подписку, вы должны отправить минимум $25 в токене (например 20$ «стейка» и 5$ сбор).
+           <br>
+           <strong>Отправляйте токены на адрес: <span style="color: red">{{ MY_WALLET_ADDRESS }}</span></strong>
+        </p>
         
         <button class="nes-btn is-primary" id="stake20-btn">
-            <i class="fas fa-coins"></i> Застейкать 20$
+            <i class="fas fa-coins"></i> Застейкать (минимум 25$)
         </button>
         
         <button class="nes-btn is-warning" id="unstake-btn">
-            <i class="fas fa-hand-holding-usd"></i> Вывести Стейк
+            <i class="fas fa-hand-holding-usd"></i> Вывести Стейк (после 30 дней)
         </button>
         
-        <p>После стейка вам будет автоматически включён премиум, пока ваш стейк > 0.</p>
+        <p>После стейка вам будет автоматически включён премиум, пока ваш стейк активен.</p>
+        
+        <p>Для удобства на мобильных кошельках можно использовать <strong>WalletConnect</strong> или <strong>MetaMask Deeplink</strong>:
+        <br><a href="#" class="nes-btn is-success" id="openMetamaskLink">Открыть MetaMask</a></p>
     </div>
 </div>
 
@@ -39,16 +45,20 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // При нажатии "Застейкать 20$"
+    // При нажатии "Застейкать"
     document.getElementById('stake20-btn').addEventListener('click', async() => {
         try {
+            // POST /stake
             const resp = await fetch('/stake', {
-                method: 'POST',
-                headers: { 'Content-Type':'application/json' },
-                body: JSON.stringify({ amount_usd: 20 })
+                method: 'POST'
             });
             if(resp.redirected) {
                 window.location.href = resp.url;
+            } else {
+                const text = await resp.text();
+                console.log(text);
+                // можно показать flash
+                window.location.reload();
             }
         } catch(e) {
             alert('Ошибка stake: ' + e);
@@ -63,10 +73,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if(resp.redirected) {
                 window.location.href = resp.url;
+            } else {
+                const text = await resp.text();
+                console.log(text);
+                window.location.reload();
             }
         } catch(e) {
             alert('Ошибка unstake: ' + e);
         }
+    });
+
+    document.getElementById('openMetamaskLink').addEventListener('click', (e) => {
+        e.preventDefault();
+        // например deeplink для MetaMask: 
+        // (но это очень зависит от платформы)
+        let metamaskDeeplink = "metamask://";
+        window.location.href = metamaskDeeplink;
     });
 });
 </script>
