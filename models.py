@@ -35,20 +35,14 @@ class User(db.Model):
     user_stakings = db.relationship('UserStaking', back_populates='user', lazy=True)
 
 class UserStaking(db.Model):
-    """
-    Запись о том, что пользователь внёс N токенов, эквивалентных >=25$, 
-    и у него "активная подписка". 
-    """
     __tablename__ = 'user_staking'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    staked_amount_tokens = db.Column(db.Float, nullable=False)   # Сколько токенов
-    staked_amount_usd = db.Column(db.Float, nullable=False)      # По какому курсу это в USD
+    stake_amount = db.Column(db.Numeric(28, 8), nullable=False, default=0)  # Храним сумму токенов
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # можно хранить, можно нет
-    is_active = db.Column(db.Boolean, default=True)
+    last_deposit_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship('User', back_populates='user_stakings')
+    user = db.relationship('User', backref='staking', lazy=True)
 
 class InstrumentCategory(db.Model):
     __tablename__ = 'instrument_category'
