@@ -1,99 +1,107 @@
 <!-- templates/subscription.html -->
 {% extends "base.html" %}
 
-{% block head_meta %}
-<!-- Отключим глобальный viewport -->
-{% endblock %}
-
 {% block content %}
-<div class="subscription-container">
-    <h2>Подписка на Ассистента "Дядя Джон"</h2>
-    <div class="nes-container is-rounded with-title">
-        <p class="title">Преимущества подписки:</p>
-        <ul>
-            <li>Индивидуальный AI-ассистент анализа сделок</li>
-            <li>Анализ загруженных графиков</li>
-            <li>Персональные рекомендации</li>
-            <li>Приоритетная поддержка</li>
-        </ul>
-        <p>
-          Чтобы получить подписку, вам нужно отправить **25$** (в токенах UJO), 
-          из них:
-        </p>
-        <ul>
-          <li>20$ — пойдут в стейкинг, с которого будут начисляться награды.</li>
-          <li>5$ — это сбор (fee), который не возвращается.</li>
-        </ul>
-        <p>
-          Отправить эти 25$ (в UJO) вы можете прямо из мобильного Metamask 
-          или другого EVM-совместимого кошелька. Получатель: 
-          <b>{{ MY_WALLET_ADDRESS }}</b>.
-        </p>
-        
-        <p>После подтверждения транзакции и её обнаружения в сети вам 
-        будет автоматически включён премиум-доступ.</p>
-        
-        <hr>
-
-        <h3>Ваши стейки:</h3>
-        <div id="userStakesArea">
-            <!-- сюда динамически подгрузим инфу о стейках -->
-        </div>
-        
-        <p>
-          <button class="nes-btn is-success" id="claimRewardsBtn">
-            Получить награды (Claim)
-          </button>
-          <button class="nes-btn is-warning" id="unstakeBtn">
-            Вывести из стейка (Unstake) 
-          </button>
-        </p>
-    </div>
+<div class="nes-container with-title">
+  <p class="title">Стейкинг / Подписка</p>
+  
+  {% if not user.wallet_address %}
+    <p>Сначала подключите кошелёк MetaMask:</p>
+    <button class="nes-btn is-primary" id="connectWalletBtn">Connect Wallet (MetaMask)</button>
+  {% else %}
+    <p>Ваш кошелёк: <b>{{ user.wallet_address }}</b></p>
+  {% endif %}
+  
+  <hr>
+  <p>Чтобы получить/сохранить премиум, необходимо стейкать UJO на сумму эквивалент \> 20$.</p>
+  <p>Адрес для отправки: <b>{{ MY_WALLET_ADDRESS }}</b></p>
+  <p>Отправьте нужное кол-во UJO (например, 25$), из них 20$ фактически стейк, 5$ сбор. (В коде проверка ">=20$")</p>
+  
+  <div id="stakingArea" style="margin-top:1rem;"></div>
+  
+  <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">Claim Rewards</button>
+  <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    // Загрузим список стейков пользователя:
-    fetch('/get_user_stakes')
-      .then(r => r.json())
-      .then(data => {
-          if(data.error) {
-              alert(data.error);
-              return;
-          }
-          let container = document.getElementById('userStakesArea');
-          container.innerHTML = '';
-          data.stakes.forEach(st => {
-              container.innerHTML += `
-              <div class="nes-container is-rounded" style="margin-bottom:1rem;">
-                  <p><b>Tx:</b> ${st.tx_hash}</p>
-                  <p>Staked: ${st.staked_amount.toFixed(4)} UJO (~${st.staked_usd}$)</p>
-                  <p>Fee: ${st.fee_amount.toFixed(4)} UJO (~${st.fee_usd}$)</p>
-                  <p>UnlockedAt: ${st.unlocked_at}</p>
-              </div>
-              `;
-          });
-      });
-    
-    document.getElementById('claimRewardsBtn').addEventListener('click', () => {
-        fetch('/claim_staking_rewards', {method:'POST'})
-          .then(r => r.json())
-          .then(data => {
-              if(data.error) alert(data.error);
-              else alert(data.message);
-          })
-          .catch(e => alert(e));
-    });
-    
-    document.getElementById('unstakeBtn').addEventListener('click', () => {
-        fetch('/unstake_staking', {method:'POST'})
-          .then(r => r.json())
-          .then(data => {
-              if(data.error) alert(data.error);
-              else alert(data.message);
-          })
-          .catch(e => alert(e));
-    });
+async function connectWallet() {
+  if(window.ethereum) {
+    try {
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      if(accounts && accounts.length>0) {
+        const wallet = accounts[0];
+        // отправим форму /set_wallet
+        const formData = new FormData();
+        formData.append('wallet_address', wallet);
+        const resp = await fetch('/best_setup_voting/set_wallet', {
+          method:'POST',
+          body: formData
+        });
+        window.location.reload();
+      }
+    } catch(e) {
+      alert('Ошибка при connectWallet: '+ e);
+    }
+  } else {
+    alert('MetaMask не найден. Проверьте браузер/устройство.');
+  }
+}
+
+async function loadStaking() {
+  const resp = await fetch('/get_user_stakes');
+  const data = await resp.json();
+  if(data.error) {
+    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>';
+    return;
+  }
+  const stakes = data.stakes;
+  if(!stakes.length) {
+    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>';
+    document.getElementById('claimRewardsBtn').style.display='none';
+    document.getElementById('unstakeBtn').style.display='none';
+    return;
+  }
+  let html = '';
+  for(let s of stakes) {
+    html += `
+    <div class="nes-container is-rounded" style="margin-bottom:1rem;">
+      <p>TX: ${s.tx_hash}</p>
+      <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
+      <p>Pending Rewards: ${s.pending_rewards} UJO</p>
+      <p>Unlocked At: ${s.unlocked_at}</p>
+    </div>
+    `;
+  }
+  document.getElementById('stakingArea').innerHTML = html;
+  document.getElementById('claimRewardsBtn').style.display='inline-block';
+  document.getElementById('unstakeBtn').style.display='inline-block';
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('connectWalletBtn');
+  if(btn) btn.addEventListener('click', connectWallet);
+
+  loadStaking();
+
+  document.getElementById('claimRewardsBtn').addEventListener('click', async()=>{
+    const resp = await fetch('/claim_staking_rewards', {method:'POST'});
+    const data = await resp.json();
+    if(data.error) alert(data.error);
+    else {
+      alert(data.message);
+      loadStaking();
+    }
+  });
+
+  document.getElementById('unstakeBtn').addEventListener('click', async()=>{
+    const resp = await fetch('/unstake_staking',{method:'POST'});
+    const data = await resp.json();
+    if(data.error) alert(data.error);
+    else {
+      alert(data.message);
+      loadStaking();
+    }
+  });
 });
 </script>
 {% endblock %}
