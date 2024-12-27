@@ -103,7 +103,7 @@ def scan_for_staking_transfers(flask_app):
                     user = User.query.filter_by(wallet_address=from_addr.lower()).first()
                     if user:
                         logger.info(f"Transfer from user {user.id}, amount={amount_token:.4f} => {amount_usd:.2f}$, tx={tx_hash}")
-                        if amount_usd >= 20.0:
+                        if amount_usd >= 25.0:
                             # стейк
                             # проверим, не добавляли ли уже этот tx
                             existing = UserStaking.query.filter_by(tx_hash=tx_hash).first()
