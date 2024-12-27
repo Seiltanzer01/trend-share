@@ -28,7 +28,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # Импорт моделей и форм
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 from poll_functions import start_new_poll, process_poll_results, update_real_prices_for_active_polls
-from staking_logic import scan_for_staking_transfers
+from staking_logic import scan_for_staking_transfers, accumulate_staking_rewards
 
 ADMIN_TELEGRAM_IDS = [427032240]
 
@@ -539,14 +539,24 @@ scheduler.add_job(
     next_run_time=datetime.utcnow() + timedelta(minutes=1)  # Запуск через 1 минуту после старта
 )
 
-# **Добавляем задачу сканирования каждые 1 минуту**
+# Добавим задачу сканирования Transfer для стейкинга
 scheduler.add_job(
     id='Scan for Staking Transfers',
-    func=lambda: scan_for_staking_transfers(app),  # <-- важно: передаем app
+    func=lambda: scan_for_staking_transfers(app),
     trigger='interval',
     minutes=1,
     next_run_time=datetime.utcnow() + timedelta(seconds=30)
 )
+
+# Добавим задачу "accumulate_staking_rewards" (раз в сутки, напр.)
+scheduler.add_job(
+    id='Accumulate Staking Rewards',
+    func=lambda: accumulate_staking_rewards(app),
+    trigger='interval',
+    days=1,
+    next_run_time=datetime.utcnow() + timedelta(seconds=40)
+)
+
 # Запуск планировщика
 scheduler.start()
 
