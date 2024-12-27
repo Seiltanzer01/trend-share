@@ -1,147 +1,99 @@
 <!-- templates/subscription.html -->
 {% extends "base.html" %}
-{% block head_meta %}
-{% endblock head_meta %}
-{% block content %}
 
+{% block head_meta %}
+<!-- Отключим глобальный viewport -->
+{% endblock %}
+
+{% block content %}
 <div class="subscription-container">
-    <h2>Стейкинг (вместо Robokassa)</h2>
+    <h2>Подписка на Ассистента "Дядя Джон"</h2>
     <div class="nes-container is-rounded with-title">
-        <p class="title">Преимущества стейкинга:</p>
+        <p class="title">Преимущества подписки:</p>
         <ul>
-            <li>Индивидуальный AI-ассистент «Дядя Джон»</li>
+            <li>Индивидуальный AI-ассистент анализа сделок</li>
             <li>Анализ загруженных графиков</li>
+            <li>Персональные рекомендации</li>
             <li>Приоритетная поддержка</li>
         </ul>
-        <p>Чтобы получить доступ, внесите минимум <b>$25</b> (20$ стейка + 5$ сбор).</p>
+        <p>
+          Чтобы получить подписку, вам нужно отправить **25$** (в токенах UJO), 
+          из них:
+        </p>
+        <ul>
+          <li>20$ — пойдут в стейкинг, с которого будут начисляться награды.</li>
+          <li>5$ — это сбор (fee), который не возвращается.</li>
+        </ul>
+        <p>
+          Отправить эти 25$ (в UJO) вы можете прямо из мобильного Metamask 
+          или другого EVM-совместимого кошелька. Получатель: 
+          <b>{{ MY_WALLET_ADDRESS }}</b>.
+        </p>
+        
+        <p>После подтверждения транзакции и её обнаружения в сети вам 
+        будет автоматически включён премиум-доступ.</p>
         
         <hr>
-        <button class="nes-btn is-primary" id="connectWalletBtn">
-          Подключить Кошелёк
-        </button>
+
+        <h3>Ваши стейки:</h3>
+        <div id="userStakesArea">
+            <!-- сюда динамически подгрузим инфу о стейках -->
+        </div>
         
-        <button class="nes-btn is-success" id="stakeBtn">
-          <i class="fas fa-coins"></i> Застейкать 25$
-        </button>
-        
-        <button class="nes-btn is-warning" id="claimBtn">
-          <i class="fas fa-hand-holding-usd"></i> Claim Награды
-        </button>
-        
-        <button class="nes-btn is-error" id="unstakeBtn">
-          <i class="fas fa-wallet"></i> Unstake (Вывести)
-        </button>
-        
-        <p>После стейка ваш премиум активируется автоматически (сканер проверит транзакцию).</p>
+        <p>
+          <button class="nes-btn is-success" id="claimRewardsBtn">
+            Получить награды (Claim)
+          </button>
+          <button class="nes-btn is-warning" id="unstakeBtn">
+            Вывести из стейка (Unstake) 
+          </button>
+        </p>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/web3@1.7.5/dist/web3.min.js"></script>
 <script>
-  const TOKEN_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS }}"; // вставьте из переменных окружения
-  const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS }}";  // ваш общий кошелёк
-  const TOKEN_DECIMALS = {{ TOKEN_DECIMALS }};
-
-  // Пример ABI для Transfer
-  const ERC20_ABI = [
-    {
-      "constant": false,
-      "inputs": [
-        {"name": "_to", "type": "address"},
-        {"name": "_value", "type": "uint256"}
-      ],
-      "name": "transfer",
-      "outputs": [{"name": "success", "type": "bool"}],
-      "type": "function"
-    }
-  ];
-
-  let web3;
-  let userAccount;
-  let tokenContract;
-
-  async function initWeb3() {
-    if(window.ethereum) {
-      web3 = new Web3(window.ethereum);
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      let accounts = await web3.eth.getAccounts();
-      userAccount = accounts[0];
-      tokenContract = new web3.eth.Contract(ERC20_ABI, TOKEN_ADDRESS);
-      console.log("wallet connected:", userAccount);
-      alert("Кошелёк подключён: " + userAccount);
-    } else {
-      alert("MetaMask не обнаружен! Откройте в MetaMask Mobile или установите расширение.");
-    }
-  }
-
-  async function stakeTokens25usd() {
-    if(!userAccount) {
-      alert("Сначала подключите кошелёк!");
-      return;
-    }
-    // Допустим, для 25 USDT (или любого токена). 
-    // Если decimals=18, 25 => 25 * 1e18
-    // Если decimals=6, 25 => 25 * 1e6
-    const decimals = TOKEN_DECIMALS; 
-    const amount = 25 * (10 ** decimals); 
-    try {
-      await tokenContract.methods
-        .transfer(MY_WALLET_ADDRESS, amount.toString())
-        .send({from: userAccount})
-        .on('transactionHash', (txHash) => {
-          console.log("txHash=", txHash);
-          alert("Tx отправлена: " + txHash);
-        })
-        .on('receipt', (receipt) => {
-          console.log("receipt=", receipt);
-          alert("Успешно отправлено! Ожидайте ~1-2 минуты, пока бэкенд увидит транзакцию и активирует премиум.");
-        })
-        .on('error', (err) => {
-          console.error("Ошибка tx:", err);
-          alert("Ошибка при отправке транзакции.");
-        });
-    } catch(e) {
-      console.error(e);
-      alert("Ошибка stake: " + e.message);
-    }
-  }
-
-  async function claimRewards() {
-    // Просто делаем POST /claim => бэкенд вызывает send_token_reward(...).
-    try {
-      const resp = await fetch('/claim', { method: 'POST' });
-      if(resp.ok){
-        const data = await resp.json();
-        alert("Claim ok: " + data.message);
-      } else {
-        alert("Claim error!");
-      }
-    } catch(e) {
-      alert("Claim error: " + e);
-    }
-  }
-
-  async function unstake() {
-    // POST /unstake => бэкенд вызывает send_token_reward(...).
-    try {
-      const resp = await fetch('/unstake', { method: 'POST' });
-      if(resp.ok){
-        const data = await resp.json();
-        alert("Unstake ok: " + data.message);
-      } else {
-        alert("Unstake error!");
-      }
-    } catch(e) {
-      alert("Unstake error: " + e);
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('connectWalletBtn').addEventListener('click', initWeb3);
-    document.getElementById('stakeBtn').addEventListener('click', stakeTokens25usd);
-    document.getElementById('claimBtn').addEventListener('click', claimRewards);
-    document.getElementById('unstakeBtn').addEventListener('click', unstake);
-  });
+document.addEventListener('DOMContentLoaded', () => {
+    // Загрузим список стейков пользователя:
+    fetch('/get_user_stakes')
+      .then(r => r.json())
+      .then(data => {
+          if(data.error) {
+              alert(data.error);
+              return;
+          }
+          let container = document.getElementById('userStakesArea');
+          container.innerHTML = '';
+          data.stakes.forEach(st => {
+              container.innerHTML += `
+              <div class="nes-container is-rounded" style="margin-bottom:1rem;">
+                  <p><b>Tx:</b> ${st.tx_hash}</p>
+                  <p>Staked: ${st.staked_amount.toFixed(4)} UJO (~${st.staked_usd}$)</p>
+                  <p>Fee: ${st.fee_amount.toFixed(4)} UJO (~${st.fee_usd}$)</p>
+                  <p>UnlockedAt: ${st.unlocked_at}</p>
+              </div>
+              `;
+          });
+      });
+    
+    document.getElementById('claimRewardsBtn').addEventListener('click', () => {
+        fetch('/claim_staking_rewards', {method:'POST'})
+          .then(r => r.json())
+          .then(data => {
+              if(data.error) alert(data.error);
+              else alert(data.message);
+          })
+          .catch(e => alert(e));
+    });
+    
+    document.getElementById('unstakeBtn').addEventListener('click', () => {
+        fetch('/unstake_staking', {method:'POST'})
+          .then(r => r.json())
+          .then(data => {
+              if(data.error) alert(data.error);
+              else alert(data.message);
+          })
+          .catch(e => alert(e));
+    });
+});
 </script>
-
 {% endblock %}
