@@ -86,9 +86,9 @@
                     <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
                     <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> Голосование</a>
-                    
+                    <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка</a>
                     {% if not session.get('assistant_premium') %}
-                        <a href="{{ url_for('subscription_page') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка</a>
+                        
                     {% else %}
                         <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
                         <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> Диаграммы</a>
