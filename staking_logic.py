@@ -36,7 +36,7 @@ def get_token_price_in_usd() -> float:
         data = resp.json()
         pairs = data.get("pairs", [])
         if not pairs:
-            logger.warning("DexScreener pairs отсутствуют.")
+            logger.warning("DexScreener pairs отсутствуют или не вернулись.")
             return 0.0
         price_usd = float(pairs[0].get("priceUsd", 0.0))
         return price_usd
@@ -50,7 +50,8 @@ def scan_for_staking_transfers(flask_app):
       - from=user.wallet_address
       - to=MY_WALLET_ADDRESS
       - Проверяем, что это >= 25$ (20 + 5 сбор)
-      - Создаём запись UserStaking, user.assistant_premium = True
+      - Создаём запись UserStaking (staked_usd, staked_amount и т.д.)
+      - user.assistant_premium = True
     """
     with flask_app.app_context():
         try:
@@ -72,21 +73,48 @@ def scan_for_staking_transfers(flask_app):
             last_checked_block = int(block_conf.value)
             current_block = web3.eth.block_number
 
-            transfer_topic = web3.keccak(text="Transfer(address,address,uint256)").hex()
-
-            logs = web3.eth.get_logs({
-                "fromBlock": last_checked_block + 1,
-                "toBlock": current_block,
-                "address": token_contract.address,
-                "topics": [transfer_topic]
-            })
-
-            price_usd = get_token_price_in_usd()
-            if price_usd <= 0:
-                logger.warning("Цена токена UJO = 0, пропускаем.")
+            if last_checked_block >= current_block:
+                logger.info(
+                    f"scan_for_staking_transfers: нет новых блоков для сканирования. "
+                    f"last_checked_block={last_checked_block}, current_block={current_block}"
+                )
                 return
 
-            for entry in logs:
+            transfer_topic = web3.keccak(text="Transfer(address,address,uint256)").hex()
+            price_usd = get_token_price_in_usd()
+            if price_usd <= 0:
+                logger.warning("Цена токена UJO <= 0, пропускаем сканирование.")
+                return
+
+            # Шаг "batch" - по сколько блоков за раз берем
+            step_size = 2000  
+            all_logs = []
+
+            start_block = last_checked_block + 1
+            while start_block <= current_block:
+                end_block = min(start_block + step_size - 1, current_block)
+                logger.info(f"Сканируем блоки [{start_block} .. {end_block}]")
+
+                try:
+                    partial_logs = web3.eth.get_logs({
+                        "fromBlock": start_block,
+                        "toBlock": end_block,
+                        "address": token_contract.address,
+                        "topics": [transfer_topic]
+                    })
+                except Exception as e:
+                    logger.error(f"Ошибка get_logs в диапазоне [{start_block}..{end_block}]: {e}")
+                    logger.error(traceback.format_exc())
+                    # Если случилась ошибка, прекращаем цикл, 
+                    # чтобы не перезаписать block_conf.value
+                    break
+
+                all_logs.extend(partial_logs)
+                start_block = end_block + 1
+
+            logger.info(f"Найдено {len(all_logs)} Transfer-событий для анализа.")
+
+            for entry in all_logs:
                 tx_hash = entry.transactionHash.hex()
                 data_hex = entry.data  # количество в hex
                 value_int = int(data_hex, 16)
@@ -104,7 +132,10 @@ def scan_for_staking_transfers(flask_app):
                 if to_addr.lower() == MY_WALLET_ADDRESS.lower():
                     user = User.query.filter_by(wallet_address=from_addr.lower()).first()
                     if user:
-                        logger.info(f"Transfer from user {user.id}, amount={amount_token:.4f} => {amount_usd:.2f}$, tx={tx_hash}")
+                        logger.info(
+                            f"Transfer from user_id={user.id}, "
+                            f"amount_token={amount_token:.4f}, ~{amount_usd:.2f} USD, tx={tx_hash}"
+                        )
                         # Нужно >= 25$
                         if amount_usd >= 25.0:
                             # проверим, не добавляли ли уже этот tx
@@ -122,8 +153,12 @@ def scan_for_staking_transfers(flask_app):
                                 db.session.add(new_stake)
                                 user.assistant_premium = True
                                 db.session.commit()
-                                logger.info(f"User {user.id} staked ~{amount_usd:.2f}$ (tx={tx_hash}). Premium on.")
+                                logger.info(
+                                    f"[Staking] User {user.id} staked ~{amount_usd:.2f}$ "
+                                    f"(tx={tx_hash}). Premium activated."
+                                )
 
+            # Обновляем last_checked_block только если не было ошибок
             block_conf.value = str(current_block)
             db.session.commit()
 
