@@ -13,9 +13,11 @@
   {% endif %}
   
   <hr>
-  <p>Чтобы получить/сохранить премиум, необходимо стейкать UJO на сумму эквивалент \> 20$.</p>
-  <p>Адрес для отправки: <b>{{ MY_WALLET_ADDRESS }}</b></p>
-  <p>Отправьте нужное кол-во UJO (например, 25$), из них 20$ фактически стейк, 5$ сбор. (В коде проверка ">=20$")</p>
+  <p>Чтобы получить/сохранить премиум, необходимо внести UJO на сумму >= 20$ + 5$ сбор = 25$ (проверка >= 25$).</p>
+  <p>Контракт будет проверять: <b>{{ MY_WALLET_ADDRESS }}</b> — адрес, куда вы отправляете.</p>
+  <p>Нажмите кнопку «Застейкать (25$)» ниже, чтобы Metamask сделал transfer.</p>
+  
+  <button id="stake25Btn" class="nes-btn is-success">Застейкать (25$)</button>
   
   <div id="stakingArea" style="margin-top:1rem;"></div>
   
@@ -23,85 +25,138 @@
   <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
 </div>
 
+<!-- ethers.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.umd.min.js"></script>
 <script>
+const TOKEN_CONTRACT_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS|default('0xYOUR_UJO_CONTRACT') }}"
+const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS|default('0xPROJECT') }}"
+const TOKEN_ABI = [
+  // Достаточно описать метод transfer, event Transfer
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)"
+]
+
 async function connectWallet() {
   if(window.ethereum) {
     try {
-      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
       if(accounts && accounts.length>0) {
-        const wallet = accounts[0];
-        // отправим форму /set_wallet
-        const formData = new FormData();
-        formData.append('wallet_address', wallet);
+        const wallet = accounts[0]
+        // отправим на сервер для сохранения
+        const formData = new FormData()
+        formData.append('wallet_address', wallet)
         const resp = await fetch('/best_setup_voting/set_wallet', {
-          method:'POST',
+          method: 'POST',
           body: formData
-        });
-        window.location.reload();
+        })
+        window.location.reload()
       }
     } catch(e) {
-      alert('Ошибка при connectWallet: '+ e);
+      alert('Ошибка при connectWallet: ' + e)
     }
   } else {
-    alert('MetaMask не найден. Проверьте браузер/устройство.');
+    alert('MetaMask не найден.')
+  }
+}
+
+async function stake25() {
+  if(!window.ethereum) {
+    alert('MetaMask не найден.')
+    return
+  }
+  try {
+    await window.ethereum.request({ method: 'eth_requestAccounts' })
+    const provider = new ethers.providers.Web3Provider(window.ethereum)
+    const signer = provider.getSigner()
+
+    // Допустим 25$ => выясняем курс... 
+    // Но для простоты жёстко "какое-то количество UJO" 
+    // (или спрашиваем с бэка /get_token_price_in_usd).
+    // Здесь "tokenAmount" = 100 UJO пример.
+    const tokenAmount = "100.0"
+    const decimals = 18
+    const tokenAmountWei = ethers.utils.parseUnits(tokenAmount, decimals)
+
+    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, TOKEN_ABI, signer)
+    const txResponse = await contract.transfer(MY_WALLET_ADDRESS, tokenAmountWei)
+    console.log("Tx sent:", txResponse.hash)
+    const receipt = await txResponse.wait()
+    console.log("Tx mined:", receipt.transactionHash)
+
+    // Отправим txHash на /staking/confirm
+    const resp = await fetch('/staking/confirm', {
+      method:'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ txHash: receipt.transactionHash })
+    })
+    const j = await resp.json()
+    if(resp.ok) {
+      alert('Staking confirmed! ' + JSON.stringify(j))
+      loadStaking()
+    } else {
+      alert('Staking failed: ' + JSON.stringify(j))
+    }
+  } catch(e) {
+    alert("Ошибка stake25: " + e.message)
+    console.error(e)
   }
 }
 
 async function loadStaking() {
-  const resp = await fetch('/get_user_stakes');
-  const data = await resp.json();
+  const resp = await fetch('/staking/get_user_stakes')
+  const data = await resp.json()
   if(data.error) {
-    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>';
-    return;
+    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
+    return
   }
-  const stakes = data.stakes;
+  const stakes = data.stakes
   if(!stakes.length) {
-    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>';
-    document.getElementById('claimRewardsBtn').style.display='none';
-    document.getElementById('unstakeBtn').style.display='none';
-    return;
+    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>'
+    document.getElementById('claimRewardsBtn').style.display='none'
+    document.getElementById('unstakeBtn').style.display='none'
+    return
   }
-  let html = '';
+  let html=''
   for(let s of stakes) {
-    html += `
-    <div class="nes-container is-rounded" style="margin-bottom:1rem;">
-      <p>TX: ${s.tx_hash}</p>
+    html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
+      <p><b>TX Hash:</b> ${s.tx_hash}</p>
       <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
       <p>Pending Rewards: ${s.pending_rewards} UJO</p>
       <p>Unlocked At: ${s.unlocked_at}</p>
-    </div>
-    `;
+    </div>`
   }
-  document.getElementById('stakingArea').innerHTML = html;
-  document.getElementById('claimRewardsBtn').style.display='inline-block';
-  document.getElementById('unstakeBtn').style.display='inline-block';
+  document.getElementById('stakingArea').innerHTML = html
+  document.getElementById('claimRewardsBtn').style.display='inline-block'
+  document.getElementById('unstakeBtn').style.display='inline-block'
 }
 
-document.addEventListener('DOMContentLoaded', ()=>{
-  const btn = document.getElementById('connectWalletBtn');
-  if(btn) btn.addEventListener('click', connectWallet);
+document.addEventListener('DOMContentLoaded', ()=> {
+  const btnConn = document.getElementById('connectWalletBtn')
+  if(btnConn) btnConn.addEventListener('click', connectWallet)
 
-  loadStaking();
+  document.getElementById('stake25Btn').addEventListener('click', stake25)
 
-  document.getElementById('claimRewardsBtn').addEventListener('click', async()=>{
-    const resp = await fetch('/claim_staking_rewards', {method:'POST'});
-    const data = await resp.json();
-    if(data.error) alert(data.error);
+  loadStaking()
+
+  document.getElementById('claimRewardsBtn').addEventListener('click', async()=> {
+    const resp = await fetch('/staking/claim_staking_rewards',{method:'POST'})
+    const data = await resp.json()
+    if(data.error) alert(data.error)
     else {
-      alert(data.message);
-      loadStaking();
+      alert(data.message)
+      loadStaking()
     }
-  });
+  })
 
   document.getElementById('unstakeBtn').addEventListener('click', async()=>{
-    const resp = await fetch('/unstake_staking',{method:'POST'});
-    const data = await resp.json();
-    if(data.error) alert(data.error);
+    const resp = await fetch('/staking/unstake_staking',{method:'POST'})
+    const data = await resp.json()
+    if(data.error) alert(data.error)
     else {
-      alert(data.message);
-      loadStaking();
+      alert(data.message)
+      loadStaking()
     }
-  });
-});
+  })
+})
 </script>
 {% endblock %}
