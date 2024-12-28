@@ -50,7 +50,7 @@ def scan_for_staking_transfers(flask_app):
       - from=user.wallet_address
       - to=MY_WALLET_ADDRESS
       - Проверяем, что это >= 25$ (20 + 5 сбор)
-      - Создаём запись UserStaking (staked_usd, staked_amount и т.д.)
+      - Создаём запись UserStaking (staked_usd, staked_amount, tx_hash и т.д.)
       - user.assistant_premium = True
     """
     with flask_app.app_context():
@@ -73,6 +73,7 @@ def scan_for_staking_transfers(flask_app):
             last_checked_block = int(block_conf.value)
             current_block = web3.eth.block_number
 
+            # Если нет новых блоков, завершаем
             if last_checked_block >= current_block:
                 logger.info(
                     f"scan_for_staking_transfers: нет новых блоков для сканирования. "
@@ -86,34 +87,59 @@ def scan_for_staking_transfers(flask_app):
                 logger.warning("Цена токена UJO <= 0, пропускаем сканирование.")
                 return
 
-            # Шаг "batch" - по сколько блоков за раз берем
-            step_size = 2000  
+            # Начальный размер шага
+            step_size = 100  # при необходимости можно сразу брать мелкое значение
             all_logs = []
-
             start_block = last_checked_block + 1
+
             while start_block <= current_block:
                 end_block = min(start_block + step_size - 1, current_block)
                 logger.info(f"Сканируем блоки [{start_block} .. {end_block}]")
 
-                try:
-                    partial_logs = web3.eth.get_logs({
-                        "fromBlock": start_block,
-                        "toBlock": end_block,
-                        "address": token_contract.address,
-                        "topics": [transfer_topic]
-                    })
-                except Exception as e:
-                    logger.error(f"Ошибка get_logs в диапазоне [{start_block}..{end_block}]: {e}")
-                    logger.error(traceback.format_exc())
-                    # Если случилась ошибка, прекращаем цикл, 
-                    # чтобы не перезаписать block_conf.value
-                    break
+                # Чтобы многократно попытаться уменьшить step_size:
+                while True:
+                    try:
+                        partial_logs = web3.eth.get_logs({
+                            "fromBlock": start_block,
+                            "toBlock": end_block,
+                            "address": token_contract.address,
+                            "topics": [transfer_topic]
+                        })
+                        # Если получилось без ошибки, выходим из while True
+                        break
+                    except ValueError as e:
+                        # Если в сообщении есть 'limit exceeded', уменьшаем step_size
+                        if "limit exceeded" in str(e).lower() or "response size exceeded" in str(e).lower():
+                            logger.error(
+                                f"Ошибка get_logs в диапазоне [{start_block}..{end_block}]: {e}"
+                            )
+                            logger.error(traceback.format_exc())
+                            step_size //= 2
+                            if step_size < 1:
+                                # ниже 1 уже нельзя
+                                logger.error(
+                                    f"step_size упал ниже 1, пропускаем блоки [{start_block}..{end_block}]"
+                                )
+                                partial_logs = []
+                                break
+                            else:
+                                logger.info(f"Уменьшаем step_size до {step_size} и повторяем запрос.")
+                                end_block = min(start_block + step_size - 1, current_block)
+                                continue
+                        else:
+                            # Другая ошибка, выходим
+                            logger.error(f"Неизвестная ошибка get_logs [{start_block}..{end_block}]: {e}")
+                            logger.error(traceback.format_exc())
+                            # Запишем partial_logs = []
+                            partial_logs = []
+                            break
 
                 all_logs.extend(partial_logs)
                 start_block = end_block + 1
 
             logger.info(f"Найдено {len(all_logs)} Transfer-событий для анализа.")
 
+            # Обработка полученных логов
             for entry in all_logs:
                 tx_hash = entry.transactionHash.hex()
                 data_hex = entry.data  # количество в hex
@@ -158,7 +184,7 @@ def scan_for_staking_transfers(flask_app):
                                     f"(tx={tx_hash}). Premium activated."
                                 )
 
-            # Обновляем last_checked_block только если не было ошибок
+            # Обновляем last_checked_block только если не было необработанных крит. ошибок
             block_conf.value = str(current_block)
             db.session.commit()
 
