@@ -101,7 +101,10 @@ if BASE_RPC_URL and PRIVATE_KEY and TOKEN_CONTRACT_ADDRESS:
         ]
 
         try:
-            token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+            token_contract = web3.eth.contract(
+                address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS),
+                abi=ERC20_ABI
+            )
             logger.info(f"Токен-контракт инициализирован: {TOKEN_CONTRACT_ADDRESS}")
         except Exception as e:
             logger.error(f"Ошибка при инициализации токен-контракта: {e}")
@@ -121,15 +124,18 @@ def send_token_reward(user_wallet, amount):
         return False
 
     try:
-        # Изменено: Использование параметра 'pending' для корректного получения nonce
+        # Используем параметр 'pending' для корректного получения nonce
         nonce = web3.eth.get_transaction_count(account.address, 'pending')
         token_amount = int(amount * (10**TOKEN_DECIMALS))
 
-        tx = token_contract.functions.transfer(Web3.to_checksum_address(user_wallet), token_amount).build_transaction({
+        tx = token_contract.functions.transfer(
+            Web3.to_checksum_address(user_wallet),
+            token_amount
+        ).build_transaction({
             'from': account.address,
             'nonce': nonce,
             'gas': 100000,
-            'gasPrice': Web3.to_wei('1', 'gwei')  # Использование to_wei
+            'gasPrice': Web3.to_wei('1', 'gwei')
         })
 
         signed_tx = web3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
@@ -192,7 +198,6 @@ def start_best_setup_contest():
             # Попытка парсинга старого формата
             try:
                 last_poll_date = datetime.strptime(last_poll_conf.value, '%Y-%m-%d')
-                # Обновление до нового формата
                 last_poll_conf.value = last_poll_date.strftime('%Y-%m-%d %H:%M:%S')
                 db.session.commit()
                 logger.info("last_best_setup_poll обновлён до нового формата.")
@@ -208,11 +213,10 @@ def start_best_setup_contest():
 
     # Установка длительности голосования на 15 минут
     start_date = datetime.utcnow()
-    end_date = start_date + timedelta(minutes=15)  # 15 минут голосование
+    end_date = start_date + timedelta(minutes=15)
 
     # Очистка предыдущих данных голосования
     try:
-        # Изменено: порядок удаления записей для предотвращения нарушения внешних ключей
         BestSetupVote.query.delete()
         BestSetupCandidate.query.delete()
         BestSetupPoll.query.delete()
@@ -231,7 +235,6 @@ def start_best_setup_contest():
         db.session.commit()
         logger.info("Новое голосование успешно создано.")
 
-        # Обновление конфигурации последнего голосования с полным временем
         if not last_poll_conf:
             last_poll_conf = Config(key='last_best_setup_poll', value=start_date.strftime('%Y-%m-%d %H:%M:%S'))
             db.session.add(last_poll_conf)
@@ -240,7 +243,6 @@ def start_best_setup_contest():
         db.session.commit()
         logger.info("Конфигурация последнего голосования обновлена.")
 
-        # Подготовка кандидатов
         premium_users = User.query.filter_by(assistant_premium=True).all()
         candidates = []
 
@@ -252,14 +254,13 @@ def start_best_setup_contest():
             for setup in setups:
                 trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
                 total_trades = len(trades)
-                # Количество сделок для оценки
                 if total_trades < 2:
-                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет недостаточное количество сделок и пропущен.")
+                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет недостаточное количество сделок.")
                     continue
                 wins = sum(1 for t in trades if t.profit_loss and t.profit_loss > 0)
                 win_rate = (wins / total_trades) * 100.0 if total_trades > 0 else 0.0
                 if win_rate < 70:
-                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет низкий Win Rate ({win_rate}%) и пропущен.")
+                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет низкий Win Rate {win_rate}%.")
                     continue
                 candidates.append({
                     'user_id': user.id,
@@ -270,7 +271,7 @@ def start_best_setup_contest():
 
         candidates.sort(key=lambda x: (x['win_rate'], x['total_trades']), reverse=True)
         top_candidates = candidates[:15]
-        logger.info(f"Найдено {len(top_candidates)} топ кандидатов для голосования.")
+        logger.info(f"Найдено {len(top_candidates)} топ-кандидатов для голосования.")
 
         for c in top_candidates:
             candidate = BestSetupCandidate(
@@ -326,7 +327,7 @@ def best_setup_candidates():
         }
         candidates_list.append(candidate_dict)
 
-    logger.debug(f"Переданные кандидаты: {candidates_list}")  # Добавлено логирование
+    logger.debug(f"Переданные кандидаты: {candidates_list}")
 
     return render_template('best_setup_candidates.html', candidates=candidates_list)
 
@@ -339,7 +340,6 @@ def vote_best_setup():
         flash("Нет активного голосования.", "info")
         return redirect(url_for('index'))
 
-    # Добавляем логирование для отладки
     logger.debug(f"Полученные данные формы: {request.form}")
 
     candidate_id = request.form.get('candidate_id')
@@ -410,7 +410,7 @@ def auto_finalize_best_setup_voting():
         results.sort(key=lambda x: x[1], reverse=True)
         winners = results[:3]
 
-        # Награды
+        # Пример наград
         rewards = [0.001, 0.0005, 0.0001]
         for i, (candidate, votes) in enumerate(winners):
             winner_user = User.query.get(candidate.user_id)
@@ -451,11 +451,8 @@ def force_finalize_best_setup():
         flash("Нет активного голосования для завершения.", "warning")
         return redirect(url_for('admin_users'))
 
-    # Устанавливаем end_date в прошлое, чтобы оно было завершено
     poll.end_date = datetime.utcnow() - timedelta(minutes=1)
     db.session.commit()
-
-    # Вызываем логику финализации
     auto_finalize_best_setup_voting()
 
     flash("Активное голосование принудительно завершено.", "success")
