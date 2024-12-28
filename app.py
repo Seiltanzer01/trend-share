@@ -28,7 +28,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # Импорт моделей и форм
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 from poll_functions import start_new_poll, process_poll_results, update_real_prices_for_active_polls
-from staking_logic import scan_for_staking_transfers, accumulate_staking_rewards
+from staking_logic import accumulate_staking_rewards
 
 ADMIN_TELEGRAM_IDS = [427032240]
 
@@ -530,31 +530,14 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
 )
 
-# Добавляем задачу обновления реальных цен
-scheduler.add_job(
-    id='Update Real Prices',
-    func=update_real_prices_job,  # Используем обёртку
-    trigger='interval',
-    minutes=1,  # Запускать каждые 1 минуту
-    next_run_time=datetime.utcnow() + timedelta(minutes=1)  # Запуск через 1 минуту после старта
-)
-
-# Добавим задачу сканирования Transfer для стейкинга
-scheduler.add_job(
-    id='Scan for Staking Transfers',
-    func=lambda: scan_for_staking_transfers(app),
-    trigger='interval',
-    minutes=1,
-    next_run_time=datetime.utcnow() + timedelta(seconds=30)
-)
-
-# Добавим задачу "accumulate_staking_rewards" (раз в сутки, напр.)
+# УБИРАЕМ scan_for_staking_transfers,
+# оставляем только накопление наград (например, раз в 7 дней):
 scheduler.add_job(
     id='Accumulate Staking Rewards',
-    func=lambda: accumulate_staking_rewards(app),
+    func=lambda: accumulate_staking_rewards(),
     trigger='interval',
-    days=1,
-    next_run_time=datetime.utcnow() + timedelta(seconds=40)
+    days=7,
+    next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
 
 # Запуск планировщика
@@ -565,6 +548,10 @@ atexit.register(lambda: scheduler.shutdown())
 
 # Импорт маршрутов после инициализации APScheduler
 from routes import *
+
+# Подключаем наш новый blueprint staking_bp
+from routes_staking import staking_bp
+app.register_blueprint(staking_bp, url_prefix='/staking')
 
 # Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
