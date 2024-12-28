@@ -490,12 +490,14 @@ def initialize():
                 con.execute("""
                     ALTER TABLE user_staking
                     ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
+                    ADD COLUMN IF NOT EXISTS staked_usd FLOAT,
                     ADD COLUMN IF NOT EXISTS staked_amount FLOAT,
-                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP,
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
                     ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMP,
-                    ADD COLUMN IF NOT EXISTS pending_rewards FLOAT,
-                    ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP
+                    ADD COLUMN IF NOT EXISTS pending_rewards FLOAT DEFAULT 0.0,
+                    ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP DEFAULT NOW()
                 """)
+                logger.info("Необходимые колонки добавлены в таблицу user_staking.")
         except Exception as e:
             logger.error(f"Не удалось выполнить ALTER TABLE user_staking: {e}")
 
