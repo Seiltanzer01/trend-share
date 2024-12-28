@@ -483,8 +483,27 @@ def initialize():
     try:
         db.create_all()
         logger.info("База данных создана или уже существует.")
-        create_predefined_data()
+
+        # Мини-хак: Добавляем нужные колонки, если их нет
+        try:
+            with db.engine.connect() as con:
+                con.execute("""
+                    ALTER TABLE user_staking
+                    ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
+                    ADD COLUMN IF NOT EXISTS staked_amount FLOAT,
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP,
+                    ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMP,
+                    ADD COLUMN IF NOT EXISTS pending_rewards FLOAT,
+                    ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP
+                """)
+        except Exception as e:
+            logger.error(f"Не удалось выполнить ALTER TABLE user_staking: {e}")
+
+        # Если нужно, create_predefined_data()
+        # create_predefined_data()
+
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         logger.error(traceback.format_exc())
 
