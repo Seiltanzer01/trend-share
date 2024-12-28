@@ -31,7 +31,6 @@
 const TOKEN_CONTRACT_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS|default('0xYOUR_UJO_CONTRACT') }}"
 const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS|default('0xPROJECT') }}"
 const TOKEN_ABI = [
-  // Достаточно описать метод transfer, event Transfer
   "function transfer(address to, uint256 amount) returns (bool)",
   "event Transfer(address indexed from, address indexed to, uint256 value)"
 ]
@@ -42,7 +41,6 @@ async function connectWallet() {
       const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
       if(accounts && accounts.length>0) {
         const wallet = accounts[0]
-        // отправим на сервер для сохранения
         const formData = new FormData()
         formData.append('wallet_address', wallet)
         const resp = await fetch('/best_setup_voting/set_wallet', {
@@ -69,11 +67,7 @@ async function stake25() {
     const provider = new ethers.providers.Web3Provider(window.ethereum)
     const signer = provider.getSigner()
 
-    // Допустим 25$ => выясняем курс... 
-    // Но для простоты жёстко "какое-то количество UJO" 
-    // (или спрашиваем с бэка /get_token_price_in_usd).
-    // Здесь "tokenAmount" = 100 UJO пример.
-    const tokenAmount = "100.0"
+    const tokenAmount = "100.0" // пример
     const decimals = 18
     const tokenAmountWei = ethers.utils.parseUnits(tokenAmount, decimals)
 
@@ -83,7 +77,7 @@ async function stake25() {
     const receipt = await txResponse.wait()
     console.log("Tx mined:", receipt.transactionHash)
 
-    // Отправим txHash на /staking/confirm
+    // POST /staking/confirm
     const resp = await fetch('/staking/confirm', {
       method:'POST',
       headers: {'Content-Type':'application/json'},
@@ -135,7 +129,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
   if(btnConn) btnConn.addEventListener('click', connectWallet)
 
   document.getElementById('stake25Btn').addEventListener('click', stake25)
-
   loadStaking()
 
   document.getElementById('claimRewardsBtn').addEventListener('click', async()=> {
