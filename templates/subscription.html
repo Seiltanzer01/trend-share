@@ -15,11 +15,13 @@
   <hr>
   <p>Чтобы получить/сохранить премиум, необходимо внести UJO на сумму >= 20$ + 5$ сбор = 25$ (проверка >= 25$).</p>
   <p>Контракт будет проверять: <b>{{ MY_WALLET_ADDRESS }}</b> — адрес, куда вы отправляете.</p>
-  <p>Нажмите кнопку «Застейкать (25$)» ниже, чтобы MetaMask сделал transfer.</p>
   
   {% if user.wallet_address %}
     <!-- Кнопка стейкинга с предзаполненной транзакцией через EIP-681 -->
-    <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ (25 / token_price_usd) * (10 ** token_decimals)|int }}" class="nes-btn is-success">Застейкать (25$)</a>
+    {% set amount_usd = 25 %}
+    {% set token_amount = (amount_usd / token_price_usd) %}
+    {% set token_amount_wei = (token_amount * (10 ** TOKEN_DECIMALS))|int %}
+    <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ token_amount_wei }}" class="nes-btn is-success">Застейкать ({{ amount_usd }}$)</a>
   {% else %}
     <button class="nes-btn is-success" disabled>Застейкать (25$)</button>
   {% endif %}
@@ -33,10 +35,10 @@
 <!-- ethers.js CDN для других функций, если необходимо -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.umd.min.js"></script>
 <script>
-const TOKEN_CONTRACT_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS|default('0xYOUR_UJO_CONTRACT') }}"
-const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS|default('0xPROJECT') }}"
-const TOKEN_DECIMALS = {{ TOKEN_DECIMALS|default(18) }}
-const TOKEN_PRICE_USD = {{ token_price_usd|default(1.0) }}  // Предполагаемая переменная для цены токена
+const TOKEN_CONTRACT_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS }}"
+const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS }}"
+const TOKEN_DECIMALS = {{ TOKEN_DECIMALS }}
+const TOKEN_PRICE_USD = {{ token_price_usd }}
 
 async function connectWallet() {
   if(window.ethereum) {
