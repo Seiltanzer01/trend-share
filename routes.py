@@ -659,16 +659,35 @@ def vote_results():
     return render_template('vote_results.html', polls=completed_polls)
 
 @app.route('/subscription', methods=['GET'])
-def subscription_page():
-    """
-    Страница стейкинга/подписки. Видна всем залогиненным (и премиум, и не премиум).
-    """
+def subscription():
     if 'user_id' not in session:
         flash('Сначала войдите.', 'warning')
         return redirect(url_for('login'))
+    
     user = User.query.get(session['user_id'])
-    my_wallet = os.environ.get("MY_WALLET_ADDRESS","")
-    return render_template('subscription.html', user=user, MY_WALLET_ADDRESS=my_wallet)
+    my_wallet = os.environ.get("MY_WALLET_ADDRESS", "")
+    
+    # Получаем текущую цену токена
+    token_price_usd = get_token_price_in_usd()
+    if token_price_usd <= 0:
+        flash('Не удалось получить текущую цену токена. Попробуйте позже.', 'danger')
+        logger.error("Не удалось получить текущую цену токена UJO.")
+        token_price_usd = 1.0  # Установите значение по умолчанию или обработайте ошибку по-другому
+    
+    # Получаем количество десятичных знаков токена
+    TOKEN_DECIMALS = int(os.environ.get("TOKEN_DECIMALS", 18))
+    
+    # Получаем адрес контракта токена
+    TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
+    
+    return render_template(
+        'subscription.html',
+        user=user,
+        MY_WALLET_ADDRESS=my_wallet,
+        token_price_usd=token_price_usd,
+        TOKEN_DECIMALS=TOKEN_DECIMALS,
+        TOKEN_CONTRACT_ADDRESS=TOKEN_CONTRACT_ADDRESS
+    )
 
 @app.route('/buy_assistant', methods=['GET'])
 def buy_assistant():
