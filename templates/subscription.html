@@ -15,9 +15,14 @@
   <hr>
   <p>Чтобы получить/сохранить премиум, необходимо внести UJO на сумму >= 20$ + 5$ сбор = 25$ (проверка >= 25$).</p>
   <p>Контракт будет проверять: <b>{{ MY_WALLET_ADDRESS }}</b> — адрес, куда вы отправляете.</p>
-  <p>Нажмите кнопку «Застейкать (25$)» ниже, чтобы Metamask сделал transfer.</p>
+  <p>Нажмите кнопку «Застейкать (25$)» ниже, чтобы MetaMask сделал transfer.</p>
   
-  <button id="stake25Btn" class="nes-btn is-success">Застейкать (25$)</button>
+  {% if user.wallet_address %}
+    <!-- Кнопка стейкинга с предзаполненной транзакцией через EIP-681 -->
+    <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ (25 / token_price_usd) * (10 ** token_decimals)|int }}" class="nes-btn is-success">Застейкать (25$)</a>
+  {% else %}
+    <button class="nes-btn is-success" disabled>Застейкать (25$)</button>
+  {% endif %}
   
   <div id="stakingArea" style="margin-top:1rem;"></div>
   
@@ -25,15 +30,13 @@
   <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
 </div>
 
-<!-- ethers.js CDN -->
+<!-- ethers.js CDN для других функций, если необходимо -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.umd.min.js"></script>
 <script>
 const TOKEN_CONTRACT_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS|default('0xYOUR_UJO_CONTRACT') }}"
 const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS|default('0xPROJECT') }}"
-const TOKEN_ABI = [
-  "function transfer(address to, uint256 amount) returns (bool)",
-  "event Transfer(address indexed from, address indexed to, uint256 value)"
-]
+const TOKEN_DECIMALS = {{ TOKEN_DECIMALS|default(18) }}
+const TOKEN_PRICE_USD = {{ token_price_usd|default(1.0) }}  // Предполагаемая переменная для цены токена
 
 async function connectWallet() {
   if(window.ethereum) {
@@ -57,45 +60,6 @@ async function connectWallet() {
   }
 }
 
-async function stake25() {
-  if(!window.ethereum) {
-    alert('MetaMask не найден.')
-    return
-  }
-  try {
-    await window.ethereum.request({ method: 'eth_requestAccounts' })
-    const provider = new ethers.providers.Web3Provider(window.ethereum)
-    const signer = provider.getSigner()
-
-    const tokenAmount = "100.0" // пример
-    const decimals = 18
-    const tokenAmountWei = ethers.utils.parseUnits(tokenAmount, decimals)
-
-    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, TOKEN_ABI, signer)
-    const txResponse = await contract.transfer(MY_WALLET_ADDRESS, tokenAmountWei)
-    console.log("Tx sent:", txResponse.hash)
-    const receipt = await txResponse.wait()
-    console.log("Tx mined:", receipt.transactionHash)
-
-    // POST /staking/confirm
-    const resp = await fetch('/staking/confirm', {
-      method:'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ txHash: receipt.transactionHash })
-    })
-    const j = await resp.json()
-    if(resp.ok) {
-      alert('Staking confirmed! ' + JSON.stringify(j))
-      loadStaking()
-    } else {
-      alert('Staking failed: ' + JSON.stringify(j))
-    }
-  } catch(e) {
-    alert("Ошибка stake25: " + e.message)
-    console.error(e)
-  }
-}
-
 async function loadStaking() {
   const resp = await fetch('/staking/get_user_stakes')
   const data = await resp.json()
@@ -116,7 +80,7 @@ async function loadStaking() {
       <p><b>TX Hash:</b> ${s.tx_hash}</p>
       <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
       <p>Pending Rewards: ${s.pending_rewards} UJO</p>
-      <p>Unlocked At: ${s.unlocked_at}</p>
+      <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
     </div>`
   }
   document.getElementById('stakingArea').innerHTML = html
@@ -128,7 +92,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
   const btnConn = document.getElementById('connectWalletBtn')
   if(btnConn) btnConn.addEventListener('click', connectWallet)
 
-  document.getElementById('stake25Btn').addEventListener('click', stake25)
   loadStaking()
 
   document.getElementById('claimRewardsBtn').addEventListener('click', async()=> {
