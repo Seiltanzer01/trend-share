@@ -10,7 +10,6 @@ from web3 import Web3
 from eth_account import Account
 
 from models import db, User, UserStaking
-# Из best_setup_voting импортируем уже инициализированные web3/token_contract, TOKEN_DECIMALS:
 from best_setup_voting import web3, token_contract, TOKEN_DECIMALS
 
 logger = logging.getLogger(__name__)
@@ -18,31 +17,50 @@ logger = logging.getLogger(__name__)
 # Сюда пользователь отправляет токены
 MY_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "")
 
-DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens"
-
+# DexScreener Pair Address
+DEEXSCREENER_PAIR_ADDRESS = os.environ.get("DEXScreener_PAIR_ADDRESS", "")
 
 def get_token_price_in_usd() -> float:
     """
-    Получаем текущую цену нашего ERC20-токена (UJO) в USD,
-    например, через DexScreener.
+    Получаем текущую цену нашего ERC20-токена (UJO) в USD через DexScreener API.
     """
     try:
-        token_address = os.environ.get("TOKEN_CONTRACT_ADDRESS", "")
-        if not token_address:
-            logger.error("TOKEN_CONTRACT_ADDRESS не задан.")
+        pair_address = DEEXSCREENER_PAIR_ADDRESS
+        if not pair_address:
+            logger.error("DEXScreener_PAIR_ADDRESS не задан.")
             return 0.0
 
-        url = f"{DEXSCREENER_API_URL}/{token_address}"
-        resp = requests.get(url, timeout=10)
-        data = resp.json()
-        pairs = data.get("pairs", [])
-        if not pairs:
-            logger.warning("DexScreener pairs отсутствуют или не вернулись.")
+        # Корректный URL для DexScreener API
+        chain_name = "bsc"  # Имя цепочки
+        api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
+        
+        logger.info(f"Отправка запроса к DexScreener API: {api_url}")
+        resp = requests.get(api_url, timeout=10)
+        
+        logger.info(f"API Response Status: {resp.status_code}")
+        logger.info(f"API Response Body: {resp.text}")
+        
+        if resp.status_code != 200:
+            logger.error(f"DexScreener API вернул статус {resp.status_code}")
             return 0.0
-        price_usd = float(pairs[0].get("priceUsd", 0.0))
+        
+        data = resp.json()
+        pair = data.get("pair", {})
+        if not pair:
+            logger.warning("DexScreener pair отсутствует или не вернулся.")
+            return 0.0
+        
+        price_usd_str = pair.get("priceUsd", "0.0")
+        price_usd = float(price_usd_str)
+        logger.info(f"Текущая цена токена UJO: {price_usd} USD")
         return price_usd
+    except ValueError as e:
+        logger.error(f"Ошибка при декодировании JSON: {e}")
+        logger.error(f"Тело ответа: {resp.text}")
+        return 0.0
     except Exception as e:
         logger.error(f"Ошибка get_token_price_in_usd: {e}")
+        logger.error(traceback.format_exc())
         return 0.0
 
 
