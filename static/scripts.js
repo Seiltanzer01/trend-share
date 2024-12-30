@@ -160,16 +160,9 @@ $(document).ready(function() {
     // Загрузка истории чата при загрузке страницы (если необходимо)
     // loadChatHistory(); // Раскомментируйте, если есть такая необходимость
 
-    // Функция для получения CSRF-токена из скрытого поля формы
+    // Функция для получения CSRF-токена из window.config
     function getCSRFToken() {
-        const confirmForm = document.getElementById('confirmStakeForm');
-        if(confirmForm){
-            const csrfInput = confirmForm.querySelector('input[name="csrf_token"]');
-            if(csrfInput){
-                return csrfInput.value;
-            }
-        }
-        return "";
+        return window.config.CSRF_TOKEN;
     }
 
     // Обработка отправки формы чата
@@ -330,6 +323,18 @@ $(document).ready(function() {
         });
     }
 
+    // Определение переменных из window.config
+    const TOKEN_CONTRACT_ADDRESS = window.config.TOKEN_CONTRACT_ADDRESS;
+    const MY_WALLET_ADDRESS = window.config.MY_WALLET_ADDRESS;
+    const TOKEN_DECIMALS = window.config.TOKEN_DECIMALS;
+    const TOKEN_PRICE_USD = window.config.TOKEN_PRICE_USD;
+    const TOKEN_AMOUNT_WEI = window.config.TOKEN_AMOUNT_WEI;
+
+    const CSRF_TOKEN = window.config.CSRF_TOKEN;
+
+    let web3;
+    let walletAddress = window.config.WALLET_ADDRESS;
+
     // Функция для подключения кошелька через MetaMask
     async function connectMetaMask() {
         if (window.ethereum) {
@@ -337,19 +342,20 @@ $(document).ready(function() {
                 const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
                 if (accounts && accounts.length > 0) {
                     walletAddress = accounts[0];
+                    web3 = new Web3(window.ethereum);
                     const formData = new FormData()
                     formData.append('wallet_address', walletAddress)
                     const resp = await fetch('/best_setup_voting/set_wallet', {
                         method: 'POST',
                         body: formData,
                         headers: {
-                            'X-CSRFToken': getCSRFToken()
+                            'X-CSRFToken': CSRF_TOKEN
                         }
                     })
                     window.location.reload()
                 }
             } catch (e) {
-                alert('Ошибка при подключении MetaMask: ' + e)
+                alert('Ошибка при подключении MetaMask: ' + e.message)
             }
         } else {
             alert('MetaMask не найден.')
@@ -384,7 +390,7 @@ $(document).ready(function() {
                     method: 'POST',
                     body: formData,
                     headers: {
-                        'X-CSRFToken': getCSRFToken()
+                        'X-CSRFToken': CSRF_TOKEN
                     }
                 })
                 window.location.reload()
@@ -404,11 +410,17 @@ $(document).ready(function() {
     // Функция для проведения стейкинга
     async function stakeTokens() {
         if (!web3) {
-            alert('Кошелёк не подключён.')
+            alert('Кошелёк не подключён. Пожалуйста, подключитесь через MetaMask или WalletConnect.')
             return
         }
 
-        const amount = "{{ token_amount_wei }}" // Количество токенов в Wei
+        if (!walletAddress) {
+            alert('Не удалось определить адрес кошелька.')
+            return
+        }
+
+        const amount = TOKEN_AMOUNT_WEI; // Количество токенов в Wei
+
         try {
             // Получение ABI для функции transfer
             const transferABI = [
@@ -435,9 +447,9 @@ $(document).ready(function() {
                 }
             ]
 
-            const tokenContract = new web3.eth.Contract(transferABI, "{{ TOKEN_CONTRACT_ADDRESS }}");
+            const tokenContract = new web3.eth.Contract(transferABI, TOKEN_CONTRACT_ADDRESS);
 
-            const tx = await tokenContract.methods.transfer("{{ MY_WALLET_ADDRESS }}", "{{ token_amount_wei }}").send({ from: walletAddress })
+            const tx = await tokenContract.methods.transfer(MY_WALLET_ADDRESS, amount).send({ from: walletAddress })
                 .on('transactionHash', function(hash){
                     console.log('Транзакция отправлена. Хэш:', hash);
                     alert('Транзакция отправлена. Хэш транзакции: ' + hash);
@@ -500,6 +512,11 @@ $(document).ready(function() {
         const btnConn = document.getElementById('connectWalletBtn')
         if(btnConn) btnConn.addEventListener('click', connectWallet)
 
+        const reconnectWalletBtn = document.getElementById('reconnectWalletBtn')
+        if(reconnectWalletBtn){
+            reconnectWalletBtn.addEventListener('click', connectWallet)
+        }
+
         const connectMetaMaskBtn = document.getElementById('connectMetaMask')
         if(connectMetaMaskBtn){
             connectMetaMaskBtn.addEventListener('click', connectMetaMask)
@@ -523,7 +540,7 @@ $(document).ready(function() {
         if(claimRewardsBtn){
             claimRewardsBtn.addEventListener('click', async()=> {
                 try {
-                    const csrfToken = getCSRFToken();
+                    const csrfToken = CSRF_TOKEN;
                     const resp = await fetch('/staking/claim_staking_rewards',{
                         method:'POST',
                         headers: {
@@ -547,7 +564,7 @@ $(document).ready(function() {
         if(unstakeBtn){
             unstakeBtn.addEventListener('click', async()=>{
                 try {
-                    const csrfToken = getCSRFToken();
+                    const csrfToken = CSRF_TOKEN;
                     const resp = await fetch('/staking/unstake_staking',{
                         method:'POST',
                         headers: {
