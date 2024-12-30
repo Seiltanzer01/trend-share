@@ -164,109 +164,259 @@ $(document).ready(function() {
     // loadChatHistory(); // Раскомментируйте, если есть такая необходимость
 
     // Обработка отправки формы чата
-    assistantForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const question = assistantQuestionInput.value.trim();
-        if (!question) return;
+    if (assistantForm) {
+        assistantForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const question = assistantQuestionInput.value.trim();
+            if (!question) return;
 
-        // Добавление сообщения пользователя в историю
-        chatHistory.push({ role: 'user', content: question });
-        updateChatHistoryDisplay();
+            // Добавление сообщения пользователя в историю
+            chatHistory.push({ role: 'user', content: question });
+            updateChatHistoryDisplay();
 
-        // Отправка запроса на сервер
-        try {
-            const response = await fetch('/assistant/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ question: question })
-            });
+            // Отправка запроса на сервер
+            try {
+                const response = await fetch('/assistant/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ question: question })
+                });
 
-            const data = await response.json();
-            console.log('Chat Response:', data); // Для отладки
-            if (data.response) {
-                // Добавление ответа ассистента в историю
-                const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
-                chatHistory.push({ role: 'assistant', content: assistantContent });
-                updateChatHistoryDisplay();
-            } else if (data.error) {
-                // Обработка ошибок
-                const errorMsg = `Ошибка: ${data.error}`;
+                const data = await response.json();
+                console.log('Chat Response:', data); // Для отладки
+                if (data.response) {
+                    // Добавление ответа ассистента в историю
+                    const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
+                    chatHistory.push({ role: 'assistant', content: assistantContent });
+                    updateChatHistoryDisplay();
+                } else if (data.error) {
+                    // Обработка ошибок
+                    const errorMsg = `Ошибка: ${data.error}`;
+                    chatHistory.push({ role: 'assistant', content: errorMsg });
+                    updateChatHistoryDisplay();
+                }
+            } catch (error) {
+                console.error('Ошибка при отправке запроса:', error);
+                const errorMsg = 'Произошла ошибка при отправке вашего запроса.';
                 chatHistory.push({ role: 'assistant', content: errorMsg });
                 updateChatHistoryDisplay();
             }
-        } catch (error) {
-            console.error('Ошибка при отправке запроса:', error);
-            const errorMsg = 'Произошла ошибка при отправке вашего запроса.';
-            chatHistory.push({ role: 'assistant', content: errorMsg });
-            updateChatHistoryDisplay();
-        }
 
-        // Очистка поля ввода
-        assistantQuestionInput.value = '';
-    });
+            // Очистка поля ввода
+            assistantQuestionInput.value = '';
+        });
+    }
 
     // Обработка отправки формы анализа графика
-    chartForm.addEventListener('submit', async function(e){
-        e.preventDefault();
-        const imageInput = document.getElementById('chart-image');
-        const file = imageInput.files[0];
-        if (!file) {
-            alert('Пожалуйста, выберите изображение.');
-            return;
-        }
+    if (chartForm) {
+        chartForm.addEventListener('submit', async function(e){
+            e.preventDefault();
+            const imageInput = document.getElementById('chart-image');
+            const file = imageInput.files[0];
+            if (!file) {
+                alert('Пожалуйста, выберите изображение.');
+                return;
+            }
 
-        // Отображение индикатора загрузки
-        chartAnalysisResult.textContent = 'Идет анализ...';
-        analysisChartDiv.innerHTML = '';
+            // Отображение индикатора загрузки
+            chartAnalysisResult.textContent = 'Идет анализ...';
+            analysisChartDiv.innerHTML = '';
 
-        const formData = new FormData();
-        formData.append('image', file);
+            const formData = new FormData();
+            formData.append('image', file);
 
-        try {
-            const response = await fetch('/assistant/analyze_chart', {
-                method: 'POST',
-                body: formData
-            });
+            try {
+                const response = await fetch('/assistant/analyze_chart', {
+                    method: 'POST',
+                    body: formData
+                });
 
-            const data = await response.json();
-            console.log('Chart Analysis Response:', data); // Для отладки
-            if (data.result && data.result.trend_prediction) {
-                // Отображение прогноза тренда
-                chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
-                // Если вы хотите отображать график, убедитесь, что бэкенд возвращает chart_url
-                // В текущем случае этого нет, поэтому оставляем пустым
-                analysisChartDiv.innerHTML = '';
-            } else if (data.error) {
-                // Обработка ошибок
-                const errorMsg = `Ошибка: ${data.error}`;
-                chartAnalysisResult.innerHTML = `<p class="nes-text is-error">${errorMsg}</p>`;
+                const data = await response.json();
+                console.log('Chart Analysis Response:', data); // Для отладки
+                if (data.result && data.result.trend_prediction) {
+                    // Отображение прогноза тренда
+                    chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
+                    // Если вы хотите отображать график, убедитесь, что бэкенд возвращает chart_url
+                    // В текущем случае этого нет, поэтому оставляем пустым
+                    analysisChartDiv.innerHTML = '';
+                } else if (data.error) {
+                    // Обработка ошибок
+                    const errorMsg = `Ошибка: ${data.error}`;
+                    chartAnalysisResult.innerHTML = `<p class="nes-text is-error">${errorMsg}</p>`;
+                    analysisChartDiv.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Ошибка при анализе графика:', error);
+                chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
                 analysisChartDiv.innerHTML = '';
             }
-        } catch (error) {
-            console.error('Ошибка при анализе графика:', error);
-            chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
-            analysisChartDiv.innerHTML = '';
-        }
 
-        // Очистка поля ввода файла
-        imageInput.value = '';
-    });
+            // Очистка поля ввода файла
+            imageInput.value = '';
+        });
+    }
 
     // Обработка кнопки очистки чата
-    clearChatButton.addEventListener('click', async function() {
-        try {
-            const response = await fetch('/clear_chat_history', {
-                method: 'POST'
-            });
-            const data = await response.json();
-            if (data.status === 'success') {
-                chatHistory = [];
-                updateChatHistoryDisplay();
+    if (clearChatButton) {
+        clearChatButton.addEventListener('click', async function() {
+            try {
+                const response = await fetch('/clear_chat_history', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken()
+                    }
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    chatHistory = [];
+                    updateChatHistoryDisplay();
+                }
+            } catch (error) {
+                console.error('Ошибка при очистке чата:', error);
             }
-        } catch (error) {
-            console.error('Ошибка при очистке чата:', error);
+        });
+    }
+
+    // Функция для получения CSRF-токена из cookie
+    function getCSRFToken() {
+        const name = 'csrf_token=';
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const ca = decodedCookie.split(';');
+        for(let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) === 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    // Добавление обработчика для формы подтверждения стейкинга
+    const confirmStakeForm = document.getElementById('confirmStakeForm');
+    if(confirmStakeForm){
+        confirmStakeForm.addEventListener('submit', async function(e){
+            e.preventDefault();
+            const txHashInput = document.getElementById('tx_hash');
+            const txHash = txHashInput.value.trim();
+            if(!txHash){
+                alert('Пожалуйста, введите хэш транзакции.');
+                return;
+            }
+
+            // Получение CSRF-токена
+            const csrfToken = getCSRFToken();
+
+            try {
+                const response = await fetch('/staking/confirm', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ txHash: txHash })
+                });
+
+                const data = await response.json();
+                if(data.status === 'success'){
+                    alert('Стейкинг успешно подтверждён!');
+                    // Очистка формы
+                    txHashInput.value = '';
+                    // Обновление списка стейков
+                    loadStaking();
+                } else {
+                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка.'));
+                }
+            } catch(e){
+                alert('Произошла ошибка при подтверждении стейкинга: ' + e);
+            }
+        });
+    }
+
+    // Функция для загрузки и отображения стейков пользователя
+    async function loadStaking() {
+        const resp = await fetch('/staking/get_user_stakes');
+        const data = await resp.json();
+        if(data.error) {
+            document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>';
+            document.getElementById('claimRewardsBtn').style.display='none';
+            document.getElementById('unstakeBtn').style.display='none';
+            return;
+        }
+        const stakes = data.stakes;
+        if(!stakes.length) {
+            document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>';
+            document.getElementById('claimRewardsBtn').style.display='none';
+            document.getElementById('unstakeBtn').style.display='none';
+            return;
+        }
+        let html='';
+        for(let s of stakes) {
+            html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
+              <p><b>TX Hash:</b> ${s.tx_hash}</p>
+              <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
+              <p>Pending Rewards: ${s.pending_rewards} UJO</p>
+              <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
+            </div>`;
+        }
+        document.getElementById('stakingArea').innerHTML = html;
+        document.getElementById('claimRewardsBtn').style.display='inline-block';
+        document.getElementById('unstakeBtn').style.display='inline-block';
+    }
+
+    // Инициализация подключения кошелька и загрузка стейкинговых данных
+    document.addEventListener('DOMContentLoaded', ()=> {
+        const btnConn = document.getElementById('connectWalletBtn');
+        if(btnConn) btnConn.addEventListener('click', connectWallet);
+
+        loadStaking();
+
+        // Обработчик кнопки "Claim Rewards"
+        const claimRewardsBtn = document.getElementById('claimRewardsBtn');
+        if(claimRewardsBtn){
+            claimRewardsBtn.addEventListener('click', async()=> {
+                // Получение CSRF-токена
+                const csrfToken = getCSRFToken();
+
+                const resp = await fetch('/staking/claim_staking_rewards',{
+                    method:'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                const data = await resp.json();
+                if(data.error) alert(data.error);
+                else {
+                    alert(data.message);
+                    loadStaking();
+                }
+            });
+        }
+
+        // Обработчик кнопки "Unstake"
+        const unstakeBtn = document.getElementById('unstakeBtn');
+        if(unstakeBtn){
+            unstakeBtn.addEventListener('click', async()=>{
+                // Получение CSRF-токена
+                const csrfToken = getCSRFToken();
+
+                const resp = await fetch('/staking/unstake_staking',{
+                    method:'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                const data = await resp.json();
+                if(data.error) alert(data.error);
+                else {
+                    alert(data.message);
+                    loadStaking();
+                }
+            });
         }
     });
 });
