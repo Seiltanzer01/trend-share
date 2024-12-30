@@ -67,7 +67,34 @@ def confirm_staking():
         logger.error(f"Ошибка при подтверждении стейкинга: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
+        
+@staking_bp.route('/set_wallet', methods=['POST'])
+def set_wallet():
+    try:
+        wallet_address = request.form.get('wallet_address')
+        if not wallet_address or not wallet_address.startswith('0x') or len(wallet_address) != 42:
+            logger.warning(f"Некорректный адрес кошелька: {wallet_address}")
+            return jsonify({"error": "Invalid wallet address."}), 400
 
+        if 'user_id' not in session:
+            logger.warning("Неавторизованный доступ к /staking/set_wallet.")
+            return jsonify({"error": "Unauthorized"}), 401
+
+        user_id = session['user_id']
+        user = User.query.get(user_id)
+        if not user:
+            logger.warning(f"Пользователь с ID {user_id} не найден.")
+            return jsonify({"error": "User not found."}), 404
+
+        user.wallet_address = wallet_address
+        db.session.commit()
+        logger.info(f"Адрес кошелька пользователя ID {user_id} обновлён на {wallet_address}.")
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Ошибка при установке адреса кошелька: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error."}), 500
 
 @staking_bp.route('/get_user_stakes', methods=['GET'])
 def get_user_stakes():
