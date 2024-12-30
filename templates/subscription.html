@@ -6,8 +6,12 @@
   <p class="title">Стейкинг / Подписка</p>
   
   {% if not user.wallet_address %}
-    <p>Сначала подключите кошелёк MetaMask:</p>
-    <button class="nes-btn is-primary" id="connectWalletBtn">Connect Wallet (MetaMask)</button>
+    <p>Сначала подключите кошелёк:</p>
+    <button class="nes-btn is-primary" id="connectWalletBtn">Connect Wallet</button>
+    <div id="walletOptions" style="margin-top: 1rem; display: none;">
+      <button class="nes-btn is-warning" id="connectMetaMask">Connect with MetaMask</button>
+      <button class="nes-btn is-success" id="connectWalletConnect">Connect with WalletConnect</button>
+    </div>
   {% else %}
     <p>Ваш кошелёк: <b>{{ user.wallet_address }}</b></p>
   {% endif %}
@@ -17,12 +21,12 @@
   <p>Контракт будет проверять: <b>{{ MY_WALLET_ADDRESS }}</b> — адрес, куда вы отправляете.</p>
   
   {% if user.wallet_address %}
-    <!-- Кнопка стейкинга с предзаполненной транзакцией через EIP-681 -->
+    <!-- Кнопка стейкинга -->
     {% set amount_usd = 25 %}
     {% set token_amount = (amount_usd / token_price_usd) %}
     {% set token_amount_wei = (token_amount * (10 ** TOKEN_DECIMALS))|int %}
-    {% set chain_id = 56 %} 
-    <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}@{{ chain_id }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ token_amount_wei }}" class="nes-btn is-success">Застейкать ({{ amount_usd }}$)</a>
+    <button class="nes-btn is-success" id="stakeButton">Застейкать ({{ amount_usd }}$)</button>
+    
     <!-- Форма для подтверждения стейкинга -->
     <div style="margin-top:1rem;">
       <h3>Подтвердите стейкинг</h3>
@@ -45,89 +49,11 @@
   <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
 </div>
 
-<!-- ethers.js CDN для других функций, если необходимо -->
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.umd.min.js"></script>
-<script>
-const TOKEN_CONTRACT_ADDRESS = "{{ TOKEN_CONTRACT_ADDRESS }}"
-const MY_WALLET_ADDRESS = "{{ MY_WALLET_ADDRESS }}"
-const TOKEN_DECIMALS = {{ TOKEN_DECIMALS }}
-const TOKEN_PRICE_USD = {{ token_price_usd }}
-
-async function connectWallet() {
-  if(window.ethereum) {
-    try {
-      const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
-      if(accounts && accounts.length>0) {
-        const wallet = accounts[0]
-        const formData = new FormData()
-        formData.append('wallet_address', wallet)
-        const resp = await fetch('/best_setup_voting/set_wallet', {
-          method: 'POST',
-          body: formData
-        })
-        window.location.reload()
-      }
-    } catch(e) {
-      alert('Ошибка при connectWallet: ' + e)
-    }
-  } else {
-    alert('MetaMask не найден.')
-  }
-}
-
-async function loadStaking() {
-  const resp = await fetch('/staking/get_user_stakes')
-  const data = await resp.json()
-  if(data.error) {
-    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
-    return
-  }
-  const stakes = data.stakes
-  if(!stakes.length) {
-    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>'
-    document.getElementById('claimRewardsBtn').style.display='none'
-    document.getElementById('unstakeBtn').style.display='none'
-    return
-  }
-  let html=''
-  for(let s of stakes) {
-    html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
-      <p><b>TX Hash:</b> ${s.tx_hash}</p>
-      <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
-      <p>Pending Rewards: ${s.pending_rewards} UJO</p>
-      <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
-    </div>`
-  }
-  document.getElementById('stakingArea').innerHTML = html
-  document.getElementById('claimRewardsBtn').style.display='inline-block'
-  document.getElementById('unstakeBtn').style.display='inline-block'
-}
-
-document.addEventListener('DOMContentLoaded', ()=> {
-  const btnConn = document.getElementById('connectWalletBtn')
-  if(btnConn) btnConn.addEventListener('click', connectWallet)
-
-  loadStaking()
-
-  document.getElementById('claimRewardsBtn').addEventListener('click', async()=> {
-    const resp = await fetch('/staking/claim_staking_rewards',{method:'POST'})
-    const data = await resp.json()
-    if(data.error) alert(data.error)
-    else {
-      alert(data.message)
-      loadStaking()
-    }
-  })
-
-  document.getElementById('unstakeBtn').addEventListener('click', async()=>{
-    const resp = await fetch('/staking/unstake_staking',{method:'POST'})
-    const data = await resp.json()
-    if(data.error) alert(data.error)
-    else {
-      alert(data.message)
-      loadStaking()
-    }
-  })
-})
-</script>
+<!-- Подключение необходимых библиотек -->
+<!-- Web3.js -->
+<script src="https://cdn.jsdelivr.net/npm/web3@1.6.1/dist/web3.min.js"></script>
+<!-- WalletConnect Provider -->
+<script src="https://unpkg.com/@walletconnect/web3-provider@1.7.8/dist/umd/index.min.js"></script>
+<!-- Подключение собственного скрипта -->
+<script src="{{ url_for('static', filename='scripts.js') }}"></script>
 {% endblock %}
