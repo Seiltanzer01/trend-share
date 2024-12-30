@@ -22,7 +22,7 @@
     {% set token_amount = (amount_usd / token_price_usd) %}
     {% set token_amount_wei = (token_amount * (10 ** TOKEN_DECIMALS))|int %}
     {% set chain_id = 56 %} 
-    <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ token_amount_wei }}" class="nes-btn is-success">Застейкать ({{ amount_usd }}$)</a>
+    <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}@{{ chain_id }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ token_amount_wei }}" class="nes-btn is-success">Застейкать ({{ amount_usd }}$)</a>
     <!-- Форма для подтверждения стейкинга -->
     <div style="margin-top:1rem;">
       <h3>Подтвердите стейкинг</h3>
