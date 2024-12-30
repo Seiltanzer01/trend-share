@@ -3,6 +3,9 @@
 $(document).ready(function() {
     console.log("scripts.js загружен"); // Отладочное сообщение
 
+    // Добавляем отладочное сообщение для проверки window.config
+    console.log("Window config:", window.config); 
+
     // Инициализация FastClick для устранения задержки на мобильных устройствах
     if ('addEventListener' in document) {
         FastClick.attach(document.body);
@@ -407,6 +410,9 @@ $(document).ready(function() {
         walletOptions.style.display = 'block';
     }
 
+    // **УДАЛЯЕМ ПЕРВУЮ ФУНКЦИЮ stakeTokens (раньше была здесь)**
+    // В вашем текущем файле она уже присутствует ниже, поэтому её удаление предотвратит дублирование.
+
     // Функция для проведения стейкинга
     async function stakeTokens() {
         if (!web3) {
@@ -420,6 +426,7 @@ $(document).ready(function() {
         }
 
         const amount = TOKEN_AMOUNT_WEI; // Количество токенов в Wei
+        console.log("Staking amount (Wei):", amount); // Отладочное сообщение
 
         try {
             // Получение ABI для функции transfer
