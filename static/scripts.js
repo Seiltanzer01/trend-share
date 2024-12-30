@@ -8,9 +8,6 @@ $(document).ready(function() {
         FastClick.attach(document.body);
     }
 
-    // **Удален блок обработки Telegram WebApp initData**
-    // Теперь авторизация через Telegram WebApp обрабатывается только на странице webapp.html
-
     // Обработчик для кнопки "Показать/Скрыть Фильтры"
     $('#toggle-filters').on('click', function(){
         $('#filters').slideToggle();
@@ -163,6 +160,18 @@ $(document).ready(function() {
     // Загрузка истории чата при загрузке страницы (если необходимо)
     // loadChatHistory(); // Раскомментируйте, если есть такая необходимость
 
+    // Функция для получения CSRF-токена из скрытого поля формы
+    function getCSRFToken() {
+        const confirmForm = document.getElementById('confirmStakeForm');
+        if(confirmForm){
+            const csrfInput = confirmForm.querySelector('input[name="csrf_token"]');
+            if(csrfInput){
+                return csrfInput.value;
+            }
+        }
+        return "";
+    }
+
     // Обработка отправки формы чата
     if (assistantForm) {
         assistantForm.addEventListener('submit', async function(e) {
@@ -262,10 +271,11 @@ $(document).ready(function() {
     if (clearChatButton) {
         clearChatButton.addEventListener('click', async function() {
             try {
+                const csrfToken = getCSRFToken();
                 const response = await fetch('/clear_chat_history', {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': getCSRFToken()
+                        'X-CSRFToken': csrfToken
                     }
                 });
                 const data = await response.json();
@@ -277,23 +287,6 @@ $(document).ready(function() {
                 console.error('Ошибка при очистке чата:', error);
             }
         });
-    }
-
-    // Функция для получения CSRF-токена из cookie
-    function getCSRFToken() {
-        const name = 'csrf_token=';
-        const decodedCookie = decodeURIComponent(document.cookie);
-        const ca = decodedCookie.split(';');
-        for(let i = 0; i < ca.length; i++) {
-            let c = ca[i];
-            while (c.charAt(0) === ' ') {
-                c = c.substring(1);
-            }
-            if (c.indexOf(name) === 0) {
-                return c.substring(name.length, c.length);
-            }
-        }
-        return "";
     }
 
     // Добавление обработчика для формы подтверждения стейкинга
@@ -308,7 +301,7 @@ $(document).ready(function() {
                 return;
             }
 
-            // Получение CSRF-токена
+            // Получение CSRF-токена из скрытого поля
             const csrfToken = getCSRFToken();
 
             try {
@@ -337,62 +330,97 @@ $(document).ready(function() {
         });
     }
 
+    // Функция для подключения кошелька MetaMask
+    async function connectWallet() {
+        if(window.ethereum) {
+            try {
+                const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
+                if(accounts && accounts.length>0) {
+                    const wallet = accounts[0]
+                    const formData = new FormData()
+                    formData.append('wallet_address', wallet)
+                    const resp = await fetch('/best_setup_voting/set_wallet', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': getCSRFToken()
+                        }
+                    })
+                    window.location.reload()
+                }
+            } catch(e) {
+                alert('Ошибка при connectWallet: ' + e)
+            }
+        } else {
+            alert('MetaMask не найден.')
+        }
+    }
+
     // Функция для загрузки и отображения стейков пользователя
     async function loadStaking() {
-        const resp = await fetch('/staking/get_user_stakes');
-        const data = await resp.json();
-        if(data.error) {
-            document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>';
-            document.getElementById('claimRewardsBtn').style.display='none';
-            document.getElementById('unstakeBtn').style.display='none';
-            return;
+        try {
+            const resp = await fetch('/staking/get_user_stakes')
+            const data = await resp.json()
+            if(data.error) {
+                document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
+                document.getElementById('claimRewardsBtn').style.display='none'
+                document.getElementById('unstakeBtn').style.display='none'
+                return
+            }
+            const stakes = data.stakes
+            if(!stakes.length) {
+                document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>'
+                document.getElementById('claimRewardsBtn').style.display='none'
+                document.getElementById('unstakeBtn').style.display='none'
+                return
+            }
+            let html=''
+            for(let s of stakes) {
+                html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
+                  <p><b>TX Hash:</b> ${s.tx_hash}</p>
+                  <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
+                  <p>Pending Rewards: ${s.pending_rewards} UJO</p>
+                  <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
+                </div>`
+            }
+            document.getElementById('stakingArea').innerHTML = html
+            document.getElementById('claimRewardsBtn').style.display='inline-block'
+            document.getElementById('unstakeBtn').style.display='inline-block'
+        } catch (error) {
+            console.error('Ошибка при загрузке стейков:', error)
+            document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейков.</p>'
+            document.getElementById('claimRewardsBtn').style.display='none'
+            document.getElementById('unstakeBtn').style.display='none'
         }
-        const stakes = data.stakes;
-        if(!stakes.length) {
-            document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>';
-            document.getElementById('claimRewardsBtn').style.display='none';
-            document.getElementById('unstakeBtn').style.display='none';
-            return;
-        }
-        let html='';
-        for(let s of stakes) {
-            html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
-              <p><b>TX Hash:</b> ${s.tx_hash}</p>
-              <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
-              <p>Pending Rewards: ${s.pending_rewards} UJO</p>
-              <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
-            </div>`;
-        }
-        document.getElementById('stakingArea').innerHTML = html;
-        document.getElementById('claimRewardsBtn').style.display='inline-block';
-        document.getElementById('unstakeBtn').style.display='inline-block';
     }
 
     // Инициализация подключения кошелька и загрузка стейкинговых данных
     document.addEventListener('DOMContentLoaded', ()=> {
-        const btnConn = document.getElementById('connectWalletBtn');
-        if(btnConn) btnConn.addEventListener('click', connectWallet);
+        const btnConn = document.getElementById('connectWalletBtn')
+        if(btnConn) btnConn.addEventListener('click', connectWallet)
 
-        loadStaking();
+        loadStaking()
 
         // Обработчик кнопки "Claim Rewards"
         const claimRewardsBtn = document.getElementById('claimRewardsBtn');
         if(claimRewardsBtn){
             claimRewardsBtn.addEventListener('click', async()=> {
-                // Получение CSRF-токена
-                const csrfToken = getCSRFToken();
-
-                const resp = await fetch('/staking/claim_staking_rewards',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken
+                try {
+                    const csrfToken = getCSRFToken();
+                    const resp = await fetch('/staking/claim_staking_rewards',{
+                        method:'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    })
+                    const data = await resp.json()
+                    if(data.error) alert(data.error)
+                    else {
+                        alert(data.message)
+                        loadStaking()
                     }
-                });
-                const data = await resp.json();
-                if(data.error) alert(data.error);
-                else {
-                    alert(data.message);
-                    loadStaking();
+                } catch (error) {
+                    alert('Произошла ошибка при клейме наград: ' + error)
                 }
             });
         }
@@ -401,20 +429,22 @@ $(document).ready(function() {
         const unstakeBtn = document.getElementById('unstakeBtn');
         if(unstakeBtn){
             unstakeBtn.addEventListener('click', async()=>{
-                // Получение CSRF-токена
-                const csrfToken = getCSRFToken();
-
-                const resp = await fetch('/staking/unstake_staking',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken
+                try {
+                    const csrfToken = getCSRFToken();
+                    const resp = await fetch('/staking/unstake_staking',{
+                        method:'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    })
+                    const data = await resp.json()
+                    if(data.error) alert(data.error)
+                    else {
+                        alert(data.message)
+                        loadStaking()
                     }
-                });
-                const data = await resp.json();
-                if(data.error) alert(data.error);
-                else {
-                    alert(data.message);
-                    loadStaking();
+                } catch (error) {
+                    alert('Произошла ошибка при unstake: ' + error)
                 }
             });
         }
