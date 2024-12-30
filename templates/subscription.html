@@ -21,7 +21,20 @@
     {% set amount_usd = 25 %}
     {% set token_amount = (amount_usd / token_price_usd) %}
     {% set token_amount_wei = (token_amount * (10 ** TOKEN_DECIMALS))|int %}
+    {% set chain_id = 56 %} 
     <a href="ethereum:{{ TOKEN_CONTRACT_ADDRESS }}/transfer?address={{ MY_WALLET_ADDRESS }}&uint256={{ token_amount_wei }}" class="nes-btn is-success">Застейкать ({{ amount_usd }}$)</a>
+    <!-- Форма для подтверждения стейкинга -->
+    <div style="margin-top:1rem;">
+      <h3>Подтвердите стейкинг</h3>
+      <form id="confirmStakeForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="nes-field">
+          <label for="tx_hash">Хэш транзакции:</label>
+          <input type="text" id="tx_hash" name="txHash" class="nes-input" placeholder="0x..." required>
+        </div>
+        <button type="submit" class="nes-btn is-primary"><i class="fas fa-check"></i> Подтвердить Стейкинг</button>
+      </form>
+    </div>
   {% else %}
     <button class="nes-btn is-success" disabled>Застейкать (25$)</button>
   {% endif %}
