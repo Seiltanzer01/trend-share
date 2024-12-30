@@ -1,17 +1,17 @@
 # routes_staking.py
 
 import logging
+import traceback
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
+from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, UserStaking
 from staking_logic import confirm_staking_tx
 from best_setup_voting import send_token_reward
-from flask_wtf.csrf import validate_csrf, CSRFError
 
 logger = logging.getLogger(__name__)
 
 staking_bp = Blueprint('staking_bp', __name__)
-
 
 @staking_bp.route('/confirm', methods=['POST'])
 def confirm_staking():
@@ -22,7 +22,7 @@ def confirm_staking():
     Здесь мы проверяем txHash через confirm_staking_tx(...)
     """
     try:
-        # Проверка CSRF-токена
+        # Извлечение CSRF-токена из заголовков
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
             logger.warning("CSRF-токен отсутствует в заголовках.")
@@ -102,7 +102,7 @@ def claim_staking_rewards():
     обнуляем pending_rewards.
     """
     try:
-        # Проверка CSRF-токена
+        # Извлечение CSRF-токена из заголовков
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
             logger.warning("CSRF-токен отсутствует в заголовках.")
@@ -161,7 +161,7 @@ def unstake_staking():
     Возвращаем стейк. 1% удержание.
     """
     try:
-        # Проверка CSRF-токена
+        # Извлечение CSRF-токена из заголовков
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
             logger.warning("CSRF-токен отсутствует в заголовках.")
