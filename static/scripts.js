@@ -330,15 +330,15 @@ $(document).ready(function() {
         });
     }
 
-    // Функция для подключения кошелька MetaMask
-    async function connectWallet() {
-        if(window.ethereum) {
+    // Функция для подключения кошелька через MetaMask
+    async function connectMetaMask() {
+        if (window.ethereum) {
             try {
                 const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
-                if(accounts && accounts.length>0) {
-                    const wallet = accounts[0]
+                if (accounts && accounts.length > 0) {
+                    walletAddress = accounts[0];
                     const formData = new FormData()
-                    formData.append('wallet_address', wallet)
+                    formData.append('wallet_address', walletAddress)
                     const resp = await fetch('/best_setup_voting/set_wallet', {
                         method: 'POST',
                         body: formData,
@@ -348,11 +348,112 @@ $(document).ready(function() {
                     })
                     window.location.reload()
                 }
-            } catch(e) {
-                alert('Ошибка при connectWallet: ' + e)
+            } catch (e) {
+                alert('Ошибка при подключении MetaMask: ' + e)
             }
         } else {
             alert('MetaMask не найден.')
+        }
+    }
+
+    // Функция для подключения кошелька через WalletConnect
+    async function connectWalletConnect() {
+        try {
+            const WalletConnectProvider = window.WalletConnectProvider.default;
+
+            const provider = new WalletConnectProvider({
+                rpc: {
+                    56: "https://bsc-dataseed.binance.org/" // Binance Smart Chain RPC URL
+                    // Добавьте другие сети по необходимости
+                },
+                chainId: 56, // Binance Smart Chain ID
+            });
+
+            // Включение сессии
+            await provider.enable();
+
+            // Создание Web3 экземпляра
+            web3 = new Web3(provider);
+
+            const accounts = await web3.eth.getAccounts();
+            if (accounts && accounts.length > 0) {
+                walletAddress = accounts[0];
+                const formData = new FormData()
+                formData.append('wallet_address', walletAddress)
+                const resp = await fetch('/best_setup_voting/set_wallet', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': getCSRFToken()
+                    }
+                })
+                window.location.reload()
+            }
+        } catch (e) {
+            alert('Ошибка при подключении через WalletConnect: ' + e.message)
+            console.error(e)
+        }
+    }
+
+    // Функция для подключения кошелька (отображение опций)
+    function connectWallet() {
+        const walletOptions = document.getElementById('walletOptions');
+        walletOptions.style.display = 'block';
+    }
+
+    // Функция для проведения стейкинга
+    async function stakeTokens() {
+        if (!web3) {
+            alert('Кошелёк не подключён.')
+            return
+        }
+
+        const amount = "{{ token_amount_wei }}" // Количество токенов в Wei
+        try {
+            // Получение ABI для функции transfer
+            const transferABI = [
+                {
+                    "constant": false,
+                    "inputs": [
+                        {
+                            "name": "_to",
+                            "type": "address"
+                        },
+                        {
+                            "name": "_value",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "transfer",
+                    "outputs": [
+                        {
+                            "name": "",
+                            "type": "bool"
+                        }
+                    ],
+                    "type": "function"
+                }
+            ]
+
+            const tokenContract = new web3.eth.Contract(transferABI, "{{ TOKEN_CONTRACT_ADDRESS }}");
+
+            const tx = await tokenContract.methods.transfer("{{ MY_WALLET_ADDRESS }}", "{{ token_amount_wei }}").send({ from: walletAddress })
+                .on('transactionHash', function(hash){
+                    console.log('Транзакция отправлена. Хэш:', hash);
+                    alert('Транзакция отправлена. Хэш транзакции: ' + hash);
+                })
+                .on('receipt', function(receipt){
+                    console.log('Транзакция подтверждена:', receipt);
+                    alert('Транзакция подтверждена!');
+                    // Здесь вы можете автоматически заполнить форму подтверждения txHash или предложить пользователю это сделать
+                })
+                .on('error', function(error, receipt) {
+                    console.error('Ошибка транзакции:', error);
+                    alert('Произошла ошибка при проведении стейкинга: ' + error.message);
+                });
+        } catch (e) {
+            alert('Ошибка при проведении стейкинга: ' + e.message)
+            console.error(e)
         }
     }
 
@@ -399,7 +500,23 @@ $(document).ready(function() {
         const btnConn = document.getElementById('connectWalletBtn')
         if(btnConn) btnConn.addEventListener('click', connectWallet)
 
+        const connectMetaMaskBtn = document.getElementById('connectMetaMask')
+        if(connectMetaMaskBtn){
+            connectMetaMaskBtn.addEventListener('click', connectMetaMask)
+        }
+
+        const connectWalletConnectBtn = document.getElementById('connectWalletConnect')
+        if(connectWalletConnectBtn){
+            connectWalletConnectBtn.addEventListener('click', connectWalletConnect)
+        }
+
         loadStaking()
+
+        // Обработчик кнопки "Stake"
+        const stakeButton = document.getElementById('stakeButton');
+        if(stakeButton){
+            stakeButton.addEventListener('click', stakeTokens)
+        }
 
         // Обработчик кнопки "Claim Rewards"
         const claimRewardsBtn = document.getElementById('claimRewardsBtn');
