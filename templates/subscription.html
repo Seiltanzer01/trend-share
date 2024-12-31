@@ -7,22 +7,32 @@
   <p class="title">Стейкинг / Подписка</p>
   
   {% if not user.wallet_address %}
-    <p>Сначала подключите кошелёк:</p>
-    <button class="nes-btn is-primary" id="connectWalletBtn">Connect Wallet</button>
+    <p>Сгенерируйте свой уникальный кошелёк для стейкинга:</p>
+    <button class="nes-btn is-primary" id="generateWalletBtn">Сгенерировать Кошелёк</button>
   {% else %}
     <p>Ваш кошелёк: <b>{{ user.wallet_address }}</b></p>
-    <button class="nes-btn is-primary" id="reconnectWalletBtn">Reconnect Wallet</button>
-  {% endif %}
-  
-  <hr>
-  <p>Чтобы получить/сохранить премиум, необходимо внести UJO на сумму >= 20$ + 5$ сбор = 25$ (проверка >= 25$).</p>
-  <p>Контракт будет проверять: <b>{{ MY_WALLET_ADDRESS }}</b> — адрес, куда вы отправляете.</p>
-  
-  {% if user.wallet_address %}
-    <!-- Кнопка стейкинга -->
+    <button class="nes-btn is-success" id="copyWalletBtn"><i class="fas fa-copy"></i> Копировать Адрес</button>
+    
+    <hr>
+    <h3>Ваши Балансы</h3>
+    <ul>
+      <li>ETH: <span id="ethBalance">Loading...</span></li>
+      <li>WETH: <span id="wethBalance">Loading...</span></li>
+      <li>UJO: <span id="ujoBalance">Loading...</span></li>
+    </ul>
+    
+    <hr>
+    <h3>Обмен WETH на UJO</h3>
+    <form id="exchangeForm" class="nes-container is-rounded" style="padding:1em;">
+      <label for="exchangeAmount">Количество WETH для обмена:</label>
+      <input type="number" id="exchangeAmount" name="exchangeAmount" class="nes-input" step="0.01" min="0" required>
+      <button type="submit" class="nes-btn is-primary"><i class="fas fa-exchange-alt"></i> Обменять</button>
+    </form>
+    
+    <hr>
+    <h3>Стейкинг</h3>
     <button class="nes-btn is-success" id="stakeButton">Застейкать (25$)</button>
     
-    <!-- Форма для подтверждения стейкинга -->
     <div style="margin-top:1rem;">
       <h3>Подтвердите стейкинг</h3>
       <form id="confirmStakeForm">
@@ -34,14 +44,12 @@
         <button type="submit" class="nes-btn is-primary"><i class="fas fa-check"></i> Подтвердить Стейкинг</button>
       </form>
     </div>
-  {% else %}
-    <button class="nes-btn is-success" disabled>Застейкать (25$)</button>
+    
+    <div id="stakingArea" style="margin-top:1rem;"></div>
+    
+    <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">Claim Rewards</button>
+    <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
   {% endif %}
-  
-  <div id="stakingArea" style="margin-top:1rem;"></div>
-  
-  <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">Claim Rewards</button>
-  <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
 </div>
 
 <!-- Модальное окно для изображений -->
@@ -51,18 +59,11 @@
 </div>
 
 <!-- Подключение необходимых библиотек -->
-<!-- Thirdweb SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@thirdweb-dev/sdk@latest/dist/thirdweb.umd.min.js"></script>
+<!-- Web3.py не требуется на фронтенде, так как мы переходим на серверную логику -->
 
 <!-- Подключение собственного скрипта -->
 <script>
     window.config = {
-        TOKEN_CONTRACT_ADDRESS: "{{ TOKEN_CONTRACT_ADDRESS }}",
-        MY_WALLET_ADDRESS: "{{ MY_WALLET_ADDRESS }}",
-        TOKEN_DECIMALS: {{ TOKEN_DECIMALS }},
-        TOKEN_PRICE_USD: {{ token_price_usd }},
-        WALLET_ADDRESS: "{{ user.wallet_address if user.wallet_address else '' }}",
-        TOKEN_AMOUNT_WEI: {{ (25 / token_price_usd * (10 ** TOKEN_DECIMALS))|int }},
         CSRF_TOKEN: "{{ csrf_token }}"
     };
 </script>
