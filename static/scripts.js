@@ -285,156 +285,157 @@ $(document).ready(function() {
         });
     }
 
-    // **Интеграция с Thirdweb**
+    // **Новые функции для уникальных кошельков и стейкинга**
 
-    // Инициализация Thirdweb SDK
-    const sdk = new thirdweb.ThirdwebSDK("base"); // Используем сеть Base. Убедитесь, что вы выбрали правильную сеть.
-
-    let wallet;
-
-    // Функция для подключения кошелька через Thirdweb
-    async function connectWalletThirdweb() {
+    // Обработчик для кнопки "Сгенерировать Кошелёк"
+    $('#generateWalletBtn').on('click', async function(){
         try {
-            wallet = await sdk.wallet.connect("injected"); // Используем подключение через браузерный кошелёк (например, MetaMask)
-
-            const address = wallet.address;
-            console.log("Подключённый адрес:", address);
-
-            // Отправка адреса кошелька на сервер
-            const formData = new FormData();
-            formData.append('wallet_address', address);
-
-            const resp = await fetch('/staking/set_wallet', {
+            const csrfToken = window.config.CSRF_TOKEN;
+            const response = await fetch('/staking/generate_wallet', {
                 method: 'POST',
-                body: formData,
                 headers: {
-                    'X-CSRFToken': window.config.CSRF_TOKEN
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
                 }
             });
 
-            const data = await resp.json();
-            if (data.status === 'success') {
-                alert('Кошелёк успешно подключён!');
-                window.location.reload();
+            const data = await response.json();
+            if(data.status === 'success'){
+                alert('Кошелёк успешно сгенерирован! Ваш адрес: ' + data.wallet_address);
+                location.reload();
             } else {
-                alert('Ошибка при установке адреса кошелька: ' + (data.error || 'Неизвестная ошибка.'));
+                alert('Ошибка: ' + data.error);
             }
         } catch (error) {
-            console.error("Ошибка при подключении кошелька через Thirdweb:", error);
-            alert("Произошла ошибка при подключении кошелька.");
+            console.error("Ошибка при генерации кошелька:", error);
+            alert("Произошла ошибка при генерации кошелька.");
         }
-    }
+    });
 
-    // Функция для подключения кошелька через WalletConnect с использованием Thirdweb
-    async function connectWalletConnectThirdweb() {
-        try {
-            wallet = await sdk.wallet.connect("walletConnect"); // Подключение через WalletConnect
+    // Обработчик для кнопки "Копировать Адрес"
+    $('#copyWalletBtn').on('click', function(){
+        const walletAddress = $('#walletAddress').text().trim(); // Предполагается, что адрес кошелька отображается в элементе с ID 'walletAddress'
+        if(walletAddress){
+            navigator.clipboard.writeText(walletAddress).then(function() {
+                alert('Адрес кошелька скопирован в буфер обмена!');
+            }, function(err) {
+                console.error('Ошибка при копировании: ', err);
+                alert('Не удалось скопировать адрес кошелька.');
+            });
+        } else {
+            alert('Адрес кошелька не найден.');
+        }
+    });
 
-            const address = wallet.address;
-            console.log("Подключённый адрес через WalletConnect:", address);
-
-            // Отправка адреса кошелька на сервер
-            const formData = new FormData();
-            formData.append('wallet_address', address);
-
-            const resp = await fetch('/staking/set_wallet', {
-                method: 'POST',
-                body: formData,
+    // Функция для загрузки и отображения балансов
+    async function loadBalances(){
+        try{
+            const response = await fetch('/staking/api/get_balances', {
+                method: 'GET',
                 headers: {
-                    'X-CSRFToken': window.config.CSRF_TOKEN
+                    'Content-Type': 'application/json'
                 }
             });
-
-            const data = await resp.json();
-            if (data.status === 'success') {
-                alert('Кошелёк успешно подключён через WalletConnect!');
-                window.location.reload();
-            } else {
-                alert('Ошибка при установке адреса кошелька: ' + (data.error || 'Неизвестная ошибка.'));
+            const data = await response.json();
+            if(data.error){
+                $('#ethBalance').text('Error');
+                $('#wethBalance').text('Error');
+                $('#ujoBalance').text('Error');
+            } else{
+                $('#ethBalance').text(data.balances.eth.toFixed(4));
+                $('#wethBalance').text(data.balances.weth.toFixed(4));
+                $('#ujoBalance').text(data.balances.ujo.toFixed(4));
             }
-        } catch (error) {
-            console.error("Ошибка при подключении через WalletConnect через Thirdweb:", error);
-            alert("Произошла ошибка при подключении кошелька через WalletConnect.");
+        } catch(error){
+            console.error("Ошибка при загрузке балансов:", error);
+            $('#ethBalance').text('Error');
+            $('#wethBalance').text('Error');
+            $('#ujoBalance').text('Error');
         }
     }
 
-    // Обработчик кнопки "Connect Wallet"
-    if (document.getElementById('connectWalletBtn')) {
-        document.getElementById('connectWalletBtn').addEventListener('click', connectWalletThirdweb);
-    }
+    // Вызов загрузки балансов при загрузке страницы
+    loadBalances();
 
-    // Обработчик кнопки "Reconnect Wallet"
-    if (document.getElementById('reconnectWalletBtn')) {
-        document.getElementById('reconnectWalletBtn').addEventListener('click', connectWalletThirdweb);
-    }
-
-    // Обработчик кнопки "Connect with MetaMask" через Thirdweb
-    if (document.getElementById('connectMetaMask')) {
-        document.getElementById('connectMetaMask').addEventListener('click', connectWalletThirdweb);
-    }
-
-    // Обработчик кнопки "Connect with WalletConnect" через Thirdweb
-    if (document.getElementById('connectWalletConnect')) {
-        document.getElementById('connectWalletConnect').addEventListener('click', connectWalletConnectThirdweb);
-    }
-
-    // Функция для проведения стейкинга через Thirdweb
-    async function stakeTokens() {
-        if (!wallet) {
-            alert('Кошелёк не подключён. Пожалуйста, подключитесь через кошелёк.');
+    // Обработчик формы обмена WETH на UJO
+    $('#exchangeForm').on('submit', async function(e){
+        e.preventDefault();
+        const amountWETH = parseFloat($('#exchangeAmount').val());
+        if(isNaN(amountWETH) || amountWETH <= 0){
+            alert('Пожалуйста, введите корректное количество WETH для обмена.');
             return;
         }
 
-        try {
-            const contract = await sdk.getContractFromAbi(window.config.TOKEN_CONTRACT_ADDRESS, [
-                {
-                    "inputs": [
-                        {
-                            "internalType": "address",
-                            "name": "_to",
-                            "type": "address"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "_value",
-                            "type": "uint256"
-                        }
-                    ],
-                    "name": "transfer",
-                    "outputs": [
-                        {
-                            "internalType": "bool",
-                            "name": "",
-                            "type": "bool"
-                        }
-                    ],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                }
-            ]);
-
-            // Отправка токенов на адрес контракта
-            const tx = await contract.call("transfer", window.config.MY_WALLET_ADDRESS, window.config.TOKEN_AMOUNT_WEI, {
-                gasLimit: 100000 // Установите подходящий лимит газа
+        try{
+            const csrfToken = window.config.CSRF_TOKEN;
+            const response = await fetch('/staking/exchange_weth_to_ujo', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ amount_weth: amountWETH })
             });
 
-            alert('Транзакция отправлена! Хэш транзакции: ' + tx.receipt.transactionHash);
-            console.log("Транзакция отправлена:", tx.receipt.transactionHash);
-
-            // Отправка события в Telegram WebView
-            if (window.Telegram && window.Telegram.WebView) {
-                window.Telegram.WebView.postEvent('stake_initiated', JSON.stringify({ txHash: tx.receipt.transactionHash }));
+            const data = await response.json();
+            if(data.status === 'success'){
+                alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
+                loadBalances();
+            } else{
+                alert('Ошибка: ' + data.error);
             }
-
-        } catch (error) {
-            console.error("Ошибка при стейкинге через Thirdweb:", error);
-            alert("Произошла ошибка при проведении стейкинга.");
+        } catch(error){
+            console.error("Ошибка при обмене:", error);
+            alert("Произошла ошибка при обмене.");
         }
-    }
+    });
 
-    // Обработчик кнопки "Stake"
+    // Обработчик формы подтверждения стейкинга
+    $('#confirmStakeForm').on('submit', async function(e){
+        e.preventDefault();
+        const txHash = $('#tx_hash').val().trim();
+        if(!txHash){
+            alert('Пожалуйста, введите хэш транзакции.');
+            return;
+        }
+
+        // Простейшая валидация формата txHash
+        if(!/^0x([A-Fa-f0-9]{64})$/.test(txHash)){
+            alert('Некорректный формат хэша транзакции.');
+            return;
+        }
+
+        try{
+            const csrfToken = window.config.CSRF_TOKEN;
+            const response = await fetch('/staking/confirm', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ txHash: txHash })
+            });
+
+            const data = await response.json();
+            if(data.status === 'success'){
+                alert('Стейкинг успешно подтверждён!');
+                loadStaking();
+                loadBalances();
+            } else{
+                alert('Ошибка: ' + data.error);
+            }
+        } catch(error){
+            console.error("Ошибка при подтверждении стейкинга:", error);
+            alert("Произошла ошибка при подтверждении стейкинга.");
+        }
+    });
+
+    // Обработчик кнопки "Stake" - чтобы показать инструкцию
     if(document.getElementById('stakeButton')){
-        document.getElementById('stakeButton').addEventListener('click', stakeTokens);
+        document.getElementById('stakeButton').addEventListener('click', function(){
+            // Инструкции для пользователя
+            alert('Чтобы застейкать, отправьте 25$ (примерно) UJO на ваш уникальный кошелёк. После отправки подтвердите транзакцию, введя её хэш ниже.');
+        });
     }
 
     // Функция для загрузки и отображения стейков пользователя
@@ -443,16 +444,16 @@ $(document).ready(function() {
             const resp = await fetch('/staking/get_user_stakes')
             const data = await resp.json()
             if(data.error) {
-                document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
-                document.getElementById('claimRewardsBtn').style.display='none'
-                document.getElementById('unstakeBtn').style.display='none'
+                $('#stakingArea').html('<p>'+data.error+'</p>')
+                $('#claimRewardsBtn').hide()
+                $('#unstakeBtn').hide()
                 return
             }
             const stakes = data.stakes
             if(!stakes.length) {
-                document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейка.</p>'
-                document.getElementById('claimRewardsBtn').style.display='none'
-                document.getElementById('unstakeBtn').style.display='none'
+                $('#stakingArea').html('<p>У вас нет стейка.</p>')
+                $('#claimRewardsBtn').hide()
+                $('#unstakeBtn').hide()
                 return
             }
             let html=''
@@ -464,82 +465,68 @@ $(document).ready(function() {
                   <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
                 </div>`
             }
-            document.getElementById('stakingArea').innerHTML = html
-            document.getElementById('claimRewardsBtn').style.display='inline-block'
-            document.getElementById('unstakeBtn').style.display='inline-block'
+            $('#stakingArea').html(html)
+            $('#claimRewardsBtn').show()
+            $('#unstakeBtn').show()
         } catch (error) {
             console.error('Ошибка при загрузке стейков:', error)
-            document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейков.</p>'
-            document.getElementById('claimRewardsBtn').style.display='none'
-            document.getElementById('unstakeBtn').style.display='none'
+            $('#stakingArea').html('<p>Произошла ошибка при загрузке стейков.</p>')
+            $('#claimRewardsBtn').hide()
+            $('#unstakeBtn').hide()
         }
     }
 
     // Обработчик кнопки "Claim Rewards"
-    if(document.getElementById('claimRewardsBtn')){
-        document.getElementById('claimRewardsBtn').addEventListener('click', async()=> {
-            try {
-                const csrfToken = window.config.CSRF_TOKEN;
-                const resp = await fetch('/staking/claim_staking_rewards',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken
-                    }
-                })
-                const data = await resp.json()
-                if(data.error) alert(data.error)
-                else {
-                    alert(data.message)
-                    loadStaking()
-                    // Отправка события в Telegram WebView
-                    if (window.Telegram && window.Telegram.WebView) {
-                        window.Telegram.WebView.postEvent('rewards_claimed', JSON.stringify({ message: data.message }));
-                    }
+    $('#claimRewardsBtn').on('click', async function(){
+        try {
+            const csrfToken = window.config.CSRF_TOKEN;
+            const response = await fetch('/staking/claim_staking_rewards',{
+                method:'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
                 }
-            } catch (error) {
-                alert('Произошла ошибка при клейме наград: ' + error)
+            })
+            const data = await response.json()
+            if(data.error) alert(data.error)
+            else {
+                alert(data.message)
+                loadStaking()
+                loadBalances()
             }
-        });
-    }
+        } catch (error) {
+            alert('Произошла ошибка при клейме наград: ' + error)
+        }
+    });
 
     // Обработчик кнопки "Unstake"
-    if(document.getElementById('unstakeBtn')){
-        document.getElementById('unstakeBtn').addEventListener('click', async()=>{
-            try {
-                const csrfToken = window.config.CSRF_TOKEN;
-                const resp = await fetch('/staking/unstake_staking',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken
-                    }
-                })
-                const data = await resp.json()
-                if(data.error) alert(data.error)
-                else {
-                    alert(data.message)
-                    loadStaking()
-                    // Отправка события в Telegram WebView
-                    if (window.Telegram && window.Telegram.WebView) {
-                        window.Telegram.WebView.postEvent('unstaked', JSON.stringify({ message: data.message }));
-                    }
+    $('#unstakeBtn').on('click', async function(){
+        try {
+            const csrfToken = window.config.CSRF_TOKEN;
+            const response = await fetch('/staking/unstake_staking',{
+                method:'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
                 }
-            } catch (error) {
-                alert('Произошла ошибка при unstake: ' + error)
+            })
+            const data = await response.json()
+            if(data.error) alert(data.error)
+            else {
+                alert(data.message)
+                loadStaking()
+                loadBalances()
             }
-        });
-    }
+        } catch (error) {
+            alert('Произошла ошибка при unstake: ' + error)
+        }
+    });
 
     // Инициализация подключения кошелька и загрузка стейкинговых данных
     document.addEventListener('DOMContentLoaded', ()=> {
         loadStaking()
     });
 
-    // Интеграция с Telegram WebView для получения событий от нативного приложения
-    if (window.Telegram && window.Telegram.WebView) {
-        window.Telegram.WebView.onEvent = function(eventType, eventData) {
-            console.log(`Получено событие от Telegram: ${eventType}`, eventData);
-            // Обработка событий от нативного приложения, если необходимо
-            // Например, обновление UI после определённых действий
-        };
-    }
+    // Удалены все Thirdweb-интеграции, а также Telegram WebView интеграция
+
 });
