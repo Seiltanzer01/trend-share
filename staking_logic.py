@@ -20,8 +20,8 @@ web3 = Web3(Web3.HTTPProvider(INFURA_URL))
 # Адреса контрактов
 TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
 WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")
-UJO_CONTRACT_ADDRESS = os.environ.get("UJO_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
-PROJECT_WALLET_ADDRESS = os.environ.get("PROJECT_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
+UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
+PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
 
 # ABI контрактов
 TOKEN_ABI = [
@@ -85,6 +85,22 @@ WETH_ABI = [
 ]
 
 UJO_ABI = TOKEN_ABI  # Если UJO использует тот же ABI, что и TOKEN
+# Проверка валидности адресов
+if not Web3.isAddress(TOKEN_CONTRACT_ADDRESS):
+    logger.error(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
+    raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
+
+if not Web3.isAddress(WETH_CONTRACT_ADDRESS):
+    logger.error(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
+    raise ValueError(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
+
+if not Web3.isAddress(UJO_CONTRACT_ADDRESS):
+    logger.error(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
+    raise ValueError(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
+
+if not Web3.isAddress(PROJECT_WALLET_ADDRESS):
+    logger.error(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
+    raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
 
 # Подключение контрактов
 token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=TOKEN_ABI)
