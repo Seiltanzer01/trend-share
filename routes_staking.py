@@ -8,6 +8,7 @@ from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, UserStaking
 from staking_logic import confirm_staking_tx, generate_unique_wallet, exchange_weth_to_ujo, get_token_balance, get_token_price_in_usd, web3, token_contract, ujo_contract
 from best_setup_voting import send_token_reward
+from web3 import Web3  # Добавьте этот импорт
 
 logger = logging.getLogger(__name__)
 
