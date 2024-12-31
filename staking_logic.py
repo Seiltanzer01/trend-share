@@ -87,9 +87,9 @@ WETH_ABI = [
 UJO_ABI = TOKEN_ABI  # Если UJO использует тот же ABI, что и TOKEN
 
 # Подключение контрактов
-token_contract = web3.eth.contract(address=Web3.toChecksumAddress(TOKEN_CONTRACT_ADDRESS), abi=TOKEN_ABI)
-weth_contract = web3.eth.contract(address=Web3.toChecksumAddress(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
-ujo_contract = web3.eth.contract(address=Web3.toChecksumAddress(UJO_CONTRACT_ADDRESS), abi=UJO_ABI)
+token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=TOKEN_ABI)
+weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
+ujo_contract = web3.eth.contract(address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS), abi=UJO_ABI)
 
 def generate_unique_wallet():
     """
@@ -120,7 +120,7 @@ def send_token_reward(to_address: str, amount: float) -> bool:
         amount_wei = int(amount * (10 ** 18))  # Предполагается 18 десятичных знаков
 
         # Подготовка транзакции
-        tx = ujo_contract.functions.transfer(Web3.toChecksumAddress(to_address), amount_wei).buildTransaction({
+        tx = ujo_contract.functions.transfer(Web3.to_checksum_address(to_address), amount_wei).buildTransaction({
             'chainId': web3.eth.chain_id,
             'gas': 100000,  # Установите подходящий лимит газа
             'gasPrice': web3.eth.gas_price,
@@ -156,7 +156,7 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
     try:
         if contract is None:
             contract = ujo_contract
-        balance = contract.functions.balanceOf(Web3.toChecksumAddress(wallet_address)).call()
+        balance = contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
         decimals = 18  # Предполагается 18 десятичных знаков; измените, если другое
         return balance / (10 ** decimals)
     except Exception as e:
@@ -181,13 +181,13 @@ def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
         amount_weth_wei = int(amount_weth * (10 ** 18))  # Предполагается 18 десятичных знаков
 
         # Проверка баланса WETH пользователя
-        weth_balance = weth_contract.functions.balanceOf(Web3.toChecksumAddress(wallet_address)).call()
+        weth_balance = weth_contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
         if weth_balance < amount_weth_wei:
             logger.error(f"Недостаточно WETH на кошельке {wallet_address}.")
             return False
 
         # Подготовка транзакции: перевод WETH на проектный кошелек
-        tx = weth_contract.functions.transfer(Web3.toChecksumAddress(PROJECT_WALLET_ADDRESS), amount_weth_wei).buildTransaction({
+        tx = weth_contract.functions.transfer(Web3.to_checksum_address(PROJECT_WALLET_ADDRESS), amount_weth_wei).buildTransaction({
             'chainId': web3.eth.chain_id,
             'gas': 100000,  # Установите подходящий лимит газа
             'gasPrice': web3.eth.gas_price,
