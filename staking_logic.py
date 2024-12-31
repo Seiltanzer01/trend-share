@@ -6,70 +6,232 @@ import traceback
 from datetime import datetime, timedelta
 import requests
 
-from web3 import Web3
+from web3 import Web3, HTTPProvider
 from eth_account import Account
 
 from models import db, User, UserStaking
-from best_setup_voting import web3, token_contract, TOKEN_DECIMALS
 
 logger = logging.getLogger(__name__)
 
-# Сюда пользователь отправляет токены
-MY_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "")
+# Настройки
+INFURA_URL = os.environ.get("INFURA_URL", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")  # Замените на URL вашего провайдера
+web3 = Web3(Web3.HTTPProvider(INFURA_URL))
 
-# DexScreener Pair Address
-DEEXSCREENER_PAIR_ADDRESS = os.environ.get("DEXScreener_PAIR_ADDRESS", "")
+# Адреса контрактов
+TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
+WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")
+UJO_CONTRACT_ADDRESS = os.environ.get("UJO_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
+PROJECT_WALLET_ADDRESS = os.environ.get("PROJECT_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
 
-def get_token_price_in_usd() -> float:
+# ABI контрактов
+TOKEN_ABI = [
+    # Добавьте ABI вашего токена (UJO)
+    # Например, ERC20 ABI
+    {
+        "constant": False,
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_value",
+                "type": "uint256"
+            }
+        ],
+        "name": "transfer",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "type": "function"
+    },
+    # Добавьте другие необходимые функции
+]
+
+WETH_ABI = [
+    # Добавьте ABI вашего WETH контракта
+    # Например, ERC20 ABI
+    {
+        "constant": False,
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_value",
+                "type": "uint256"
+            }
+        ],
+        "name": "transfer",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "type": "function"
+    },
+    # Добавьте другие необходимые функции
+]
+
+UJO_ABI = TOKEN_ABI  # Если UJO использует тот же ABI, что и TOKEN
+
+# Подключение контрактов
+token_contract = web3.eth.contract(address=Web3.toChecksumAddress(TOKEN_CONTRACT_ADDRESS), abi=TOKEN_ABI)
+weth_contract = web3.eth.contract(address=Web3.toChecksumAddress(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
+ujo_contract = web3.eth.contract(address=Web3.toChecksumAddress(UJO_CONTRACT_ADDRESS), abi=UJO_ABI)
+
+def generate_unique_wallet():
     """
-    Получаем текущую цену нашего ERC20-токена (UJO) в USD через DexScreener API.
+    Генерирует уникальный Ethereum кошелек (адрес и приватный ключ).
+    """
+    account = Account.create()
+    wallet_address = account.address
+    private_key = account.key.hex()
+    logger.info(f"Сгенерирован кошелек: {wallet_address}")
+    return wallet_address, private_key
+
+def send_token_reward(to_address: str, amount: float) -> bool:
+    """
+    Отправляет токены UJO на указанный адрес.
+    amount: количество UJO (не в wei)
     """
     try:
-        pair_address = DEEXSCREENER_PAIR_ADDRESS
-        if not pair_address:
-            logger.error("DEXScreener_PAIR_ADDRESS не задан.")
-            return 0.0
+        # Получение приватного ключа проекта из переменных окружения
+        project_private_key = os.environ.get("PROJECT_PRIVATE_KEY", "")
+        if not project_private_key:
+            logger.error("PROJECT_PRIVATE_KEY не задан в переменных окружения.")
+            return False
 
-        # Корректный URL для DexScreener API
-        chain_name = "bsc"  # Имя цепочки
-        api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
-        
-        logger.info(f"Отправка запроса к DexScreener API: {api_url}")
-        resp = requests.get(api_url, timeout=10)
-        
-        logger.info(f"API Response Status: {resp.status_code}")
-        logger.info(f"API Response Body: {resp.text}")
-        
-        if resp.status_code != 200:
-            logger.error(f"DexScreener API вернул статус {resp.status_code}")
-            return 0.0
-        
-        data = resp.json()
-        pair = data.get("pair", {})
-        if not pair:
-            logger.warning("DexScreener pair отсутствует или не вернулся.")
-            return 0.0
-        
-        price_usd_str = pair.get("priceUsd", "0.0")
-        price_usd = float(price_usd_str)
-        logger.info(f"Текущая цена токена UJO: {price_usd} USD")
-        return price_usd
-    except ValueError as e:
-        logger.error(f"Ошибка при декодировании JSON: {e}")
-        logger.error(f"Тело ответа: {resp.text}")
-        return 0.0
+        # Создание аккаунта проекта
+        project_account = Account.from_key(project_private_key)
+
+        # Конвертация количества UJO в wei
+        amount_wei = int(amount * (10 ** 18))  # Предполагается 18 десятичных знаков
+
+        # Подготовка транзакции
+        tx = ujo_contract.functions.transfer(Web3.toChecksumAddress(to_address), amount_wei).buildTransaction({
+            'chainId': web3.eth.chain_id,
+            'gas': 100000,  # Установите подходящий лимит газа
+            'gasPrice': web3.eth.gas_price,
+            'nonce': web3.eth.get_transaction_count(project_account.address)
+        })
+
+        # Подписание транзакции
+        signed_tx = project_account.sign_transaction(tx)
+
+        # Отправка транзакции
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"Отправлена транзакция {tx_hash.hex()} для отправки {amount} UJO на {to_address}.")
+
+        # Ожидание подтверждения
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        if receipt.status == 1:
+            logger.info(f"Транзакция {tx_hash.hex()} успешно подтверждена.")
+            return True
+        else:
+            logger.error(f"Транзакция {tx_hash.hex()} не удалась.")
+            return False
+
     except Exception as e:
-        logger.error(f"Ошибка get_token_price_in_usd: {e}")
+        logger.error(f"Ошибка при отправке токенов: {e}")
+        logger.error(traceback.format_exc())
+        return False
+
+def get_token_balance(wallet_address: str, contract=None) -> float:
+    """
+    Получает баланс токена для указанного адреса.
+    Если contract не указан, берется UJO контракт.
+    """
+    try:
+        if contract is None:
+            contract = ujo_contract
+        balance = contract.functions.balanceOf(Web3.toChecksumAddress(wallet_address)).call()
+        decimals = 18  # Предполагается 18 десятичных знаков; измените, если другое
+        return balance / (10 ** decimals)
+    except Exception as e:
+        logger.error(f"Ошибка при получении баланса токена для {wallet_address}: {e}")
         logger.error(traceback.format_exc())
         return 0.0
 
+def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
+    """
+    Обменивает WETH на UJO для указанного адреса.
+    """
+    try:
+        # Получение приватного ключа пользователя
+        user = User.query.filter_by(wallet_address=wallet_address).first()
+        if not user or not user.private_key:
+            logger.error(f"Пользователь с кошельком {wallet_address} не найден или не имеет приватного ключа.")
+            return False
+
+        user_account = Account.from_key(user.private_key)
+
+        # Конвертация количества WETH в wei
+        amount_weth_wei = int(amount_weth * (10 ** 18))  # Предполагается 18 десятичных знаков
+
+        # Проверка баланса WETH пользователя
+        weth_balance = weth_contract.functions.balanceOf(Web3.toChecksumAddress(wallet_address)).call()
+        if weth_balance < amount_weth_wei:
+            logger.error(f"Недостаточно WETH на кошельке {wallet_address}.")
+            return False
+
+        # Подготовка транзакции: перевод WETH на проектный кошелек
+        tx = weth_contract.functions.transfer(Web3.toChecksumAddress(PROJECT_WALLET_ADDRESS), amount_weth_wei).buildTransaction({
+            'chainId': web3.eth.chain_id,
+            'gas': 100000,  # Установите подходящий лимит газа
+            'gasPrice': web3.eth.gas_price,
+            'nonce': web3.eth.get_transaction_count(user_account.address)
+        })
+
+        # Подписание транзакции
+        signed_tx = user_account.sign_transaction(tx)
+
+        # Отправка транзакции
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"Отправлена транзакция {tx_hash.hex()} для обмена {amount_weth} WETH от {wallet_address}.")
+
+        # Ожидание подтверждения
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        if receipt.status == 1:
+            logger.info(f"Транзакция {tx_hash.hex()} успешно подтверждена.")
+            # После получения WETH, проектный кошелек должен обменять их на UJO и отправить пользователю
+            # Это требует интеграции с DEX или другого механизма обмена
+            # Для псевдостейкинга предположим фиксированный обменный курс
+            exchange_rate = 10  # Пример: 1 WETH = 10 UJO
+            ujo_amount = amount_weth * exchange_rate
+            success = send_token_reward(wallet_address, ujo_amount)
+            if success:
+                logger.info(f"Обмен {amount_weth} WETH на {ujo_amount} UJO для {wallet_address} успешно выполнен.")
+                return True
+            else:
+                logger.error(f"Отправка UJO не удалась для пользователя {wallet_address}.")
+                return False
+        else:
+            logger.error(f"Транзакция {tx_hash.hex()} не удалась.")
+            return False
+
+    except Exception as e:
+        logger.error(f"Ошибка при обмене WETH на UJO для {wallet_address}: {e}")
+        logger.error(traceback.format_exc())
+        return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
-    Фронтенд (Metamask) после успешной транзакции POST'ит txHash сюда.
+    Фронтенд (после успешной транзакции) отправляет txHash сюда.
     Мы проверяем:
       1) транзакция успешна (receipt.status == 1);
-      2) Логи содержат Transfer(from=user.wallet_address, to=MY_WALLET_ADDRESS, >=25$);
+      2) Логи содержат Transfer(from=user.wallet_address, to=PROJECT_WALLET_ADDRESS, >=25$);
       3) Создаём запись UserStaking(...).
     """
     if not user or not user.wallet_address or not tx_hash:
@@ -103,10 +265,10 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         to_addr = Web3.to_checksum_address(to_addr)
 
                         if (from_addr.lower() == user.wallet_address.lower() and
-                            to_addr.lower()   == MY_WALLET_ADDRESS.lower()):
+                            to_addr.lower()   == PROJECT_WALLET_ADDRESS.lower()):
                             # Получаем amount из data
                             amount_int = int(log.data, 16)
-                            amount_token = amount_int / (10 ** TOKEN_DECIMALS)
+                            amount_token = amount_int / (10 ** 18)  # Предполагается 18 десятичных знаков
                             amount_usd = amount_token * price_usd
 
                             # Нужно >= 25$ (включая 20$ стейк и 5$ сбор).
@@ -171,3 +333,46 @@ def accumulate_staking_rewards():
         db.session.rollback()
         logger.error(f"accumulate_staking_rewards: {e}")
         logger.error(traceback.format_exc())
+
+def get_token_price_in_usd() -> float:
+    """
+    Получает текущую цену токена UJO в USD через DexScreener API.
+    """
+    try:
+        pair_address = os.environ.get("DEXScreener_PAIR_ADDRESS", "")
+        if not pair_address:
+            logger.error("DEXScreener_PAIR_ADDRESS не задан.")
+            return 0.0
+
+        # Корректный URL для DexScreener API
+        chain_name = "bsc"  # Измените на нужную цепочку
+        api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
+        
+        logger.info(f"Отправка запроса к DexScreener API: {api_url}")
+        resp = requests.get(api_url, timeout=10)
+        
+        logger.info(f"API Response Status: {resp.status_code}")
+        logger.info(f"API Response Body: {resp.text}")
+        
+        if resp.status_code != 200:
+            logger.error(f"DexScreener API вернул статус {resp.status_code}")
+            return 0.0
+        
+        data = resp.json()
+        pair = data.get("pair", {})
+        if not pair:
+            logger.warning("DexScreener pair отсутствует или не вернулся.")
+            return 0.0
+        
+        price_usd_str = pair.get("priceUsd", "0.0")
+        price_usd = float(price_usd_str)
+        logger.info(f"Текущая цена токена UJO: {price_usd} USD")
+        return price_usd
+    except ValueError as e:
+        logger.error(f"Ошибка при декодировании JSON: {e}")
+        logger.error(f"Тело ответа: {resp.text}")
+        return 0.0
+    except Exception as e:
+        logger.error(f"Ошибка get_token_price_in_usd: {e}")
+        logger.error(traceback.format_exc())
+        return 0.0
