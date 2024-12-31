@@ -1,4 +1,5 @@
 <!-- templates/subscription.html -->
+
 {% extends "base.html" %}
 
 {% block content %}
@@ -8,17 +9,9 @@
   {% if not user.wallet_address %}
     <p>Сначала подключите кошелёк:</p>
     <button class="nes-btn is-primary" id="connectWalletBtn">Connect Wallet</button>
-    <div id="walletOptions" style="margin-top: 1rem; display: none;">
-      <button class="nes-btn is-warning" id="connectMetaMask">Connect with MetaMask</button>
-      <button class="nes-btn is-success" id="connectWalletConnect">Connect with WalletConnect</button>
-    </div>
   {% else %}
     <p>Ваш кошелёк: <b>{{ user.wallet_address }}</b></p>
     <button class="nes-btn is-primary" id="reconnectWalletBtn">Reconnect Wallet</button>
-    <div id="walletOptions" style="margin-top: 1rem; display: none;">
-      <button class="nes-btn is-warning" id="connectMetaMask">Connect with MetaMask</button>
-      <button class="nes-btn is-success" id="connectWalletConnect">Connect with WalletConnect</button>
-    </div>
   {% endif %}
   
   <hr>
@@ -27,10 +20,7 @@
   
   {% if user.wallet_address %}
     <!-- Кнопка стейкинга -->
-    {% set amount_usd = 25 %}
-    {% set token_amount = (amount_usd / token_price_usd) %}
-    {% set token_amount_wei = (token_amount * (10 ** TOKEN_DECIMALS))|int %}
-    <button class="nes-btn is-success" id="stakeButton">Застейкать ({{ amount_usd }}$)</button>
+    <button class="nes-btn is-success" id="stakeButton">Застейкать (25$)</button>
     
     <!-- Форма для подтверждения стейкинга -->
     <div style="margin-top:1rem;">
@@ -61,10 +51,15 @@
 </div>
 
 <!-- Подключение необходимых библиотек -->
-<!-- Web3.js -->
-<script src="https://cdn.jsdelivr.net/npm/web3@1.6.1/dist/web3.min.js"></script>
-<!-- WalletConnect Provider -->
-<script src="https://unpkg.com/@walletconnect/web3-provider@1.7.8/dist/umd/index.min.js"></script>
+<!-- Thirdweb SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@thirdweb-dev/sdk@latest/dist/thirdweb.umd.min.js"></script>
+
+<!-- Web3.js (уберите, если не используете) -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/web3@1.6.1/dist/web3.min.js"></script> -->
+
+<!-- WalletConnect Provider (уберите, если используете только Thirdweb) -->
+<!-- <script src="https://unpkg.com/@walletconnect/web3-provider@1.7.8/dist/umd/index.min.js"></script> -->
+
 <!-- Подключение собственного скрипта -->
 <script>
     window.config = {
@@ -73,7 +68,7 @@
         TOKEN_DECIMALS: {{ TOKEN_DECIMALS }},
         TOKEN_PRICE_USD: {{ token_price_usd }},
         WALLET_ADDRESS: "{{ user.wallet_address if user.wallet_address else '' }}",
-        TOKEN_AMOUNT_WEI: {{ token_amount_wei }},
+        TOKEN_AMOUNT_WEI: {{ (25 / token_price_usd * (10 ** TOKEN_DECIMALS))|int }},
         CSRF_TOKEN: "{{ csrf_token }}"
     };
 </script>
