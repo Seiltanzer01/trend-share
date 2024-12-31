@@ -3,12 +3,23 @@
 import logging
 import traceback
 from datetime import datetime
-from flask import Blueprint, request, jsonify, session, render_template, flash, url_for
+from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, UserStaking
-from staking_logic import confirm_staking_tx, generate_unique_wallet, exchange_weth_to_ujo, get_token_balance, get_token_price_in_usd, web3, token_contract, ujo_contract
+from staking_logic import (
+    confirm_staking_tx,
+    generate_unique_wallet,
+    exchange_weth_to_ujo,
+    get_token_balance,
+    get_token_price_in_usd,
+    web3,
+    token_contract,
+    weth_contract,  # Импорт weth_contract
+    ujo_contract,
+    PROJECT_WALLET_ADDRESS  # Импорт PROJECT_WALLET_ADDRESS
+)
 from best_setup_voting import send_token_reward
-from web3 import Web3  # Добавьте этот импорт
+from web3 import Web3  # Импорт Web3
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +300,6 @@ def claim_staking_rewards():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/unstake_staking', methods=['POST'])
 def unstake_staking():
     """
@@ -343,9 +353,9 @@ def unstake_staking():
             return jsonify({"error": "send_token_reward failed"}), 400
 
         # Отправка 1% fee на проектный кошелек
-        project_wallet = PROJECT_WALLET_ADDRESS
+        project_wallet = PROJECT_WALLET_ADDRESS  # Используем импортированную переменную
         if not project_wallet:
-            logger.error("PROJECT_WALLET_ADDRESS не задан в переменных окружения.")
+            logger.error("PROJECT_WALLET_ADDRESS не задан.")
             db.session.rollback()
             return jsonify({"error": "Internal server error."}), 500
 
