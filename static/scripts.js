@@ -288,7 +288,7 @@ $(document).ready(function() {
     // **Интеграция с Thirdweb**
 
     // Инициализация Thirdweb SDK
-    const sdk = new ThirdwebSDK("base"); // Используем сеть Base. Убедитесь, что вы выбрали правильную сеть.
+    const sdk = new thirdweb.ThirdwebSDK("base"); // Используем сеть Base. Убедитесь, что вы выбрали правильную сеть.
 
     let wallet;
 
