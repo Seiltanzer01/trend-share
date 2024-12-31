@@ -22,12 +22,40 @@
     </ul>
     
     <hr>
-    <h3>Обмен WETH на UJO</h3>
-    <form id="exchangeForm" class="nes-container is-rounded" style="padding:1em;">
-      <label for="exchangeAmount">Количество WETH для обмена:</label>
-      <input type="number" id="exchangeAmount" name="exchangeAmount" class="nes-input" step="0.01" min="0" required>
-      <button type="submit" class="nes-btn is-primary"><i class="fas fa-exchange-alt"></i> Обменять</button>
-    </form>
+    <h3>Обмен Токенов</h3>
+    <div class="exchange-container">
+      <!-- Окно обмена 1 -->
+      <div class="exchange-window nes-container is-rounded">
+        <label for="fromToken">От:</label>
+        <div class="nes-select">
+          <select id="fromToken">
+            <option value="ETH">ETH</option>
+            <option value="WETH">WETH</option>
+            <option value="UJO">UJO</option>
+          </select>
+        </div>
+        <input type="number" id="fromAmount" class="nes-input" placeholder="Количество" min="0" step="0.0001" required>
+      </div>
+      
+      <div class="exchange-arrow">
+        <i class="fas fa-arrow-right fa-2x"></i>
+      </div>
+      
+      <!-- Окно обмена 2 -->
+      <div class="exchange-window nes-container is-rounded">
+        <label for="toToken">В:</label>
+        <div class="nes-select">
+          <select id="toToken">
+            <option value="WETH">WETH</option>
+            <option value="UJO">UJO</option>
+            <option value="ETH">ETH</option>
+          </select>
+        </div>
+        <input type="text" id="toAmount" class="nes-input" placeholder="Количество" readonly>
+      </div>
+    </div>
+    
+    <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
     
     <hr>
     <h3>Стейкинг</h3>
@@ -67,5 +95,104 @@
         CSRF_TOKEN: "{{ csrf_token }}"
     };
 </script>
-<script src="{{ url_for('static', filename='scripts.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const fromToken = document.getElementById('fromToken');
+        const toToken = document.getElementById('toToken');
+        const fromAmount = document.getElementById('fromAmount');
+        const toAmount = document.getElementById('toAmount');
+        const swapButton = document.getElementById('swapButton');
+
+        // Пример фиксированных обменных курсов
+        const exchangeRates = {
+            'ETH': {'WETH': 1, 'UJO': 10, 'ETH': 1},
+            'WETH': {'ETH': 1, 'UJO': 10, 'WETH': 1},
+            'UJO': {'ETH': 0.1, 'WETH': 0.1, 'UJO': 1}
+        };
+
+        function calculateToAmount() {
+            const from = fromToken.value;
+            const to = toToken.value;
+            const amount = parseFloat(fromAmount.value);
+
+            if (isNaN(amount) || amount <= 0) {
+                toAmount.value = '';
+                return;
+            }
+
+            if (exchangeRates[from] && exchangeRates[from][to]) {
+                const rate = exchangeRates[from][to];
+                toAmount.value = (amount * rate).toFixed(4);
+            } else {
+                toAmount.value = '0.0000';
+            }
+        }
+
+        fromToken.addEventListener('change', calculateToAmount);
+        toToken.addEventListener('change', calculateToAmount);
+        fromAmount.addEventListener('input', calculateToAmount);
+
+        swapButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const from = fromToken.value;
+            const to = toToken.value;
+            const amount = parseFloat(fromAmount.value);
+
+            if (isNaN(amount) || amount <= 0) {
+                alert('Введите корректное количество для обмена.');
+                return;
+            }
+
+            // Отправка запроса на сервер для выполнения обмена
+            fetch('/staking/api/exchange', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.config.CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    from_token: from,
+                    to_token: to,
+                    amount: amount
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Успешно обменяно ${amount} ${from} на ${data.received} ${to}.`);
+                    // Обновление балансов
+                    updateBalances();
+                } else {
+                    alert(`Ошибка обмена: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при обмене.');
+            });
+        });
+
+        function updateBalances() {
+            fetch('/staking/api/get_balances?user_id={{ user.id }}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.eth_balance) {
+                    document.getElementById('ethBalance').innerText = data.eth_balance;
+                }
+                if (data.weth_balance) {
+                    document.getElementById('wethBalance').innerText = data.weth_balance;
+                }
+                if (data.ujo_balance) {
+                    document.getElementById('ujoBalance').innerText = data.ujo_balance;
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка обновления балансов:', error);
+            });
+        }
+
+        // Инициализация балансов при загрузке страницы
+        updateBalances();
+    });
+</script>
 {% endblock %}
