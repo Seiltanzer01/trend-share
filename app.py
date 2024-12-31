@@ -52,6 +52,11 @@ def inject_csrf_token():
 @app.route('/info')
 def info():
     return render_template('info.html')
+
+@app.route('/deposit')
+def deposit():
+    # Логика для рендеринга шаблона deposit.html
+    return render_template('deposit.html')
     
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
