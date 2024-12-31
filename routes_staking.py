@@ -154,7 +154,7 @@ def get_balances():
         wallet_address = user.wallet_address
 
         # Получение баланса ETH
-        eth_balance = web3.fromWei(web3.eth.get_balance(wallet_address), 'ether')
+        eth_balance = Web3.fromWei(web3.eth.get_balance(wallet_address), 'ether')
 
         # Получение баланса WETH
         weth_balance = get_token_balance(wallet_address, weth_contract)
