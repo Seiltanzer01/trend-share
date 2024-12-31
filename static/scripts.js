@@ -348,13 +348,17 @@ $(document).ready(function() {
                     web3 = new Web3(window.ethereum);
                     const formData = new FormData()
                     formData.append('wallet_address', walletAddress)
-                    const resp = await fetch('/best_setup_voting/set_wallet', {
+                    const resp = await fetch('/staking/set_wallet', { // Исправленный маршрут
                         method: 'POST',
                         body: formData,
                         headers: {
                             'X-CSRFToken': CSRF_TOKEN
                         }
                     })
+                    // Отправка события в Telegram WebView
+                    if (window.Telegram && window.Telegram.WebView) {
+                        window.Telegram.WebView.postEvent('wallet_connected', JSON.stringify({ wallet_address: walletAddress }));
+                    }
                     window.location.reload()
                 }
             } catch (e) {
@@ -389,13 +393,17 @@ $(document).ready(function() {
                 walletAddress = accounts[0];
                 const formData = new FormData()
                 formData.append('wallet_address', walletAddress)
-                const resp = await fetch('/best_setup_voting/set_wallet', {
+                const resp = await fetch('/staking/set_wallet', { // Исправленный маршрут
                     method: 'POST',
                     body: formData,
                     headers: {
                         'X-CSRFToken': CSRF_TOKEN
                     }
                 })
+                // Отправка события в Telegram WebView
+                if (window.Telegram && window.Telegram.WebView) {
+                    window.Telegram.WebView.postEvent('wallet_connected', JSON.stringify({ wallet_address: walletAddress }));
+                }
                 window.location.reload()
             }
         } catch (e) {
@@ -460,15 +468,27 @@ $(document).ready(function() {
                 .on('transactionHash', function(hash){
                     console.log('Транзакция отправлена. Хэш:', hash);
                     alert('Транзакция отправлена. Хэш транзакции: ' + hash);
+                    // Отправка события в Telegram WebView
+                    if (window.Telegram && window.Telegram.WebView) {
+                        window.Telegram.WebView.postEvent('stake_initiated', JSON.stringify({ txHash: hash }));
+                    }
                 })
                 .on('receipt', function(receipt){
                     console.log('Транзакция подтверждена:', receipt);
                     alert('Транзакция подтверждена!');
+                    // Отправка события в Telegram WebView
+                    if (window.Telegram && window.Telegram.WebView) {
+                        window.Telegram.WebView.postEvent('stake_confirmed', JSON.stringify({ receipt: receipt }));
+                    }
                     // Здесь вы можете автоматически заполнить форму подтверждения txHash или предложить пользователю это сделать
                 })
                 .on('error', function(error, receipt) {
                     console.error('Ошибка транзакции:', error);
                     alert('Произошла ошибка при проведении стейкинга: ' + error.message);
+                    // Отправка события в Telegram WebView
+                    if (window.Telegram && window.Telegram.WebView) {
+                        window.Telegram.WebView.postEvent('stake_error', JSON.stringify({ error: error.message }));
+                    }
                 });
         } catch (e) {
             alert('Ошибка при проведении стейкинга: ' + e.message)
@@ -521,7 +541,13 @@ $(document).ready(function() {
 
         const reconnectWalletBtn = document.getElementById('reconnectWalletBtn')
         if(reconnectWalletBtn){
-            reconnectWalletBtn.addEventListener('click', connectWallet)
+            reconnectWalletBtn.addEventListener('click', function() {
+                connectWallet();
+                // Отправка события в Telegram WebView
+                if (window.Telegram && window.Telegram.WebView) {
+                    window.Telegram.WebView.postEvent('reconnect_wallet', '');
+                }
+            })
         }
 
         const connectMetaMaskBtn = document.getElementById('connectMetaMask')
@@ -559,6 +585,10 @@ $(document).ready(function() {
                     else {
                         alert(data.message)
                         loadStaking()
+                        // Отправка события в Telegram WebView
+                        if (window.Telegram && window.Telegram.WebView) {
+                            window.Telegram.WebView.postEvent('rewards_claimed', JSON.stringify({ message: data.message }));
+                        }
                     }
                 } catch (error) {
                     alert('Произошла ошибка при клейме наград: ' + error)
@@ -583,6 +613,10 @@ $(document).ready(function() {
                     else {
                         alert(data.message)
                         loadStaking()
+                        // Отправка события в Telegram WebView
+                        if (window.Telegram && window.Telegram.WebView) {
+                            window.Telegram.WebView.postEvent('unstaked', JSON.stringify({ message: data.message }));
+                        }
                     }
                 } catch (error) {
                     alert('Произошла ошибка при unstake: ' + error)
@@ -590,4 +624,13 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Интеграция с Telegram WebView для получения событий от нативного приложения
+    if (window.Telegram && window.Telegram.WebView) {
+        window.Telegram.WebView.onEvent = function(eventType, eventData) {
+            console.log(`Получено событие от Telegram: ${eventType}`, eventData);
+            // Обработка событий от нативного приложения, если необходимо
+            // Например, обновление UI после определённых действий
+        };
+    }
 });
