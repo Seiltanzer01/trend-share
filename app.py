@@ -487,6 +487,7 @@ def initialize():
         # Мини-хак: Добавляем нужные колонки, если их нет
         try:
             with db.engine.connect() as con:
+                # Добавление колонок в user_staking
                 con.execute("""
                     ALTER TABLE user_staking
                     ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
@@ -498,8 +499,15 @@ def initialize():
                     ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP DEFAULT NOW()
                 """)
                 logger.info("Необходимые колонки добавлены в таблицу user_staking.")
+
+                # **Добавление колонки private_key в таблицу user**
+                con.execute("""
+                    ALTER TABLE "user"
+                    ADD COLUMN IF NOT EXISTS private_key VARCHAR(128)
+                """)
+                logger.info("Колонка 'private_key' добавлена в таблицу 'user'.")
         except Exception as e:
-            logger.error(f"Не удалось выполнить ALTER TABLE user_staking: {e}")
+            logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
         # Если нужно, create_predefined_data()
         # create_predefined_data()
