@@ -713,10 +713,6 @@ def buy_assistant():
 
     return redirect(robokassa_url)
 
-@app.route('/deposit')
-def deposit():
-    # Логика для рендеринга шаблона deposit.html
-    return render_template('deposit.html')
 
 @app.route('/robokassa/result', methods=['POST'])
 def robokassa_result():
