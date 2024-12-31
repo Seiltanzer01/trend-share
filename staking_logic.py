@@ -212,10 +212,10 @@ def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
             ujo_amount = amount_weth * exchange_rate
             success = send_token_reward(wallet_address, ujo_amount)
             if success:
-                logger.info(f"Обмен {amount_weth} WETH на {ujo_amount} UJO для {wallet_address} успешно выполнен.")
+                logger.info(f"Обмен WETH на UJO для {wallet_address} успешно выполнен.")
                 return True
             else:
-                logger.error(f"Отправка UJO не удалась для пользователя {wallet_address}.")
+                logger.error(f"Отправка UJO пользователю {wallet_address} не удалась.")
                 return False
         else:
             logger.error(f"Транзакция {tx_hash.hex()} не удалась.")
