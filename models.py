@@ -25,7 +25,8 @@ class User(db.Model):
     auth_token_creation_time = db.Column(db.DateTime, nullable=True)
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     assistant_premium = db.Column(db.Boolean, default=False)
-    wallet_address = db.Column(db.String(42), nullable=True)
+    wallet_address = db.Column(db.String(42), unique=True, nullable=True)
+    private_key = db.Column(db.String(128), nullable=True)  # Добавлено поле для приватного ключа
 
     # Связи
     trades = db.relationship('Trade', back_populates='user', lazy=True)
