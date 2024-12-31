@@ -14,14 +14,19 @@ from models import db, User, UserStaking
 logger = logging.getLogger(__name__)
 
 # Настройки
-INFURA_URL = os.environ.get("INFURA_URL", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")  # Замените на URL вашего провайдера
+INFURA_URL = os.environ.get("BASE_RPC_URL", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")  # Замените на URL вашего провайдера
 web3 = Web3(Web3.HTTPProvider(INFURA_URL))
 
 # Адреса контрактов
-TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
-WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")
-UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
+TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")
+WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")  # Добавьте эту переменную в Render
+UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
+
+# Проверка наличия необходимых переменных окружения
+if TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS" or WETH_CONTRACT_ADDRESS == "0xYOUR_WETH_CONTRACT_ADDRESS" or PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS":
+    logger.error("Одна или несколько необходимых переменных окружения (TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS) не установлены или содержат плейсхолдеры.")
+    raise ValueError("Некорректные значения переменных окружения: TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS.")
 
 # ABI контрактов
 TOKEN_ABI = [
@@ -85,20 +90,21 @@ WETH_ABI = [
 ]
 
 UJO_ABI = TOKEN_ABI  # Если UJO использует тот же ABI, что и TOKEN
+
 # Проверка валидности адресов
-if not Web3.isAddress(TOKEN_CONTRACT_ADDRESS):
+if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
     logger.error(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
     raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
 
-if not Web3.isAddress(WETH_CONTRACT_ADDRESS):
+if not Web3.is_address(WETH_CONTRACT_ADDRESS):
     logger.error(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
     raise ValueError(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
 
-if not Web3.isAddress(UJO_CONTRACT_ADDRESS):
+if not Web3.is_address(UJO_CONTRACT_ADDRESS):
     logger.error(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
     raise ValueError(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
 
-if not Web3.isAddress(PROJECT_WALLET_ADDRESS):
+if not Web3.is_address(PROJECT_WALLET_ADDRESS):
     logger.error(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
     raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
 
@@ -124,9 +130,9 @@ def send_token_reward(to_address: str, amount: float) -> bool:
     """
     try:
         # Получение приватного ключа проекта из переменных окружения
-        project_private_key = os.environ.get("PROJECT_PRIVATE_KEY", "")
+        project_private_key = os.environ.get("PRIVATE_KEY", "")
         if not project_private_key:
-            logger.error("PROJECT_PRIVATE_KEY не задан в переменных окружения.")
+            logger.error("PRIVATE_KEY не задан в переменных окружения.")
             return False
 
         # Создание аккаунта проекта
@@ -136,7 +142,7 @@ def send_token_reward(to_address: str, amount: float) -> bool:
         amount_wei = int(amount * (10 ** 18))  # Предполагается 18 десятичных знаков
 
         # Подготовка транзакции
-        tx = ujo_contract.functions.transfer(Web3.to_checksum_address(to_address), amount_wei).buildTransaction({
+        tx = ujo_contract.functions.transfer(Web3.to_checksum_address(to_address), amount_wei).build_transaction({
             'chainId': web3.eth.chain_id,
             'gas': 100000,  # Установите подходящий лимит газа
             'gasPrice': web3.eth.gas_price,
@@ -203,7 +209,7 @@ def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
             return False
 
         # Подготовка транзакции: перевод WETH на проектный кошелек
-        tx = weth_contract.functions.transfer(Web3.to_checksum_address(PROJECT_WALLET_ADDRESS), amount_weth_wei).buildTransaction({
+        tx = weth_contract.functions.transfer(Web3.to_checksum_address(PROJECT_WALLET_ADDRESS), amount_weth_wei).build_transaction({
             'chainId': web3.eth.chain_id,
             'gas': 100000,  # Установите подходящий лимит газа
             'gasPrice': web3.eth.gas_price,
