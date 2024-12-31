@@ -285,168 +285,117 @@ $(document).ready(function() {
         });
     }
 
-    // Добавление обработчика для формы подтверждения стейкинга
-    const confirmStakeForm = document.getElementById('confirmStakeForm');
-    if(confirmStakeForm){
-        confirmStakeForm.addEventListener('submit', async function(e){
-            e.preventDefault();
-            const txHashInput = document.getElementById('tx_hash');
-            const txHash = txHashInput.value.trim();
-            if(!txHash){
-                alert('Пожалуйста, введите хэш транзакции.');
-                return;
-            }
+    // **Интеграция с Thirdweb**
 
-            // Получение CSRF-токена из скрытого поля
-            const csrfToken = getCSRFToken();
+    // Инициализация Thirdweb SDK
+    const sdk = new ThirdwebSDK("base"); // Используем сеть Base. Убедитесь, что вы выбрали правильную сеть.
 
-            try {
-                const response = await fetch('/staking/confirm', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({ txHash: txHash })
-                });
+    let wallet;
 
-                const data = await response.json();
-                if(data.status === 'success'){
-                    alert('Стейкинг успешно подтверждён!');
-                    // Очистка формы
-                    txHashInput.value = '';
-                    // Обновление списка стейков
-                    loadStaking();
-                } else {
-                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка.'));
-                }
-            } catch(e){
-                alert('Произошла ошибка при подтверждении стейкинга: ' + e);
-            }
-        });
-    }
-
-    // Определение переменных из window.config
-    const TOKEN_CONTRACT_ADDRESS = window.config.TOKEN_CONTRACT_ADDRESS;
-    const MY_WALLET_ADDRESS = window.config.MY_WALLET_ADDRESS;
-    const TOKEN_DECIMALS = window.config.TOKEN_DECIMALS;
-    const TOKEN_PRICE_USD = window.config.TOKEN_PRICE_USD;
-    const TOKEN_AMOUNT_WEI = window.config.TOKEN_AMOUNT_WEI;
-
-    const CSRF_TOKEN = window.config.CSRF_TOKEN;
-
-    let web3;
-    let walletAddress = window.config.WALLET_ADDRESS;
-
-    // Функция для подключения кошелька через MetaMask
-    async function connectMetaMask() {
-        if (window.ethereum) {
-            try {
-                const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
-                if (accounts && accounts.length > 0) {
-                    walletAddress = accounts[0];
-                    web3 = new Web3(window.ethereum);
-                    const formData = new FormData()
-                    formData.append('wallet_address', walletAddress)
-                    const resp = await fetch('/staking/set_wallet', { // Исправленный маршрут
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-CSRFToken': CSRF_TOKEN
-                        }
-                    })
-                    // Отправка события в Telegram WebView
-                    if (window.Telegram && window.Telegram.WebView) {
-                        window.Telegram.WebView.postEvent('wallet_connected', JSON.stringify({ wallet_address: walletAddress }));
-                    }
-                    window.location.reload()
-                }
-            } catch (e) {
-                alert('Ошибка при подключении MetaMask: ' + e.message)
-            }
-        } else {
-            alert('MetaMask не найден.')
-        }
-    }
-
-    // Функция для подключения кошелька через WalletConnect
-    async function connectWalletConnect() {
+    // Функция для подключения кошелька через Thirdweb
+    async function connectWalletThirdweb() {
         try {
-            const WalletConnectProvider = window.WalletConnectProvider.default;
+            wallet = await sdk.wallet.connect("injected"); // Используем подключение через браузерный кошелёк (например, MetaMask)
 
-            const provider = new WalletConnectProvider({
-                rpc: {
-                    56: "https://bsc-dataseed.binance.org/" // Binance Smart Chain RPC URL
-                    // Добавьте другие сети по необходимости
-                },
-                chainId: 56, // Binance Smart Chain ID
+            const address = wallet.address;
+            console.log("Подключённый адрес:", address);
+
+            // Отправка адреса кошелька на сервер
+            const formData = new FormData();
+            formData.append('wallet_address', address);
+
+            const resp = await fetch('/staking/set_wallet', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': window.config.CSRF_TOKEN
+                }
             });
 
-            // Включение сессии
-            await provider.enable();
-
-            // Создание Web3 экземпляра
-            web3 = new Web3(provider);
-
-            const accounts = await web3.eth.getAccounts();
-            if (accounts && accounts.length > 0) {
-                walletAddress = accounts[0];
-                const formData = new FormData()
-                formData.append('wallet_address', walletAddress)
-                const resp = await fetch('/staking/set_wallet', { // Исправленный маршрут
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': CSRF_TOKEN
-                    }
-                })
-                // Отправка события в Telegram WebView
-                if (window.Telegram && window.Telegram.WebView) {
-                    window.Telegram.WebView.postEvent('wallet_connected', JSON.stringify({ wallet_address: walletAddress }));
-                }
-                window.location.reload()
+            const data = await resp.json();
+            if (data.status === 'success') {
+                alert('Кошелёк успешно подключён!');
+                window.location.reload();
+            } else {
+                alert('Ошибка при установке адреса кошелька: ' + (data.error || 'Неизвестная ошибка.'));
             }
-        } catch (e) {
-            alert('Ошибка при подключении через WalletConnect: ' + e.message)
-            console.error(e)
+        } catch (error) {
+            console.error("Ошибка при подключении кошелька через Thirdweb:", error);
+            alert("Произошла ошибка при подключении кошелька.");
         }
     }
 
-    // Функция для подключения кошелька (отображение опций)
-    function connectWallet() {
-        const walletOptions = document.getElementById('walletOptions');
-        walletOptions.style.display = 'block';
+    // Функция для подключения кошелька через WalletConnect с использованием Thirdweb
+    async function connectWalletConnectThirdweb() {
+        try {
+            wallet = await sdk.wallet.connect("walletConnect"); // Подключение через WalletConnect
+
+            const address = wallet.address;
+            console.log("Подключённый адрес через WalletConnect:", address);
+
+            // Отправка адреса кошелька на сервер
+            const formData = new FormData();
+            formData.append('wallet_address', address);
+
+            const resp = await fetch('/staking/set_wallet', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': window.config.CSRF_TOKEN
+                }
+            });
+
+            const data = await resp.json();
+            if (data.status === 'success') {
+                alert('Кошелёк успешно подключён через WalletConnect!');
+                window.location.reload();
+            } else {
+                alert('Ошибка при установке адреса кошелька: ' + (data.error || 'Неизвестная ошибка.'));
+            }
+        } catch (error) {
+            console.error("Ошибка при подключении через WalletConnect через Thirdweb:", error);
+            alert("Произошла ошибка при подключении кошелька через WalletConnect.");
+        }
     }
 
-    // **УДАЛЯЕМ ПЕРВУЮ ФУНКЦИЮ stakeTokens (раньше была здесь)**
-    // В вашем текущем файле она уже присутствует ниже, поэтому её удаление предотвратит дублирование.
+    // Обработчик кнопки "Connect Wallet"
+    if (document.getElementById('connectWalletBtn')) {
+        document.getElementById('connectWalletBtn').addEventListener('click', connectWalletThirdweb);
+    }
 
-    // Функция для проведения стейкинга
+    // Обработчик кнопки "Reconnect Wallet"
+    if (document.getElementById('reconnectWalletBtn')) {
+        document.getElementById('reconnectWalletBtn').addEventListener('click', connectWalletThirdweb);
+    }
+
+    // Обработчик кнопки "Connect with MetaMask" через Thirdweb
+    if (document.getElementById('connectMetaMask')) {
+        document.getElementById('connectMetaMask').addEventListener('click', connectWalletThirdweb);
+    }
+
+    // Обработчик кнопки "Connect with WalletConnect" через Thirdweb
+    if (document.getElementById('connectWalletConnect')) {
+        document.getElementById('connectWalletConnect').addEventListener('click', connectWalletConnectThirdweb);
+    }
+
+    // Функция для проведения стейкинга через Thirdweb
     async function stakeTokens() {
-        if (!web3) {
-            alert('Кошелёк не подключён. Пожалуйста, подключитесь через MetaMask или WalletConnect.')
-            return
+        if (!wallet) {
+            alert('Кошелёк не подключён. Пожалуйста, подключитесь через кошелёк.');
+            return;
         }
-
-        if (!walletAddress) {
-            alert('Не удалось определить адрес кошелька.')
-            return
-        }
-
-        const amount = TOKEN_AMOUNT_WEI; // Количество токенов в Wei
-        console.log("Staking amount (Wei):", amount); // Отладочное сообщение
 
         try {
-            // Получение ABI для функции transfer
-            const transferABI = [
+            const contract = await sdk.getContractFromAbi(window.config.TOKEN_CONTRACT_ADDRESS, [
                 {
-                    "constant": false,
                     "inputs": [
                         {
+                            "internalType": "address",
                             "name": "_to",
                             "type": "address"
                         },
                         {
+                            "internalType": "uint256",
                             "name": "_value",
                             "type": "uint256"
                         }
@@ -454,46 +403,38 @@ $(document).ready(function() {
                     "name": "transfer",
                     "outputs": [
                         {
+                            "internalType": "bool",
                             "name": "",
                             "type": "bool"
                         }
                     ],
+                    "stateMutability": "nonpayable",
                     "type": "function"
                 }
-            ]
+            ]);
 
-            const tokenContract = new web3.eth.Contract(transferABI, TOKEN_CONTRACT_ADDRESS);
+            // Отправка токенов на адрес контракта
+            const tx = await contract.call("transfer", window.config.MY_WALLET_ADDRESS, window.config.TOKEN_AMOUNT_WEI, {
+                gasLimit: 100000 // Установите подходящий лимит газа
+            });
 
-            const tx = await tokenContract.methods.transfer(MY_WALLET_ADDRESS, amount).send({ from: walletAddress })
-                .on('transactionHash', function(hash){
-                    console.log('Транзакция отправлена. Хэш:', hash);
-                    alert('Транзакция отправлена. Хэш транзакции: ' + hash);
-                    // Отправка события в Telegram WebView
-                    if (window.Telegram && window.Telegram.WebView) {
-                        window.Telegram.WebView.postEvent('stake_initiated', JSON.stringify({ txHash: hash }));
-                    }
-                })
-                .on('receipt', function(receipt){
-                    console.log('Транзакция подтверждена:', receipt);
-                    alert('Транзакция подтверждена!');
-                    // Отправка события в Telegram WebView
-                    if (window.Telegram && window.Telegram.WebView) {
-                        window.Telegram.WebView.postEvent('stake_confirmed', JSON.stringify({ receipt: receipt }));
-                    }
-                    // Здесь вы можете автоматически заполнить форму подтверждения txHash или предложить пользователю это сделать
-                })
-                .on('error', function(error, receipt) {
-                    console.error('Ошибка транзакции:', error);
-                    alert('Произошла ошибка при проведении стейкинга: ' + error.message);
-                    // Отправка события в Telegram WebView
-                    if (window.Telegram && window.Telegram.WebView) {
-                        window.Telegram.WebView.postEvent('stake_error', JSON.stringify({ error: error.message }));
-                    }
-                });
-        } catch (e) {
-            alert('Ошибка при проведении стейкинга: ' + e.message)
-            console.error(e)
+            alert('Транзакция отправлена! Хэш транзакции: ' + tx.receipt.transactionHash);
+            console.log("Транзакция отправлена:", tx.receipt.transactionHash);
+
+            // Отправка события в Telegram WebView
+            if (window.Telegram && window.Telegram.WebView) {
+                window.Telegram.WebView.postEvent('stake_initiated', JSON.stringify({ txHash: tx.receipt.transactionHash }));
+            }
+
+        } catch (error) {
+            console.error("Ошибка при стейкинге через Thirdweb:", error);
+            alert("Произошла ошибка при проведении стейкинга.");
         }
+    }
+
+    // Обработчик кнопки "Stake"
+    if(document.getElementById('stakeButton')){
+        document.getElementById('stakeButton').addEventListener('click', stakeTokens);
     }
 
     // Функция для загрузки и отображения стейков пользователя
@@ -534,95 +475,63 @@ $(document).ready(function() {
         }
     }
 
+    // Обработчик кнопки "Claim Rewards"
+    if(document.getElementById('claimRewardsBtn')){
+        document.getElementById('claimRewardsBtn').addEventListener('click', async()=> {
+            try {
+                const csrfToken = window.config.CSRF_TOKEN;
+                const resp = await fetch('/staking/claim_staking_rewards',{
+                    method:'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                const data = await resp.json()
+                if(data.error) alert(data.error)
+                else {
+                    alert(data.message)
+                    loadStaking()
+                    // Отправка события в Telegram WebView
+                    if (window.Telegram && window.Telegram.WebView) {
+                        window.Telegram.WebView.postEvent('rewards_claimed', JSON.stringify({ message: data.message }));
+                    }
+                }
+            } catch (error) {
+                alert('Произошла ошибка при клейме наград: ' + error)
+            }
+        });
+    }
+
+    // Обработчик кнопки "Unstake"
+    if(document.getElementById('unstakeBtn')){
+        document.getElementById('unstakeBtn').addEventListener('click', async()=>{
+            try {
+                const csrfToken = window.config.CSRF_TOKEN;
+                const resp = await fetch('/staking/unstake_staking',{
+                    method:'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                const data = await resp.json()
+                if(data.error) alert(data.error)
+                else {
+                    alert(data.message)
+                    loadStaking()
+                    // Отправка события в Telegram WebView
+                    if (window.Telegram && window.Telegram.WebView) {
+                        window.Telegram.WebView.postEvent('unstaked', JSON.stringify({ message: data.message }));
+                    }
+                }
+            } catch (error) {
+                alert('Произошла ошибка при unstake: ' + error)
+            }
+        });
+    }
+
     // Инициализация подключения кошелька и загрузка стейкинговых данных
     document.addEventListener('DOMContentLoaded', ()=> {
-        const btnConn = document.getElementById('connectWalletBtn')
-        if(btnConn) btnConn.addEventListener('click', connectWallet)
-
-        const reconnectWalletBtn = document.getElementById('reconnectWalletBtn')
-        if(reconnectWalletBtn){
-            reconnectWalletBtn.addEventListener('click', function() {
-                connectWallet();
-                // Отправка события в Telegram WebView
-                if (window.Telegram && window.Telegram.WebView) {
-                    window.Telegram.WebView.postEvent('reconnect_wallet', '');
-                }
-            })
-        }
-
-        const connectMetaMaskBtn = document.getElementById('connectMetaMask')
-        if(connectMetaMaskBtn){
-            connectMetaMaskBtn.addEventListener('click', connectMetaMask)
-        }
-
-        const connectWalletConnectBtn = document.getElementById('connectWalletConnect')
-        if(connectWalletConnectBtn){
-            connectWalletConnectBtn.addEventListener('click', connectWalletConnect)
-        }
-
         loadStaking()
-
-        // Обработчик кнопки "Stake"
-        const stakeButton = document.getElementById('stakeButton');
-        if(stakeButton){
-            stakeButton.addEventListener('click', stakeTokens)
-        }
-
-        // Обработчик кнопки "Claim Rewards"
-        const claimRewardsBtn = document.getElementById('claimRewardsBtn');
-        if(claimRewardsBtn){
-            claimRewardsBtn.addEventListener('click', async()=> {
-                try {
-                    const csrfToken = CSRF_TOKEN;
-                    const resp = await fetch('/staking/claim_staking_rewards',{
-                        method:'POST',
-                        headers: {
-                            'X-CSRFToken': csrfToken
-                        }
-                    })
-                    const data = await resp.json()
-                    if(data.error) alert(data.error)
-                    else {
-                        alert(data.message)
-                        loadStaking()
-                        // Отправка события в Telegram WebView
-                        if (window.Telegram && window.Telegram.WebView) {
-                            window.Telegram.WebView.postEvent('rewards_claimed', JSON.stringify({ message: data.message }));
-                        }
-                    }
-                } catch (error) {
-                    alert('Произошла ошибка при клейме наград: ' + error)
-                }
-            });
-        }
-
-        // Обработчик кнопки "Unstake"
-        const unstakeBtn = document.getElementById('unstakeBtn');
-        if(unstakeBtn){
-            unstakeBtn.addEventListener('click', async()=>{
-                try {
-                    const csrfToken = CSRF_TOKEN;
-                    const resp = await fetch('/staking/unstake_staking',{
-                        method:'POST',
-                        headers: {
-                            'X-CSRFToken': csrfToken
-                        }
-                    })
-                    const data = await resp.json()
-                    if(data.error) alert(data.error)
-                    else {
-                        alert(data.message)
-                        loadStaking()
-                        // Отправка события в Telegram WebView
-                        if (window.Telegram && window.Telegram.WebView) {
-                            window.Telegram.WebView.postEvent('unstaked', JSON.stringify({ message: data.message }));
-                        }
-                    }
-                } catch (error) {
-                    alert('Произошла ошибка при unstake: ' + error)
-                }
-            });
-        }
     });
 
     // Интеграция с Telegram WebView для получения событий от нативного приложения
