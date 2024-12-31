@@ -1,0 +1,23 @@
+<!-- templates/deposit.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nes-container with-title">
+  <p class="title">Пополнение Счета</p>
+  
+  <p>Для пополнения стейкинга отправьте ETH или WETH на ваш уникальный кошелёк:</p>
+  <p><b>{{ wallet_address }}</b></p>
+  
+  <p>После отправки транзакции, подтвердите её, введя хэш транзакции ниже:</p>
+  
+  <form id="confirmDepositForm" class="nes-container is-rounded" style="padding:1em;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="nes-field">
+      <label for="tx_hash">Хэш транзакции:</label>
+      <input type="text" id="tx_hash" name="txHash" class="nes-input" placeholder="0x..." required>
+    </div>
+    <button type="submit" class="nes-btn is-primary"><i class="fas fa-check"></i> Подтвердить Пополнение</button>
+  </form>
+</div>
+{% endblock %}
