@@ -10,7 +10,7 @@
     <p>Сгенерируйте свой уникальный кошелёк для стейкинга:</p>
     <button class="nes-btn is-primary" id="generateUniqueWalletBtn">Сгенерировать Кошелёк</button>
   {% else %}
-    <p>Ваш уникальный кошелёк: <b>{{ user.unique_wallet_address }}</b></p>
+    <!-- Удалено отображение уникального кошелька -->
     <button class="nes-btn is-success" id="copyUniqueWalletBtn"><i class="fas fa-copy"></i> Копировать Адрес</button>
     
     <hr>
@@ -90,6 +90,7 @@
                     const data = await response.json();
                     if(data.error){
                         document.getElementById('ujoBalance').textContent = 'Error';
+                        console.error('Ошибка при получении баланса UJO:', data.error);
                     } else{
                         document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
                     }
@@ -220,8 +221,7 @@
                     alert('Произошла ошибка при unstake: ' + error)
                 }
             });
-        }
+        {% endif %}
     });
 </script>
-{% endif %}
 {% endblock %}
