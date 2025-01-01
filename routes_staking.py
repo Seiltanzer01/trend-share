@@ -31,14 +31,15 @@ staking_bp = Blueprint('staking_bp', __name__)
 
 def generate_unique_wallet_address():
     """
-    Генерирует уникальный адрес кошелька.
+    Генерирует уникальный адрес кошелька в формате checksum.
     """
-    # Генерация случайного 20-байтового адреса и преобразование в шестнадцатеричную строку
     while True:
         address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
+        # Преобразование в checksum адрес
+        checksum_address = Web3.to_checksum_address(address)
         # Проверка уникальности адреса в базе данных
-        if not User.query.filter_by(unique_wallet_address=address).first():
-            return address
+        if not User.query.filter_by(unique_wallet_address=checksum_address).first():
+            return checksum_address
 
 def generate_unique_private_key():
     """
@@ -183,6 +184,40 @@ def confirm_staking():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
+@staking_bp.route('/api/get_user_stakes', methods=['GET'])
+def get_user_stakes():
+    """
+    Возвращает стейкинговые данные пользователя.
+    """
+    if 'user_id' not in session:
+        logger.warning("Неавторизованный доступ к /staking/api/get_user_stakes.")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        logger.warning(f"Пользователь ID {user_id} не найден.")
+        return jsonify({"error": "User not found."}), 404
+
+    try:
+        stakes = UserStaking.query.filter_by(user_id=user_id).all()
+        stakes_data = []
+        for stake in stakes:
+            stakes_data.append({
+                'tx_hash': stake.tx_hash,
+                'staked_amount': stake.staked_amount,
+                'staked_usd': stake.staked_usd,
+                'pending_rewards': stake.pending_rewards,
+                'unlocked_at': int(stake.unlocked_at.timestamp() * 1000)  # Преобразуем в миллисекунды для JS
+            })
+
+        return jsonify({'stakes': stakes_data}), 200
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении стейкингов для пользователя ID {user_id}: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error."}), 500
+
 @staking_bp.route('/api/get_balances', methods=['GET'])
 def get_balances():
     """
@@ -199,7 +234,7 @@ def get_balances():
         return jsonify({"error": "User not found or unique wallet not set."}), 404
 
     try:
-        unique_wallet_address = user.unique_wallet_address
+        unique_wallet_address = Web3.to_checksum_address(user.unique_wallet_address)
 
         # Получение баланса ETH
         eth_balance = Web3.from_wei(web3.eth.get_balance(unique_wallet_address), 'ether')
@@ -287,94 +322,6 @@ def exchange_tokens():
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
         logger.error(f"Ошибка при обмене токенов: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error."}), 500
-
-@staking_bp.route('/api/confirm_stake', methods=['POST'])
-def confirm_stake():
-    """
-    Подтверждает стейкинг транзакции.
-    """
-    try:
-        # Извлечение CSRF-токена из заголовков
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            logger.warning("CSRF-токен отсутствует в заголовках.")
-            return jsonify({"error": "CSRF token missing."}), 400
-        validate_csrf(csrf_token)
-
-        if 'user_id' not in session:
-            logger.warning("Неавторизованный доступ к /staking/api/confirm_stake.")
-            return jsonify({"error": "Unauthorized"}), 401
-
-        user_id = session['user_id']
-        user = User.query.get(user_id)
-        if not user:
-            logger.warning(f"Пользователь ID {user_id} не найден.")
-            return jsonify({"error": "User not found"}), 404
-
-        data = request.get_json() or {}
-        tx_hash = data.get("tx_hash")
-        if not tx_hash:
-            logger.warning("tx_hash не предоставлен в запросе.")
-            return jsonify({"error": "No tx_hash provided"}), 400
-
-        # Валидация формата tx_hash (простейшая проверка)
-        if not isinstance(tx_hash, str) or not tx_hash.startswith('0x') or len(tx_hash) != 66:
-            logger.warning(f"Некорректный формат tx_hash: {tx_hash}")
-            return jsonify({"error": "Invalid tx_hash format."}), 400
-
-        logger.info(f"Пользователь ID {user_id} отправил tx_hash: {tx_hash}")
-
-        # Используем уникальный кошелёк для подтверждения стейкинга
-        # Предполагается, что функция confirm_staking_tx возвращает True при успешном подтверждении
-        ok = confirm_staking_tx(user, tx_hash)
-        if ok:
-            logger.info(f"Стейкинг подтверждён для пользователя ID {user_id} с tx_hash {tx_hash}.")
-            return jsonify({"status": "success"}), 200
-        else:
-            logger.error(f"Стейкинг подтверждён не был для пользователя ID {user_id} с tx_hash {tx_hash}.")
-            return jsonify({"error": "Staking confirm failed"}), 400
-
-    except CSRFError as e:
-        logger.error(f"CSRF ошибка: {e}")
-        return jsonify({"error": "CSRF token missing or invalid."}), 400
-    except Exception as e:
-        logger.error(f"Ошибка при подтверждении стейкинга: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error."}), 500
-
-@staking_bp.route('/api/get_user_stakes', methods=['GET'])
-def get_user_stakes():
-    """
-    Возвращает стейкинговые данные пользователя.
-    """
-    if 'user_id' not in session:
-        logger.warning("Неавторизованный доступ к /staking/api/get_user_stakes.")
-        return jsonify({"error": "Unauthorized"}), 401
-
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user:
-        logger.warning(f"Пользователь ID {user_id} не найден.")
-        return jsonify({"error": "User not found."}), 404
-
-    try:
-        stakes = UserStaking.query.filter_by(user_id=user_id).all()
-        stakes_data = []
-        for stake in stakes:
-            stakes_data.append({
-                'tx_hash': stake.tx_hash,
-                'staked_amount': stake.staked_amount,
-                'staked_usd': stake.staked_usd,
-                'pending_rewards': stake.pending_rewards,
-                'unlocked_at': int(stake.unlocked_at.timestamp() * 1000)  # Преобразуем в миллисекунды для JS
-            })
-
-        return jsonify({'stakes': stakes_data}), 200
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении стейкингов для пользователя ID {user_id}: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
