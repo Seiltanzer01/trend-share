@@ -255,30 +255,11 @@ def get_balances():
         logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька.")
         return jsonify({"error": "User not found or unique wallet set."}), 404
 
-    try:
-        unique_wallet_address = Web3.to_checksum_address(user.unique_wallet_address)
+    balances = get_balances(user)
+    if "error" in balances:
+        return jsonify({"error": balances["error"]}), 500
 
-        # Получение баланса ETH
-        eth_balance = Web3.from_wei(web3.eth.get_balance(unique_wallet_address), 'ether')
-
-        # Получение баланса WETH
-        weth_balance = get_token_balance(unique_wallet_address, weth_contract)
-
-        # Получение баланса UJO
-        ujo_balance = get_token_balance(unique_wallet_address, ujo_contract)
-
-        return jsonify({
-            "balances": {
-                "eth": float(eth_balance),
-                "weth": float(weth_balance),
-                "ujo": float(ujo_balance)
-            }
-        }), 200
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении балансов для пользователя ID {user_id}: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error."}), 500
+    return jsonify(balances), 200
 
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
