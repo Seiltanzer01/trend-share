@@ -86,21 +86,23 @@ def generate_unique_wallet():
     logger.info(f"Сгенерирован кошелек: {wallet_address}")
     return wallet_address, private_key
 
-def send_token_reward(to_address: str, amount: float, from_address: str = PROJECT_WALLET_ADDRESS) -> bool:
+def send_token_reward(to_address: str, amount: float, from_address: str = PROJECT_WALLET_ADDRESS, private_key: str = None) -> bool:
     """
     Отправляет токены UJO на указанный адрес.
     amount: количество UJO (не в wei)
     from_address: адрес отправителя (по умолчанию PROJECT_WALLET_ADDRESS)
+    private_key: приватный ключ отправителя. Если None, используется PROJECT_PRIVATE_KEY
     """
     try:
-        # Получение приватного ключа проекта из переменных окружения
-        project_private_key = os.environ.get("PRIVATE_KEY", "")
-        if not project_private_key:
-            logger.error("PRIVATE_KEY не задан в переменных окружения.")
-            return False
-
-        # Создание аккаунта проекта
-        project_account = Account.from_key(project_private_key)
+        if private_key:
+            sender_account = Account.from_key(private_key)
+        else:
+            # Получение приватного ключа проекта из переменных окружения
+            project_private_key = os.environ.get("PRIVATE_KEY", "")
+            if not project_private_key:
+                logger.error("PRIVATE_KEY не задан в переменных окружения.")
+                return False
+            sender_account = Account.from_key(project_private_key)
 
         # Конвертация количества UJO в wei
         amount_wei = int(amount * (10 ** 18))  # Предполагается 18 десятичных знаков
@@ -110,11 +112,11 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
             'chainId': web3.eth.chain_id,
             'gas': 100000,  # Установите подходящий лимит газа
             'gasPrice': web3.eth.gas_price,
-            'nonce': web3.eth.get_transaction_count(project_account.address)
+            'nonce': web3.eth.get_transaction_count(sender_account.address)
         })
 
         # Подписание транзакции
-        signed_tx = project_account.sign_transaction(tx)
+        signed_tx = sender_account.sign_transaction(tx)
 
         # Отправка транзакции
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -134,6 +136,36 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
         logger.error(traceback.format_exc())
         return False
 
+def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
+    """
+    Отправляет ETH на указанный адрес.
+    """
+    try:
+        account = Account.from_key(private_key)
+        nonce = web3.eth.get_transaction_count(account.address)
+        tx = {
+            'nonce': nonce,
+            'to': Web3.to_checksum_address(to_address),
+            'value': Web3.to_wei(amount_eth, 'ether'),
+            'gas': 21000,
+            'gasPrice': web3.eth.gas_price,
+            'chainId': web3.eth.chain_id
+        }
+        signed_tx = account.sign_transaction(tx)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"Отправлена транзакция {tx_hash.hex()} для отправки {amount_eth} ETH на {to_address}.")
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        if receipt.status == 1:
+            logger.info(f"Транзакция {tx_hash.hex()} успешно подтверждена.")
+            return True
+        else:
+            logger.error(f"Транзакция {tx_hash.hex()} не удалась.")
+            return False
+    except Exception as e:
+        logger.error(f"Ошибка при отправке ETH: {e}")
+        logger.error(traceback.format_exc())
+        return False
+        
 def get_token_balance(wallet_address: str, contract=None) -> float:
     """
     Получает баланс токена для указанного адреса.
