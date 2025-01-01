@@ -78,7 +78,7 @@
                 }
             });
 
-            // Инициализация баланса UJO и стейкинговых данных
+            // Инициализация баланса UJO
             async function loadBalances(){
                 try{
                     const response = await fetch('/staking/api/get_balances', {
@@ -212,7 +212,7 @@
                     const data = await response.json()
                     if(data.error) alert(data.error)
                     else {
-                        alert(data.message)
+                        alert('Unstake выполнен успешно!')
                         loadStaking()
                         loadBalances()
                     }
