@@ -472,3 +472,80 @@ def unstake_staking_route():
         logger.error(f"Ошибка при unstake_staking: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
+
+@staking_bp.route('/api/stake_tokens', methods=['POST'])
+def stake_tokens():
+    """
+    Стейкинг токенов. Отправляет UJO с уникального кошелька на кошелек проекта.
+    """
+    try:
+        # Извлечение CSRF-токена из заголовков
+        csrf_token = request.headers.get('X-CSRFToken')
+        if not csrf_token:
+            logger.warning("CSRF-токен отсутствует в заголовках.")
+            return jsonify({"error": "CSRF token missing."}), 400
+        validate_csrf(csrf_token)
+
+        if 'user_id' not in session:
+            logger.warning("Неавторизованный доступ к /staking/api/stake_tokens.")
+            return jsonify({"error": "Unauthorized"}), 401
+
+        user_id = session['user_id']
+        user = User.query.get(user_id)
+        if not user or not user.unique_wallet_address:
+            logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька.")
+            return jsonify({"error": "User not found or unique wallet not set."}), 404
+
+        data = request.get_json() or {}
+        amount_usd = data.get("amount_usd")
+        if amount_usd is None:
+            logger.warning("amount_usd не предоставлен в запросе.")
+            return jsonify({"error": "No amount_usd provided."}), 400
+
+        try:
+            amount_usd = float(amount_usd)
+            if amount_usd <= 0:
+                raise ValueError
+        except ValueError:
+            logger.warning(f"Некорректное значение amount_usd: {amount_usd}")
+            return jsonify({"error": "Invalid amount_usd."}), 400
+
+        # Получение текущей цены UJO
+        price_usd = get_token_price_in_usd('UJO')  # Предполагается, что есть такая функция
+        if not price_usd:
+            logger.error("Не удалось получить цену токена UJO.")
+            return jsonify({"error": "Failed to get UJO price."}), 400
+
+        amount_ujo = amount_usd / price_usd
+
+        # Отправка UJO с уникального кошелька на кошелек проекта
+        success = send_token_reward(PROJECT_WALLET_ADDRESS, amount_ujo, from_address=user.unique_wallet_address)
+        if not success:
+            logger.error(f"Стейкинг не удался для пользователя ID {user_id}.")
+            return jsonify({"error": "Staking failed."}), 400
+
+        # Добавление записи стейкинга в базу данных
+        new_stake = UserStaking(
+            user_id=user_id,
+            tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
+            staked_amount=amount_ujo,
+            staked_usd=amount_usd,
+            pending_rewards=0.0,
+            created_at=datetime.utcnow(),
+            unlocked_at=datetime.utcnow() + timedelta(days=30),
+            last_claim_at=datetime.utcnow()
+        )
+        db.session.add(new_stake)
+        db.session.commit()
+
+        logger.info(f"Пользователь ID {user_id} застейкал {amount_ujo:.4f} UJO (~{amount_usd}$).")
+
+        return jsonify({"status": "success", "staked_amount": amount_ujo, "staked_usd": amount_usd}), 200
+
+    except CSRFError as e:
+        logger.error(f"CSRF ошибка: {e}")
+        return jsonify({"error": "CSRF token missing or invalid."}), 400
+    except Exception as e:
+        logger.error(f"Ошибка при стейкинге токенов: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error."}), 500
