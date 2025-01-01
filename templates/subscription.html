@@ -14,45 +14,45 @@
     <button class="nes-btn is-success" id="copyUniqueWalletBtn"><i class="fas fa-copy"></i> Копировать Адрес</button>
     
     <hr>
-    <h3>Ваши Балансы</h3>
+    <h3>Баланс Кошелька</h3>
     <ul>
-      <li>ETH: <span id="ethBalance">Loading...</span></li>
-      <li>WETH: <span id="wethBalance">Loading...</span></li>
-      <li>UJO: <span id="ujoBalance">Loading...</span></li>
+        <li>ETH: <span id="ethBalance">Loading...</span></li>
+        <li>WETH: <span id="wethBalance">Loading...</span></li>
+        <li>UJO: <span id="ujoBalance">Loading...</span></li>
     </ul>
     
     <hr>
     <h3>Обмен Токенов</h3>
     <div class="exchange-container">
-      <!-- Окно обмена 1 -->
-      <div class="exchange-window nes-container is-rounded">
-        <label for="fromToken">От:</label>
-        <div class="nes-select">
-          <select id="fromToken">
-            <option value="ETH">ETH</option>
-            <option value="WETH">WETH</option>
-            <option value="UJO">UJO</option>
-          </select>
+        <!-- Окно обмена 1 -->
+        <div class="exchange-window nes-container is-rounded">
+            <label for="fromToken">От:</label>
+            <div class="nes-select">
+                <select id="fromToken">
+                    <option value="ETH">ETH</option>
+                    <option value="WETH">WETH</option>
+                    <option value="UJO">UJO</option>
+                </select>
+            </div>
+            <input type="number" id="fromAmount" class="nes-input" placeholder="Количество" min="0" step="0.0001" required>
         </div>
-        <input type="number" id="fromAmount" class="nes-input" placeholder="Количество" min="0" step="0.0001" required>
-      </div>
-      
-      <div class="exchange-arrow">
-        <i class="fas fa-arrow-right fa-2x"></i>
-      </div>
-      
-      <!-- Окно обмена 2 -->
-      <div class="exchange-window nes-container is-rounded">
-        <label for="toToken">В:</label>
-        <div class="nes-select">
-          <select id="toToken">
-            <option value="WETH">WETH</option>
-            <option value="UJO">UJO</option>
-            <option value="ETH">ETH</option>
-          </select>
+        
+        <div class="exchange-arrow">
+            <i class="fas fa-arrow-right fa-2x"></i>
         </div>
-        <input type="text" id="toAmount" class="nes-input" placeholder="Количество" readonly>
-      </div>
+        
+        <!-- Окно обмена 2 -->
+        <div class="exchange-window nes-container is-rounded">
+            <label for="toToken">В:</label>
+            <div class="nes-select">
+                <select id="toToken">
+                    <option value="WETH">WETH</option>
+                    <option value="UJO">UJO</option>
+                    <option value="ETH">ETH</option>
+                </select>
+            </div>
+            <input type="text" id="toAmount" class="nes-input" placeholder="Количество" readonly>
+        </div>
     </div>
     
     <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
@@ -61,18 +61,6 @@
     <h3>Стейкинг</h3>
     <button class="nes-btn is-success" id="stakeButton">Застейкать (25$)</button>
     
-    <div style="margin-top:1rem;">
-      <h3>Подтвердите стейкинг</h3>
-      <form id="confirmStakeForm">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="nes-field">
-          <label for="tx_hash">Хэш транзакции:</label>
-          <input type="text" id="tx_hash" name="txHash" class="nes-input" placeholder="0x..." required>
-        </div>
-        <button type="submit" class="nes-btn is-primary"><i class="fas fa-check"></i> Подтвердить Стейкинг</button>
-      </form>
-    </div>
-    
     <div id="stakingArea" style="margin-top:1rem;"></div>
     
     <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">Claim Rewards</button>
@@ -80,28 +68,13 @@
   {% endif %}
 </div>
 
-<!-- Модальное окно для изображений -->
-<div id="modal" class="modal" style="display:none;">
-  <span class="close">&times;</span>
-  <img class="modal-content" id="modal-img">
-</div>
-
-<!-- Подключение необходимых библиотек -->
-<!-- Web3.py не требуется на фронтенде, так как мы переходим на серверную логику -->
-
-<!-- Подключение собственного скрипта -->
-<script>
-    window.config = {
-        CSRF_TOKEN: "{{ csrf_token }}"
-    };
-</script>
+{% if not user.unique_wallet_address %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Обработчик для кнопки "Сгенерировать Уникальный Кошелёк"
         document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
             try {
                 const csrfToken = "{{ csrf_token }}";
-                const response = await fetch('/staking/generate_unique_wallet', {
+                const response = await fetch('{{ url_for("staking_bp.generate_unique_wallet_route") }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -121,226 +94,217 @@
                 alert('Произошла ошибка при генерации уникального кошелька.');
             }
         });
+    });
+</script>
+{% endif %}
 
-        // Обработчик для кнопки "Копировать Адрес"
-        document.getElementById('copyUniqueWalletBtn').addEventListener('click', () => {
-            const walletAddress = "{{ user.unique_wallet_address }}";
-            if(walletAddress){
-                navigator.clipboard.writeText(walletAddress).then(function() {
-                    alert('Адрес кошелька скопирован в буфер обмена!');
-                }, function(err) {
-                    console.error('Ошибка при копировании: ', err);
-                    alert('Не удалось скопировать адрес кошелька.');
-                });
-            } else {
-                alert('Адрес кошелька не найден.');
-            }
-        });
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        {% if user.unique_wallet_address %}
+            // Обработчик для кнопки "Копировать Адрес"
+            document.getElementById('copyUniqueWalletBtn').addEventListener('click', () => {
+                const walletAddress = "{{ user.unique_wallet_address }}";
+                if(walletAddress){
+                    navigator.clipboard.writeText(walletAddress).then(function() {
+                        alert('Адрес кошелька скопирован в буфер обмена!');
+                    }, function(err) {
+                        console.error('Ошибка при копировании: ', err);
+                        alert('Не удалось скопировать адрес кошелька.');
+                    });
+                } else {
+                    alert('Адрес кошелька не найден.');
+                }
+            });
 
-        // Инициализация балансов и стейкинговых данных
-        async function loadBalances(){
-            try{
-                const response = await fetch('/staking/api/get_balances', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
+            // Инициализация балансов и стейкинговых данных
+            async function loadBalances(){
+                try{
+                    const response = await fetch('/staking/api/get_balances', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    if(data.error){
+                        document.getElementById('ethBalance').textContent = 'Error';
+                        document.getElementById('wethBalance').textContent = 'Error';
+                        document.getElementById('ujoBalance').textContent = 'Error';
+                    } else{
+                        document.getElementById('ethBalance').textContent = data.balances.eth.toFixed(4);
+                        document.getElementById('wethBalance').textContent = data.balances.weth.toFixed(4);
+                        document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
                     }
-                });
-                const data = await response.json();
-                if(data.error){
+                } catch(error){
+                    console.error("Ошибка при загрузке балансов:", error);
                     document.getElementById('ethBalance').textContent = 'Error';
                     document.getElementById('wethBalance').textContent = 'Error';
                     document.getElementById('ujoBalance').textContent = 'Error';
-                } else{
-                    document.getElementById('ethBalance').textContent = data.balances.eth.toFixed(4);
-                    document.getElementById('wethBalance').textContent = data.balances.weth.toFixed(4);
-                    document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
                 }
-            } catch(error){
-                console.error("Ошибка при загрузке балансов:", error);
-                document.getElementById('ethBalance').textContent = 'Error';
-                document.getElementById('wethBalance').textContent = 'Error';
-                document.getElementById('ujoBalance').textContent = 'Error';
-            }
-        }
-
-        // Вызов загрузки балансов при загрузке страницы
-        loadBalances();
-
-        // Обработчик кнопки "Обменять"
-        document.getElementById('swapButton').addEventListener('click', async () => {
-            const fromToken = document.getElementById('fromToken').value;
-            const toToken = document.getElementById('toToken').value;
-            const fromAmount = parseFloat(document.getElementById('fromAmount').value);
-
-            if(isNaN(fromAmount) || fromAmount <= 0){
-                alert('Пожалуйста, введите корректное количество токенов для обмена.');
-                return;
             }
 
-            try{
-                const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/api/exchange_tokens', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({
-                        from_token: fromToken,
-                        to_token: toToken,
-                        from_amount: fromAmount
+            // Вызов загрузки балансов при загрузке страницы
+            loadBalances();
+
+            // Обработчик кнопки "Обменять"
+            document.getElementById('swapButton').addEventListener('click', async () => {
+                const fromToken = document.getElementById('fromToken').value;
+                const toToken = document.getElementById('toToken').value;
+                const fromAmount = parseFloat(document.getElementById('fromAmount').value);
+
+                if(isNaN(fromAmount) || fromAmount <= 0){
+                    alert('Пожалуйста, введите корректное количество токенов для обмена.');
+                    return;
+                }
+
+                try{
+                    const csrfToken = "{{ csrf_token }}";
+                    const response = await fetch('/staking/api/exchange_tokens', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            from_token: fromToken,
+                            to_token: toToken,
+                            from_amount: fromAmount
+                        })
+                    });
+
+                    const data = await response.json();
+                    if(data.status === 'success'){
+                        alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
+                        loadBalances();
+                    } else{
+                        alert('Ошибка: ' + data.error);
+                    }
+                } catch(error){
+                    console.error('Ошибка при обмене токенов:', error);
+                    alert('Произошла ошибка при обмене токенов.');
+                }
+            });
+
+            // Обработчик кнопки "Stake"
+            document.getElementById('stakeButton').addEventListener('click', async () => {
+                try {
+                    const csrfToken = "{{ csrf_token }}";
+                    const stakeAmount = 25; // Пример суммы в USD
+
+                    // Отправка стейкинга с уникального кошелька на кошелек проекта
+                    const response = await fetch('/staking/api/stake_tokens', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            amount_usd: stakeAmount
+                        })
+                    });
+
+                    const data = await response.json();
+                    if(data.status === 'success'){
+                        alert('Стейкинг успешно выполнен!');
+                        loadStaking();
+                        loadBalances();
+                    } else{
+                        alert('Ошибка: ' + data.error);
+                    }
+                } catch(error){
+                    console.error('Ошибка при стейкинге:', error);
+                    alert('Произошла ошибка при стейкинге.');
+                }
+            });
+
+            // Функция для загрузки и отображения стейков пользователя
+            async function loadStaking() {
+                try {
+                    const resp = await fetch('/staking/api/get_user_stakes')
+                    const data = await resp.json()
+                    if(data.error) {
+                        document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
+                        document.getElementById('claimRewardsBtn').style.display = 'none'
+                        document.getElementById('unstakeBtn').style.display = 'none'
+                        return
+                    }
+                    const stakes = data.stakes
+                    if(!stakes.length) {
+                        document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейкинга.</p>'
+                        document.getElementById('claimRewardsBtn').style.display = 'none'
+                        document.getElementById('unstakeBtn').style.display = 'none'
+                        return
+                    }
+                    let html=''
+                    for(let s of stakes) {
+                        html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
+                          <p><b>TX Hash:</b> ${s.tx_hash}</p>
+                          <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
+                          <p>Pending Rewards: ${s.pending_rewards} UJO</p>
+                          <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
+                        </div>`
+                    }
+                    document.getElementById('stakingArea').innerHTML = html
+                    document.getElementById('claimRewardsBtn').style.display = 'block'
+                    document.getElementById('unstakeBtn').style.display = 'block'
+                } catch (error) {
+                    console.error('Ошибка при загрузке стейкингов:', error)
+                    document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейкингов.</p>'
+                    document.getElementById('claimRewardsBtn').style.display = 'none'
+                    document.getElementById('unstakeBtn').style.display = 'none'
+                }
+            }
+
+            // Вызов загрузки стейкинговых данных при загрузке страницы
+            loadStaking();
+
+            // Обработчик кнопки "Claim Rewards"
+            document.getElementById('claimRewardsBtn').addEventListener('click', async function(){
+                try {
+                    const csrfToken = "{{ csrf_token }}";
+                    const response = await fetch('/staking/api/claim_staking_rewards',{
+                        method:'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'Content-Type': 'application/json'
+                        }
                     })
-                });
-
-                const data = await response.json();
-                if(data.status === 'success'){
-                    alert('Обмен успешно выполнен! Вы получили ' + data.to_amount + ' ' + toToken + '.');
-                    loadBalances();
-                } else{
-                    alert('Ошибка: ' + data.error);
+                    const data = await response.json()
+                    if(data.error) alert(data.error)
+                    else {
+                        alert(data.message)
+                        loadStaking()
+                        loadBalances()
+                    }
+                } catch (error) {
+                    alert('Произошла ошибка при клейме наград: ' + error)
                 }
-            } catch(error){
-                console.error('Ошибка при обмене токенов:', error);
-                alert('Произошла ошибка при обмене токенов.');
-            }
-        });
+            });
 
-        // Обработчик формы подтверждения стейкинга
-        document.getElementById('confirmStakeForm').addEventListener('submit', async function(e){
-            e.preventDefault();
-            const txHash = document.getElementById('tx_hash').value.trim();
-            if(!txHash){
-                alert('Пожалуйста, введите хэш транзакции.');
-                return;
-            }
-
-            // Простейшая валидация формата txHash
-            if(!/^0x([A-Fa-f0-9]{64})$/.test(txHash)){
-                alert('Некорректный формат хэша транзакции.');
-                return;
-            }
-
-            try{
-                const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/api/confirm_stake', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({ tx_hash: txHash })
-                });
-
-                const data = await response.json();
-                if(data.status === 'success'){
-                    alert('Стейкинг успешно подтверждён!');
-                    loadStaking();
-                    loadBalances();
-                } else{
-                    alert('Ошибка: ' + data.error);
+            // Обработчик кнопки "Unstake"
+            document.getElementById('unstakeBtn').addEventListener('click', async function(){
+                try {
+                    const csrfToken = "{{ csrf_token }}";
+                    const response = await fetch('/staking/api/unstake',{
+                        method:'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    const data = await response.json()
+                    if(data.error) alert(data.error)
+                    else {
+                        alert(data.message)
+                        loadStaking()
+                        loadBalances()
+                    }
+                } catch (error) {
+                    alert('Произошла ошибка при unstake: ' + error)
                 }
-            } catch(error){
-                console.error("Ошибка при подтверждении стейкинга:", error);
-                alert("Произошла ошибка при подтверждении стейкинга.");
-            }
-        });
-
-        // Обработчик кнопки "Stake" - чтобы показать инструкцию
-        if(document.getElementById('stakeButton')){
-            document.getElementById('stakeButton').addEventListener('click', function(){
-                // Инструкции для пользователя
-                alert('Чтобы застейкать, отправьте 25$ (примерно) UJO на ваш уникальный кошелёк. После отправки подтвердите транзакцию, введя её хэш ниже.');
             });
         }
-
-        // Функция для загрузки и отображения стейков пользователя
-        async function loadStaking() {
-            try {
-                const resp = await fetch('/staking/api/get_user_stakes')
-                const data = await resp.json()
-                if(data.error) {
-                    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
-                    document.getElementById('claimRewardsBtn').style.display = 'none'
-                    document.getElementById('unstakeBtn').style.display = 'none'
-                    return
-                }
-                const stakes = data.stakes
-                if(!stakes.length) {
-                    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейкинга.</p>'
-                    document.getElementById('claimRewardsBtn').style.display = 'none'
-                    document.getElementById('unstakeBtn').style.display = 'none'
-                    return
-                }
-                let html=''
-                for(let s of stakes) {
-                    html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
-                      <p><b>TX Hash:</b> ${s.tx_hash}</p>
-                      <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
-                      <p>Pending Rewards: ${s.pending_rewards} UJO</p>
-                      <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
-                    </div>`
-                }
-                document.getElementById('stakingArea').innerHTML = html
-                document.getElementById('claimRewardsBtn').style.display = 'block'
-                document.getElementById('unstakeBtn').style.display = 'block'
-            } catch (error) {
-                console.error('Ошибка при загрузке стейкингов:', error)
-                document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейкингов.</p>'
-                document.getElementById('claimRewardsBtn').style.display = 'none'
-                document.getElementById('unstakeBtn').style.display = 'none'
-            }
-        }
-
-        // Обработчик кнопки "Claim Rewards"
-        document.getElementById('claimRewardsBtn').addEventListener('click', async function(){
-            try {
-                const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/api/claim_staking_rewards',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
-                })
-                const data = await response.json()
-                if(data.error) alert(data.error)
-                else {
-                    alert(data.message)
-                    loadStaking()
-                    loadBalances()
-                }
-            } catch (error) {
-                alert('Произошла ошибка при клейме наград: ' + error)
-            }
-        });
-
-        // Обработчик кнопки "Unstake"
-        document.getElementById('unstakeBtn').addEventListener('click', async function(){
-            try {
-                const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/api/unstake',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
-                })
-                const data = await response.json()
-                if(data.error) alert(data.error)
-                else {
-                    alert(data.message)
-                    loadStaking()
-                    loadBalances()
-                }
-            } catch (error) {
-                alert('Произошла ошибка при unstake: ' + error)
-            }
-        });
-
-        // Инициализация загрузки стейкинговых данных при загрузке страницы
-        document.addEventListener('DOMContentLoaded', ()=> {
-            loadStaking()
-        });
-    </script>
+    });
+</script>
+{% endif %}
 {% endblock %}
