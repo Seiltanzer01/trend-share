@@ -12,6 +12,7 @@
             <p><strong>Адрес кошелька:</strong> <span id="uniqueWalletAddress">{{ unique_wallet_address }}</span></p>
             <!-- Добавление QR-кода для удобства -->
             <img src="https://api.qrserver.com/v1/create-qr-code/?data={{ unique_wallet_address }}&amp;size=200x200" alt="QR Code для кошелька">
+            <button class="nes-btn is-success" id="copyUniqueWalletBtn"><i class="fas fa-copy"></i> Копировать Адрес</button>
         </div>
         
         <hr>
@@ -57,15 +58,6 @@
         </div>
         
         <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
-        
-        <hr>
-        <h3>Стейкинг</h3>
-        <button class="nes-btn is-success" id="stakeButton">Застейкать (25$)</button>
-        
-        <div id="stakingArea" style="margin-top:1rem;"></div>
-        
-        <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">Claim Rewards</button>
-        <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
     {% else %}
         <p>Сгенерируйте уникальный кошелёк для депозита:</p>
         <button class="nes-btn is-primary" id="generateUniqueWalletBtn"><i class="fas fa-wallet"></i> Сгенерировать Кошелёк</button>
@@ -120,7 +112,7 @@
                 }
             });
 
-            // Инициализация балансов и стейкинговых данных
+            // Инициализация балансов
             async function loadBalances(){
                 try{
                     const response = await fetch('/staking/api/get_balances', {
@@ -186,125 +178,6 @@
                 } catch(error){
                     console.error('Ошибка при обмене токенов:', error);
                     alert('Произошла ошибка при обмене токенов.');
-                }
-            });
-
-            // Обработчик кнопки "Stake"
-            document.getElementById('stakeButton').addEventListener('click', async () => {
-                try {
-                    const csrfToken = "{{ csrf_token }}";
-                    const stakeAmount = 25; // Пример суммы в USD
-
-                    // Отправка стейкинга с уникального кошелька на кошелек проекта
-                    const response = await fetch('/staking/api/stake_tokens', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({
-                            amount_usd: stakeAmount
-                        })
-                    });
-
-                    const data = await response.json();
-                    if(data.status === 'success'){
-                        alert('Стейкинг успешно выполнен!');
-                        loadStaking();
-                        loadBalances();
-                    } else{
-                        alert('Ошибка: ' + data.error);
-                    }
-                } catch(error){
-                    console.error('Ошибка при стейкинге:', error);
-                    alert('Произошла ошибка при стейкинге.');
-                }
-            });
-
-            // Функция для загрузки и отображения стейков пользователя
-            async function loadStaking() {
-                try {
-                    const resp = await fetch('/staking/api/get_user_stakes')
-                    const data = await resp.json()
-                    if(data.error) {
-                        document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
-                        document.getElementById('claimRewardsBtn').style.display = 'none'
-                        document.getElementById('unstakeBtn').style.display = 'none'
-                        return
-                    }
-                    const stakes = data.stakes
-                    if(!stakes.length) {
-                        document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейкинга.</p>'
-                        document.getElementById('claimRewardsBtn').style.display = 'none'
-                        document.getElementById('unstakeBtn').style.display = 'none'
-                        return
-                    }
-                    let html=''
-                    for(let s of stakes) {
-                        html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
-                          <p><b>TX Hash:</b> ${s.tx_hash}</p>
-                          <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
-                          <p>Pending Rewards: ${s.pending_rewards} UJO</p>
-                          <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
-                        </div>`
-                    }
-                    document.getElementById('stakingArea').innerHTML = html
-                    document.getElementById('claimRewardsBtn').style.display = 'block'
-                    document.getElementById('unstakeBtn').style.display = 'block'
-                } catch (error) {
-                    console.error('Ошибка при загрузке стейкингов:', error)
-                    document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейкингов.</p>'
-                    document.getElementById('claimRewardsBtn').style.display = 'none'
-                    document.getElementById('unstakeBtn').style.display = 'none'
-                }
-            }
-
-            // Вызов загрузки стейкинговых данных при загрузке страницы
-            loadStaking();
-
-            // Обработчик кнопки "Claim Rewards"
-            document.getElementById('claimRewardsBtn').addEventListener('click', async function(){
-                try {
-                    const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('/staking/api/claim_staking_rewards',{
-                        method:'POST',
-                        headers: {
-                            'X-CSRFToken': csrfToken,
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    const data = await response.json()
-                    if(data.error) alert(data.error)
-                    else {
-                        alert(data.message)
-                        loadStaking()
-                        loadBalances()
-                    }
-                } catch (error) {
-                    alert('Произошла ошибка при клейме наград: ' + error)
-                }
-            });
-
-            // Обработчик кнопки "Unstake"
-            document.getElementById('unstakeBtn').addEventListener('click', async function(){
-                try {
-                    const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('/staking/api/unstake',{
-                        method:'POST',
-                        headers: {
-                            'X-CSRFToken': csrfToken,
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    const data = await response.json()
-                    if(data.error) alert(data.error)
-                    else {
-                        alert(data.message)
-                        loadStaking()
-                        loadBalances()
-                    }
-                } catch (error) {
-                    alert('Произошла ошибка при unstake: ' + error)
                 }
             });
         }
