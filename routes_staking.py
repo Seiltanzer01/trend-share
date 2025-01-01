@@ -97,6 +97,17 @@ def generate_unique_wallet_route():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
+@staking_bp.route('/generate_unique_wallet_page', methods=['GET'])
+def generate_unique_wallet_page():
+    """
+    Страница для генерации уникального кошелька.
+    """
+    if 'user_id' not in session:
+        flash('Пожалуйста, войдите в систему для генерации кошелька.', 'warning')
+        return redirect(url_for('login'))
+
+    return render_template('generate_unique_wallet.html')
+
 @staking_bp.route('/deposit', methods=['GET'])
 def deposit_page():
     """
@@ -116,19 +127,30 @@ def deposit_page():
         flash('Сначала сгенерируйте уникальный кошелёк для депозита.', 'warning')
         return redirect(url_for('staking_bp.generate_unique_wallet_page'))
 
-    # Здесь можно добавить дополнительные инструкции
+    # Рендеринг шаблона deposit.html
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
 
-@staking_bp.route('/generate_unique_wallet_page', methods=['GET'])
-def generate_unique_wallet_page():
+@staking_bp.route('/subscription', methods=['GET'])
+def subscription_page():
     """
-    Страница для генерации уникального кошелька.
+    Страница для стейкинга токенов. Показывает баланс и позволяет выполнять стейкинг.
     """
     if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для генерации кошелька.', 'warning')
+        flash('Пожалуйста, войдите в систему для стейкинга.', 'warning')
         return redirect(url_for('login'))
 
-    return render_template('generate_unique_wallet.html')
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        flash('Пользователь не найден.', 'danger')
+        return redirect(url_for('login'))
+
+    if not user.unique_wallet_address:
+        flash('Сначала сгенерируйте уникальный кошелёк для стейкинга.', 'warning')
+        return redirect(url_for('staking_bp.generate_unique_wallet_page'))
+
+    # Рендеринг шаблона subscription.html
+    return render_template('subscription.html', user=user)
 
 @staking_bp.route('/confirm', methods=['POST'])
 def confirm_staking():
