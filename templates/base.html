@@ -87,7 +87,7 @@
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
                     <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> Голосование</a>
                     <a href="{{ url_for('subscription') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка</a>
-                    <a href="{{ url_for('staking_bp.deposit') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Депозит</a>
+                    <a href="{{ url_for('staking_bp.deposit_page') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Депозит</a>
                     {% if not session.get('assistant_premium') %}
                         
                     {% else %}
