@@ -150,6 +150,35 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
         logger.error(traceback.format_exc())
         return 0.0
 
+def get_balances(user: User) -> dict:
+    """
+    Получает балансы ETH, WETH и UJO для пользователя.
+    """
+    try:
+        unique_wallet_address = Web3.to_checksum_address(user.unique_wallet_address)
+
+        # Получение баланса ETH
+        eth_balance = Web3.from_wei(web3.eth.get_balance(unique_wallet_address), 'ether')
+
+        # Получение баланса WETH
+        weth_balance = get_token_balance(unique_wallet_address, weth_contract)
+
+        # Получение баланса UJO
+        ujo_balance = get_token_balance(unique_wallet_address, ujo_contract)
+
+        return {
+            "balances": {
+                "eth": float(eth_balance),
+                "weth": float(weth_balance),
+                "ujo": float(ujo_balance)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Ошибка при получении балансов для пользователя ID {user.id}: {e}")
+        logger.error(traceback.format_exc())
+        return {"error": "Internal server error."}
+        
+
 def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
     """
     Обменивает WETH на UJO для указанного адреса.
