@@ -4,7 +4,6 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 import secrets
-import string
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
@@ -18,36 +17,16 @@ from staking_logic import (
     token_contract,
     weth_contract,
     ujo_contract,
-    PROJECT_WALLET_ADDRESS
+    PROJECT_WALLET_ADDRESS,
+    get_balances,  # Импортируем функцию get_balances(user)
+    generate_unique_wallet_address,  # Импортируем функцию генерации адреса
+    generate_unique_private_key  # Импортируем функцию генерации приватного ключа
 )
 from best_setup_voting import send_token_reward
-from web3 import Web3  # Импорт класса Web3
 
 logger = logging.getLogger(__name__)
 
 staking_bp = Blueprint('staking_bp', __name__)
-
-# Функции генерации уникального адреса кошелька и приватного ключа
-
-def generate_unique_wallet_address():
-    """
-    Генерирует уникальный адрес кошелька в формате checksum.
-    """
-    while True:
-        address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
-        # Преобразование в checksum адрес
-        checksum_address = Web3.to_checksum_address(address)
-        # Проверка уникальности адреса в базе данных
-        if not User.query.filter_by(unique_wallet_address=checksum_address).first():
-            return checksum_address
-
-def generate_unique_private_key():
-    """
-    Генерирует уникальный приватный ключ.
-    """
-    # Генерация случайного 32-байтового ключа и преобразование в шестнадцатеричную строку
-    private_key = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
-    return private_key
 
 @staking_bp.route('/generate_unique_wallet', methods=['POST'])
 def generate_unique_wallet_route():
@@ -129,7 +108,7 @@ def deposit_page():
 
     # Рендеринг шаблона deposit.html
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
-    
+
 @staking_bp.route('/subscription', methods=['GET'])
 def subscription_page():
     """
@@ -241,7 +220,7 @@ def get_user_stakes():
         return jsonify({"error": "Internal server error."}), 500
 
 @staking_bp.route('/api/get_balances', methods=['GET'])
-def get_balances():
+def get_balances_route():
     """
     Возвращает балансы ETH, WETH, UJO для текущего пользователя.
     """
