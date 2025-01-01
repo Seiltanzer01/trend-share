@@ -64,7 +64,7 @@
     <div style="margin-top:1rem;">
       <h3>Подтвердите стейкинг</h3>
       <form id="confirmStakeForm">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="nes-field">
           <label for="tx_hash">Хэш транзакции:</label>
           <input type="text" id="tx_hash" name="txHash" class="nes-input" placeholder="0x..." required>
