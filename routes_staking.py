@@ -2,13 +2,15 @@
 
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
+import secrets
+import string
+
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, UserStaking
 from staking_logic import (
     confirm_staking_tx,
-    generate_unique_wallet,
     exchange_weth_to_ujo,
     get_token_balance,
     get_token_price_in_usd,
@@ -24,6 +26,27 @@ from web3 import Web3  # Импорт класса Web3
 logger = logging.getLogger(__name__)
 
 staking_bp = Blueprint('staking_bp', __name__)
+
+# Функции генерации уникального адреса кошелька и приватного ключа
+
+def generate_unique_wallet_address():
+    """
+    Генерирует уникальный адрес кошелька.
+    """
+    # Генерация случайного 20-байтового адреса и преобразование в шестнадцатеричную строку
+    while True:
+        address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
+        # Проверка уникальности адреса в базе данных
+        if not User.query.filter_by(unique_wallet_address=address).first():
+            return address
+
+def generate_unique_private_key():
+    """
+    Генерирует уникальный приватный ключ.
+    """
+    # Генерация случайного 32-байтового ключа и преобразование в шестнадцатеричную строку
+    private_key = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
+    return private_key
 
 @staking_bp.route('/generate_unique_wallet', methods=['POST'])
 def generate_unique_wallet_route():
@@ -53,7 +76,8 @@ def generate_unique_wallet_route():
             return jsonify({"error": "Unique wallet already exists.", "unique_wallet_address": user.unique_wallet_address}), 400
 
         # Генерация уникального кошелька
-        unique_wallet_address, unique_private_key = generate_unique_wallet()
+        unique_wallet_address = generate_unique_wallet_address()
+        unique_private_key = generate_unique_private_key()
 
         # Сохранение кошелька в базе данных
         user.unique_wallet_address = unique_wallet_address
@@ -199,10 +223,10 @@ def get_balances():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
-@staking_bp.route('/exchange_weth_to_ujo', methods=['POST'])
-def exchange_weth_to_ujo_route():
+@staking_bp.route('/api/exchange_tokens', methods=['POST'])
+def exchange_tokens():
     """
-    Обменивает WETH на UJO для пользователя.
+    Обменивает токены между пользователем.
     """
     try:
         # Извлечение CSRF-токена из заголовков
@@ -213,7 +237,7 @@ def exchange_weth_to_ujo_route():
         validate_csrf(csrf_token)
 
         if 'user_id' not in session:
-            logger.warning("Неавторизованный доступ к /staking/exchange_weth_to_ujo.")
+            logger.warning("Неавторизованный доступ к /staking/api/exchange_tokens.")
             return jsonify({"error": "Unauthorized"}), 401
 
         user_id = session['user_id']
@@ -223,38 +247,138 @@ def exchange_weth_to_ujo_route():
             return jsonify({"error": "User not found or unique wallet not set."}), 404
 
         data = request.get_json() or {}
-        amount_weth = data.get("amount_weth")
-        if amount_weth is None:
-            logger.warning("amount_weth не предоставлен в запросе.")
-            return jsonify({"error": "No amount_weth provided."}), 400
+        from_token = data.get("from_token")
+        to_token = data.get("to_token")
+        from_amount = data.get("from_amount")
+
+        if not from_token or not to_token or from_amount is None:
+            logger.warning("Недостаточно данных для обмена.")
+            return jsonify({"error": "Insufficient data for exchange."}), 400
 
         try:
-            amount_weth = float(amount_weth)
-            if amount_weth <= 0:
+            from_amount = float(from_amount)
+            if from_amount <= 0:
                 raise ValueError
         except ValueError:
-            logger.warning(f"Некорректное значение amount_weth: {amount_weth}")
-            return jsonify({"error": "Invalid amount_weth."}), 400
+            logger.warning(f"Некорректное значение from_amount: {from_amount}")
+            return jsonify({"error": "Invalid from_amount."}), 400
 
-        logger.info(f"Пользователь ID {user_id} хочет обменять {amount_weth} WETH на UJO.")
+        logger.info(f"Пользователь ID {user_id} хочет обменять {from_amount} {from_token} на {to_token}.")
 
         # Выполнение обмена
-        success = exchange_weth_to_ujo(user.unique_wallet_address, amount_weth)
-        if success:
-            ujo_received = amount_weth * 10  # Пример: 1 WETH = 10 UJO
-            return jsonify({"status": "success", "ujo_received": ujo_received}), 200
+        # Здесь предполагается, что функция exchange_weth_to_ujo обрабатывает обмен между любыми токенами
+        # Если нет, необходимо реализовать соответствующую логику
+
+        # Для примера, будем считать, что обмен возможен только между WETH и UJO
+        if from_token == "WETH" and to_token == "UJO":
+            success = exchange_weth_to_ujo(user.unique_wallet_address, from_amount)
+            if success:
+                # Пример расчёта полученных UJO (замените на реальную логику)
+                ujo_received = from_amount * 10  # Пример: 1 WETH = 10 UJO
+                return jsonify({"status": "success", "ujo_received": ujo_received}), 200
+            else:
+                return jsonify({"error": "Exchange failed."}), 400
         else:
-            return jsonify({"error": "Exchange failed."}), 400
+            logger.warning(f"Обмен между {from_token} и {to_token} не поддерживается.")
+            return jsonify({"error": "Exchange between these tokens is not supported."}), 400
 
     except CSRFError as e:
         logger.error(f"CSRF ошибка: {e}")
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
-        logger.error(f"Ошибка при обмене WETH на UJO: {e}")
+        logger.error(f"Ошибка при обмене токенов: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
-@staking_bp.route('/claim_staking_rewards', methods=['POST'])
+@staking_bp.route('/api/confirm_stake', methods=['POST'])
+def confirm_stake():
+    """
+    Подтверждает стейкинг транзакции.
+    """
+    try:
+        # Извлечение CSRF-токена из заголовков
+        csrf_token = request.headers.get('X-CSRFToken')
+        if not csrf_token:
+            logger.warning("CSRF-токен отсутствует в заголовках.")
+            return jsonify({"error": "CSRF token missing."}), 400
+        validate_csrf(csrf_token)
+
+        if 'user_id' not in session:
+            logger.warning("Неавторизованный доступ к /staking/api/confirm_stake.")
+            return jsonify({"error": "Unauthorized"}), 401
+
+        user_id = session['user_id']
+        user = User.query.get(user_id)
+        if not user:
+            logger.warning(f"Пользователь ID {user_id} не найден.")
+            return jsonify({"error": "User not found"}), 404
+
+        data = request.get_json() or {}
+        tx_hash = data.get("tx_hash")
+        if not tx_hash:
+            logger.warning("tx_hash не предоставлен в запросе.")
+            return jsonify({"error": "No tx_hash provided"}), 400
+
+        # Валидация формата tx_hash (простейшая проверка)
+        if not isinstance(tx_hash, str) or not tx_hash.startswith('0x') or len(tx_hash) != 66:
+            logger.warning(f"Некорректный формат tx_hash: {tx_hash}")
+            return jsonify({"error": "Invalid tx_hash format."}), 400
+
+        logger.info(f"Пользователь ID {user_id} отправил tx_hash: {tx_hash}")
+
+        # Используем уникальный кошелёк для подтверждения стейкинга
+        # Предполагается, что функция confirm_staking_tx возвращает True при успешном подтверждении
+        ok = confirm_staking_tx(user, tx_hash)
+        if ok:
+            logger.info(f"Стейкинг подтверждён для пользователя ID {user_id} с tx_hash {tx_hash}.")
+            return jsonify({"status": "success"}), 200
+        else:
+            logger.error(f"Стейкинг подтверждён не был для пользователя ID {user_id} с tx_hash {tx_hash}.")
+            return jsonify({"error": "Staking confirm failed"}), 400
+
+    except CSRFError as e:
+        logger.error(f"CSRF ошибка: {e}")
+        return jsonify({"error": "CSRF token missing or invalid."}), 400
+    except Exception as e:
+        logger.error(f"Ошибка при подтверждении стейкинга: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error."}), 500
+
+@staking_bp.route('/api/get_user_stakes', methods=['GET'])
+def get_user_stakes():
+    """
+    Возвращает стейкинговые данные пользователя.
+    """
+    if 'user_id' not in session:
+        logger.warning("Неавторизованный доступ к /staking/api/get_user_stakes.")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        logger.warning(f"Пользователь ID {user_id} не найден.")
+        return jsonify({"error": "User not found."}), 404
+
+    try:
+        stakes = UserStaking.query.filter_by(user_id=user_id).all()
+        stakes_data = []
+        for stake in stakes:
+            stakes_data.append({
+                'tx_hash': stake.tx_hash,
+                'staked_amount': stake.staked_amount,
+                'staked_usd': stake.staked_usd,
+                'pending_rewards': stake.pending_rewards,
+                'unlocked_at': int(stake.unlocked_at.timestamp() * 1000)  # Преобразуем в миллисекунды для JS
+            })
+
+        return jsonify({'stakes': stakes_data}), 200
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении стейкингов для пользователя ID {user_id}: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error."}), 500
+
+@staking_bp.route('/api/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards_route():
     """
     Пользователь может клеймить награды раз в неделю.
@@ -270,7 +394,7 @@ def claim_staking_rewards_route():
         validate_csrf(csrf_token)
 
         if 'user_id' not in session:
-            logger.warning("Неавторизованный доступ к /staking/claim_staking_rewards.")
+            logger.warning("Неавторизованный доступ к /staking/api/claim_staking_rewards.")
             return jsonify({"error": "Unauthorized"}), 401
 
         user_id = session['user_id']
@@ -317,7 +441,7 @@ def claim_staking_rewards_route():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
-@staking_bp.route('/unstake_staking', methods=['POST'])
+@staking_bp.route('/api/unstake', methods=['POST'])
 def unstake_staking_route():
     """
     Выводит стейк, если прошёл срок (30 дней).
@@ -332,7 +456,7 @@ def unstake_staking_route():
         validate_csrf(csrf_token)
 
         if 'user_id' not in session:
-            logger.warning("Неавторизованный доступ к /staking/unstake_staking.")
+            logger.warning("Неавторизованный доступ к /staking/api/unstake.")
             return jsonify({"error": "Unauthorized"}), 401
 
         user_id = session['user_id']
@@ -401,4 +525,3 @@ def unstake_staking_route():
         logger.error(f"Ошибка при unstake_staking: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
-
