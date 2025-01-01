@@ -231,7 +231,7 @@ def get_balances():
     user = User.query.get(user_id)
     if not user or not user.unique_wallet_address:
         logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька.")
-        return jsonify({"error": "User not found or unique wallet not set."}), 404
+        return jsonify({"error": "User not found or unique wallet set."}), 404
 
     try:
         unique_wallet_address = Web3.to_checksum_address(user.unique_wallet_address)
@@ -279,7 +279,7 @@ def exchange_tokens():
         user = User.query.get(user_id)
         if not user or not user.unique_wallet_address:
             logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька.")
-            return jsonify({"error": "User not found or unique wallet not set."}), 404
+            return jsonify({"error": "User not found or unique wallet set."}), 404
 
         data = request.get_json() or {}
         from_token = data.get("from_token")
@@ -410,7 +410,7 @@ def unstake_staking_route():
         user = User.query.get(user_id)
         if not user or not user.unique_wallet_address:
             logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька.")
-            return jsonify({"error": "User not found or unique wallet not set."}), 400
+            return jsonify({"error": "User not found or unique wallet set."}), 400
 
         stakings = UserStaking.query.filter_by(user_id=user_id).all()
         total_unstake = 0.0
@@ -494,7 +494,7 @@ def stake_tokens():
         user = User.query.get(user_id)
         if not user or not user.unique_wallet_address:
             logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька.")
-            return jsonify({"error": "User not found or unique wallet not set."}), 404
+            return jsonify({"error": "User not found or unique wallet set."}), 404
 
         data = request.get_json() or {}
         amount_usd = data.get("amount_usd")
