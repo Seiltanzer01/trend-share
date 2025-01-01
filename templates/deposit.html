@@ -4,20 +4,17 @@
 
 {% block content %}
 <div class="nes-container with-title">
-  <p class="title">Пополнение Счета</p>
-  
-  <p>Для пополнения стейкинга отправьте ETH или WETH на ваш уникальный кошелёк:</p>
-  <p><b>{{ wallet_address }}</b></p>
-  
-  <p>После отправки транзакции, подтвердите её, введя хэш транзакции ниже:</p>
-  
-  <form id="confirmDepositForm" class="nes-container is-rounded" style="padding:1em;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="nes-field">
-      <label for="tx_hash">Хэш транзакции:</label>
-      <input type="text" id="tx_hash" name="txHash" class="nes-input" placeholder="0x..." required>
+    <p class="title">Депозит</p>
+    
+    <p>Отправьте ETH, WETH или UJO на ваш уникальный кошелёк:</p>
+    <div class="wallet-info">
+        <p><strong>Адрес кошелька:</strong> {{ unique_wallet_address }}</p>
+        <!-- Добавление QR-кода для удобства -->
+        <img src="https://api.qrserver.com/v1/create-qr-code/?data={{ unique_wallet_address }}&amp;size=200x200" alt="QR Code для кошелька">
     </div>
-    <button type="submit" class="nes-btn is-primary"><i class="fas fa-check"></i> Подтвердить Пополнение</button>
-  </form>
+    
+    <hr>
+    <h3>Статус депозита</h3>
+    <p>Проверьте баланс после совершения транзакции.</p>
 </div>
 {% endblock %}
