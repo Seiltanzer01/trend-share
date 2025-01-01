@@ -24,72 +24,35 @@ UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот 
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
 
 # Проверка наличия необходимых переменных окружения
-if TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS" or WETH_CONTRACT_ADDRESS == "0xYOUR_WETH_CONTRACT_ADDRESS" or PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS":
+if (
+    TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS" or
+    WETH_CONTRACT_ADDRESS == "0xYOUR_WETH_CONTRACT_ADDRESS" or
+    PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS"
+):
     logger.error("Одна или несколько необходимых переменных окружения (TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS) не установлены или содержат плейсхолдеры.")
     raise ValueError("Некорректные значения переменных окружения: TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS.")
 
-# ABI контрактов
-TOKEN_ABI = [
-    # Добавьте ABI вашего токена (UJO)
-    # Например, ERC20 ABI
+# Стандартный ERC20 ABI с необходимыми функциями
+ERC20_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function",
+    },
     {
         "constant": False,
         "inputs": [
-            {
-                "internalType": "address",
-                "name": "_to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_value",
-                "type": "uint256"
-            }
+            {"name": "_to", "type": "address"},
+            {"name": "_value", "type": "uint256"}
         ],
         "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "type": "function"
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function",
     },
-    # Добавьте другие необходимые функции
+    # Добавьте другие необходимые функции, если необходимо
 ]
-
-WETH_ABI = [
-    # Добавьте ABI вашего WETH контракта
-    # Например, ERC20 ABI
-    {
-        "constant": False,
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_value",
-                "type": "uint256"
-            }
-        ],
-        "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "type": "function"
-    },
-    # Добавьте другие необходимые функции
-]
-
-UJO_ABI = TOKEN_ABI  # Если UJO использует тот же ABI, что и TOKEN
 
 # Проверка валидности адресов
 if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
@@ -108,10 +71,10 @@ if not Web3.is_address(PROJECT_WALLET_ADDRESS):
     logger.error(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
     raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
 
-# Подключение контрактов
-token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=TOKEN_ABI)
-weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
-ujo_contract = web3.eth.contract(address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS), abi=UJO_ABI)
+# Подключение контрактов с использованием полного ERC20 ABI
+token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
+ujo_contract = web3.eth.contract(address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS), abi=ERC20_ABI)
 
 def generate_unique_wallet():
     """
@@ -123,10 +86,11 @@ def generate_unique_wallet():
     logger.info(f"Сгенерирован кошелек: {wallet_address}")
     return wallet_address, private_key
 
-def send_token_reward(to_address: str, amount: float) -> bool:
+def send_token_reward(to_address: str, amount: float, from_address: str = PROJECT_WALLET_ADDRESS) -> bool:
     """
     Отправляет токены UJO на указанный адрес.
     amount: количество UJO (не в wei)
+    from_address: адрес отправителя (по умолчанию PROJECT_WALLET_ADDRESS)
     """
     try:
         # Получение приватного ключа проекта из переменных окружения
