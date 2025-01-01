@@ -286,46 +286,7 @@ $(document).ready(function() {
     }
 
     // **Новые функции для уникальных кошельков и стейкинга**
-
-    // Обработчик для кнопки "Сгенерировать Кошелёк"
-    $('#generateWalletBtn').on('click', async function(){
-        try {
-            const csrfToken = window.config.CSRF_TOKEN;
-            const response = await fetch('/staking/generate_wallet', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-            if(data.status === 'success'){
-                alert('Кошелёк успешно сгенерирован! Ваш адрес: ' + data.wallet_address);
-                location.reload();
-            } else {
-                alert('Ошибка: ' + data.error);
-            }
-        } catch (error) {
-            console.error("Ошибка при генерации кошелька:", error);
-            alert("Произошла ошибка при генерации кошелька.");
-        }
-    });
-
-    // Обработчик для кнопки "Копировать Адрес"
-    $('#copyWalletBtn').on('click', function(){
-        const walletAddress = $('#walletAddress').text().trim(); // Предполагается, что адрес кошелька отображается в элементе с ID 'walletAddress'
-        if(walletAddress){
-            navigator.clipboard.writeText(walletAddress).then(function() {
-                alert('Адрес кошелька скопирован в буфер обмена!');
-            }, function(err) {
-                console.error('Ошибка при копировании: ', err);
-                alert('Не удалось скопировать адрес кошелька.');
-            });
-        } else {
-            alert('Адрес кошелька не найден.');
-        }
-    });
+    // Эти обработчики удалены, чтобы избежать дублирования после объединения шаблонов.
 
     // Функция для загрузки и отображения балансов
     async function loadBalances(){
@@ -451,7 +412,7 @@ $(document).ready(function() {
             }
             const stakes = data.stakes
             if(!stakes.length) {
-                $('#stakingArea').html('<p>У вас нет стейка.</p>')
+                $('#stakingArea').html('<p>У вас нет стейкинга.</p>')
                 $('#claimRewardsBtn').hide()
                 $('#unstakeBtn').hide()
                 return
