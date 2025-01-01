@@ -18,7 +18,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from routes_staking import staking_bp, generate_unique_wallet_address, generate_unique_private_key
+from routes_staking import staking_bp  # Удаляем импорт функций генерации кошелька
 # Добавление OpenAI
 import openai
 
@@ -53,11 +53,6 @@ def inject_csrf_token():
 def info():
     return render_template('info.html')
 
-# @app.route('/deposit')
-# def deposit():
-    # Логика для рендеринга шаблона deposit.html
-    # return render_template('deposit.html')
-    
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
     r"/*": {
@@ -505,7 +500,7 @@ def initialize():
                 """)
                 logger.info("Необходимые колонки добавлены в таблицу user_staking.")
 
-                # **Добавление колонок private_key, unique_wallet_address и unique_private_key в таблицу user**
+                # Добавление колонок private_key, unique_wallet_address и unique_private_key в таблицу user
                 con.execute("""
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
@@ -522,7 +517,7 @@ def initialize():
                 (User.unique_wallet_address == None) | (User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # Генерация уникального адреса кошелька (пример, замените на реальную логику)
+                # Генерация уникального адреса кошелька
                 user.unique_wallet_address = generate_unique_wallet_address()
                 user.unique_private_key = generate_unique_private_key()
                 logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
@@ -583,8 +578,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
 )
 
-# УБИРАЕМ scan_for_staking_transfers,
-# оставляем только накопление наград (например, раз в 7 дней):
+# Планирование задачи накопления наград раз в неделю
 scheduler.add_job(
     id='Accumulate Staking Rewards',
     func=lambda: accumulate_staking_rewards(),
@@ -602,9 +596,8 @@ atexit.register(lambda: scheduler.shutdown())
 # Импорт маршрутов после инициализации APScheduler
 from routes import *
 
-# Подключаем наш новый blueprint staking_bp
-# from routes_staking import staking_bp, generate_unique_wallet_address
-app.register_blueprint(staking_bp)  # Убираем url_prefix
+# Подключаем наш новый blueprint staking_bp с префиксом '/staking'
+app.register_blueprint(staking_bp, url_prefix='/staking')
 
 # Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
