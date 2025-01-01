@@ -18,7 +18,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-
+from routes_staking import staking_bp, generate_unique_wallet_address
 # Добавление OpenAI
 import openai
 
@@ -603,7 +603,7 @@ atexit.register(lambda: scheduler.shutdown())
 from routes import *
 
 # Подключаем наш новый blueprint staking_bp
-from routes_staking import staking_bp
+# from routes_staking import staking_bp, generate_unique_wallet_address
 app.register_blueprint(staking_bp, url_prefix='/staking')
 
 # Добавление OpenAI API Key
