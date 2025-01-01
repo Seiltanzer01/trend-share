@@ -14,12 +14,12 @@ from staking_logic import (
     get_token_price_in_usd,
     web3,
     token_contract,
-    weth_contract,  # Импорт weth_contract
+    weth_contract,
     ujo_contract,
-    PROJECT_WALLET_ADDRESS  # Импорт PROJECT_WALLET_ADDRESS
+    PROJECT_WALLET_ADDRESS
 )
 from best_setup_voting import send_token_reward
-from web3 import Web3  # Импорт Web3
+from web3 import Web3  # Импорт класса Web3
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ def get_balances():
         wallet_address = user.wallet_address
 
         # Получение баланса ETH
-        eth_balance = Web3.fromWei(web3.eth.get_balance(wallet_address), 'ether')
+        eth_balance = Web3.from_wei(web3.eth.get_balance(wallet_address), 'ether')
 
         # Получение баланса WETH
         weth_balance = get_token_balance(wallet_address, weth_contract)
