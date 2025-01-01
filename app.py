@@ -505,7 +505,7 @@ def initialize():
                 """)
                 logger.info("Необходимые колонки добавлены в таблицу user_staking.")
 
-                # **Добавление колонки private_key в таблицу user**
+                # **Добавление колонок private_key, unique_wallet_address и unique_private_key в таблицу user**
                 con.execute("""
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
@@ -515,6 +515,23 @@ def initialize():
                 logger.info("Колонки 'private_key', 'unique_wallet_address' и 'unique_private_key' добавлены в таблицу 'user'.")
         except Exception as e:
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
+
+        # Инициализация unique_wallet_address для существующих пользователей
+        try:
+            users_without_wallet = User.query.filter(
+                (User.unique_wallet_address == None) | (User.unique_wallet_address == '')
+            ).all()
+            for user in users_without_wallet:
+                # Генерация уникального адреса кошелька (пример, замените на реальную логику)
+                user.unique_wallet_address = generate_unique_wallet_address()
+                user.unique_private_key = generate_unique_private_key()
+                logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
+            db.session.commit()
+            logger.info("Уникальные кошельки для существующих пользователей инициализированы.")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка при инициализации уникальных кошельков: {e}")
+            logger.error(traceback.format_exc())
 
         # Если нужно, create_predefined_data()
         # create_predefined_data()
