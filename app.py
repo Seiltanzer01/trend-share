@@ -508,7 +508,7 @@ def initialize():
                 # **Добавление колонки private_key в таблицу user**
                 con.execute("""
                     ALTER TABLE "user"
-                    ADD COLUMN IF NOT EXISTS private_key VARCHAR(128)
+                    ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
                     ADD COLUMN IF NOT EXISTS unique_wallet_address VARCHAR(42) UNIQUE,
                     ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
                 """)
