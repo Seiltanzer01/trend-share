@@ -14,48 +14,10 @@
     <button class="nes-btn is-success" id="copyUniqueWalletBtn"><i class="fas fa-copy"></i> Копировать Адрес</button>
     
     <hr>
-    <h3>Баланс Кошелька</h3>
+    <h3>Баланс UJO</h3>
     <ul>
-        <li>ETH: <span id="ethBalance">Loading...</span></li>
-        <li>WETH: <span id="wethBalance">Loading...</span></li>
         <li>UJO: <span id="ujoBalance">Loading...</span></li>
     </ul>
-    
-    <hr>
-    <h3>Обмен Токенов</h3>
-    <div class="exchange-container">
-        <!-- Окно обмена 1 -->
-        <div class="exchange-window nes-container is-rounded">
-            <label for="fromToken">От:</label>
-            <div class="nes-select">
-                <select id="fromToken">
-                    <option value="ETH">ETH</option>
-                    <option value="WETH">WETH</option>
-                    <option value="UJO">UJO</option>
-                </select>
-            </div>
-            <input type="number" id="fromAmount" class="nes-input" placeholder="Количество" min="0" step="0.0001" required>
-        </div>
-        
-        <div class="exchange-arrow">
-            <i class="fas fa-arrow-right fa-2x"></i>
-        </div>
-        
-        <!-- Окно обмена 2 -->
-        <div class="exchange-window nes-container is-rounded">
-            <label for="toToken">В:</label>
-            <div class="nes-select">
-                <select id="toToken">
-                    <option value="WETH">WETH</option>
-                    <option value="UJO">UJO</option>
-                    <option value="ETH">ETH</option>
-                </select>
-            </div>
-            <input type="text" id="toAmount" class="nes-input" placeholder="Количество" readonly>
-        </div>
-    </div>
-    
-    <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
     
     <hr>
     <h3>Стейкинг</h3>
@@ -116,7 +78,7 @@
                 }
             });
 
-            // Инициализация балансов и стейкинговых данных
+            // Инициализация баланса UJO и стейкинговых данных
             async function loadBalances(){
                 try{
                     const response = await fetch('/staking/api/get_balances', {
@@ -127,63 +89,18 @@
                     });
                     const data = await response.json();
                     if(data.error){
-                        document.getElementById('ethBalance').textContent = 'Error';
-                        document.getElementById('wethBalance').textContent = 'Error';
                         document.getElementById('ujoBalance').textContent = 'Error';
                     } else{
-                        document.getElementById('ethBalance').textContent = data.balances.eth.toFixed(4);
-                        document.getElementById('wethBalance').textContent = data.balances.weth.toFixed(4);
                         document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
                     }
                 } catch(error){
-                    console.error("Ошибка при загрузке балансов:", error);
-                    document.getElementById('ethBalance').textContent = 'Error';
-                    document.getElementById('wethBalance').textContent = 'Error';
+                    console.error("Ошибка при загрузке баланса UJO:", error);
                     document.getElementById('ujoBalance').textContent = 'Error';
                 }
             }
 
-            // Вызов загрузки балансов при загрузке страницы
+            // Вызов загрузки баланса UJO при загрузке страницы
             loadBalances();
-
-            // Обработчик кнопки "Обменять"
-            document.getElementById('swapButton').addEventListener('click', async () => {
-                const fromToken = document.getElementById('fromToken').value;
-                const toToken = document.getElementById('toToken').value;
-                const fromAmount = parseFloat(document.getElementById('fromAmount').value);
-
-                if(isNaN(fromAmount) || fromAmount <= 0){
-                    alert('Пожалуйста, введите корректное количество токенов для обмена.');
-                    return;
-                }
-
-                try{
-                    const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('/staking/api/exchange_tokens', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({
-                            from_token: fromToken,
-                            to_token: toToken,
-                            from_amount: fromAmount
-                        })
-                    });
-
-                    const data = await response.json();
-                    if(data.status === 'success'){
-                        alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
-                        loadBalances();
-                    } else{
-                        alert('Ошибка: ' + data.error);
-                    }
-                } catch(error){
-                    console.error('Ошибка при обмене токенов:', error);
-                    alert('Произошла ошибка при обмене токенов.');
-                }
-            });
 
             // Обработчик кнопки "Stake"
             document.getElementById('stakeButton').addEventListener('click', async () => {
