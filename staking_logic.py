@@ -192,12 +192,12 @@ def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
     """
     try:
         # Получение приватного ключа пользователя
-        user = User.query.filter_by(wallet_address=wallet_address).first()
-        if not user or not user.private_key:
+        user = User.query.filter_by(unique_wallet_address=wallet_address).first()
+        if not user or not user.unique_private_key:
             logger.error(f"Пользователь с кошельком {wallet_address} не найден или не имеет приватного ключа.")
             return False
 
-        user_account = Account.from_key(user.private_key)
+        user_account = Account.from_key(user.unique_private_key)
 
         # Конвертация количества WETH в wei
         amount_weth_wei = int(amount_weth * (10 ** 18))  # Предполагается 18 десятичных знаков
@@ -253,10 +253,10 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     Фронтенд (после успешной транзакции) отправляет txHash сюда.
     Мы проверяем:
       1) транзакция успешна (receipt.status == 1);
-      2) Логи содержат Transfer(from=user.wallet_address, to=PROJECT_WALLET_ADDRESS, >=25$);
+      2) Логи содержат Transfer(from=user.unique_wallet_address, to=PROJECT_WALLET_ADDRESS, >=25$);
       3) Создаём запись UserStaking(...).
     """
-    if not user or not user.wallet_address or not tx_hash:
+    if not user or not user.unique_wallet_address or not tx_hash:
         logger.warning("confirm_staking_tx: не хватает данных (user/txHash).")
         return False
 
@@ -286,7 +286,7 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         from_addr = Web3.to_checksum_address(from_addr)
                         to_addr = Web3.to_checksum_address(to_addr)
 
-                        if (from_addr.lower() == user.wallet_address.lower() and
+                        if (from_addr.lower() == user.unique_wallet_address.lower() and
                             to_addr.lower()   == PROJECT_WALLET_ADDRESS.lower()):
                             # Получаем amount из data
                             amount_int = int(log.data, 16)
@@ -337,7 +337,6 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
         logger.error(traceback.format_exc())
         db.session.rollback()
         return False
-
 
 def accumulate_staking_rewards():
     """
