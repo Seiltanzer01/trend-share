@@ -92,7 +92,7 @@
 <!-- Подключение собственного скрипта -->
 <script>
     window.config = {
-        CSRF_TOKEN: "{{ csrf_token() }}"
+        CSRF_TOKEN: "{{ csrf_token }}"
     };
 </script>
 <script>
@@ -100,7 +100,7 @@
         // Обработчик для кнопки "Сгенерировать Уникальный Кошелёк"
         document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
             try {
-                const csrfToken = window.config.CSRF_TOKEN;
+                const csrfToken = "{{ csrf_token }}";
                 const response = await fetch('/staking/generate_unique_wallet', {
                     method: 'POST',
                     headers: {
@@ -148,55 +148,61 @@
                 });
                 const data = await response.json();
                 if(data.error){
-                    $('#ethBalance').text('Error');
-                    $('#wethBalance').text('Error');
-                    $('#ujoBalance').text('Error');
+                    document.getElementById('ethBalance').textContent = 'Error';
+                    document.getElementById('wethBalance').textContent = 'Error';
+                    document.getElementById('ujoBalance').textContent = 'Error';
                 } else{
-                    $('#ethBalance').text(data.balances.eth.toFixed(4));
-                    $('#wethBalance').text(data.balances.weth.toFixed(4));
-                    $('#ujoBalance').text(data.balances.ujo.toFixed(4));
+                    document.getElementById('ethBalance').textContent = data.balances.eth.toFixed(4);
+                    document.getElementById('wethBalance').textContent = data.balances.weth.toFixed(4);
+                    document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
                 }
             } catch(error){
                 console.error("Ошибка при загрузке балансов:", error);
-                $('#ethBalance').text('Error');
-                $('#wethBalance').text('Error');
-                $('#ujoBalance').text('Error');
+                document.getElementById('ethBalance').textContent = 'Error';
+                document.getElementById('wethBalance').textContent = 'Error';
+                document.getElementById('ujoBalance').textContent = 'Error';
             }
         }
 
         // Вызов загрузки балансов при загрузке страницы
         loadBalances();
 
-        // Обработчик формы обмена WETH на UJO
-        document.getElementById('exchangeForm').addEventListener('submit', async function(e){
-            e.preventDefault();
-            const amountWETH = parseFloat(document.getElementById('exchangeAmount').value);
-            if(isNaN(amountWETH) || amountWETH <= 0){
-                alert('Пожалуйста, введите корректное количество WETH для обмена.');
+        // Обработчик кнопки "Обменять"
+        document.getElementById('swapButton').addEventListener('click', async () => {
+            const fromToken = document.getElementById('fromToken').value;
+            const toToken = document.getElementById('toToken').value;
+            const fromAmount = parseFloat(document.getElementById('fromAmount').value);
+
+            if(isNaN(fromAmount) || fromAmount <= 0){
+                alert('Пожалуйста, введите корректное количество токенов для обмена.');
                 return;
             }
 
             try{
                 const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/exchange_weth_to_ujo', {
+                const response = await fetch('/staking/api/exchange_tokens', {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
                     },
-                    body: JSON.stringify({ amount_weth: amountWETH })
+                    body: JSON.stringify({
+                        from_token: fromToken,
+                        to_token: toToken,
+                        from_amount: fromAmount
+                    })
                 });
 
                 const data = await response.json();
                 if(data.status === 'success'){
-                    alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
+                    alert('Обмен успешно выполнен! Вы получили ' + data.to_amount + ' ' + toToken + '.');
                     loadBalances();
                 } else{
                     alert('Ошибка: ' + data.error);
                 }
             } catch(error){
-                console.error("Ошибка при обмене:", error);
-                alert("Произошла ошибка при обмене.");
+                console.error('Ошибка при обмене токенов:', error);
+                alert('Произошла ошибка при обмене токенов.');
             }
         });
 
@@ -217,13 +223,13 @@
 
             try{
                 const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/confirm', {
+                const response = await fetch('/staking/api/confirm_stake', {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
                     },
-                    body: JSON.stringify({ txHash: txHash })
+                    body: JSON.stringify({ tx_hash: txHash })
                 });
 
                 const data = await response.json();
@@ -251,19 +257,19 @@
         // Функция для загрузки и отображения стейков пользователя
         async function loadStaking() {
             try {
-                const resp = await fetch('/staking/get_user_stakes')
+                const resp = await fetch('/staking/api/get_user_stakes')
                 const data = await resp.json()
                 if(data.error) {
-                    $('#stakingArea').html('<p>'+data.error+'</p>')
-                    $('#claimRewardsBtn').hide()
-                    $('#unstakeBtn').hide()
+                    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
+                    document.getElementById('claimRewardsBtn').style.display = 'none'
+                    document.getElementById('unstakeBtn').style.display = 'none'
                     return
                 }
                 const stakes = data.stakes
                 if(!stakes.length) {
-                    $('#stakingArea').html('<p>У вас нет стейкинга.</p>')
-                    $('#claimRewardsBtn').hide()
-                    $('#unstakeBtn').hide()
+                    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейкинга.</p>'
+                    document.getElementById('claimRewardsBtn').style.display = 'none'
+                    document.getElementById('unstakeBtn').style.display = 'none'
                     return
                 }
                 let html=''
@@ -275,14 +281,14 @@
                       <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
                     </div>`
                 }
-                $('#stakingArea').html(html)
-                $('#claimRewardsBtn').show()
-                $('#unstakeBtn').show()
+                document.getElementById('stakingArea').innerHTML = html
+                document.getElementById('claimRewardsBtn').style.display = 'block'
+                document.getElementById('unstakeBtn').style.display = 'block'
             } catch (error) {
                 console.error('Ошибка при загрузке стейкингов:', error)
-                $('#stakingArea').html('<p>Произошла ошибка при загрузке стейкингов.</p>')
-                $('#claimRewardsBtn').hide()
-                $('#unstakeBtn').hide()
+                document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейкингов.</p>'
+                document.getElementById('claimRewardsBtn').style.display = 'none'
+                document.getElementById('unstakeBtn').style.display = 'none'
             }
         }
 
@@ -290,7 +296,7 @@
         document.getElementById('claimRewardsBtn').addEventListener('click', async function(){
             try {
                 const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/claim_staking_rewards',{
+                const response = await fetch('/staking/api/claim_staking_rewards',{
                     method:'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,
@@ -313,7 +319,7 @@
         document.getElementById('unstakeBtn').addEventListener('click', async function(){
             try {
                 const csrfToken = window.config.CSRF_TOKEN;
-                const response = await fetch('/staking/unstake_staking',{
+                const response = await fetch('/staking/api/unstake',{
                     method:'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,
@@ -336,6 +342,5 @@
         document.addEventListener('DOMContentLoaded', ()=> {
             loadStaking()
         });
-    });
-</script>
+    </script>
 {% endblock %}
