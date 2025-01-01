@@ -28,7 +28,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
             try {
-                const csrfToken = "{{ csrf_token() }}";
+                const csrfToken = "{{ csrf_token }}";
                 const response = await fetch('{{ url_for("staking_bp.generate_unique_wallet_route") }}', {
                     method: 'POST',
                     headers: {
