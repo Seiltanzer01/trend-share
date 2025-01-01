@@ -509,8 +509,10 @@ def initialize():
                 con.execute("""
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128)
+                    ADD COLUMN IF NOT EXISTS unique_wallet_address VARCHAR(42) UNIQUE,
+                    ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
                 """)
-                logger.info("Колонка 'private_key' добавлена в таблицу 'user'.")
+                logger.info("Колонки 'private_key', 'unique_wallet_address' и 'unique_private_key' добавлены в таблицу 'user'.")
         except Exception as e:
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
