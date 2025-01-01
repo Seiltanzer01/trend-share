@@ -552,3 +552,51 @@ def stake_tokens():
         logger.error(f"Ошибка при стейкинге токенов: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
+
+@staking_bp.route('/api/withdraw_funds', methods=['POST'])
+def withdraw_funds():
+    """
+    Выводит все токены UJO с уникального кошелька на установленный кошелек пользователя.
+    """
+    try:
+        # Извлечение CSRF-токена из заголовков
+        csrf_token = request.headers.get('X-CSRFToken')
+        if not csrf_token:
+            logger.warning("CSRF-токен отсутствует в заголовках.")
+            return jsonify({"error": "CSRF token missing."}), 400
+        validate_csrf(csrf_token)
+
+        if 'user_id' not in session:
+            logger.warning("Неавторизованный доступ к /staking/api/withdraw_funds.")
+            return jsonify({"error": "Unauthorized"}), 401
+
+        user_id = session['user_id']
+        user = User.query.get(user_id)
+        if not user or not user.unique_wallet_address or not user.wallet_address:
+            logger.warning(f"Пользователь ID {user_id} не найден или не имеет уникального кошелька или wallet_address.")
+            return jsonify({"error": "User not found or wallet address not set."}), 400
+
+        # Получение баланса UJO
+        ujo_balance = get_token_balance(user.unique_wallet_address, ujo_contract)
+        if ujo_balance <= 0.0:
+            return jsonify({"error": "No UJO tokens to withdraw."}), 400
+
+        # Отправка всех UJO на установленный кошелек
+        success = send_token_reward(
+            to_address=user.wallet_address,
+            amount=ujo_balance,
+            from_address=user.unique_wallet_address,
+            private_key=user.unique_private_key
+        )
+        if success:
+            return jsonify({"status": "success"}), 200
+        else:
+            return jsonify({"error": "Failed to send tokens."}), 400
+
+    except CSRFError as e:
+        logger.error(f"CSRF ошибка: {e}")
+        return jsonify({"error": "CSRF token missing or invalid."}), 400
+    except Exception as e:
+        logger.error(f"Ошибка при выводе средств: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error."}), 500
