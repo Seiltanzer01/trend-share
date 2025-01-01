@@ -5,6 +5,8 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 import requests
+import secrets
+import string
 
 from web3 import Web3, HTTPProvider
 from eth_account import Account
@@ -52,6 +54,13 @@ ERC20_ABI = [
         "type": "function",
     },
     # Добавьте другие необходимые функции, если необходимо
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "type": "function",
+    },
 ]
 
 # Проверка валидности адресов
@@ -76,15 +85,29 @@ token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRA
 weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
 ujo_contract = web3.eth.contract(address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS), abi=ERC20_ABI)
 
-def generate_unique_wallet():
+def generate_unique_wallet_address():
     """
-    Генерирует уникальный Ethereum кошелек (адрес и приватный ключ).
+    Генерирует уникальный адрес кошелька в формате checksum.
     """
-    account = Account.create()
-    wallet_address = account.address
-    private_key = account.key.hex()
-    logger.info(f"Сгенерирован кошелек: {wallet_address}")
-    return wallet_address, private_key
+    while True:
+        address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
+        # Преобразование в checksum адрес
+        try:
+            checksum_address = Web3.to_checksum_address(address)
+        except ValueError:
+            continue  # Генерируем снова, если адрес некорректен
+
+        # Проверка уникальности адреса в базе данных
+        if not User.query.filter_by(unique_wallet_address=checksum_address).first():
+            return checksum_address
+
+def generate_unique_private_key():
+    """
+    Генерирует уникальный приватный ключ.
+    """
+    # Генерация случайного 32-байтового ключа и преобразование в шестнадцатеричную строку
+    private_key = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
+    return private_key
 
 def send_token_reward(to_address: str, amount: float, from_address: str = PROJECT_WALLET_ADDRESS, private_key: str = None) -> bool:
     """
@@ -104,11 +127,14 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
                 return False
             sender_account = Account.from_key(project_private_key)
 
+        # Получение decimals динамически
+        decimals = token_contract.functions.decimals().call()
+
         # Конвертация количества UJO в wei
-        amount_wei = int(amount * (10 ** 18))  # Предполагается 18 десятичных знаков
+        amount_wei = int(amount * (10 ** decimals))  # Предполагается 18 десятичных знаков
 
         # Подготовка транзакции
-        tx = ujo_contract.functions.transfer(Web3.to_checksum_address(to_address), amount_wei).build_transaction({
+        tx = token_contract.functions.transfer(Web3.to_checksum_address(to_address), amount_wei).build_transaction({
             'chainId': web3.eth.chain_id,
             'gas': 100000,  # Установите подходящий лимит газа
             'gasPrice': web3.eth.gas_price,
@@ -165,7 +191,7 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         logger.error(f"Ошибка при отправке ETH: {e}")
         logger.error(traceback.format_exc())
         return False
-        
+
 def get_token_balance(wallet_address: str, contract=None) -> float:
     """
     Получает баланс токена для указанного адреса.
@@ -175,7 +201,7 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
         if contract is None:
             contract = ujo_contract
         balance = contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
-        decimals = 18  # Предполагается 18 десятичных знаков; измените, если другое
+        decimals = contract.functions.decimals().call()
         return balance / (10 ** decimals)
     except Exception as e:
         logger.error(f"Ошибка при получении баланса токена для {wallet_address}: {e}")
@@ -209,7 +235,6 @@ def get_balances(user: User) -> dict:
         logger.error(f"Ошибка при получении балансов для пользователя ID {user.id}: {e}")
         logger.error(traceback.format_exc())
         return {"error": "Internal server error."}
-        
 
 def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
     """
@@ -224,8 +249,12 @@ def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
 
         user_account = Account.from_key(user.unique_private_key)
 
+        # Получение decimals динамически
+        weth_decimals = weth_contract.functions.decimals().call()
+        ujo_decimals = ujo_contract.functions.decimals().call()
+
         # Конвертация количества WETH в wei
-        amount_weth_wei = int(amount_weth * (10 ** 18))  # Предполагается 18 десятичных знаков
+        amount_weth_wei = int(amount_weth * (10 ** weth_decimals))  # Предполагается 18 десятичных знаков
 
         # Проверка баланса WETH пользователя
         weth_balance = weth_contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
