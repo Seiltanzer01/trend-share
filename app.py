@@ -53,10 +53,10 @@ def inject_csrf_token():
 def info():
     return render_template('info.html')
 
-@app.route('/deposit')
-def deposit():
+# @app.route('/deposit')
+# def deposit():
     # Логика для рендеринга шаблона deposit.html
-    return render_template('deposit.html')
+    # return render_template('deposit.html')
     
 # Настройка CORS
 CORS(app, supports_credentials=True, resources={
@@ -604,7 +604,7 @@ from routes import *
 
 # Подключаем наш новый blueprint staking_bp
 # from routes_staking import staking_bp, generate_unique_wallet_address
-app.register_blueprint(staking_bp, url_prefix='/staking')
+app.register_blueprint(staking_bp)  # Убираем url_prefix
 
 # Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
