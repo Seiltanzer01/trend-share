@@ -7,7 +7,7 @@ import atexit  # Добавляем импорт atexit
 from best_setup_voting import init_best_setup_voting_routes, auto_finalize_best_setup_voting
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-
+from web3 import Web3  # Добавляем импорт Web3
 import pytz
 import boto3
 from botocore.exceptions import ClientError
