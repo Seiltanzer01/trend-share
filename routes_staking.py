@@ -108,7 +108,7 @@ def generate_unique_wallet_page():
 
     return render_template('generate_unique_wallet.html')
 
-@staking_bp.route('/deposit', methods=['GET'])
+@staking_bp.route('/deposit', methods=['GET'], endpoint='deposit')
 def deposit_page():
     """
     Страница для депозита токенов. Показывает уникальный адрес кошелька и инструкции.
@@ -129,7 +129,7 @@ def deposit_page():
 
     # Рендеринг шаблона deposit.html
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
-
+    
 @staking_bp.route('/subscription', methods=['GET'])
 def subscription_page():
     """
