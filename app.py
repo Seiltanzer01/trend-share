@@ -18,7 +18,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from routes_staking import staking_bp, generate_unique_wallet_address
+from routes_staking import staking_bp, generate_unique_wallet_address, generate_unique_private_key
 # Добавление OpenAI
 import openai
 
