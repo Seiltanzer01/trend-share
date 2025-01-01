@@ -514,7 +514,7 @@ def stake_tokens():
             return jsonify({"error": "Invalid amount_usd."}), 400
 
         # Получение текущей цены UJO
-        price_usd = get_token_price_in_usd('UJO')  # Предполагается, что есть такая функция
+        price_usd = get_token_price_in_usd()
         if not price_usd:
             logger.error("Не удалось получить цену токена UJO.")
             return jsonify({"error": "Failed to get UJO price."}), 400
@@ -522,7 +522,12 @@ def stake_tokens():
         amount_ujo = amount_usd / price_usd
 
         # Отправка UJO с уникального кошелька на кошелек проекта
-        success = send_token_reward(PROJECT_WALLET_ADDRESS, amount_ujo, from_address=user.unique_wallet_address)
+        success = send_token_reward(
+            to_address=PROJECT_WALLET_ADDRESS,
+            amount=amount_ujo,
+            from_address=user.unique_wallet_address,
+            private_key=user.unique_private_key
+        )
         if not success:
             logger.error(f"Стейкинг не удался для пользователя ID {user_id}.")
             return jsonify({"error": "Staking failed."}), 400
