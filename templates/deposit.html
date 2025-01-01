@@ -58,6 +58,9 @@
         </div>
         
         <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
+        
+        <!-- Кнопка вывода средств -->
+        <button class="nes-btn is-error" id="withdrawButton"><i class="fas fa-wallet"></i> Вывести Средства</button>
     {% else %}
         <p>Сгенерируйте уникальный кошелёк для депозита:</p>
         <button class="nes-btn is-primary" id="generateUniqueWalletBtn"><i class="fas fa-wallet"></i> Сгенерировать Кошелёк</button>
@@ -170,7 +173,7 @@
 
                     const data = await response.json();
                     if(data.status === 'success'){
-                        alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
+                        alert('Обмен успешно выполнен! Вы получили ' + data.to_amount.toFixed(4) + ' ' + toToken + '.');
                         loadBalances();
                     } else{
                         alert('Ошибка: ' + data.error);
@@ -178,6 +181,31 @@
                 } catch(error){
                     console.error('Ошибка при обмене токенов:', error);
                     alert('Произошла ошибка при обмене токенов.');
+                }
+            });
+
+            // Обработчик кнопки "Вывести Средства"
+            document.getElementById('withdrawButton').addEventListener('click', async () => {
+                try{
+                    const csrfToken = "{{ csrf_token }}";
+                    const response = await fetch('/staking/api/withdraw_funds', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }
+                    });
+
+                    const data = await response.json();
+                    if(data.status === 'success'){
+                        alert('Средства успешно выведены на ваш кошелек.');
+                        loadBalances();
+                    } else{
+                        alert('Ошибка: ' + data.error);
+                    }
+                } catch(error){
+                    console.error('Ошибка при выводе средств:', error);
+                    alert('Произошла ошибка при выводе средств.');
                 }
             });
         {% endif %}
