@@ -252,45 +252,68 @@ def get_0x_quote_v2_permit2(
         logger.error("get_0x_quote_v2_permit2 except", exc_info=True)
         return {}
 
-def execute_0x_swap_v2_permit2(quote_json:dict, private_key:str)->bool:
-    """Подписываем и отправляем tx (без eip712-логики permit2)."""
+def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
+    """
+    Подписываем и отправляем tx (без eip712-логики permit2), 
+    но вместо gasPrice используем EIP-1559 поля (Способ №2).
+    """
     if not quote_json:
         logger.error("execute_0x_swap_v2_permit2: quote_json пуст.")
         return False
-    tx_obj=quote_json.get("transaction",{})
-    to_addr=tx_obj.get("to")
-    data_hex=tx_obj.get("data")
-    val_str =tx_obj.get("value","0")
-    gas_str =tx_obj.get("gas","500000")
-    gp_str  =tx_obj.get("gasPrice",f"{web3.eth.gas_price}")
+
+    tx_obj = quote_json.get("transaction", {})
+    to_addr  = tx_obj.get("to")
+    data_hex = tx_obj.get("data")
+    val_str  = tx_obj.get("value", "0")
+    gas_str  = tx_obj.get("gas", "500000")
+    gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")  # 0x может возвращать поле gasPrice
 
     if not to_addr or not data_hex:
         logger.error("execute_0x_swap_v2_permit2: нет to/data.")
         return False
+
     try:
-        val_i=int(val_str)
-        gas_i=int(gas_str)
-        gp_i =int(gp_str)
+        val_i = int(val_str)
+        gas_i = int(gas_str)
+        # gasPrice из котировки можем использовать как «отправную точку»
+        # или полностью игнорировать — ниже используем maxFeePerGas
+        base_gas_price = int(gp_str)  # просто для ориентира, можем не использовать
     except:
         logger.error("execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail.")
         return False
 
-    acct=Account.from_key(private_key)
-    nonce=web3.eth.get_transaction_count(acct.address,'pending')
-    tx={
-        "chainId": web3.eth.chain_id,
-        "to":Web3.to_checksum_address(to_addr),
-        "data":data_hex,
-        "value": val_i,
-        "gas": gas_i,
-        "gasPrice": gp_i,
-        "nonce": nonce
+    # Ниже примеры «разумных» значений, которые вы можете настроить:
+    # Допустим, хотим maxFee = 1 gwei, maxPriority = 0.5 gwei
+    # (Цифры подобраны лишь для примера!)
+    MAX_FEE_GWEI = 1.0
+    MAX_PRIORITY_FEE_GWEI = 0.5
+
+    max_fee_per_gas         = web3.to_wei(MAX_FEE_GWEI, "gwei")
+    max_priority_fee_per_gas= web3.to_wei(MAX_PRIORITY_FEE_GWEI, "gwei")
+
+    acct = Account.from_key(private_key)
+    nonce= web3.eth.get_transaction_count(acct.address, 'pending')
+
+    tx = {
+        "chainId":    web3.eth.chain_id,
+        "to":         Web3.to_checksum_address(to_addr),
+        "data":       data_hex,
+        "value":      val_i,
+        "gas":        gas_i,
+        # Удаляем "gasPrice", вместо него ставим EIP-1559-поля:
+        # "gasPrice": gp_i,  # <- убираем
+        "maxFeePerGas":        max_fee_per_gas,
+        "maxPriorityFeePerGas":max_priority_fee_per_gas,
+        "nonce":     nonce,
+        # Можно дополнительно ограничить 'type': 2, 
+        # но web3.py обычно сам распознаёт EIP-1559 при наличии maxFeePerGas
     }
+
     try:
-        signed=acct.sign_transaction(tx)
-        tx_hash=web3.eth.send_raw_transaction(signed.rawTransaction)
-        receipt=web3.eth.wait_for_transaction_receipt(tx_hash,180)
-        if receipt.status==1:
+        signed_tx = acct.sign_transaction(tx)
+        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status == 1:
             logger.info(f"execute_0x_swap_v2_permit2 success, tx={tx_hash.hex()}")
             return True
         else:
