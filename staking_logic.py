@@ -222,7 +222,7 @@ def get_token_price_in_usd() -> float:
 
         # Для Base может не работать "bsc"? Укажите корректную цепочку, например "base"
         # Уточните, поддерживает ли DexScreener "base" / "ethereum" / "bsc"...
-        chain_name = "bsc"  # пример
+        chain_name = "base"  # пример
         api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
 
         logger.info(f"Запрос к DexScreener API: {api_url}")
