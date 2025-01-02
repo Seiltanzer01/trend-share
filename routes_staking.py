@@ -198,9 +198,9 @@ def get_balances_route():
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
     """
-    Пример обработки «обмена» — сейчас у нас упрощённая логика:
-    if from_token=WETH and to_token=UJO => exchange_weth_to_ujo()
-    ИЛИ вызываем 0x swap (приведённый ниже)
+    Пример обработки «обмена»:
+      - Если from_token=WETH и to_token=UJO => exchange_weth_to_ujo() (старый демо-кейс)
+      - Иначе используем 0x (get_0x_quote / approve_0x / execute_0x_swap).
     """
     try:
         csrf_token = request.headers.get('X-CSRFToken')
@@ -224,6 +224,7 @@ def exchange_tokens():
         if not from_token or not to_token or from_amount is None:
             return jsonify({"error": "Insufficient data for exchange."}), 400
 
+        # Проверяем from_amount
         try:
             from_amount = float(from_amount)
             if from_amount <= 0:
@@ -231,88 +232,100 @@ def exchange_tokens():
         except ValueError:
             return jsonify({"error": "Invalid from_amount."}), 400
 
-        logger.info(f"Пользователь {user_id} обмен {from_amount} {from_token} -> {to_token}.")
+        logger.info(f"[exchange_tokens] User {user_id}: {from_token} -> {to_token}, amount={from_amount}")
 
-        # Старый демо-кейс: WETH -> UJO
-        if from_token == "WETH" and to_token == "UJO":
+        # --- 1) Старый демо-кейс: WETH -> UJO (exchange_weth_to_ujo) ---
+        if from_token.upper() == "WETH" and to_token.upper() == "UJO":
             ok = exchange_weth_to_ujo(user.unique_wallet_address, from_amount)
             if ok:
-                # Допустим, 1 WETH = 10 UJO => ujo_received=from_amount*10
+                # Для демо: считаем 1 WETH = 10 UJO
                 ujo_received = from_amount * 10
                 return jsonify({"status": "success", "ujo_received": ujo_received}), 200
             else:
                 return jsonify({"error": "Exchange failed."}), 400
 
-        # Если хотим «настоящий» обмен через 0x, вызываем endpoint ниже
-        # Но для наглядности сделаем всё прямо тут (а можно вынести в /api/0x_swap):
+        # --- 2) Настоящий обмен через 0x Swap API ---
         else:
-            # Допустим, from_token="0xABC..." buy_token="0xDEF..."
-            # Для примера, если from_token="ETH", "WETH", "UJO"
-            # Нужно знать адр. контракта
-            # from_amount_wei = ...
-            if from_token == "ETH":
-                # 0x обычно указывает sellToken=0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
+            # Преобразуем from_token, to_token в адреса контрактов (или 0xEEE... для ETH):
+            if from_token.upper() == "ETH":
                 sell_token_0x = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+                from_decimals = 18
             elif from_token.upper() == "WETH":
-                sell_token_0x = WETH_CONTRACT_ADDRESS
+                sell_token_0x = weth_contract.address  # или WETH_CONTRACT_ADDRESS
+                from_decimals = 18  # можно уточнить реально из контракта
             elif from_token.upper() == "UJO":
-                sell_token_0x = UJO_CONTRACT_ADDRESS
+                sell_token_0x = ujo_contract.address
+                from_decimals = 18
             else:
-                # или кидаем ошибку
                 return jsonify({"error": f"Unsupported from_token={from_token}"}), 400
 
             if to_token.upper() == "ETH":
                 buy_token_0x = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+                to_decimals = 18
             elif to_token.upper() == "WETH":
-                buy_token_0x = WETH_CONTRACT_ADDRESS
+                buy_token_0x = weth_contract.address
+                to_decimals = 18
             elif to_token.upper() == "UJO":
-                buy_token_0x = UJO_CONTRACT_ADDRESS
+                buy_token_0x = ujo_contract.address
+                to_decimals = 18
             else:
                 return jsonify({"error": f"Unsupported to_token={to_token}"}), 400
 
-            # decimals from from_token
-            # Для простоты возьмём decimals=18 (ETH/WETH/UJO). Или можно читать контракт
-            decimals = 18
-            from_amount_wei = int(from_amount * 10**decimals)
-
-            # Получаем quote
+            # Конвертируем float -> wei
+            from_amount_wei = int(from_amount * (10**from_decimals))
             taker_address = user.unique_wallet_address
+            user_pk = user.unique_private_key
+
+            # 2.1) Получаем котировку 0x
             quote = get_0x_quote(
-                sell_token_0x,
-                buy_token_0x,
-                from_amount_wei,
-                taker_address
+                sell_token=sell_token_0x,
+                buy_token=buy_token_0x,
+                sell_amount_wei=from_amount_wei,
+                taker_address=taker_address
             )
             if not quote or "to" not in quote or "data" not in quote:
                 return jsonify({"error": "Failed to get 0x quote."}), 400
 
-            # Проверьте allowanceTarget
-            allowance_target = quote.get("allowanceTarget")
-            if allowance_target:
-                # Проверяем, есть ли уже approve
-                # При необходимости делаем approve
-                user_pk = user.unique_private_key
-                # Для demo: approve_0x(sell_token_0x, allowance_target, from_amount_wei, user_pk)
-                # Но в реальности нужно проверять allowance
-                pass
+            # 2.2) Если from_token != ETH => нужно проверить allowance и при необходимости approve
+            if sell_token_0x.lower() != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
+                allowance_target = quote.get("allowanceTarget")  # 0x указывает, кто будет забирать токены
+                if allowance_target:
+                    # Проверяем allowance реальный
+                    erc20_contract = web3.eth.contract(address=web3.toChecksumAddress(sell_token_0x), abi=token_contract.abi)
+                    current_allowance = erc20_contract.functions.allowance(
+                        web3.toChecksumAddress(taker_address),
+                        web3.toChecksumAddress(allowance_target)
+                    ).call()
 
-            # Выполняем swap
-            user_pk = user.unique_private_key
+                    if current_allowance < from_amount_wei:
+                        # Делаем approve
+                        logger.info(f"Current allowance={current_allowance}, need={from_amount_wei}, calling approve_0x")
+                        ok_approve = approve_0x(
+                            token_address=sell_token_0x,
+                            spender=allowance_target,
+                            amount_wei=from_amount_wei,  # или можно 2**256 - 1 для unlimited
+                            private_key=user_pk
+                        )
+                        if not ok_approve:
+                            return jsonify({"error": "approve_0x failed"}), 400
+                else:
+                    logger.warning("quote без allowanceTarget, возможно sellToken=ETH?")
+
+            # 2.3) Выполняем swap
             swap_ok = execute_0x_swap(quote, user_pk)
-            if swap_ok:
-                # Уточним, сколько user получил
-                # в quote есть buyAmount
-                buy_decimals = 18  # при желании уточняем
-                buy_amount_float = 0.0
-                if "buyAmount" in quote:
-                    buy_amount_float = float(quote["buyAmount"]) / (10**buy_decimals)
+            if not swap_ok:
+                return jsonify({"error": "0x swap failed"}), 400
 
-                return jsonify({
-                    "status": "success",
-                    "ujo_received": buy_amount_float  # если to_token=UJO
-                }), 200
-            else:
-                return jsonify({"error": "0x swap failed."}), 400
+            # 2.4) Узнаём, сколько купили
+            buy_amount_float = 0.0
+            if "buyAmount" in quote:
+                buy_amount_float = float(quote["buyAmount"]) / (10**to_decimals)
+
+            # Готово
+            return jsonify({
+                "status": "success",
+                "ujo_received": buy_amount_float  # если to_token=UJO
+            }), 200
 
     except CSRFError as e:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
