@@ -27,14 +27,14 @@ PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WAL
 
 # Проверка наличия необходимых переменных окружения
 if (
-    TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS" or
-    WETH_CONTRACT_ADDRESS == "0xYOUR_WETH_CONTRACT_ADDRESS" or
-    PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS"
+    TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS"
+    or WETH_CONTRACT_ADDRESS == "0xYOUR_WETH_CONTRACT_ADDRESS"
+    or PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS"
 ):
     logger.error("Одна или несколько необходимых переменных окружения (TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS) не установлены или содержат плейсхолдеры.")
     raise ValueError("Некорректные значения переменных окружения: TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS.")
 
-# Стандартный ERC20 ABI с необходимыми функциями
+# Стандартный ERC20 ABI
 ERC20_ABI = [
     {
         "constant": True,
@@ -53,7 +53,6 @@ ERC20_ABI = [
         "outputs": [{"name": "", "type": "bool"}],
         "type": "function",
     },
-    # Добавьте другие необходимые функции, если необходимо
     {
         "constant": True,
         "inputs": [],
@@ -61,29 +60,41 @@ ERC20_ABI = [
         "outputs": [{"name": "", "type": "uint8"}],
         "type": "function",
     },
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_spender", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "name": "approve",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [
+            {"name": "_owner", "type": "address"},
+            {"name": "_spender", "type": "address"}
+        ],
+        "name": "allowance",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "type": "function"
+    }
 ]
 
-# Проверка валидности адресов
-if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
-    logger.error(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
-    raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
-
-if not Web3.is_address(WETH_CONTRACT_ADDRESS):
-    logger.error(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
-    raise ValueError(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
-
-if not Web3.is_address(UJO_CONTRACT_ADDRESS):
-    logger.error(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
-    raise ValueError(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
-
-if not Web3.is_address(PROJECT_WALLET_ADDRESS):
-    logger.error(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
-    raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
-
-# Подключение контрактов с использованием полного ERC20 ABI
-token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
-weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
-ujo_contract = web3.eth.contract(address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS), abi=ERC20_ABI)
+# Подключение контрактов
+token_contract = web3.eth.contract(
+    address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS),
+    abi=ERC20_ABI
+)
+weth_contract = web3.eth.contract(
+    address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS),
+    abi=ERC20_ABI
+)
+ujo_contract = web3.eth.contract(
+    address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS),
+    abi=ERC20_ABI
+)
 
 def generate_unique_wallet_address():
     """
@@ -91,13 +102,11 @@ def generate_unique_wallet_address():
     """
     while True:
         address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
-        # Преобразование в checksum адрес
         try:
             checksum_address = Web3.to_checksum_address(address)
         except ValueError:
-            continue  # Генерируем снова, если адрес некорректен
-
-        # Проверка уникальности адреса в базе данных
+            continue
+        # Проверяем, нет ли уже такого в БД
         if not User.query.filter_by(unique_wallet_address=checksum_address).first():
             return checksum_address
 
@@ -105,7 +114,6 @@ def generate_unique_private_key():
     """
     Генерирует уникальный приватный ключ.
     """
-    # Генерация случайного 32-байтового ключа и преобразование в шестнадцатеричную строку
     private_key = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
     return private_key
 
@@ -120,35 +128,28 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
         if private_key:
             sender_account = Account.from_key(private_key)
         else:
-            # Получение приватного ключа проекта из переменных окружения
             project_private_key = os.environ.get("PRIVATE_KEY", "")
             if not project_private_key:
                 logger.error("PRIVATE_KEY не задан в переменных окружения.")
                 return False
             sender_account = Account.from_key(project_private_key)
 
-        # Получение decimals динамически
         decimals = token_contract.functions.decimals().call()
+        amount_wei = int(amount * (10 ** decimals))
 
-        # Конвертация количества UJO в wei
-        amount_wei = int(amount * (10 ** decimals))  # Предполагается 18 десятичных знаков
-
-        # Подготовка транзакции
-        tx = token_contract.functions.transfer(Web3.to_checksum_address(to_address), amount_wei).build_transaction({
+        tx = token_contract.functions.transfer(
+            Web3.to_checksum_address(to_address), amount_wei
+        ).build_transaction({
             'chainId': web3.eth.chain_id,
-            'gas': 100000,  # Установите подходящий лимит газа
+            'gas': 100000,
             'gasPrice': web3.eth.gas_price,
             'nonce': web3.eth.get_transaction_count(sender_account.address)
         })
 
-        # Подписание транзакции
         signed_tx = sender_account.sign_transaction(tx)
-
-        # Отправка транзакции
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         logger.info(f"Отправлена транзакция {tx_hash.hex()} для отправки {amount} UJO на {to_address}.")
 
-        # Ожидание подтверждения
         receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
         if receipt.status == 1:
             logger.info(f"Транзакция {tx_hash.hex()} успешно подтверждена.")
@@ -194,13 +195,14 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
 
 def get_token_balance(wallet_address: str, contract=None) -> float:
     """
-    Получает баланс токена для указанного адреса.
-    Если contract не указан, берется UJO контракт.
+    Получает баланс указанного токена. По умолчанию UJO.
     """
     try:
         if contract is None:
             contract = ujo_contract
-        balance = contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
+        balance = contract.functions.balanceOf(
+            Web3.to_checksum_address(wallet_address)
+        ).call()
         decimals = contract.functions.decimals().call()
         return balance / (10 ** decimals)
     except Exception as e:
@@ -210,18 +212,15 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
 
 def get_balances(user: User) -> dict:
     """
-    Получает балансы ETH, WETH и UJO для пользователя.
+    Возвращает балансы ETH, WETH, UJO для данного пользователя.
     """
     try:
         unique_wallet_address = Web3.to_checksum_address(user.unique_wallet_address)
 
-        # Получение баланса ETH
-        eth_balance = Web3.from_wei(web3.eth.get_balance(unique_wallet_address), 'ether')
+        eth_balance = web3.eth.get_balance(unique_wallet_address)
+        eth_balance = Web3.from_wei(eth_balance, 'ether')
 
-        # Получение баланса WETH
         weth_balance = get_token_balance(unique_wallet_address, weth_contract)
-
-        # Получение баланса UJO
         ujo_balance = get_token_balance(unique_wallet_address, ujo_contract)
 
         return {
@@ -232,107 +231,88 @@ def get_balances(user: User) -> dict:
             }
         }
     except Exception as e:
-        logger.error(f"Ошибка при получении балансов для пользователя ID {user.id}: {e}")
+        logger.error(f"Ошибка при get_balances для пользователя {user.id}: {e}")
         logger.error(traceback.format_exc())
         return {"error": "Internal server error."}
 
 def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
     """
-    Обменивает WETH на UJO для указанного адреса.
+    Простая демонстрация "WETH -> UJO" через отправку WETH на PROJECT_WALLET,
+    и псевдо-отправку UJO обратно пользователю (без реальной DEX-логики).
+    Для реального обмена с 0x используйте функции ниже.
     """
     try:
-        # Получение приватного ключа пользователя
         user = User.query.filter_by(unique_wallet_address=wallet_address).first()
         if not user or not user.unique_private_key:
-            logger.error(f"Пользователь с кошельком {wallet_address} не найден или не имеет приватного ключа.")
+            logger.error(f"Нет приватного ключа для кошелька {wallet_address}.")
             return False
 
         user_account = Account.from_key(user.unique_private_key)
 
-        # Получение decimals динамически
-        weth_decimals = weth_contract.functions.decimals().call()
-        ujo_decimals = ujo_contract.functions.decimals().call()
+        # decimals
+        weth_dec = weth_contract.functions.decimals().call()
+        amount_weth_wei = int(amount_weth * 10**weth_dec)
 
-        # Конвертация количества WETH в wei
-        amount_weth_wei = int(amount_weth * (10 ** weth_decimals))  # Предполагается 18 десятичных знаков
-
-        # Проверка баланса WETH пользователя
-        weth_balance = weth_contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
-        if weth_balance < amount_weth_wei:
-            logger.error(f"Недостаточно WETH на кошельке {wallet_address}.")
+        # Проверка баланса
+        current_weth_balance = weth_contract.functions.balanceOf(wallet_address).call()
+        if current_weth_balance < amount_weth_wei:
+            logger.error("Недостаточно WETH.")
             return False
 
-        # Подготовка транзакции: перевод WETH на проектный кошелек
-        tx = weth_contract.functions.transfer(Web3.to_checksum_address(PROJECT_WALLET_ADDRESS), amount_weth_wei).build_transaction({
+        # 1) Отправляем WETH -> project wallet
+        tx = weth_contract.functions.transfer(
+            Web3.to_checksum_address(PROJECT_WALLET_ADDRESS), amount_weth_wei
+        ).build_transaction({
             'chainId': web3.eth.chain_id,
-            'gas': 100000,  # Установите подходящий лимит газа
+            'gas': 100000,
             'gasPrice': web3.eth.gas_price,
             'nonce': web3.eth.get_transaction_count(user_account.address)
         })
-
-        # Подписание транзакции
-        signed_tx = user_account.sign_transaction(tx)
-
-        # Отправка транзакции
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        logger.info(f"Отправлена транзакция {tx_hash.hex()} для обмена {amount_weth} WETH от {wallet_address}.")
-
-        # Ожидание подтверждения
+        signed = user_account.sign_transaction(tx)
+        tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
         receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        if receipt.status == 1:
-            logger.info(f"Транзакция {tx_hash.hex()} успешно подтверждена.")
-            # После получения WETH, проектный кошелек должен обменять их на UJO и отправить пользователю
-            # Это требует интеграции с DEX или другого механизма обмена
-            # Для псевдостейкинга предположим фиксированный обменный курс
-            exchange_rate = 10  # Пример: 1 WETH = 10 UJO
-            ujo_amount = amount_weth * exchange_rate
-            success = send_token_reward(wallet_address, ujo_amount)
-            if success:
-                logger.info(f"Обмен WETH на UJO для {wallet_address} успешно выполнен.")
-                return True
-            else:
-                logger.error(f"Отправка UJO пользователю {wallet_address} не удалась.")
-                return False
-        else:
-            logger.error(f"Транзакция {tx_hash.hex()} не удалась.")
+        if receipt.status != 1:
+            logger.error("Перевод WETH не удался.")
             return False
 
+        logger.info(f"Успешная транзакция WETH->ProjectWallet: {tx_hash.hex()}")
+        # 2) Отправляем UJO обратно на кошелек
+        # Допустим, курс 1 WETH = 10 UJO (псевдо)
+        ujo_amount = amount_weth * 10
+        success = send_token_reward(
+            wallet_address, ujo_amount,
+            from_address=PROJECT_WALLET_ADDRESS
+        )
+        return success
+
     except Exception as e:
-        logger.error(f"Ошибка при обмене WETH на UJO для {wallet_address}: {e}")
+        logger.error(f"Ошибка exchange_weth_to_ujo: {e}")
         logger.error(traceback.format_exc())
         return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
-    Фронтенд (после успешной транзакции) отправляет txHash сюда.
-    Мы проверяем:
-      1) транзакция успешна (receipt.status == 1);
-      2) Логи содержат Transfer(from=user.unique_wallet_address, to=PROJECT_WALLET_ADDRESS, >=25$);
-      3) Создаём запись UserStaking(...).
+    Проверяем, что пользователь действительно отправил >=25$ (20$ стейк + 5$ сбор).
     """
     if not user or not user.unique_wallet_address or not tx_hash:
-        logger.warning("confirm_staking_tx: не хватает данных (user/txHash).")
+        logger.warning("confirm_staking_tx: не хватает данных.")
         return False
 
     try:
         receipt = web3.eth.get_transaction_receipt(tx_hash)
         if not receipt or receipt.status != 1:
-            logger.warning(f"Tx {tx_hash} не успешен (receipt.status != 1).")
+            logger.warning("Транзакция не успешна.")
             return False
 
         transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
         price_usd = get_token_price_in_usd()
         if price_usd <= 0:
-            logger.warning("Цена токена <= 0, прерываем confirm_staking_tx.")
+            logger.warning("Цена токена <= 0.")
             return False
 
         found_transfer = None
-
-        # Перебираем логи в receipt, ищем событие Transfer(...)
         for log in receipt.logs:
-            # Сравниваем адрес контракта
             if log.address.lower() == token_contract.address.lower():
-                # Проверяем, что topics[0] == Transfer(...)
                 if len(log.topics) >= 3:
                     if log.topics[0].hex().lower() == transfer_topic.lower():
                         from_addr = "0x" + log.topics[1].hex()[26:]
@@ -340,32 +320,29 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         from_addr = Web3.to_checksum_address(from_addr)
                         to_addr = Web3.to_checksum_address(to_addr)
 
-                        if (from_addr.lower() == user.unique_wallet_address.lower() and
-                            to_addr.lower()   == PROJECT_WALLET_ADDRESS.lower()):
-                            # Получаем amount из data
+                        if (from_addr.lower() == user.unique_wallet_address.lower()
+                            and to_addr.lower() == PROJECT_WALLET_ADDRESS.lower()):
                             amount_int = int(log.data, 16)
-                            amount_token = amount_int / (10 ** 18)  # Предполагается 18 десятичных знаков
+                            amount_token = amount_int / (10 ** 18)
                             amount_usd = amount_token * price_usd
 
-                            # Нужно >= 25$ (включая 20$ стейк и 5$ сбор).
                             if amount_usd >= 25.0:
                                 found_transfer = {
                                     "token_amount": amount_token,
                                     "usd_amount": amount_usd
                                 }
                                 break
-
         if not found_transfer:
-            logger.warning(f"Tx {tx_hash}: не нашли нужный Transfer >= 25$ (UJO).")
+            logger.warning("Tx не нашёл Transfer >=25$.")
             return False
 
-        # Проверим, не обрабатывали ли мы этот tx
+        # Проверим, нет ли дубля
         existing = UserStaking.query.filter_by(tx_hash=tx_hash).first()
         if existing:
-            logger.warning(f"Tx {tx_hash} уже есть в UserStaking.")
+            logger.warning(f"Tx {tx_hash} уже есть.")
             return False
 
-        # Создаём запись в таблице стейков
+        # Создаём запись
         new_stake = UserStaking(
             user_id=user.id,
             tx_hash=tx_hash,
@@ -377,33 +354,28 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
         )
         db.session.add(new_stake)
 
-        # Делаем user.assistant_premium = True (иначе user не увидит премиум-функции)
         user.assistant_premium = True
-
         db.session.commit()
-        logger.info(
-            f"User {user.id} застейкал ~{found_transfer['usd_amount']:.2f}$ (tx={tx_hash}). Premium on."
-        )
+        logger.info(f"Стейк {found_transfer['usd_amount']:.2f}$ подтверждён.")
         return True
 
     except Exception as e:
-        logger.error(f"Ошибка confirm_staking_tx(tx={tx_hash}): {e}")
+        logger.error(f"Ошибка confirm_staking_tx: {e}")
         logger.error(traceback.format_exc())
         db.session.rollback()
         return False
 
 def accumulate_staking_rewards():
     """
-    Раз в неделю (или раз в день) увеличиваем pending_rewards в UserStaking (эмуляция).
+    Пример: каждые X времени добавляем всем +0.5 UJO.
     """
     try:
         stakings = UserStaking.query.all()
         for s in stakings:
             if s.staked_amount > 0:
-                # Пример: +0.5 UJO за период
                 s.pending_rewards += 0.5
         db.session.commit()
-        logger.info("accumulate_staking_rewards: награды добавлены всем стейкерам.")
+        logger.info("accumulate_staking_rewards: награды добавлены.")
     except Exception as e:
         db.session.rollback()
         logger.error(f"accumulate_staking_rewards: {e}")
@@ -411,7 +383,7 @@ def accumulate_staking_rewards():
 
 def get_token_price_in_usd() -> float:
     """
-    Получает текущую цену токена UJO в USD через DexScreener API.
+    Получает примерную цену UJO через DexScreener. Можно подставить реальный pair_address.
     """
     try:
         pair_address = os.environ.get("DEXScreener_PAIR_ADDRESS", "")
@@ -419,35 +391,118 @@ def get_token_price_in_usd() -> float:
             logger.error("DEXScreener_PAIR_ADDRESS не задан.")
             return 0.0
 
-        # Корректный URL для DexScreener API
-        chain_name = "bsc"  # Измените на нужную цепочку
+        chain_name = "bsc"  # или base, arbitrum... зависит от вашего токена
         api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
-        
-        logger.info(f"Отправка запроса к DexScreener API: {api_url}")
+
         resp = requests.get(api_url, timeout=10)
-        
-        logger.info(f"API Response Status: {resp.status_code}")
-        logger.info(f"API Response Body: {resp.text}")
-        
         if resp.status_code != 200:
-            logger.error(f"DexScreener API вернул статус {resp.status_code}")
+            logger.error(f"DexScreener вернул {resp.status_code}")
             return 0.0
-        
+
         data = resp.json()
         pair = data.get("pair", {})
         if not pair:
-            logger.warning("DexScreener pair отсутствует или не вернулся.")
             return 0.0
-        
+
         price_usd_str = pair.get("priceUsd", "0.0")
         price_usd = float(price_usd_str)
-        logger.info(f"Текущая цена токена UJO: {price_usd} USD")
         return price_usd
-    except ValueError as e:
-        logger.error(f"Ошибка при декодировании JSON: {e}")
-        logger.error(f"Тело ответа: {resp.text}")
-        return 0.0
     except Exception as e:
         logger.error(f"Ошибка get_token_price_in_usd: {e}")
         logger.error(traceback.format_exc())
         return 0.0
+
+########################################################################
+# НИЖЕ - ПРИМЕР ПОЛНОЙ ИНТЕГРАЦИИ С 0x (approve + swap)                #
+########################################################################
+
+def get_0x_quote(sell_token: str, buy_token: str, sell_amount_wei: int, taker_address: str) -> dict:
+    """
+    Запрашиваем котировку (quote) у 0x Swap API:
+      GET https://api.0x.org/swap/v1/quote
+    Параметры: sellToken, buyToken, sellAmount, takerAddress
+    chainId можно указывать как query: ?chainId=1
+    """
+    # Пример: "?chainId=1&slippagePercentage=0.02"
+    # Внимание: в реале надо добавить свой 0x-api-key в headers
+    url = "https://api.0x.org/swap/v1/quote"
+    params = {
+        "sellToken": sell_token,
+        "buyToken": buy_token,
+        "sellAmount": str(sell_amount_wei),
+        "takerAddress": taker_address,
+        # "slippagePercentage": "0.02",
+        # "chainId": "1"   # если Ethereum mainnet
+    }
+    headers = {
+        # '0x-api-key': 'ВАШ_КЛЮЧ'
+    }
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=20)
+        if resp.status_code != 200:
+            logger.error(f"Ошибка get_0x_quote: {resp.text}")
+            return {}
+        return resp.json()
+    except Exception as e:
+        logger.error(f"Ошибка get_0x_quote: {e}")
+        return {}
+
+def approve_0x(token_address: str, spender: str, amount_wei: int, private_key: str) -> bool:
+    """
+    Делаем approve(spender, amount_wei) для указанного токена.
+    """
+    try:
+        account = Account.from_key(private_key)
+        erc20 = web3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
+
+        nonce = web3.eth.get_transaction_count(account.address)
+        tx = erc20.functions.approve(
+            Web3.to_checksum_address(spender),
+            amount_wei
+        ).build_transaction({
+            'chainId': web3.eth.chain_id,
+            'gas': 100000,
+            'gasPrice': web3.eth.gas_price,
+            'nonce': nonce
+        })
+        signed = account.sign_transaction(tx)
+        tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
+        logger.info(f"Отправлен approve tx: {tx_hash.hex()}")
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        return (receipt.status == 1)
+    except Exception as e:
+        logger.error(f"Ошибка approve_0x: {e}")
+        return False
+
+def execute_0x_swap(quote_data: dict, private_key: str) -> bool:
+    """
+    Подписываем транзакцию `to=quote_data["to"]`, data=..., value=...
+    и отправляем. Ждём receipt.
+    """
+    try:
+        account = Account.from_key(private_key)
+        tx = {
+            "to": Web3.to_checksum_address(quote_data["to"]),
+            "data": quote_data["data"],
+            "gasPrice": int(quote_data["gasPrice"]),
+            "gas": int(quote_data.get("gas", 300000)),
+            "nonce": web3.eth.get_transaction_count(account.address),
+            "chainId": web3.eth.chain_id
+        }
+        # Может быть value>0, если продаём ETH
+        val = quote_data.get("value", "0")
+        tx["value"] = int(val)
+
+        signed_tx = web3.eth.account.sign_transaction(tx, private_key)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"Отправлена swap-транзакция: {tx_hash.hex()}")
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status == 1:
+            logger.info("Обмен через 0x Swap API прошёл успешно!")
+            return True
+        else:
+            logger.error("Обмен через 0x Swap API не удался, статус !=1")
+            return False
+    except Exception as e:
+        logger.error(f"Ошибка execute_0x_swap: {e}")
+        return False
