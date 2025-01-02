@@ -254,7 +254,7 @@ def get_0x_quote_v2_permit2(
     buy_token: str,
     sell_amount_wei: int,
     taker_address: str,
-    chain_id: int = 1
+    chain_id: int = 8453
 ) -> dict:
     """
     Получение котировки v2 permit2
