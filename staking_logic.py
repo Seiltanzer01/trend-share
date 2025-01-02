@@ -417,26 +417,25 @@ def get_token_price_in_usd() -> float:
 ########################################################################
 
 def get_0x_quote(sell_token: str, buy_token: str, sell_amount_wei: int, taker_address: str) -> dict:
-    """
-    Запрашиваем котировку (quote) у 0x Swap API:
-      GET https://api.0x.org/swap/v1/quote
-    Параметры: sellToken, buyToken, sellAmount, takerAddress
-    chainId можно указывать как query: ?chainId=1
-    """
-    # Пример: "?chainId=1&slippagePercentage=0.02"
-    # Внимание: в реале надо добавить свой 0x-api-key в headers
+    # БЕРЁМ 0x API key ИЗ ОКРУЖЕНИЯ
+    zerox_api_key = os.environ.get("ZEROX_API_KEY", "").strip()
+    if not zerox_api_key:
+        logger.error("ZEROX_API_KEY не задан в переменных окружения!")
+        return {}
+
     url = "https://api.0x.org/swap/v1/quote"
     params = {
+        "chainId": "8453",  # Base
         "sellToken": sell_token,
         "buyToken": buy_token,
         "sellAmount": str(sell_amount_wei),
         "takerAddress": taker_address,
-        # "slippagePercentage": "0.02",
-        # "chainId": "1"   # если Ethereum mainnet
+        # при желании: "slippagePercentage": "0.02"
     }
     headers = {
-        # '0x-api-key': 'ВАШ_КЛЮЧ'
+        "0x-api-key": zerox_api_key
     }
+
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=20)
         if resp.status_code != 200:
