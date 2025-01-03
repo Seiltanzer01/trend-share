@@ -27,9 +27,9 @@ PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS",      "0xYOUR_PROJEC
 
 # Проверка наличия необходимых переменных окружения
 if (
-    TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS" or
-    WETH_CONTRACT_ADDRESS  == "0xYOUR_WETH_CONTRACT_ADDRESS"  or
-    PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS"
+    TOKEN_CONTRACT_ADDRESS == "0xYOUR_TOKEN_CONTRACT_ADDRESS"
+    or WETH_CONTRACT_ADDRESS  == "0xYOUR_WETH_CONTRACT_ADDRESS"
+    or PROJECT_WALLET_ADDRESS == "0xYOUR_PROJECT_WALLET_ADDRESS"
 ):
     logger.error("Одна или несколько ENV-переменных (TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS) не заданы.")
     raise ValueError("Некорректные ENV для TOKEN_CONTRACT_ADDRESS/WETH_CONTRACT_ADDRESS/MY_WALLET_ADDRESS.")
@@ -62,6 +62,18 @@ ERC20_ABI = [
     },
 ]
 
+# Для WETH также нужен метод deposit() (ABI)
+WETH_ABI = ERC20_ABI + [
+    {
+        "constant": False,
+        "inputs": [],
+        "name": "deposit",
+        "outputs": [],
+        "payable": True,
+        "type": "function"
+    },
+]
+
 # Проверка корректности адресов
 if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
@@ -74,7 +86,8 @@ if not Web3.is_address(PROJECT_WALLET_ADDRESS):
 
 # Создаём объекты контрактов
 token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
-weth_contract  = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS),  abi=ERC20_ABI)
+# Для WETH используем ABI с методом deposit()
+weth_contract  = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS),  abi=WETH_ABI)
 ujo_contract   = web3.eth.contract(address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS),   abi=ERC20_ABI)
 
 # 0x Swap v2 (permit2)
@@ -83,7 +96,6 @@ DEFAULT_0X_HEADERS = {
     "0x-api-key": ZEROX_API_KEY,
     "0x-version": "v2",  # v2
 }
-
 
 def generate_unique_wallet_address():
     while True:
@@ -112,7 +124,7 @@ def get_token_balance(wallet_address:str, contract=None)->float:
         return 0.0
 
 def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WALLET_ADDRESS, private_key:str=None)->bool:
-    """Отправляем UJO-токены."""
+    """Отправляем UJO-токены (ERC-20)."""
     try:
         if private_key:
             acct = Account.from_key(private_key)
@@ -126,14 +138,21 @@ def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WAL
         decimals= token_contract.functions.decimals().call()
         amt_wei = int(amount*(10**decimals))
 
+        # Используем EIP-1559 (максимум)
+        base_fee   = web3.eth.gas_price
+        max_fee    = base_fee * 2  # например, в 2 раза выше текущей
+        priority   = base_fee // 2 # упрощённо, символически
+
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
             amt_wei
         ).build_transaction({
             "chainId": web3.eth.chain_id,
-            "gas":100000,
-            "gasPrice":web3.eth.gas_price,
-            "nonce": web3.eth.get_transaction_count(acct.address, 'pending')
+            "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
+            "gas": 120000,
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": priority,
+            "value": 0
         })
         signed_tx= acct.sign_transaction(tx)
         tx_hash  = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -149,29 +168,69 @@ def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WAL
         return False
 
 def send_eth(to_address:str, amount_eth:float, private_key:str)->bool:
-    """Отправка ETH (native coin)."""
+    """Отправка нативного ETH (для gas и т.п.)."""
     try:
-        acct= Account.from_key(private_key)
-        nonce= web3.eth.get_transaction_count(acct.address, 'pending')
+        acct   = Account.from_key(private_key)
+        nonce  = web3.eth.get_transaction_count(acct.address, 'pending')
+        base_fee = web3.eth.gas_price
+        max_fee  = base_fee * 2
+        priority = base_fee // 2
+
         tx={
             "nonce": nonce,
             "to": Web3.to_checksum_address(to_address),
             "value": web3.to_wei(amount_eth,'ether'),
-            "gas":21000,
-            "gasPrice": web3.eth.gas_price,
-            "chainId": web3.eth.chain_id
+            "chainId": web3.eth.chain_id,
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": priority,
+            "gas":21000
         }
         signed = acct.sign_transaction(tx)
         tx_hash= web3.eth.send_raw_transaction(signed.rawTransaction)
         receipt= web3.eth.wait_for_transaction_receipt(tx_hash,180)
         if receipt.status==1:
-            logger.info(f"send_eth: {amount_eth} -> {to_address}, tx={tx_hash.hex()}")
+            logger.info(f"send_eth: {amount_eth} ETH -> {to_address}, tx={tx_hash.hex()}")
             return True
         else:
             logger.error(f"send_eth fail: {tx_hash.hex()}")
             return False
     except:
         logger.error("send_eth error", exc_info=True)
+        return False
+
+def deposit_eth_to_weth(user_private_key:str, user_wallet:str, amount_eth:float)->bool:
+    """
+    Делаем WETH.deposit(), чтобы превратить ETH => WETH.
+    Эта функция требует ETH на user_wallet (достаточно и на газ).
+    """
+    try:
+        acct = Account.from_key(user_private_key)
+        nonce= web3.eth.get_transaction_count(acct.address, 'pending')
+
+        # Сформируем транзакцию к WETH: deposit(), передавая value=...
+        base_fee = web3.eth.gas_price
+        max_fee  = base_fee * 2
+        priority = base_fee // 2
+
+        deposit_tx = weth_contract.functions.deposit().build_transaction({
+            "chainId": web3.eth.chain_id,
+            "nonce":   nonce,
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": priority,
+            "gas": 150000,  # на всякий случай побольше
+            "value": web3.to_wei(amount_eth, "ether"),  # именно столько ETH мы "заворачиваем" в WETH
+        })
+        signed = acct.sign_transaction(deposit_tx)
+        tx_hash= web3.eth.send_raw_transaction(signed.rawTransaction)
+        rcpt   = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
+        if rcpt.status == 1:
+            logger.info(f"deposit_eth_to_weth success, ~{amount_eth} ETH -> WETH, tx={tx_hash.hex()}")
+            return True
+        else:
+            logger.error(f"deposit_eth_to_weth fail, tx={tx_hash.hex()}")
+            return False
+    except:
+        logger.error("deposit_eth_to_weth except", exc_info=True)
         return False
 
 def get_balances(user:User)->dict:
@@ -182,17 +241,19 @@ def get_balances(user:User)->dict:
         raw_eth = web3.eth.get_balance(ua)
         eth_bal = Web3.from_wei(raw_eth,'ether')
 
+        # WETH
         wdec    = weth_contract.functions.decimals().call()
         raw_wth = weth_contract.functions.balanceOf(ua).call()
         wbal    = raw_wth/(10**wdec)
 
+        # UJO
         ujo_bal = get_token_balance(ua, ujo_contract)
 
         return {
             "balances":{
-                "eth":float(eth_bal),
-                "weth":float(wbal),
-                "ujo":float(ujo_bal)
+                "eth": float(eth_bal),
+                "weth": float(wbal),
+                "ujo": float(ujo_bal)
             }
         }
     except:
@@ -221,8 +282,8 @@ def get_token_price_in_usd()->float:
         logger.error("get_token_price_in_usd except", exc_info=True)
         return 0.0
 
-# 0x Swap v2 (permit2) --------------------------------
 
+# --- 0x Swap v2 (permit2) ---
 def get_0x_quote_v2_permit2(
     sell_token:str,
     buy_token:str,
@@ -254,8 +315,9 @@ def get_0x_quote_v2_permit2(
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
-    Подписываем и отправляем tx (без eip712-логики permit2), 
-    но вместо gasPrice используем EIP-1559 поля (Способ №2).
+    EIP-1559-транзакция (maxFeePerGas, maxPriorityFeePerGas).
+    Если sellToken=ETH — 0x permit2/gasless не работает напрямую;
+    поэтому ETH нужно сперва "заворачивать" -> WETH, а тут вызываем swap WETH->.
     """
     if not quote_json:
         logger.error("execute_0x_swap_v2_permit2: quote_json пуст.")
@@ -266,7 +328,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     data_hex = tx_obj.get("data")
     val_str  = tx_obj.get("value", "0")
     gas_str  = tx_obj.get("gas", "500000")
-    gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")  # 0x может возвращать поле gasPrice
+    gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")  # 0x может вернуть gasPrice
 
     if not to_addr or not data_hex:
         logger.error("execute_0x_swap_v2_permit2: нет to/data.")
@@ -275,45 +337,34 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     try:
         val_i = int(val_str)
         gas_i = int(gas_str)
-        # gasPrice из котировки можем использовать как «отправную точку»
-        # или полностью игнорировать — ниже используем maxFeePerGas
-        base_gas_price = int(gp_str)  # просто для ориентира, можем не использовать
+        base_gas_price = int(gp_str)
     except:
         logger.error("execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail.")
         return False
 
-    # Ниже примеры «разумных» значений, которые вы можете настроить:
-    # Допустим, хотим maxFee = 1 gwei, maxPriority = 0.5 gwei
-    # (Цифры подобраны лишь для примера!)
-    MAX_FEE_GWEI = 1.0
-    MAX_PRIORITY_FEE_GWEI = 0.5
-
-    max_fee_per_gas         = web3.to_wei(MAX_FEE_GWEI, "gwei")
-    max_priority_fee_per_gas= web3.to_wei(MAX_PRIORITY_FEE_GWEI, "gwei")
+    # Поставим EIP-1559 «с запасом»
+    max_fee    = base_gas_price * 2
+    priority   = base_gas_price // 2
 
     acct = Account.from_key(private_key)
     nonce= web3.eth.get_transaction_count(acct.address, 'pending')
 
     tx = {
-        "chainId":    web3.eth.chain_id,
-        "to":         Web3.to_checksum_address(to_addr),
-        "data":       data_hex,
-        "value":      val_i,
-        "gas":        gas_i,
-        # Удаляем "gasPrice", вместо него ставим EIP-1559-поля:
-        # "gasPrice": gp_i,  # <- убираем
-        "maxFeePerGas":        max_fee_per_gas,
-        "maxPriorityFeePerGas":max_priority_fee_per_gas,
-        "nonce":     nonce,
-        # Можно дополнительно ограничить 'type': 2, 
-        # но web3.py обычно сам распознаёт EIP-1559 при наличии maxFeePerGas
+        "chainId":  web3.eth.chain_id,
+        "nonce":    nonce,
+        "to":       Web3.to_checksum_address(to_addr),
+        "data":     data_hex,
+        "value":    val_i,
+        "gas":      gas_i,
+        "maxFeePerGas": max_fee,
+        "maxPriorityFeePerGas": priority,
     }
 
     try:
-        signed_tx = acct.sign_transaction(tx)
-        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-        if receipt.status == 1:
+        signed_tx=acct.sign_transaction(tx)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt= web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status==1:
             logger.info(f"execute_0x_swap_v2_permit2 success, tx={tx_hash.hex()}")
             return True
         else:
@@ -322,6 +373,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     except:
         logger.error("execute_0x_swap_v2_permit2 except", exc_info=True)
         return False
+
 
 def exchange_weth_to_ujo(wallet_address:str, amount_weth:float)->bool:
     """Старый демо-обмен WETH->UJO (1:10)."""
@@ -339,11 +391,17 @@ def exchange_weth_to_ujo(wallet_address:str, amount_weth:float)->bool:
             return False
 
         acct=Account.from_key(user.unique_private_key)
+        base_fee= web3.eth.gas_price
+        max_fee= base_fee*2
+        pr_fee= base_fee//2
+        nonce=web3.eth.get_transaction_count(acct.address,'pending')
+
         tx = weth_contract.functions.transfer(PROJECT_WALLET_ADDRESS, want).build_transaction({
             "chainId": web3.eth.chain_id,
+            "nonce":   nonce,
             "gas":100000,
-            "gasPrice":web3.eth.gas_price,
-            "nonce": web3.eth.get_transaction_count(acct.address,'pending')
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": pr_fee,
         })
         signed=acct.sign_transaction(tx)
         thash=web3.eth.send_raw_transaction(signed.rawTransaction)
