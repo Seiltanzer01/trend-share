@@ -118,6 +118,18 @@ def generate_unique_wallet_address():
 def generate_unique_private_key():
     return '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
 
+def verify_private_key(user: User) -> bool:
+    try:
+        acct = Account.from_key(user.unique_private_key)
+        derived_address = Web3.to_checksum_address(acct.address)
+        is_match = derived_address.lower() == user.unique_wallet_address.lower()
+        if not is_match:
+            logger.error(f"Private key does not match wallet address for user {user.id}.")
+        return is_match
+    except Exception as e:
+        logger.error(f"Verification failed for user {user.id}: {e}", exc_info=True)
+        return False
+
 def get_token_balance(wallet_address: str, contract=None) -> float:
     """
     Получает баланс указанного токена (по умолчанию - UJO).
@@ -226,6 +238,10 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
     """
     try:
         acct = Account.from_key(user_private_key)
+        balance_wei = web3.eth.get_balance(acct.address)
+        eth_balance = Web3.from_wei(balance_wei, 'ether')
+        logger.info(f"User {acct.address} balance: {eth_balance} ETH")
+
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
         priority_wei = Web3.to_wei(0.002, 'gwei')
@@ -290,7 +306,7 @@ def get_token_price_in_usd() -> float:
             logger.error("DEXScreener_PAIR_ADDRESS не задан.")
             return 0.0
 
-        chain_name = "base"  # Пример
+        chain_name = "base"  # Пример, уточните название цепочки для DexScreener
         api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
         resp = requests.get(api_url, timeout=10)
         if resp.status_code != 200:
