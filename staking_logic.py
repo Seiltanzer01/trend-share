@@ -140,8 +140,8 @@ def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WAL
 
         # Используем EIP-1559 (максимум)
         base_fee   = web3.eth.gas_price
-        max_fee    = base_fee * 2  # например, в 2 раза выше текущей
-        priority   = base_fee // 2 # упрощённо, символически
+        max_fee    = base_fee * 1.1  # например, в 2 раза выше текущей
+        priority   = base_fee // 1.1 # упрощённо, символически
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
@@ -149,7 +149,7 @@ def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WAL
         ).build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
-            "gas": 120000,
+            "gas": 50000,
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": priority,
             "value": 0
@@ -173,8 +173,8 @@ def send_eth(to_address:str, amount_eth:float, private_key:str)->bool:
         acct   = Account.from_key(private_key)
         nonce  = web3.eth.get_transaction_count(acct.address, 'pending')
         base_fee = web3.eth.gas_price
-        max_fee  = base_fee * 2
-        priority = base_fee // 2
+        max_fee  = base_fee * 1.1
+        priority = base_fee // 1.1
 
         tx={
             "nonce": nonce,
@@ -209,15 +209,15 @@ def deposit_eth_to_weth(user_private_key:str, user_wallet:str, amount_eth:float)
 
         # Сформируем транзакцию к WETH: deposit(), передавая value=...
         base_fee = web3.eth.gas_price
-        max_fee  = base_fee * 2
-        priority = base_fee // 2
+        max_fee  = base_fee * 1.1
+        priority = base_fee // 1.1
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": priority,
-            "gas": 150000,  # на всякий случай побольше
+            "gas": 50000,  # на всякий случай побольше
             "value": web3.to_wei(amount_eth, "ether"),  # именно столько ETH мы "заворачиваем" в WETH
         })
         signed = acct.sign_transaction(deposit_tx)
@@ -327,7 +327,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     to_addr  = tx_obj.get("to")
     data_hex = tx_obj.get("data")
     val_str  = tx_obj.get("value", "0")
-    gas_str  = tx_obj.get("gas", "500000")
+    gas_str  = tx_obj.get("gas", "200000")
     gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")  # 0x может вернуть gasPrice
 
     if not to_addr or not data_hex:
@@ -343,8 +343,8 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         return False
 
     # Поставим EIP-1559 «с запасом»
-    max_fee    = base_gas_price * 2
-    priority   = base_gas_price // 2
+    max_fee    = base_gas_price * 1.1
+    priority   = base_gas_price // 1.1
 
     acct = Account.from_key(private_key)
     nonce= web3.eth.get_transaction_count(acct.address, 'pending')
@@ -392,14 +392,14 @@ def exchange_weth_to_ujo(wallet_address:str, amount_weth:float)->bool:
 
         acct=Account.from_key(user.unique_private_key)
         base_fee= web3.eth.gas_price
-        max_fee= base_fee*2
-        pr_fee= base_fee//2
+        max_fee= base_fee*1.1
+        pr_fee= base_fee//1.1
         nonce=web3.eth.get_transaction_count(acct.address,'pending')
 
         tx = weth_contract.functions.transfer(PROJECT_WALLET_ADDRESS, want).build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
-            "gas":100000,
+            "gas":50000,
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": pr_fee,
         })
