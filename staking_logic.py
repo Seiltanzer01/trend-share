@@ -104,60 +104,63 @@ def generate_unique_wallet_address():
             caddr = Web3.to_checksum_address(address)
         except ValueError:
             continue
-        # Проверка уникальности в БД
         if not User.query.filter_by(unique_wallet_address=caddr).first():
             return caddr
 
 def generate_unique_private_key():
     return '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
 
-def get_token_balance(wallet_address:str, contract=None)->float:
+def get_token_balance(wallet_address: str, contract=None) -> float:
     """Баланс указанного токена (по умолчанию UJO)."""
     try:
         if contract is None:
             contract = ujo_contract
         raw = contract.functions.balanceOf(Web3.to_checksum_address(wallet_address)).call()
         dec = contract.functions.decimals().call()
-        return raw/(10**dec)
+        return raw / (10 ** dec)
     except:
         logger.error("get_token_balance error", exc_info=True)
         return 0.0
 
-def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WALLET_ADDRESS, private_key:str=None)->bool:
-    """Отправляем UJO-токены (ERC-20)."""
+def send_token_reward(to_address: str, amount: float, from_address: str = PROJECT_WALLET_ADDRESS, private_key: str = None) -> bool:
+    """Отправляем UJO-токены (ERC-20) с минимально возможными комиссиями (пример)."""
     try:
         if private_key:
             acct = Account.from_key(private_key)
         else:
-            proj_pk = os.environ.get("PRIVATE_KEY","")
+            proj_pk = os.environ.get("PRIVATE_KEY", "")
             if not proj_pk:
                 logger.error("PRIVATE_KEY не задан.")
                 return False
             acct = Account.from_key(proj_pk)
 
-        decimals= token_contract.functions.decimals().call()
-        amt_wei = int(amount*(10**decimals))
+        decimals = token_contract.functions.decimals().call()
+        amt_wei = int(amount * (10 ** decimals))
 
-        # Используем EIP-1559 (максимум)
-        base_fee   = web3.eth.gas_price
-        max_fee    = base_fee * 1.1  # например, в 2 раза выше текущей
-        priority   = base_fee // 1.1 # упрощённо, символически
+        # Попробуем небольшой приоритет, напр. 1 gwei
+        # берём base_fee, например, x1.1 => maxFeePerGas
+        base_fee      = web3.eth.gas_price
+        max_priority  = Web3.to_wei(1, 'gwei')  # фиксированный 1 gwei
+        # Выберем max_fee чуть выше (base_fee + приоритет)
+        max_fee       = base_fee + max_priority
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
             amt_wei
         ).build_transaction({
-            "chainId": web3.eth.chain_id,
-            "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
-            "gas": 50000,
+            "chainId":  web3.eth.chain_id,
+            "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
+            # Уменьшаем gas до ~30k-50k для transfer
+            "gas":      50000,
             "maxFeePerGas": max_fee,
-            "maxPriorityFeePerGas": priority,
+            "maxPriorityFeePerGas": max_priority,
             "value": 0
         })
-        signed_tx= acct.sign_transaction(tx)
-        tx_hash  = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt  = web3.eth.wait_for_transaction_receipt(tx_hash,180)
-        if receipt.status==1:
+        signed_tx = acct.sign_transaction(tx)
+        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
+
+        if receipt.status == 1:
             logger.info(f"send_token_reward: {amount} UJO -> {to_address}, tx={tx_hash.hex()}")
             return True
         else:
@@ -167,28 +170,28 @@ def send_token_reward(to_address:str, amount:float, from_address:str=PROJECT_WAL
         logger.error("send_token_reward except", exc_info=True)
         return False
 
-def send_eth(to_address:str, amount_eth:float, private_key:str)->bool:
-    """Отправка нативного ETH (для gas и т.п.)."""
+def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
+    """Отправка нативного ETH (для gas и т.п.) с невысокой комиссией."""
     try:
-        acct   = Account.from_key(private_key)
-        nonce  = web3.eth.get_transaction_count(acct.address, 'pending')
-        base_fee = web3.eth.gas_price
-        max_fee  = base_fee * 1.1
-        priority = base_fee // 1.1
+        acct      = Account.from_key(private_key)
+        nonce     = web3.eth.get_transaction_count(acct.address, 'pending')
+        base_fee  = web3.eth.gas_price
+        priority  = Web3.to_wei(1, 'gwei')   # фикс 1 gwei
+        max_fee   = base_fee + priority
 
-        tx={
-            "nonce": nonce,
-            "to": Web3.to_checksum_address(to_address),
-            "value": web3.to_wei(amount_eth,'ether'),
+        tx = {
+            "nonce":   nonce,
+            "to":      Web3.to_checksum_address(to_address),
+            "value":   web3.to_wei(amount_eth, 'ether'),
             "chainId": web3.eth.chain_id,
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": priority,
-            "gas":21000
+            "gas": 21000
         }
         signed = acct.sign_transaction(tx)
-        tx_hash= web3.eth.send_raw_transaction(signed.rawTransaction)
-        receipt= web3.eth.wait_for_transaction_receipt(tx_hash,180)
-        if receipt.status==1:
+        tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
+        if receipt.status == 1:
             logger.info(f"send_eth: {amount_eth} ETH -> {to_address}, tx={tx_hash.hex()}")
             return True
         else:
@@ -198,31 +201,31 @@ def send_eth(to_address:str, amount_eth:float, private_key:str)->bool:
         logger.error("send_eth error", exc_info=True)
         return False
 
-def deposit_eth_to_weth(user_private_key:str, user_wallet:str, amount_eth:float)->bool:
+def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
     """
     Делаем WETH.deposit(), чтобы превратить ETH => WETH.
-    Эта функция требует ETH на user_wallet (достаточно и на газ).
+    Тоже стараемся снизить комиссию.
     """
     try:
         acct = Account.from_key(user_private_key)
-        nonce= web3.eth.get_transaction_count(acct.address, 'pending')
+        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        # Сформируем транзакцию к WETH: deposit(), передавая value=...
-        base_fee = web3.eth.gas_price
-        max_fee  = base_fee * 1.1
-        priority = base_fee // 1.1
+        base_fee    = web3.eth.gas_price
+        priority    = Web3.to_wei(1, 'gwei')
+        max_fee     = base_fee + priority
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": priority,
-            "gas": 50000,  # на всякий случай побольше
-            "value": web3.to_wei(amount_eth, "ether"),  # именно столько ETH мы "заворачиваем" в WETH
+            # Уменьшаем gas (для deposit обычно хватает ~30k, но берём с запасом)
+            "gas": 50000,
+            "value": web3.to_wei(amount_eth, "ether"),
         })
         signed = acct.sign_transaction(deposit_tx)
-        tx_hash= web3.eth.send_raw_transaction(signed.rawTransaction)
-        rcpt   = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
+        tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
+        rcpt = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
         if rcpt.status == 1:
             logger.info(f"deposit_eth_to_weth success, ~{amount_eth} ETH -> WETH, tx={tx_hash.hex()}")
             return True
@@ -233,24 +236,24 @@ def deposit_eth_to_weth(user_private_key:str, user_wallet:str, amount_eth:float)
         logger.error("deposit_eth_to_weth except", exc_info=True)
         return False
 
-def get_balances(user:User)->dict:
+def get_balances(user: User) -> dict:
     """ETH, WETH, UJO."""
     try:
         ua = Web3.to_checksum_address(user.unique_wallet_address)
 
         raw_eth = web3.eth.get_balance(ua)
-        eth_bal = Web3.from_wei(raw_eth,'ether')
+        eth_bal = Web3.from_wei(raw_eth, 'ether')
 
         # WETH
-        wdec    = weth_contract.functions.decimals().call()
-        raw_wth = weth_contract.functions.balanceOf(ua).call()
-        wbal    = raw_wth/(10**wdec)
+        wdec  = weth_contract.functions.decimals().call()
+        raw_w = weth_contract.functions.balanceOf(ua).call()
+        wbal  = raw_w / (10 ** wdec)
 
         # UJO
         ujo_bal = get_token_balance(ua, ujo_contract)
 
         return {
-            "balances":{
+            "balances": {
                 "eth": float(eth_bal),
                 "weth": float(wbal),
                 "ujo": float(ujo_bal)
@@ -258,54 +261,53 @@ def get_balances(user:User)->dict:
         }
     except:
         logger.error("get_balances error", exc_info=True)
-        return {"error":"Internal server error."}
+        return {"error": "Internal server error."}
 
-def get_token_price_in_usd()->float:
+def get_token_price_in_usd() -> float:
     """Допустим, DexScreener для сети base."""
     try:
-        pair_address=os.environ.get("DEXScreener_PAIR_ADDRESS","")
+        pair_address = os.environ.get("DEXScreener_PAIR_ADDRESS", "")
         if not pair_address:
             logger.error("DEXScreener_PAIR_ADDRESS не задан.")
             return 0.0
-        chain_name="base"
+        chain_name = "base"
         api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
-        resp    = requests.get(api_url,timeout=10)
-        if resp.status_code!=200:
+        resp = requests.get(api_url, timeout=10)
+        if resp.status_code != 200:
             logger.error(f"DexScreener code={resp.status_code}")
             return 0.0
-        data=resp.json()
-        pair=data.get("pair",{})
+        data = resp.json()
+        pair = data.get("pair", {})
         if not pair:
             return 0.0
-        return float(pair.get("priceUsd","0"))
+        return float(pair.get("priceUsd", "0"))
     except:
         logger.error("get_token_price_in_usd except", exc_info=True)
         return 0.0
 
-
 # --- 0x Swap v2 (permit2) ---
 def get_0x_quote_v2_permit2(
-    sell_token:str,
-    buy_token:str,
-    sell_amount_wei:int,
-    taker_address:str,
-    chain_id:int=8453
-)->dict:
+    sell_token: str,
+    buy_token: str,
+    sell_amount_wei: int,
+    taker_address: str,
+    chain_id: int = 8453
+) -> dict:
     """GET /swap/permit2/quote v2 (для сети Base по умолчанию)."""
     if not ZEROX_API_KEY:
         logger.error("ZEROX_API_KEY отсутствует.")
         return {}
     url = "https://api.0x.org/swap/permit2/quote"
-    params={
-        "chainId":chain_id,
-        "sellToken":sell_token,
+    params = {
+        "chainId": chain_id,
+        "sellToken": sell_token,
         "buyToken": buy_token,
-        "sellAmount":str(sell_amount_wei),
-        "taker":taker_address,
+        "sellAmount": str(sell_amount_wei),
+        "taker": taker_address,
     }
     try:
-        resp=requests.get(url,params=params,headers=DEFAULT_0X_HEADERS,timeout=20)
-        if resp.status_code!=200:
+        resp = requests.get(url, params=params, headers=DEFAULT_0X_HEADERS, timeout=20)
+        if resp.status_code != 200:
             logger.error(f"get_0x_quote_v2_permit2 error: {resp.text}")
             return {}
         return resp.json()
@@ -315,9 +317,10 @@ def get_0x_quote_v2_permit2(
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
-    EIP-1559-транзакция (maxFeePerGas, maxPriorityFeePerGas).
-    Если sellToken=ETH — 0x permit2/gasless не работает напрямую;
-    поэтому ETH нужно сперва "заворачивать" -> WETH, а тут вызываем swap WETH->.
+    Пример EIP-1559-транзакции с небольшими комиссиями:
+    - Приоритет 1 gwei
+    - maxFee = base_fee + priority
+    - gas ограничим ~ 200k (или меньше), зависит от сложности 0x-транзакции.
     """
     if not quote_json:
         logger.error("execute_0x_swap_v2_permit2: quote_json пуст.")
@@ -327,8 +330,8 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     to_addr  = tx_obj.get("to")
     data_hex = tx_obj.get("data")
     val_str  = tx_obj.get("value", "0")
-    gas_str  = tx_obj.get("gas", "200000")
-    gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")  # 0x может вернуть gasPrice
+    gas_str  = tx_obj.get("gas", "200000")  # уменьшаем с 500000
+    gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")
 
     if not to_addr or not data_hex:
         logger.error("execute_0x_swap_v2_permit2: нет to/data.")
@@ -342,29 +345,29 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail.")
         return False
 
-    # Поставим EIP-1559 «с запасом»
-    max_fee    = base_gas_price * 1.1
-    priority   = base_gas_price // 1.1
+    # Приоритет
+    priority  = Web3.to_wei(1, 'gwei')
+    max_fee   = base_gas_price + priority
 
     acct = Account.from_key(private_key)
-    nonce= web3.eth.get_transaction_count(acct.address, 'pending')
+    nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
     tx = {
-        "chainId":  web3.eth.chain_id,
-        "nonce":    nonce,
-        "to":       Web3.to_checksum_address(to_addr),
-        "data":     data_hex,
-        "value":    val_i,
-        "gas":      gas_i,
-        "maxFeePerGas": max_fee,
-        "maxPriorityFeePerGas": priority,
+        "chainId": web3.eth.chain_id,
+        "nonce":   nonce,
+        "to":      Web3.to_checksum_address(to_addr),
+        "data":    data_hex,
+        "value":   val_i,
+        "gas":     gas_i,
+        "maxFeePerGas":          max_fee,
+        "maxPriorityFeePerGas":  priority,
     }
 
     try:
-        signed_tx=acct.sign_transaction(tx)
+        signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt= web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-        if receipt.status==1:
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status == 1:
             logger.info(f"execute_0x_swap_v2_permit2 success, tx={tx_hash.hex()}")
             return True
         else:
@@ -374,101 +377,103 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("execute_0x_swap_v2_permit2 except", exc_info=True)
         return False
 
-
-def exchange_weth_to_ujo(wallet_address:str, amount_weth:float)->bool:
+def exchange_weth_to_ujo(wallet_address: str, amount_weth: float) -> bool:
     """Старый демо-обмен WETH->UJO (1:10)."""
     try:
-        user=User.query.filter_by(unique_wallet_address=wallet_address).first()
+        user = User.query.filter_by(unique_wallet_address=wallet_address).first()
         if not user or not user.unique_private_key:
             logger.error("exchange_weth_to_ujo: нет user/private_key.")
             return False
 
-        wdec= weth_contract.functions.decimals().call()
-        want= int(amount_weth*(10**wdec))
-        have= weth_contract.functions.balanceOf(wallet_address).call()
-        if have<want:
+        wdec = weth_contract.functions.decimals().call()
+        want = int(amount_weth * (10 ** wdec))
+        have = weth_contract.functions.balanceOf(wallet_address).call()
+        if have < want:
             logger.error("Недостаточно WETH.")
             return False
 
-        acct=Account.from_key(user.unique_private_key)
-        base_fee= web3.eth.gas_price
-        max_fee= base_fee*1.1
-        pr_fee= base_fee//1.1
-        nonce=web3.eth.get_transaction_count(acct.address,'pending')
+        acct      = Account.from_key(user.unique_private_key)
+        base_fee  = web3.eth.gas_price
+        priority  = Web3.to_wei(1, 'gwei')
+        max_fee   = base_fee + priority
+        nonce     = web3.eth.get_transaction_count(acct.address, 'pending')
 
         tx = weth_contract.functions.transfer(PROJECT_WALLET_ADDRESS, want).build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
-            "gas":50000,
+            "gas": 50000,
             "maxFeePerGas": max_fee,
-            "maxPriorityFeePerGas": pr_fee,
+            "maxPriorityFeePerGas": priority,
         })
-        signed=acct.sign_transaction(tx)
-        thash=web3.eth.send_raw_transaction(signed.rawTransaction)
-        rcpt =web3.eth.wait_for_transaction_receipt(thash,180)
-        if rcpt.status!=1:
+        signed = acct.sign_transaction(tx)
+        thash  = web3.eth.send_raw_transaction(signed.rawTransaction)
+        rcpt   = web3.eth.wait_for_transaction_receipt(thash, 180)
+        if rcpt.status != 1:
             logger.error("Fail tx transferring WETH to project.")
             return False
 
-        # 1WETH=10UJO (demo)
-        ujo_amt= amount_weth*10
-        ok= send_token_reward(wallet_address, ujo_amt)
+        # Псевдо-курс 1 WETH = 10 UJO
+        ujo_amt = amount_weth * 10
+        ok      = send_token_reward(wallet_address, ujo_amt)
         return ok
     except:
         logger.error("exchange_weth_to_ujo except", exc_info=True)
         return False
 
-def confirm_staking_tx(user:User, tx_hash:str)->bool:
+def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """Если tx>=25$ => UserStaking+assistant_premium."""
     if not user or not user.unique_wallet_address or not tx_hash:
         return False
     try:
-        r=web3.eth.get_transaction_receipt(tx_hash)
-        if not r or r.status!=1:
+        r = web3.eth.get_transaction_receipt(tx_hash)
+        if not r or r.status != 1:
             return False
-        transfer_topic= Web3.keccak(text="Transfer(address,address,uint256)").hex()
-        price_usd= get_token_price_in_usd()
-        if price_usd<=0:
+
+        transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
+        price_usd      = get_token_price_in_usd()
+        if price_usd <= 0:
             return False
-        found=None
+
+        found = None
         for lg in r.logs:
-            if lg.address.lower()==token_contract.address.lower():
-                if len(lg.topics)>=3:
-                    if lg.topics[0].hex().lower()==transfer_topic.lower():
-                        from_addr="0x"+lg.topics[1].hex()[26:]
-                        to_addr=  "0x"+lg.topics[2].hex()[26:]
-                        from_addr=Web3.to_checksum_address(from_addr)
-                        to_addr=  Web3.to_checksum_address(to_addr)
-                        if (from_addr.lower()==user.unique_wallet_address.lower()
-                           and to_addr.lower()==PROJECT_WALLET_ADDRESS.lower()):
-                            amt_int=int(lg.data,16)
-                            token_amt= amt_int/(10**18)
-                            usd_amt=   token_amt*price_usd
-                            if usd_amt>=25:
-                                found={
-                                    "token_amount":token_amt,
-                                    "usd_amount":usd_amt
+            if lg.address.lower() == token_contract.address.lower():
+                if len(lg.topics) >= 3:
+                    if lg.topics[0].hex().lower() == transfer_topic.lower():
+                        from_addr = "0x" + lg.topics[1].hex()[26:]
+                        to_addr   = "0x" + lg.topics[2].hex()[26:]
+                        from_addr = Web3.to_checksum_address(from_addr)
+                        to_addr   = Web3.to_checksum_address(to_addr)
+
+                        if (from_addr.lower() == user.unique_wallet_address.lower()
+                                and to_addr.lower() == PROJECT_WALLET_ADDRESS.lower()):
+                            amt_int   = int(lg.data, 16)
+                            token_amt = amt_int / (10 ** 18)
+                            usd_amt   = token_amt * price_usd
+                            if usd_amt >= 25:
+                                found = {
+                                    "token_amount": token_amt,
+                                    "usd_amount": usd_amt
                                 }
                                 break
         if not found:
             return False
 
-        # дубль?
-        ex=UserStaking.query.filter_by(tx_hash=tx_hash).first()
+        # Проверка дубля
+        ex = UserStaking.query.filter_by(tx_hash=tx_hash).first()
         if ex:
             return False
 
-        new_s=UserStaking(
+        new_s = UserStaking(
             user_id=user.id,
             tx_hash=tx_hash,
             staked_usd=found["usd_amount"],
             staked_amount=found["token_amount"],
             created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow()+timedelta(days=30),
+            unlocked_at=datetime.utcnow() + timedelta(days=30),
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_s)
-        user.assistant_premium=True
+        user.assistant_premium = True
         db.session.commit()
         logger.info(f"User {user.id} застейкал ~{found['usd_amount']:.2f}$ (tx={tx_hash}). Premium on.")
         return True
@@ -480,10 +485,10 @@ def confirm_staking_tx(user:User, tx_hash:str)->bool:
 def accumulate_staking_rewards():
     """Раз в неделю можно вызвать."""
     try:
-        st=UserStaking.query.all()
+        st = UserStaking.query.all()
         for s in st:
-            if s.staked_amount>0:
-                s.pending_rewards+=0.5
+            if s.staked_amount > 0:
+                s.pending_rewards += 0.5
         db.session.commit()
     except:
         db.session.rollback()
