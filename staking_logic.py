@@ -123,7 +123,6 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
         return 0.0
 
 def send_token_reward(to_address: str, amount: float, from_address: str = PROJECT_WALLET_ADDRESS, private_key: str = None) -> bool:
-    """Отправляем UJO-токены (ERC-20) с минимально возможными комиссиями (пример)."""
     try:
         if private_key:
             acct = Account.from_key(private_key)
@@ -137,12 +136,9 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
         decimals = token_contract.functions.decimals().call()
         amt_wei = int(amount * (10 ** decimals))
 
-        # Попробуем небольшой приоритет, напр. 1 gwei
-        # берём base_fee, например, x1.1 => maxFeePerGas
-        base_fee      = web3.eth.gas_price
-        max_priority  = Web3.to_wei(1, 'gwei')  # фиксированный 1 gwei
-        # Выберем max_fee чуть выше (base_fee + приоритет)
-        max_fee       = base_fee + max_priority
+        # maxPriorityFeePerGas = 0.002 gwei, maxFeePerGas = 0.04 gwei
+        priority_wei = Web3.to_wei(0.002, 'gwei')  # 0.002 gwei
+        max_fee_wei  = Web3.to_wei(0.04, 'gwei')   # 0.04 gwei
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
@@ -150,10 +146,9 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
         ).build_transaction({
             "chainId":  web3.eth.chain_id,
             "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
-            # Уменьшаем gas до ~30k-50k для transfer
-            "gas":      50000,
-            "maxFeePerGas": max_fee,
-            "maxPriorityFeePerGas": max_priority,
+            "gas":      50000,  # вместо 100000 или 50000
+            "maxFeePerGas": max_fee_wei,
+            "maxPriorityFeePerGas": priority_wei,
             "value": 0
         })
         signed_tx = acct.sign_transaction(tx)
@@ -169,24 +164,23 @@ def send_token_reward(to_address: str, amount: float, from_address: str = PROJEC
     except:
         logger.error("send_token_reward except", exc_info=True)
         return False
-
+        
 def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
-    """Отправка нативного ETH (для gas и т.п.) с невысокой комиссией."""
     try:
-        acct      = Account.from_key(private_key)
-        nonce     = web3.eth.get_transaction_count(acct.address, 'pending')
-        base_fee  = web3.eth.gas_price
-        priority  = Web3.to_wei(1, 'gwei')   # фикс 1 gwei
-        max_fee   = base_fee + priority
+        acct = Account.from_key(private_key)
+        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
+
+        priority_wei = Web3.to_wei(0.002, 'gwei')  # 0.002 gwei
+        max_fee_wei  = Web3.to_wei(0.04, 'gwei')   # 0.04 gwei
 
         tx = {
-            "nonce":   nonce,
-            "to":      Web3.to_checksum_address(to_address),
-            "value":   web3.to_wei(amount_eth, 'ether'),
+            "nonce": nonce,
+            "to": Web3.to_checksum_address(to_address),
+            "value": web3.to_wei(amount_eth, 'ether'),
             "chainId": web3.eth.chain_id,
-            "maxFeePerGas": max_fee,
-            "maxPriorityFeePerGas": priority,
-            "gas": 21000
+            "maxFeePerGas": max_fee_wei,
+            "maxPriorityFeePerGas": priority_wei,
+            "gas": 50000  # хотя для простого transfer ETH обычно 21000, оставим 50000
         }
         signed = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
@@ -202,25 +196,19 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         return False
 
 def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
-    """
-    Делаем WETH.deposit(), чтобы превратить ETH => WETH.
-    Тоже стараемся снизить комиссию.
-    """
     try:
         acct = Account.from_key(user_private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        base_fee    = web3.eth.gas_price
-        priority    = Web3.to_wei(1, 'gwei')
-        max_fee     = base_fee + priority
+        priority_wei = Web3.to_wei(0.002, 'gwei')
+        max_fee_wei  = Web3.to_wei(0.04, 'gwei')
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
-            "maxFeePerGas": max_fee,
-            "maxPriorityFeePerGas": priority,
-            # Уменьшаем gas (для deposit обычно хватает ~30k, но берём с запасом)
-            "gas": 50000,
+            "maxFeePerGas": max_fee_wei,
+            "maxPriorityFeePerGas": priority_wei,
+            "gas": 50000,  # deposit требует чуть больше 30k, возьмём запас
             "value": web3.to_wei(amount_eth, "ether"),
         })
         signed = acct.sign_transaction(deposit_tx)
@@ -316,12 +304,6 @@ def get_0x_quote_v2_permit2(
         return {}
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
-    """
-    Пример EIP-1559-транзакции с небольшими комиссиями:
-    - Приоритет 1 gwei
-    - maxFee = base_fee + priority
-    - gas ограничим ~ 200k (или меньше), зависит от сложности 0x-транзакции.
-    """
     if not quote_json:
         logger.error("execute_0x_swap_v2_permit2: quote_json пуст.")
         return False
@@ -330,7 +312,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     to_addr  = tx_obj.get("to")
     data_hex = tx_obj.get("data")
     val_str  = tx_obj.get("value", "0")
-    gas_str  = tx_obj.get("gas", "200000")  # уменьшаем с 500000
+    gas_str  = tx_obj.get("gas", "200000")
     gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")
 
     if not to_addr or not data_hex:
@@ -345,9 +327,9 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail.")
         return False
 
-    # Приоритет
-    priority  = Web3.to_wei(1, 'gwei')
-    max_fee   = base_gas_price + priority
+    # Задаём фиксированную низкую комиссию: 0.002 gwei priority + 0.04 gwei maxFee
+    priority_wei = Web3.to_wei(0.002, 'gwei')
+    max_fee_wei  = Web3.to_wei(0.04, 'gwei')
 
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
@@ -358,9 +340,9 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         "to":      Web3.to_checksum_address(to_addr),
         "data":    data_hex,
         "value":   val_i,
-        "gas":     gas_i,
-        "maxFeePerGas":          max_fee,
-        "maxPriorityFeePerGas":  priority,
+        "gas":     gas_i,  # 200000
+        "maxFeePerGas":          max_fee_wei,
+        "maxPriorityFeePerGas":  priority_wei,
     }
 
     try:
