@@ -25,9 +25,8 @@ from staking_logic import (
     send_token_reward,
     get_0x_quote_v2_permit2,
     execute_0x_swap_v2_permit2,
-
-    # ФУНКЦИЯ, ДОБАВЛЕННАЯ ДЛЯ ETH->WETH:
     deposit_eth_to_weth,
+    verify_private_key,  # Добавили импорт
 )
 from best_setup_voting import send_token_reward as voting_send_token_reward
 
@@ -409,7 +408,7 @@ def unstake_staking_route():
         db.session.commit()
         return jsonify({"message":f"Unstaked {total_unstake:.4f}, fee=1%, you got {unstake_after_fee:.4f}"}),200
     except CSRFError:
-        return jsonify({"error":"CSRF token missing or invalid"}),400
+        return jsonify({"error":"CSRF token missing or invalid."}),400
     except Exception as e:
         logger.error(f"unstake error: {e}", exc_info=True)
         return jsonify({"error":"Internal server error."}),500
