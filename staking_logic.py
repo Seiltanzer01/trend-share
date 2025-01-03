@@ -241,20 +241,6 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         logger.error(f"send_eth error: {e}", exc_info=True)
         return False
 
-def send_eth_from_project(to_address: str, amount_eth: float) -> bool:
-    """
-    Отправляет ETH с кошелька проекта на указанный адрес.
-    """
-    try:
-        return send_eth(
-            to_address=to_address,
-            amount_eth=amount_eth,
-            private_key=PROJECT_PRIVATE_KEY
-        )
-    except Exception as e:
-        logger.error(f"send_eth_from_project except: {e}", exc_info=True)
-        return False
-
 def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
     """
     Выполняет WETH.deposit(), «заворачивая» заданное количество ETH в WETH,
@@ -464,9 +450,9 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         from_addr = Web3.to_checksum_address(from_addr)
                         to_addr   = Web3.to_checksum_address(to_addr)
 
-                        # Смотрим, что user.unique_wallet_address -> PROJECT_WALLET_ADDRESS
-                        if (from_addr.lower() == user.unique_wallet_address.lower()
-                                and to_addr.lower() == PROJECT_WALLET_ADDRESS.lower()):
+                        # Смотрим, что PROJECT_WALLET_ADDRESS -> user.unique_wallet_address
+                        if (from_addr.lower() == PROJECT_WALLET_ADDRESS.lower()
+                                and to_addr.lower() == user.unique_wallet_address.lower()):
                             amt_int   = int(lg.data, 16)
                             token_amt = amt_int / (10 ** 18)
                             usd_amt   = token_amt * price_usd
