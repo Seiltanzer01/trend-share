@@ -105,15 +105,16 @@ DEFAULT_0X_HEADERS = {
     "0x-version": "v2",
 }
 
-def generate_unique_wallet_address():
+def generate_unique_wallet():
+    """
+    Генерирует уникальный приватный ключ и соответствующий ему адрес кошелька.
+    """
     while True:
-        address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
-        try:
-            caddr = Web3.to_checksum_address(address)
-        except ValueError:
-            continue
-        if not User.query.filter_by(unique_wallet_address=caddr).first():
-            return caddr
+        private_key = generate_unique_private_key()
+        acct = Account.from_key(private_key)
+        unique_wallet_address = Web3.to_checksum_address(acct.address)
+        if not User.query.filter_by(unique_wallet_address=unique_wallet_address).first():
+            return unique_wallet_address, private_key
 
 def generate_unique_private_key():
     return '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
