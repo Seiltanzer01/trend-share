@@ -11,7 +11,6 @@ from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, UserStaking
 from staking_logic import (
     confirm_staking_tx,
-    # exchange_weth_to_ujo,  # Удалили импорт
     get_token_balance,
     get_token_price_in_usd,
     web3,
@@ -20,13 +19,12 @@ from staking_logic import (
     ujo_contract,
     PROJECT_WALLET_ADDRESS,
     get_balances,
-    generate_unique_wallet_address,
-    generate_unique_private_key,
+    generate_unique_wallet,  # Обновленный импорт
     send_token_reward,
     get_0x_quote_v2_permit2,
     execute_0x_swap_v2_permit2,
     deposit_eth_to_weth,
-    verify_private_key,  # Добавили импорт
+    verify_private_key,
 )
 from best_setup_voting import send_token_reward as voting_send_token_reward
 
@@ -54,8 +52,8 @@ def generate_unique_wallet_route():
             return jsonify({"error": "Unique wallet already exists.",
                             "unique_wallet_address": user.unique_wallet_address}), 400
 
-        unique_wallet_address = generate_unique_wallet_address()
-        unique_private_key    = generate_unique_private_key()
+        # Генерация уникального кошелька
+        unique_wallet_address, unique_private_key = generate_unique_wallet()
 
         # Проверка соответствия приватного ключа и адреса
         temp_user = User(unique_wallet_address=unique_wallet_address, unique_private_key=unique_private_key)
@@ -228,18 +226,6 @@ def exchange_tokens():
         user_addr = user.unique_wallet_address
         user_pk   = user.unique_private_key
 
-        # Удаляем специальный случай обмена WETH на UJO
-        # Special case 1: WETH->UJO (старый демо-обмен 1:10)
-        # if from_token.upper() == "WETH" and to_token.upper() == "UJO":
-        #     logger.info(f"[exchange_tokens] user {user.id}: WETH->UJO, amount={from_amount}")
-        #     ok = exchange_weth_to_ujo(user_addr, from_amount)
-        #     if ok:
-        #         # 1 WETH=10 UJO
-        #         ujo_received = from_amount * 10
-        #         return jsonify({"status":"success", "ujo_received":ujo_received}), 200
-        #     else:
-        #         return jsonify({"error":"Exchange failed."}), 400
-
         # Special case 2: ETH -> WETH => then 0x swap WETH-> to_token
         if from_token.upper() == "ETH":
             # 1) Делаем deposit_eth_to_weth(...)
@@ -323,21 +309,21 @@ def claim_staking_rewards_route():
         now = datetime.utcnow()
         totalRewards=0.0
         for s in stakings:
-            if s.staked_amount>0:
+            if s.staked_amount > 0:
                 delta= now - s.last_claim_at
-                if delta>=timedelta(days=7):
-                    totalRewards+= s.pending_rewards
-                    s.pending_rewards=0.0
-                    s.last_claim_at= now
+                if delta >= timedelta(days=7):
+                    totalRewards += s.pending_rewards
+                    s.pending_rewards = 0.0
+                    s.last_claim_at = now
 
-        if totalRewards<=0:
+        if totalRewards <= 0:
             return jsonify({"error":"Пока нечего клеймить"}), 400
 
         if not user.unique_wallet_address:
             return jsonify({"error":"No unique wallet address"}),400
 
         # Отправляем награды от PROJECT_WALLET_ADDRESS пользователю
-        ok= send_token_reward(user.unique_wallet_address, totalRewards, private_key=os.environ.get("PRIVATE_KEY"))
+        ok = send_token_reward(user.unique_wallet_address, totalRewards, private_key=os.environ.get("PRIVATE_KEY"))
         if not ok:
             db.session.rollback()
             return jsonify({"error":"Ошибка транзакции"}),400
@@ -361,28 +347,28 @@ def unstake_staking_route():
         if 'user_id' not in session:
             return jsonify({"error":"Unauthorized"}),401
 
-        user=User.query.get(session['user_id'])
+        user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
             return jsonify({"error":"User not found or unique wallet set."}),400
 
-        stakings=UserStaking.query.filter_by(user_id=user.id).all()
-        total_unstake=0.0
-        now=datetime.utcnow()
+        stakings = UserStaking.query.filter_by(user_id=user.id).all()
+        total_unstake = 0.0
+        now = datetime.utcnow()
         for s in stakings:
-            if s.staked_amount>0 and s.unlocked_at<=now:
-                total_unstake+=s.staked_amount
-                s.staked_amount=0.0
-                s.staked_usd=0.0
-                s.pending_rewards=0.0
+            if s.staked_amount > 0 and s.unlocked_at <= now:
+                total_unstake += s.staked_amount
+                s.staked_amount = 0.0
+                s.staked_usd = 0.0
+                s.pending_rewards = 0.0
 
-        if total_unstake<=0:
+        if total_unstake <= 0:
             return jsonify({"error":"Нет доступных стейков"}),400
 
-        unstake_after_fee= total_unstake*0.99
-        fee= total_unstake*0.01
+        unstake_after_fee = total_unstake * 0.99
+        fee = total_unstake * 0.01
 
         # Отправляем часть стейка пользователю от PROJECT_WALLET_ADDRESS
-        ok= send_token_reward(user.unique_wallet_address, unstake_after_fee, private_key=os.environ.get("PRIVATE_KEY"))
+        ok = send_token_reward(user.unique_wallet_address, unstake_after_fee, private_key=os.environ.get("PRIVATE_KEY"))
         if not ok:
             db.session.rollback()
             return jsonify({"error":"send_token_reward failed"}),400
@@ -392,18 +378,18 @@ def unstake_staking_route():
             db.session.rollback()
             return jsonify({"error":"PROJECT_WALLET_ADDRESS not set"}),500
 
-        fee_ok= send_token_reward(PROJECT_WALLET_ADDRESS, fee, private_key=os.environ.get("PRIVATE_KEY"))
+        fee_ok = send_token_reward(PROJECT_WALLET_ADDRESS, fee, private_key=os.environ.get("PRIVATE_KEY"))
         if not fee_ok:
             db.session.rollback()
             return jsonify({"error":"Failed to send fee"}),400
 
         # Проверяем, остались ли активные стейки
-        remaining= UserStaking.query.filter(
-            UserStaking.user_id==user.id,
-            UserStaking.staked_amount>0
+        remaining = UserStaking.query.filter(
+            UserStaking.user_id == user.id,
+            UserStaking.staked_amount > 0
         ).count()
-        if remaining==0:
-            user.assistant_premium=False
+        if remaining == 0:
+            user.assistant_premium = False
 
         db.session.commit()
         return jsonify({"message":f"Unstaked {total_unstake:.4f}, fee=1%, you got {unstake_after_fee:.4f}"}),200
@@ -434,20 +420,20 @@ def stake_tokens():
             return jsonify({"error":"No amount_usd provided."}),400
 
         try:
-            amount_usd=float(amount_usd)
-            if amount_usd<=0:
+            amount_usd = float(amount_usd)
+            if amount_usd <= 0:
                 raise ValueError
         except:
             return jsonify({"error":"Invalid amount_usd."}),400
 
-        price_usd= get_token_price_in_usd()
+        price_usd = get_token_price_in_usd()
         if not price_usd:
             return jsonify({"error":"Failed to get UJO price."}),400
 
-        amount_ujo= amount_usd/price_usd
+        amount_ujo = amount_usd / price_usd
 
         # Отправляем UJO с PROJECT_WALLET_ADDRESS пользователю
-        ok= send_token_reward(
+        ok = send_token_reward(
             to_address=PROJECT_WALLET_ADDRESS,
             amount=amount_ujo,
             private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
@@ -455,7 +441,7 @@ def stake_tokens():
         if not ok:
             return jsonify({"error":"Staking failed."}),400
 
-        new_stake=UserStaking(
+        new_stake = UserStaking(
             user_id=user.id,
             tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
             staked_amount=amount_ujo,
@@ -490,16 +476,16 @@ def withdraw_funds():
         if 'user_id' not in session:
             return jsonify({"error":"Unauthorized"}),401
 
-        user= User.query.get(session['user_id'])
+        user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address or not user.wallet_address:
             return jsonify({"error":"User not found or wallet address not set."}),400
 
-        bal= get_token_balance(user.unique_wallet_address, ujo_contract)
-        if bal<=0:
+        bal = get_token_balance(user.unique_wallet_address, ujo_contract)
+        if bal <= 0:
             return jsonify({"error":"No UJO tokens to withdraw."}),400
 
         # Отправляем UJO с PROJECT_WALLET_ADDRESS пользователю
-        ok= send_token_reward(
+        ok = send_token_reward(
             to_address=user.wallet_address,
             amount=bal,
             private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
