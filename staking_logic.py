@@ -6,6 +6,7 @@ import traceback
 from datetime import datetime, timedelta
 import requests
 import secrets
+import string
 
 from web3 import Web3
 from eth_account import Account
@@ -20,15 +21,9 @@ web3 = Web3(Web3.HTTPProvider(INFURA_URL))
 
 # Адреса контрактов
 TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")  # UJO
-WETH_CONTRACT_ADDRESS  = os.environ.get("WETH_CONTRACT_ADDRESS",  "0xYOUR_WETH_CONTRACT_ADDRESS")    # WETH
+WETH_CONTRACT_ADDRESS  = os.environ.get("WETH_CONTRACT_ADDRESS",  "0xYOUR_WETH_CONTRACT_ADDRESS")  # WETH
 UJO_CONTRACT_ADDRESS   = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS",      "0xYOUR_PROJECT_WALLET_ADDRESS")
-
-# Приватный ключ проекта
-PROJECT_PRIVATE_KEY = os.environ.get("PROJECT_PRIVATE_KEY", "")
-if not PROJECT_PRIVATE_KEY:
-    logger.error("PROJECT_PRIVATE_KEY не задан.")
-    raise ValueError("PROJECT_PRIVATE_KEY не задан.")
 
 # Проверка наличия необходимых переменных окружения
 if (
@@ -80,16 +75,13 @@ WETH_ABI = ERC20_ABI + [
 ]
 
 # Проверка корректности адресов
-def is_valid_address(address: str) -> bool:
-    return Web3.is_address(address)
-
-if not is_valid_address(TOKEN_CONTRACT_ADDRESS):
+if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
-if not is_valid_address(WETH_CONTRACT_ADDRESS):
+if not Web3.is_address(WETH_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный WETH_CONTRACT_ADDRESS: {WETH_CONTRACT_ADDRESS}")
-if not is_valid_address(UJO_CONTRACT_ADDRESS):
+if not Web3.is_address(UJO_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
-if not is_valid_address(PROJECT_WALLET_ADDRESS):
+if not Web3.is_address(PROJECT_WALLET_ADDRESS):
     raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
 
 # Создаём объекты контрактов
@@ -113,32 +105,18 @@ DEFAULT_0X_HEADERS = {
     "0x-version": "v2",
 }
 
+def generate_unique_wallet_address():
+    while True:
+        address = '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(40))
+        try:
+            caddr = Web3.to_checksum_address(address)
+        except ValueError:
+            continue
+        if not User.query.filter_by(unique_wallet_address=caddr).first():
+            return caddr
+
 def generate_unique_private_key():
-    acct = Account.create()
-    return acct.key.hex()
-
-def get_address_from_private_key(private_key: str) -> str:
-    try:
-        acct = Account.from_key(private_key)
-        return Web3.to_checksum_address(acct.address)
-    except Exception as e:
-        logger.error(f"Failed to derive address from private key: {e}")
-        return None
-
-def verify_private_key(user: User) -> bool:
-    """
-    Проверяет, что приватный ключ соответствует адресу кошелька пользователя.
-    """
-    try:
-        derived_address = get_address_from_private_key(user.unique_private_key)
-        if derived_address and derived_address.lower() == user.unique_wallet_address.lower():
-            return True
-        else:
-            logger.error(f"Verification failed: derived address {derived_address} does not match user address {user.unique_wallet_address}")
-            return False
-    except Exception as e:
-        logger.error(f"Verification failed for user {user.id}: {e}", exc_info=True)
-        return False
+    return '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
 
 def get_token_balance(wallet_address: str, contract=None) -> float:
     """
@@ -152,8 +130,8 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
         ).call()
         dec = contract.functions.decimals().call()
         return raw / (10 ** dec)
-    except Exception as e:
-        logger.error(f"get_token_balance error for {wallet_address}: {e}", exc_info=True)
+    except:
+        logger.error("get_token_balance error", exc_info=True)
         return 0.0
 
 def send_token_reward(
@@ -170,9 +148,9 @@ def send_token_reward(
         if private_key:
             acct = Account.from_key(private_key)
         else:
-            proj_pk = os.environ.get("PROJECT_PRIVATE_KEY", "")
+            proj_pk = os.environ.get("PRIVATE_KEY", "")
             if not proj_pk:
-                logger.error("PROJECT_PRIVATE_KEY не задан.")
+                logger.error("PRIVATE_KEY не задан.")
                 return False
             acct = Account.from_key(proj_pk)
 
@@ -186,7 +164,7 @@ def send_token_reward(
             Web3.to_checksum_address(to_address),
             amt_wei
         ).build_transaction({
-            "chainId": web3.eth.chain_id,
+            "chainId":  web3.eth.chain_id,
             "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
             "gas":      50000,
             "maxFeePerGas": max_fee_wei,
@@ -194,8 +172,8 @@ def send_token_reward(
             "value": 0
         })
         signed_tx = acct.sign_transaction(tx)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
 
         if receipt.status == 1:
             logger.info(f"send_token_reward: {amount} UJO -> {to_address}, tx={tx_hash.hex()}")
@@ -203,8 +181,8 @@ def send_token_reward(
         else:
             logger.error(f"send_token_reward fail: {tx_hash.hex()}")
             return False
-    except Exception as e:
-        logger.error(f"send_token_reward except: {e}", exc_info=True)
+    except:
+        logger.error("send_token_reward except", exc_info=True)
         return False
 
 def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
@@ -237,22 +215,8 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         else:
             logger.error(f"send_eth fail: {tx_hash.hex()}")
             return False
-    except Exception as e:
-        logger.error(f"send_eth error: {e}", exc_info=True)
-        return False
-
-def send_eth_from_project(to_address: str, amount_eth: float) -> bool:
-    """
-    Отправляет ETH с кошелька проекта на указанный адрес.
-    """
-    try:
-        return send_eth(
-            to_address=to_address,
-            amount_eth=amount_eth,
-            private_key=PROJECT_PRIVATE_KEY
-        )
-    except Exception as e:
-        logger.error(f"send_eth_from_project except: {e}", exc_info=True)
+    except:
+        logger.error("send_eth error", exc_info=True)
         return False
 
 def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
@@ -272,7 +236,7 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
             "nonce":   nonce,
             "maxFeePerGas": max_fee_wei,
             "maxPriorityFeePerGas": priority_wei,
-            "gas": 200000,  # Увеличенный лимит газа для deposit
+            "gas": 50000,
             "value": web3.to_wei(amount_eth, "ether"),
         })
         signed = acct.sign_transaction(deposit_tx)
@@ -284,8 +248,8 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
         else:
             logger.error(f"deposit_eth_to_weth fail, tx={tx_hash.hex()}")
             return False
-    except Exception as e:
-        logger.error(f"deposit_eth_to_weth except: {e}", exc_info=True)
+    except:
+        logger.error("deposit_eth_to_weth except", exc_info=True)
         return False
 
 def get_balances(user: User) -> dict:
@@ -311,8 +275,8 @@ def get_balances(user: User) -> dict:
                 "ujo": float(ujo_bal)
             }
         }
-    except Exception as e:
-        logger.error(f"get_balances error for {user.unique_wallet_address}: {e}", exc_info=True)
+    except:
+        logger.error("get_balances error", exc_info=True)
         return {"error": "Internal server error."}
 
 def get_token_price_in_usd() -> float:
@@ -339,8 +303,8 @@ def get_token_price_in_usd() -> float:
             return 0.0
 
         return float(pair.get("priceUsd", "0"))
-    except Exception as e:
-        logger.error(f"get_token_price_in_usd except: {e}", exc_info=True)
+    except:
+        logger.error("get_token_price_in_usd except", exc_info=True)
         return 0.0
 
 # --- 0x Swap v2 (permit2) ---
@@ -374,8 +338,8 @@ def get_0x_quote_v2_permit2(
             logger.error(f"get_0x_quote_v2_permit2 error: {resp.text}")
             return {}
         return resp.json()
-    except Exception as e:
-        logger.error(f"get_0x_quote_v2_permit2 except: {e}", exc_info=True)
+    except:
+        logger.error("get_0x_quote_v2_permit2 except", exc_info=True)
         return {}
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
@@ -403,8 +367,8 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         val_i = int(val_str)
         gas_i = int(gas_str)
         # base_gas_price = int(gp_str) # Можно игнорировать
-    except Exception as e:
-        logger.error(f"execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail: {e}")
+    except:
+        logger.error("execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail.")
         return False
 
     priority_wei = Web3.to_wei(0.002, 'gwei')
@@ -434,8 +398,8 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         else:
             logger.error(f"execute_0x_swap_v2_permit2 fail, tx={tx_hash.hex()}")
             return False
-    except Exception as e:
-        logger.error(f"execute_0x_swap_v2_permit2 except: {e}", exc_info=True)
+    except:
+        logger.error("execute_0x_swap_v2_permit2 except", exc_info=True)
         return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
@@ -498,8 +462,8 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
         db.session.commit()
         logger.info(f"User {user.id} застейкал ~{found['usd_amount']:.2f}$ (tx={tx_hash}). Premium on.")
         return True
-    except Exception as e:
-        logger.error(f"confirm_staking_tx({tx_hash}) except: {e}", exc_info=True)
+    except:
+        logger.error(f"confirm_staking_tx({tx_hash}) except", exc_info=True)
         db.session.rollback()
         return False
 
@@ -513,6 +477,6 @@ def accumulate_staking_rewards():
             if s.staked_amount > 0:
                 s.pending_rewards += 0.5
         db.session.commit()
-    except Exception as e:
+    except:
         db.session.rollback()
-        logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
+        logger.error("accumulate_staking_rewards except", exc_info=True)
