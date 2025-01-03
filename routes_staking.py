@@ -23,10 +23,11 @@ from staking_logic import (
     generate_unique_wallet_address,
     generate_unique_private_key,
     send_token_reward,
-
-    # 0x permit2 v2
     get_0x_quote_v2_permit2,
-    execute_0x_swap_v2_permit2
+    execute_0x_swap_v2_permit2,
+
+    # ФУНКЦИЯ, ДОБАВЛЕННАЯ ДЛЯ ETH->WETH:
+    deposit_eth_to_weth,
 )
 from best_setup_voting import send_token_reward as voting_send_token_reward
 
@@ -71,14 +72,12 @@ def generate_unique_wallet_route():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/generate_unique_wallet_page', methods=['GET'])
 def generate_unique_wallet_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите.', 'warning')
         return redirect(url_for('login'))
     return render_template('generate_unique_wallet.html')
-
 
 @staking_bp.route('/deposit', methods=['GET'])
 def deposit_page():
@@ -97,7 +96,6 @@ def deposit_page():
 
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
 
-
 @staking_bp.route('/subscription', methods=['GET'])
 def subscription_page():
     if 'user_id' not in session:
@@ -114,7 +112,6 @@ def subscription_page():
         return redirect(url_for('staking_bp.generate_unique_wallet_page'))
 
     return render_template('subscription.html', user=user)
-
 
 @staking_bp.route('/confirm', methods=['POST'])
 def confirm_staking():
@@ -148,7 +145,6 @@ def confirm_staking():
         logger.error(f"Ошибка confirm_staking: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/api/get_user_stakes', methods=['GET'])
 def get_user_stakes():
     if 'user_id' not in session:
@@ -174,7 +170,6 @@ def get_user_stakes():
         logger.error("Ошибка get_user_stakes", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/api/get_balances', methods=['GET'])
 def get_balances_route():
     if 'user_id' not in session:
@@ -189,12 +184,14 @@ def get_balances_route():
         return jsonify({"error": result["error"]}), 500
     return jsonify(result), 200
 
-
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
     """
     Обмен токенов (ETH/WETH/UJO) без ручного approve, т.к. 
     приватный ключ кошелька хранится в нашем бэкенде.
+    
+    Если from_token=ETH => сначала делаем deposit_eth_to_weth, 
+    чтобы получить WETH, и уже WETH меняем на to_token.
     """
     try:
         csrf_token = request.headers.get('X-CSRFToken')
@@ -219,7 +216,7 @@ def exchange_tokens():
 
         try:
             from_amount = float(from_amount)
-            if from_amount<=0:
+            if from_amount <= 0:
                 raise ValueError
         except:
             return jsonify({"error": "Invalid from_amount."}), 400
@@ -227,63 +224,77 @@ def exchange_tokens():
         user_addr = user.unique_wallet_address
         user_pk   = user.unique_private_key
 
-        # Special case: WETH->UJO (старый демо-обмен 1:10)
-        if from_token.upper()=="WETH" and to_token.upper()=="UJO":
+        # Special case 1: WETH->UJO (старый демо-обмен 1:10)
+        if from_token.upper() == "WETH" and to_token.upper() == "UJO":
             logger.info(f"[exchange_tokens] user {user.id}: WETH->UJO, amount={from_amount}")
             ok = exchange_weth_to_ujo(user_addr, from_amount)
             if ok:
                 # 1 WETH=10 UJO
-                ujo_received = from_amount*10
+                ujo_received = from_amount * 10
                 return jsonify({"status":"success", "ujo_received":ujo_received}), 200
             else:
                 return jsonify({"error":"Exchange failed."}), 400
 
-        # Иначе используем 0x /swap/permit2/quote (v2)
-        # 1) chainId = web3.eth.chain_id (Base=8453)
+        # Special case 2: ETH -> WETH => then 0x swap WETH-> to_token
+        if from_token.upper() == "ETH":
+            # 1) Делаем deposit_eth_to_weth(...)
+            logger.info(f"[exchange_tokens] user {user.id}: ETH->WETH deposit, amount={from_amount}")
+            ok_deposit = deposit_eth_to_weth(user_pk, user_addr, from_amount)
+            if not ok_deposit:
+                return jsonify({"error":"Failed to wrap ETH to WETH. Possibly insufficient funds"}), 400
+
+            # Теперь у нас есть WETH (from_token="WETH") => меняем WETH-> to_token
+            from_token = "WETH"  # переопределяем
+            logger.info(f"[exchange_tokens] user {user.id}: now WETH-> {to_token}")
+
+        # Дальше идёт логика 0x swap
         chain_id = web3.eth.chain_id
 
-        # 2) Определяем sellToken / buyToken
         def to_0x_fmt(symbol:str)->str:
             if symbol.upper()=="ETH":
+                # тут не должно попадать, т.к. ETH мы уже «завернули» 
                 return "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
             elif symbol.upper()=="WETH":
                 return weth_contract.address
             elif symbol.upper()=="UJO":
                 return ujo_contract.address
             else:
-                # пользователь может ввести кастомный адрес
                 return symbol
 
-        sell_token_0x= to_0x_fmt(from_token)
-        buy_token_0x = to_0x_fmt(to_token)
+        sell_token_0x = to_0x_fmt(from_token)
+        buy_token_0x  = to_0x_fmt(to_token)
 
-        decimals=18  # ETH/WETH/UJO обычно 18
-        sell_amount_wei = int(from_amount*(10**decimals))
+        decimals = 18
+        sell_amount_wei = int(from_amount * (10 ** decimals))
 
-        # 3) Запрашиваем котировку
-        quote = get_0x_quote_v2_permit2(sell_token_0x,buy_token_0x,sell_amount_wei,user_addr,chain_id)
+        # Получаем котировку 0x
+        quote = get_0x_quote_v2_permit2(
+            sell_token_0x,
+            buy_token_0x,
+            sell_amount_wei,
+            user_addr,
+            chain_id
+        )
         if not quote or "transaction" not in quote:
             return jsonify({"error":"Failed to get 0x quote."}), 400
 
-        # 4) Выполняем swap
-        swap_ok= execute_0x_swap_v2_permit2(quote, user_pk)
+        # Выполняем swap
+        swap_ok = execute_0x_swap_v2_permit2(quote, user_pk)
         if not swap_ok:
             return jsonify({"error":"0x swap failed."}), 400
 
-        # 5) Смотрим, сколько куплено
-        buyAmount= 0.0
+        buyAmount = 0.0
         if "buyAmount" in quote:
-            buyAmount= float(quote["buyAmount"])/(10**decimals)
+            buyAmount = float(quote["buyAmount"]) / (10**decimals)
 
-        logger.info(f"[exchange_tokens] user {user.id}: {from_token}->{to_token} ok, buy~{buyAmount}")
-        return jsonify({"status":"success", "ujo_received":buyAmount}), 200
+        logger.info(f"[exchange_tokens] user {user.id}: {from_token} -> {to_token}, got ~{buyAmount}")
+        return jsonify({"status":"success","ujo_received":buyAmount}), 200
 
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
         logger.error(f"[exchange_tokens] exception: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
 
 @staking_bp.route('/api/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards_route():
@@ -332,7 +343,6 @@ def claim_staking_rewards_route():
     except:
         logger.error("claim_staking_rewards_route exception", exc_info=True)
         return jsonify({"error":"Internal server error."}),500
-
 
 @staking_bp.route('/api/unstake', methods=['POST'])
 def unstake_staking_route():
@@ -394,7 +404,6 @@ def unstake_staking_route():
     except Exception as e:
         logger.error(f"unstake error: {e}", exc_info=True)
         return jsonify({"error":"Internal server error."}),500
-
 
 @staking_bp.route('/api/stake_tokens', methods=['POST'])
 def stake_tokens():
@@ -461,7 +470,6 @@ def stake_tokens():
     except Exception as e:
         logger.error(f"stake_tokens error: {e}", exc_info=True)
         return jsonify({"error":"Internal server error."}),500
-
 
 @staking_bp.route('/api/withdraw_funds', methods=['POST'])
 def withdraw_funds():
