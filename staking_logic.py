@@ -334,10 +334,18 @@ def get_0x_quote_v2_permit2(
     chain_id: int = 8453
 ) -> dict:
     """
-    Получаем котировку 0x permit2 (v2) для сети Base, если ZEROX_API_KEY задан.
+    Получаем котировку 0x permit2 (v2) для сети Base.
     """
     if not ZEROX_API_KEY:
         logger.error("ZEROX_API_KEY отсутствует.")
+        return {}
+
+    # Проверка параметров
+    if not Web3.is_address(sell_token) or not Web3.is_address(buy_token):
+        logger.error("Некорректные адреса sell_token или buy_token.")
+        return {}
+    if sell_amount_wei <= 0:
+        logger.error("sell_amount_wei должно быть положительным.")
         return {}
 
     url = "https://api.0x.org/swap/permit2/quote"
@@ -352,71 +360,81 @@ def get_0x_quote_v2_permit2(
     try:
         resp = requests.get(url, params=params, headers=DEFAULT_0X_HEADERS, timeout=20)
         if resp.status_code != 200:
-            logger.error(f"get_0x_quote_v2_permit2 error: {resp.text}")
+            logger.error(f"Ошибка 0x API: {resp.status_code}, текст: {resp.text}")
             return {}
-        return resp.json()
-    except:
-        logger.error("get_0x_quote_v2_permit2 except", exc_info=True)
+        
+        data = resp.json()
+        if "transaction" not in data:
+            logger.error("Ответ 0x API не содержит поля 'transaction'.")
+            return {}
+        
+        return data
+    except Exception as e:
+        logger.error(f"Ошибка при вызове 0x API: {e}", exc_info=True)
         return {}
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
-    Выполняем транзакцию обмена (swap) 0x permit2 v2 с фиксированными низкими
-    значениями газов: maxPriorityFeePerGas=0.002 gwei, maxFeePerGas=0.04 gwei,
-    gas=200000 (по умолчанию из quote).
+    Выполняем транзакцию обмена (swap) 0x permit2 v2.
     """
     if not quote_json:
-        logger.error("execute_0x_swap_v2_permit2: quote_json пуст.")
+        logger.error("Пустой quote_json.")
         return False
 
+    # Проверка структуры quote_json
     tx_obj = quote_json.get("transaction", {})
-    to_addr  = tx_obj.get("to")
+    if not isinstance(tx_obj, dict):
+        logger.error("Поле 'transaction' в quote_json отсутствует или не является словарем.")
+        return False
+
+    to_addr = tx_obj.get("to")
     data_hex = tx_obj.get("data")
-    val_str  = tx_obj.get("value", "0")
-    gas_str  = tx_obj.get("gas", "200000")
-    gp_str   = tx_obj.get("gasPrice", f"{web3.eth.gas_price}")
+    val_str = tx_obj.get("value", "0")
+    gas_str = tx_obj.get("gas", "200000")
 
     if not to_addr or not data_hex:
-        logger.error("execute_0x_swap_v2_permit2: нет to/data.")
+        logger.error("Недостаточно данных для транзакции (нет 'to' или 'data').")
         return False
 
     try:
         val_i = int(val_str)
         gas_i = int(gas_str)
-        # base_gas_price = int(gp_str) # Можно игнорировать
-    except:
-        logger.error("execute_0x_swap_v2_permit2: parse value/gas/gasPrice fail.")
+    except ValueError:
+        logger.error("Ошибка преобразования 'value' или 'gas' в int.")
         return False
 
-    priority_wei = Web3.to_wei(0.002, 'gwei')
-    max_fee_wei  = Web3.to_wei(0.04, 'gwei')
+    # Проверка корректности адреса назначения
+    if not Web3.is_address(to_addr):
+        logger.error(f"Некорректный адрес назначения: {to_addr}")
+        return False
 
+    # Формирование транзакции
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
     tx = {
         "chainId": web3.eth.chain_id,
-        "nonce":   nonce,
-        "to":      Web3.to_checksum_address(to_addr),
-        "data":    data_hex,
-        "value":   val_i,
-        "gas":     gas_i,
-        "maxFeePerGas":          max_fee_wei,
-        "maxPriorityFeePerGas":  priority_wei,
+        "nonce": nonce,
+        "to": Web3.to_checksum_address(to_addr),
+        "data": data_hex,
+        "value": val_i,
+        "gas": gas_i,
+        "maxFeePerGas": Web3.to_wei(0.04, 'gwei'),
+        "maxPriorityFeePerGas": Web3.to_wei(0.002, 'gwei'),
     }
 
     try:
         signed_tx = acct.sign_transaction(tx)
-        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
         if receipt.status == 1:
-            logger.info(f"execute_0x_swap_v2_permit2 success, tx={tx_hash.hex()}")
+            logger.info(f"Транзакция выполнена успешно, tx={tx_hash.hex()}")
             return True
         else:
-            logger.error(f"execute_0x_swap_v2_permit2 fail, tx={tx_hash.hex()}")
+            logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
             return False
-    except:
-        logger.error("execute_0x_swap_v2_permit2 except", exc_info=True)
+    except Exception as e:
+        logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
         return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
