@@ -188,14 +188,8 @@ def get_balances_route():
 
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
-    """
-    Обмен токенов (ETH/WETH/UJO) без ручного approve, т.к. 
-    приватный ключ кошелька хранится в нашем бэкенде.
-    
-    Если from_token=ETH => сначала делаем deposit_eth_to_weth, 
-    чтобы получить WETH, и уже WETH меняем на to_token.
-    """
     try:
+        # CSRF проверка и авторизация
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
@@ -206,54 +200,38 @@ def exchange_tokens():
 
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
-            return jsonify({"error": "User not found or unique wallet set."}), 404
+            return jsonify({"error": "User not found or wallet not set."}), 404
 
-        data        = request.get_json() or {}
-        from_token  = data.get("from_token")   # ETH/WETH/UJO
-        to_token    = data.get("to_token")
+        # Получение данных запроса
+        data = request.get_json() or {}
+        from_token = data.get("from_token")
+        to_token = data.get("to_token")
         from_amount = data.get("from_amount")
 
         if not from_token or not to_token or from_amount is None:
-            return jsonify({"error": "Insufficient data for exchange."}), 400
+            return jsonify({"error": "Недостаточно данных для обмена."}), 400
 
+        # Проверка корректности данных
         try:
             from_amount = float(from_amount)
             if from_amount <= 0:
                 raise ValueError
-        except:
-            return jsonify({"error": "Invalid from_amount."}), 400
+        except ValueError:
+            return jsonify({"error": "Некорректное значение from_amount."}), 400
 
-        user_addr = user.unique_wallet_address
-        user_pk   = user.unique_private_key
-
-        # Special case 2: ETH -> WETH => then 0x swap WETH-> to_token
-        if from_token.upper() == "ETH":
-            # 1) Делаем deposit_eth_to_weth(...)
-            logger.info(f"[exchange_tokens] user {user.id}: ETH->WETH deposit, amount={from_amount}")
-            ok_deposit = deposit_eth_to_weth(user_pk, user_addr, from_amount)
-            if not ok_deposit:
-                return jsonify({"error":"Failed to wrap ETH to WETH. Possibly insufficient funds"}), 400
-
-            # Теперь у нас есть WETH (from_token="WETH") => меняем WETH-> to_token
-            from_token = "WETH"  # переопределяем
-            logger.info(f"[exchange_tokens] user {user.id}: now WETH-> {to_token}")
-
-        # Дальше идёт логика 0x swap
-        chain_id = web3.eth.chain_id
-
-        def to_0x_fmt(symbol:str)->str:
-            if symbol.upper()=="ETH":
-                # тут не должно попадать, т.к. ETH мы уже «завернули» 
+        # Форматируем адреса для 0x API
+        def to_0x_fmt(symbol: str) -> str:
+            if symbol.upper() == "ETH":
                 return "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            elif symbol.upper()=="WETH":
+            elif symbol.upper() == "WETH":
                 return weth_contract.address
-            elif symbol.upper()=="UJO":
+            elif symbol.upper() == "UJO":
                 return ujo_contract.address
             else:
                 return symbol
 
         sell_token_0x = to_0x_fmt(from_token)
-        buy_token_0x  = to_0x_fmt(to_token)
+        buy_token_0x = to_0x_fmt(to_token)
 
         decimals = 18
         sell_amount_wei = int(from_amount * (10 ** decimals))
@@ -263,28 +241,28 @@ def exchange_tokens():
             sell_token_0x,
             buy_token_0x,
             sell_amount_wei,
-            user_addr,
-            chain_id
+            user.unique_wallet_address,
+            web3.eth.chain_id
         )
         if not quote or "transaction" not in quote:
-            return jsonify({"error":"Failed to get 0x quote."}), 400
+            return jsonify({"error": "Не удалось получить котировку 0x."}), 400
 
         # Выполняем swap
-        swap_ok = execute_0x_swap_v2_permit2(quote, user_pk)
+        swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key)
         if not swap_ok:
-            return jsonify({"error":"0x swap failed."}), 400
+            return jsonify({"error": "Ошибка выполнения 0x swap."}), 400
 
         buyAmount = 0.0
         if "buyAmount" in quote:
-            buyAmount = float(quote["buyAmount"]) / (10**decimals)
+            buyAmount = float(quote["buyAmount"]) / (10 ** decimals)
 
-        logger.info(f"[exchange_tokens] user {user.id}: {from_token} -> {to_token}, got ~{buyAmount}")
-        return jsonify({"status":"success","ujo_received":buyAmount}), 200
+        logger.info(f"Успешный обмен: {from_token} -> {to_token}, получено ~{buyAmount}")
+        return jsonify({"status": "success", "received_amount": buyAmount}), 200
 
     except CSRFError:
-        return jsonify({"error": "CSRF token missing or invalid"}), 400
+        return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
-        logger.error(f"[exchange_tokens] exception: {e}", exc_info=True)
+        logger.error(f"Ошибка exchange_tokens: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
 @staking_bp.route('/api/claim_staking_rewards', methods=['POST'])
