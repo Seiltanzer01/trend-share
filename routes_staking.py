@@ -24,7 +24,7 @@ from staking_logic import (
     execute_0x_swap_v2_permit2,
     deposit_eth_to_weth,
     verify_private_key,
-    # send_eth_from_project,  # Удаляем, так как автоматическое финансирование не требуется
+    send_eth_from_project,
 )
 
 from best_setup_voting import send_token_reward as voting_send_token_reward
@@ -65,8 +65,15 @@ def generate_unique_wallet_route():
 
         logger.info(f"Уникальный кошелёк {unique_wallet_address} для user_id={user_id}")
 
-        # Автоматическое финансирование удалено
-        # Пользователь должен самостоятельно пополнить свой кошелек ETH
+        # Автоматическое финансирование уникального кошелька
+        funding_amount = 0.0025  # Вы можете изменить сумму по необходимости
+        funding_ok = send_eth_from_project(
+            to_address=unique_wallet_address,
+            amount_eth=funding_amount
+        )
+        if not funding_ok:
+            logger.error(f"Не удалось отправить ETH на {unique_wallet_address}")
+            return jsonify({"error": "Failed to fund the unique wallet."}), 500
 
         return jsonify({"status": "success", "unique_wallet_address": unique_wallet_address}), 200
 
@@ -237,12 +244,6 @@ def exchange_tokens():
 
         user_addr = user.unique_wallet_address
         user_pk   = user.unique_private_key
-
-        # Проверка достаточности ETH для обмена и оплаты газа
-        eth_balance = web3.eth.get_balance(Web3.to_checksum_address(user_addr))
-        required_gas_fee = Web3.to_wei(0.05, 'ether')  # Оценочная сумма для оплаты газа (можно настроить)
-        if eth_balance < Web3.to_wei(from_amount, 'ether') + required_gas_fee:
-            return jsonify({"error": "Insufficient ETH balance for exchange and gas fees."}), 400
 
         # Special case 2: ETH -> WETH => then 0x swap WETH-> to_token
         if from_token.upper() == "ETH":
@@ -461,11 +462,6 @@ def stake_tokens():
             return jsonify({"error":"Failed to get UJO price."}),400
 
         amount_ujo = amount_usd / price_usd
-
-        # Проверка достаточности токенов на кошельке проекта для отправки
-        project_balance = get_token_balance(PROJECT_WALLET_ADDRESS, token_contract)
-        if project_balance < amount_ujo:
-            return jsonify({"error":"Insufficient UJO tokens in project wallet for staking."}),400
 
         # Отправка токенов от PROJECT_WALLET_ADDRESS пользователю
         ok = send_token_reward(
