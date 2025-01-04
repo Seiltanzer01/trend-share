@@ -435,13 +435,14 @@ def set_allowance(user_private_key: str, spender: str, amount: int, token_addres
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
-    Выполняет транзакцию обмена (swap) 0x permit2 v2.
+    Выполняем транзакцию обмена (swap) 0x permit2 v2 с корректными значениями газа.
     """
     if not quote_json:
         logger.error("Пустой quote_json.")
         return False
 
     try:
+        # Логирование полного quote_json
         import json
         logger.info(f"Полный quote_json: {json.dumps(quote_json, indent=2)}")
     except Exception as e:
@@ -452,7 +453,13 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("Поле 'transaction' в quote_json отсутствует или не является словарем.")
         return False
 
-    to_addr = tx_obj.get("to")
+    # Извлечение параметров транзакции
+    try:
+        to_addr = Web3.to_checksum_address(tx_obj.get("to"))
+    except Exception as e:
+        logger.error(f"Некорректный адрес назначения: {tx_obj.get('to')}")
+        return False
+
     data_hex = tx_obj.get("data")
     val_str = tx_obj.get("value", "0")
     gas_limit = tx_obj.get("gas", None)
@@ -467,37 +474,34 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("Ошибка преобразования 'value' в int.")
         return False
 
-    if not Web3.is_address(to_addr):
-        logger.error(f"Некорректный адрес назначения: {to_addr}")
-        return False
-
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-    # Проверяем и устанавливаем allowance
-    spender = tx_obj.get("spender", to_addr)
-    sell_token = quote_json.get("sellToken")
-    sell_amount = int(quote_json.get("sellAmount", "0"))
-
-    token_contract = web3.eth.contract(
-        address=Web3.to_checksum_address(sell_token), abi=ERC20_ABI
-    )
-    
+    # Проверка и установка allowance
     try:
-        allowance = token_contract.functions.allowance(acct.address, spender).call()
-        if allowance < sell_amount:
-            logger.info(f"Недостаточно allowance: {allowance}. Устанавливаем новый allowance.")
-            if not set_allowance(private_key, spender, sell_amount, sell_token):
-                logger.error("Не удалось установить allowance.")
-                return False
+        spender = Web3.to_checksum_address(tx_obj.get("spender", to_addr))
+        sell_token = Web3.to_checksum_address(quote_json.get("sellToken"))
     except Exception as e:
-        logger.error(f"Ошибка проверки или установки allowance: {e}", exc_info=True)
+        logger.error(f"Некорректный адрес sell_token или spender: {e}")
         return False
 
-    # Проверка баланса
+    sell_amount = int(quote_json.get("sellAmount", "0"))
+    try:
+        allowance = token_contract.functions.allowance(acct.address, spender).call()
+    except Exception as e:
+        logger.error(f"Ошибка вызова allowance: {e}")
+        return False
+
+    if allowance < sell_amount:
+        logger.info(f"Недостаточно allowance: {allowance}. Устанавливаем новый allowance.")
+        allowance_set = set_allowance(private_key, spender, sell_amount, sell_token)
+        if not allowance_set:
+            logger.error("Не удалось установить allowance.")
+            return False
+
+    # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
     gas_price = int(web3.eth.gas_price)
-
     if sender_balance < value + gas_price * (gas_limit or 21000):
         logger.error(
             f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
@@ -509,15 +513,15 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     try:
         estimated_gas = web3.eth.estimate_gas({
             "from": acct.address,
-            "to": Web3.to_checksum_address(to_addr),
+            "to": to_addr,
             "data": data_hex,
             "value": value,
         })
-        gas_limit = gas_limit or estimated_gas
     except Exception as e:
         logger.error(f"Не удалось оценить газ: {e}", exc_info=True)
         return False
 
+    gas_limit = gas_limit or estimated_gas
     logger.info(f"Оценка газа: {gas_limit}")
 
     # Устанавливаем параметры газа
@@ -527,7 +531,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     tx = {
         "chainId": web3.eth.chain_id,
         "nonce": nonce,
-        "to": Web3.to_checksum_address(to_addr),
+        "to": to_addr,
         "data": data_hex,
         "value": value,
         "gas": gas_limit,
@@ -535,7 +539,6 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
     }
 
-    # Подписание и отправка транзакции
     try:
         signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
