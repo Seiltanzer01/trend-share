@@ -374,9 +374,6 @@ def get_0x_quote_v2_permit2(
         return {}
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
-    """
-    Выполняем транзакцию обмена (swap) 0x permit2 v2.
-    """
     if not quote_json:
         logger.error("Пустой quote_json.")
         return False
@@ -408,25 +405,30 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error(f"Некорректный адрес назначения: {to_addr}")
         return False
 
-    # Формирование транзакции
     acct = Account.from_key(private_key)
-    nonce = web3.eth.get_transaction_count(acct.address, 'pending')
-
-    tx = {
-        "chainId": web3.eth.chain_id,
-        "nonce": nonce,
-        "to": Web3.to_checksum_address(to_addr),
-        "data": data_hex,
-        "value": val_i,
-        "gas": gas_i,
-        "maxFeePerGas": Web3.to_wei(0.04, 'gwei'),
-        "maxPriorityFeePerGas": Web3.to_wei(0.002, 'gwei'),
-    }
-
     try:
+        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
+        current_gas_price = web3.eth.gas_price
+
+        # Увеличиваем цену газа для предотвращения ошибки "replacement transaction underpriced"
+        maxFeePerGas = max(current_gas_price * 1.5, Web3.to_wei(2, 'gwei'))
+        maxPriorityFeePerGas = max(current_gas_price * 0.2, Web3.to_wei(0.5, 'gwei'))
+
+        tx = {
+            "chainId": web3.eth.chain_id,
+            "nonce": nonce,
+            "to": Web3.to_checksum_address(to_addr),
+            "data": data_hex,
+            "value": val_i,
+            "gas": gas_i,
+            "maxFeePerGas": int(maxFeePerGas),
+            "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
+        }
+
         signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+
         if receipt.status == 1:
             logger.info(f"Транзакция выполнена успешно, tx={tx_hash.hex()}")
             return True
