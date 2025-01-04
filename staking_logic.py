@@ -383,11 +383,19 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("Пустой quote_json.")
         return False
 
+    try:
+        # Логирование полного quote_json
+        import json
+        logger.info(f"Полный quote_json: {json.dumps(quote_json, indent=2)}")
+    except Exception as e:
+        logger.error(f"Ошибка логирования quote_json: {e}", exc_info=True)
+
     tx_obj = quote_json.get("transaction", {})
     if not isinstance(tx_obj, dict):
         logger.error("Поле 'transaction' в quote_json отсутствует или не является словарем.")
         return False
 
+    # Извлечение параметров транзакции
     to_addr = tx_obj.get("to")
     data_hex = tx_obj.get("data")
     val_str = tx_obj.get("value", "0")
@@ -413,7 +421,10 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
     if sender_balance < value + web3.eth.gas_price * (gas_limit or 21000):
-        logger.error(f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, необходимая сумма: {value + web3.eth.gas_price * (gas_limit or 21000)}")
+        logger.error(
+            f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
+            f"необходимая сумма: {value + web3.eth.gas_price * (gas_limit or 21000)}"
+        )
         return False
 
     # Оценка газа
