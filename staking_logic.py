@@ -375,6 +375,40 @@ def get_0x_quote_v2_permit2(
         logger.error(f"Ошибка при вызове 0x API: {e}", exc_info=True)
         return {}
 
+def set_allowance(user_private_key: str, spender: str, amount: int, token_address: str) -> bool:
+    """
+    Устанавливает разрешение (`approve`) для `spender` на использование `amount` токенов.
+    """
+    try:
+        acct = Account.from_key(user_private_key)
+        token_contract = web3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
+        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
+
+        tx = token_contract.functions.approve(
+            Web3.to_checksum_address(spender),
+            amount
+        ).build_transaction({
+            "chainId": web3.eth.chain_id,
+            "nonce": nonce,
+            "gas": 50000,
+            "maxFeePerGas": web3.eth.gas_price,
+            "maxPriorityFeePerGas": Web3.to_wei(2, 'gwei'),
+        })
+
+        signed_tx = acct.sign_transaction(tx)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+
+        if receipt.status == 1:
+            logger.info(f"Разрешение (approve) успешно установлено: {amount} токенов для {spender}, tx={tx_hash.hex()}")
+            return True
+        else:
+            logger.error(f"Ошибка установки разрешения (approve), tx={tx_hash.hex()}")
+            return False
+    except Exception as e:
+        logger.error(f"Ошибка выполнения approve: {e}", exc_info=True)
+        return False
+
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
     Выполняем транзакцию обмена (swap) 0x permit2 v2 с корректными значениями газа.
@@ -418,14 +452,28 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
+    # Проверка и установка allowance
+    spender = tx_obj.get("spender", to_addr)
+    sell_token = quote_json.get("sellToken")
+    sell_amount = int(quote_json.get("sellAmount", "0"))
+    allowance = token_contract.functions.allowance(acct.address, spender).call()
+
+    if allowance < sell_amount:
+        logger.info(f"Недостаточно allowance: {allowance}. Устанавливаем новый allowance.")
+        allowance_set = set_allowance(private_key, spender, sell_amount, sell_token)
+        if not allowance_set:
+            logger.error("Не удалось установить allowance.")
+            return False
+
     # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
-if sender_balance < int(value) + int(web3.eth.gas_price) * (gas_limit or 21000):
-    logger.error(
-        f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
-        f"необходимая сумма: {int(value) + int(web3.eth.gas_price) * (gas_limit or 21000)}"
-    )
-    return False
+    gas_price = int(web3.eth.gas_price)
+    if sender_balance < value + gas_price * (gas_limit or 21000):
+        logger.error(
+            f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
+            f"необходимая сумма: {value + gas_price * (gas_limit or 21000)}"
+        )
+        return False
 
     # Оценка газа
     try:
@@ -443,9 +491,8 @@ if sender_balance < int(value) + int(web3.eth.gas_price) * (gas_limit or 21000):
     logger.info(f"Оценка газа: {gas_limit}")
 
     # Устанавливаем параметры газа
-    base_gas_price = web3.eth.gas_price
-    maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), base_gas_price // 2)
-    maxFeePerGas = base_gas_price + maxPriorityFeePerGas
+    maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), gas_price // 2)
+    maxFeePerGas = gas_price + maxPriorityFeePerGas
 
     tx = {
         "chainId": web3.eth.chain_id,
