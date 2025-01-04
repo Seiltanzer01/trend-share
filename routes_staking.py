@@ -245,16 +245,23 @@ def exchange_tokens():
             web3.eth.chain_id
         )
         if not quote or "transaction" not in quote:
+            logger.error(f"Не удалось получить котировку 0x: {quote}")
             return jsonify({"error": "Не удалось получить котировку 0x."}), 400
 
         # Выполняем swap
         swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key)
         if not swap_ok:
+            logger.error("Ошибка выполнения 0x swap.")
             return jsonify({"error": "Ошибка выполнения 0x swap."}), 400
 
+        # Проверяем buyAmount
         buyAmount = 0.0
         if "buyAmount" in quote:
-            buyAmount = float(quote["buyAmount"]) / (10 ** decimals)
+            try:
+                buyAmount = float(quote["buyAmount"]) / (10 ** decimals)
+            except ValueError:
+                logger.error(f"Некорректное значение buyAmount в котировке: {quote.get('buyAmount')}")
+                return jsonify({"error": "Некорректное значение buyAmount."}), 400
 
         logger.info(f"Успешный обмен: {from_token} -> {to_token}, получено ~{buyAmount}")
         return jsonify({"status": "success", "received_amount": buyAmount}), 200
@@ -264,7 +271,7 @@ def exchange_tokens():
     except Exception as e:
         logger.error(f"Ошибка exchange_tokens: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
+        
 @staking_bp.route('/api/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards_route():
     try:
