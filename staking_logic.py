@@ -153,10 +153,6 @@ def send_token_reward(
     from_address: str = PROJECT_WALLET_ADDRESS,
     private_key: str = None
 ) -> bool:
-    """
-    Отправляет токены UJO (ERC-20) с фиксированными низкими комиссиями:
-    maxPriorityFeePerGas=0.002 gwei, maxFeePerGas=0.04 gwei, gas=50000.
-    """
     try:
         if private_key:
             acct = Account.from_key(private_key)
@@ -170,8 +166,9 @@ def send_token_reward(
         decimals = token_contract.functions.decimals().call()
         amt_wei = int(amount * (10 ** decimals))
 
-        priority_wei = Web3.to_wei(0.002, 'gwei')  # 0.002 gwei
-        max_fee_wei  = Web3.to_wei(0.04, 'gwei')   # 0.04 gwei
+        base_gas_price = web3.eth.gas_price
+        maxFeePerGas = base_gas_price
+        maxPriorityFeePerGas = Web3.to_wei(0.5, 'gwei')  # Минимальный приритетный газ
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
@@ -180,13 +177,13 @@ def send_token_reward(
             "chainId":  web3.eth.chain_id,
             "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
             "gas":      50000,
-            "maxFeePerGas": max_fee_wei,
-            "maxPriorityFeePerGas": priority_wei,
+            "maxFeePerGas": int(maxFeePerGas),
+            "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
             "value": 0
         })
         signed_tx = acct.sign_transaction(tx)
-        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
 
         if receipt.status == 1:
             logger.info(f"send_token_reward: {amount} UJO -> {to_address}, tx={tx_hash.hex()}")
@@ -194,7 +191,12 @@ def send_token_reward(
         else:
             logger.error(f"send_token_reward fail: {tx_hash.hex()}")
             return False
-    except:
+    except Exception as e:
+        if "replacement transaction underpriced" in str(e):
+            logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
+            base_gas_price *= 1.1
+            maxPriorityFeePerGas *= 1.1
+            return send_token_reward(to_address, amount, from_address, private_key)
         logger.error("send_token_reward except", exc_info=True)
         return False
 
