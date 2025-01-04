@@ -374,11 +374,13 @@ def get_0x_quote_v2_permit2(
         return {}
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
+    """
+    Выполняем транзакцию обмена (swap) 0x permit2 v2 с минимально возможными комиссиями.
+    """
     if not quote_json:
         logger.error("Пустой quote_json.")
         return False
 
-    # Проверка структуры quote_json
     tx_obj = quote_json.get("transaction", {})
     if not isinstance(tx_obj, dict):
         logger.error("Поле 'transaction' в quote_json отсутствует или не является словарем.")
@@ -400,31 +402,32 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error("Ошибка преобразования 'value' или 'gas' в int.")
         return False
 
-    # Проверка корректности адреса назначения
     if not Web3.is_address(to_addr):
         logger.error(f"Некорректный адрес назначения: {to_addr}")
         return False
 
     acct = Account.from_key(private_key)
+    nonce = web3.eth.get_transaction_count(acct.address, 'pending')
+
+    # Устанавливаем минимальные значения газа
+    base_gas_price = web3.eth.gas_price
+    maxFeePerGas = base_gas_price
+    maxPriorityFeePerGas = Web3.to_wei(0.3, 'gwei')  # Минимальный приритетный газ
+
+    logger.info(f"Отправка транзакции с gas_price: {base_gas_price}, nonce: {nonce}")
+
+    tx = {
+        "chainId": web3.eth.chain_id,
+        "nonce": nonce,
+        "to": Web3.to_checksum_address(to_addr),
+        "data": data_hex,
+        "value": val_i,
+        "gas": gas_i,
+        "maxFeePerGas": int(maxFeePerGas),
+        "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
+    }
+
     try:
-        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
-        current_gas_price = web3.eth.gas_price
-
-        # Увеличиваем цену газа для предотвращения ошибки "replacement transaction underpriced"
-        maxFeePerGas = max(current_gas_price * 1.5, Web3.to_wei(2, 'gwei'))
-        maxPriorityFeePerGas = max(current_gas_price * 0.2, Web3.to_wei(0.5, 'gwei'))
-
-        tx = {
-            "chainId": web3.eth.chain_id,
-            "nonce": nonce,
-            "to": Web3.to_checksum_address(to_addr),
-            "data": data_hex,
-            "value": val_i,
-            "gas": gas_i,
-            "maxFeePerGas": int(maxFeePerGas),
-            "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
-        }
-
         signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
@@ -436,6 +439,12 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
             return False
     except Exception as e:
+        # Проверяем тип ошибки
+        if "replacement transaction underpriced" in str(e):
+            logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
+            maxFeePerGas *= 1.1  # Увеличиваем цену газа на 10%
+            maxPriorityFeePerGas *= 1.1
+            return execute_0x_swap_v2_permit2(quote_json, private_key)  # Повторная попытка
         logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
         return False
 
