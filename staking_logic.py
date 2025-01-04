@@ -420,12 +420,12 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
-    if sender_balance < value + web3.eth.gas_price * (gas_limit or 21000):
-        logger.error(
-            f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
-            f"необходимая сумма: {value + web3.eth.gas_price * (gas_limit or 21000)}"
-        )
-        return False
+if sender_balance < int(value) + int(web3.eth.gas_price) * (gas_limit or 21000):
+    logger.error(
+        f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
+        f"необходимая сумма: {int(value) + int(web3.eth.gas_price) * (gas_limit or 21000)}"
+    )
+    return False
 
     # Оценка газа
     try:
