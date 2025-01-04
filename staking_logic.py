@@ -377,7 +377,7 @@ def get_0x_quote_v2_permit2(
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
-    Выполняем транзакцию обмена (swap) 0x permit2 v2 с минимально возможными комиссиями.
+    Выполняем транзакцию обмена (swap) 0x permit2 v2 с корректными значениями газа.
     """
     if not quote_json:
         logger.error("Пустой quote_json.")
@@ -411,12 +411,12 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-    # Устанавливаем минимальные значения газа
+    # Устанавливаем корректные значения газа
     base_gas_price = web3.eth.gas_price
-    maxFeePerGas = base_gas_price
-    maxPriorityFeePerGas = Web3.to_wei(0.3, 'gwei')  # Минимальный приритетный газ
+    maxPriorityFeePerGas = min(Web3.to_wei(1, 'gwei'), base_gas_price // 2)  # Лимитируем приритетный газ
+    maxFeePerGas = maxPriorityFeePerGas + base_gas_price  # Общий максимум
 
-    logger.info(f"Отправка транзакции с gas_price: {base_gas_price}, nonce: {nonce}")
+    logger.info(f"Отправка транзакции с base_gas_price: {base_gas_price}, nonce: {nonce}")
 
     tx = {
         "chainId": web3.eth.chain_id,
@@ -441,12 +441,9 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
             return False
     except Exception as e:
-        # Проверяем тип ошибки
         if "replacement transaction underpriced" in str(e):
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
-            maxFeePerGas *= 1.1  # Увеличиваем цену газа на 10%
-            maxPriorityFeePerGas *= 1.1
-            return execute_0x_swap_v2_permit2(quote_json, private_key)  # Повторная попытка
+            return execute_0x_swap_v2_permit2(quote_json, private_key)
         logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
         return False
 
