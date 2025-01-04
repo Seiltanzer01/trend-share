@@ -392,6 +392,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     data_hex = tx_obj.get("data")
     val_str = tx_obj.get("value", "0")
     gas_str = tx_obj.get("gas", "200000")
+    gas_price_str = tx_obj.get("gasPrice", None)
 
     if not to_addr or not data_hex:
         logger.error("Недостаточно данных для транзакции (нет 'to' или 'data').")
@@ -400,8 +401,9 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     try:
         val_i = int(val_str)
         gas_i = int(gas_str)
+        gas_price = int(gas_price_str) if gas_price_str else web3.eth.gas_price
     except ValueError:
-        logger.error("Ошибка преобразования 'value' или 'gas' в int.")
+        logger.error("Ошибка преобразования 'value', 'gas' или 'gasPrice' в int.")
         return False
 
     if not Web3.is_address(to_addr):
@@ -413,8 +415,8 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     # Устанавливаем корректные значения газа
     base_gas_price = web3.eth.gas_price
-    maxPriorityFeePerGas = min(Web3.to_wei(1, 'gwei'), base_gas_price // 2)  # Лимитируем приритетный газ
-    maxFeePerGas = maxPriorityFeePerGas + base_gas_price  # Общий максимум
+    maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), base_gas_price // 2)  # Лимитируем приритетный газ
+    maxFeePerGas = base_gas_price + maxPriorityFeePerGas  # Общий максимум для EIP-1559
 
     logger.info(f"Отправка транзакции с base_gas_price: {base_gas_price}, nonce: {nonce}")
 
@@ -443,10 +445,11 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     except Exception as e:
         if "replacement transaction underpriced" in str(e):
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
+            tx["gasPrice"] = gas_price * 1.2
             return execute_0x_swap_v2_permit2(quote_json, private_key)
         logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
         return False
-
+        
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
     Если транзакция >=25$ => создаём запись в UserStaking + assistant_premium = True.
