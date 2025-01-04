@@ -408,6 +408,11 @@ def set_allowance(user_private_key: str, spender: str, amount: int, token_addres
         token_contract = web3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
+        # Корректный расчет газа
+        gas_price = web3.eth.gas_price
+        maxPriorityFeePerGas = Web3.to_wei(1, 'gwei')  # Минимальная приоритетная комиссия
+        maxFeePerGas = gas_price + maxPriorityFeePerGas
+
         tx = token_contract.functions.approve(
             Web3.to_checksum_address(spender),
             amount
@@ -415,8 +420,8 @@ def set_allowance(user_private_key: str, spender: str, amount: int, token_addres
             "chainId": web3.eth.chain_id,
             "nonce": nonce,
             "gas": 50000,
-            "maxFeePerGas": web3.eth.gas_price,
-            "maxPriorityFeePerGas": Web3.to_wei(2, 'gwei'),
+            "maxFeePerGas": int(maxFeePerGas),
+            "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
         })
 
         signed_tx = acct.sign_transaction(tx)
