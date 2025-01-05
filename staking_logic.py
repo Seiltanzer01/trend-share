@@ -431,58 +431,61 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         return False
 
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
-    """
-    Обмен токенов через Uniswap v3 exactInputSingle.
-    """
     try:
         acct = Account.from_key(user_private_key)
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
-
         decimals = from_token_contract.functions.decimals().call()
         amount_in = int(amount * (10 ** decimals))
 
-        # Установить параметры транзакции
         params = {
             "tokenIn": from_token,
             "tokenOut": to_token,
-            "fee": 3000,  # Используем пул с 0.3% комиссией
+            "fee": 3000,
             "recipient": acct.address,
-            "deadline": int(datetime.utcnow().timestamp()) + 60 * 20,  # 20 минут
+            "deadline": int(datetime.utcnow().timestamp()) + 60 * 20,
             "amountIn": amount_in,
-            "amountOutMinimum": 1,  # Устанавливаем минимальный выход для защиты
-            "sqrtPriceLimitX96": 0  # Без ограничения цены
+            "amountOutMinimum": 0,
+            "sqrtPriceLimitX96": 0
         }
 
-        # Проверить и установить allowance, если требуется
         allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
         if allowance < amount_in:
-            logger.info(f"Недостаточный allowance для {from_token}, выполняется одобрение.")
             approved = approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in)
             if not approved:
-                logger.error("Ошибка при выполнении approve.")
                 return False
 
-        # Построить и отправить транзакцию
         gas_price = web3.eth.gas_price
-        gas_limit = 300000  # Увеличиваем лимит газа
+        gas_limit = 300000
 
         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
             "gas": gas_limit,
             "gasPrice": gas_price,
-            "value": 0  # Для обмена ERC-20 токенов
+            "value": 0
         })
 
         signed_tx = acct.sign_transaction(swap_tx)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+
+        # Попробуйте отправить транзакцию
+        try:
+            tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        except ValueError as e:
+            if "replacement transaction underpriced" in str(e):
+                gas_price = int(gas_price * 1.2)  # Увеличиваем gas_price на 20%
+                swap_tx["gasPrice"] = gas_price
+                signed_tx = acct.sign_transaction(swap_tx)
+                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            else:
+                raise e
+
         receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
 
         if receipt.status == 1:
-            logger.info(f"Успешный обмен: tx_hash={tx_hash.hex()}")
+            logger.info(f"swap_tokens_via_uniswap_v3: Обмен успешно выполнен, tx={tx_hash.hex()}")
             return True
         else:
-            logger.error(f"Ошибка выполнения транзакции обмена: tx_hash={tx_hash.hex()}")
+            logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
             return False
 
     except Exception as e:
