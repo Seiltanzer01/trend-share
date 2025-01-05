@@ -17,8 +17,11 @@ from staking_logic import (
     token_contract,
     weth_contract,
     ujo_contract,
-    UJO_CONTRACT_ADDRESS,          # Добавлен импорт UJO_CONTRACT_ADDRESS
-    PROJECT_WALLET_ADDRESS,        # Теперь берётся из MY_WALLET_ADDRESS
+    UJO_CONTRACT_ADDRESS,          # Импорт UJO_CONTRACT_ADDRESS
+    TOKEN_CONTRACT_ADDRESS,        # Импорт TOKEN_CONTRACT_ADDRESS
+    WETH_CONTRACT_ADDRESS,         # Импорт WETH_CONTRACT_ADDRESS
+    PROJECT_WALLET_ADDRESS,        # Импорт PROJECT_WALLET_ADDRESS
+    ERC20_ABI,                     # Импорт ERC20_ABI
     get_balances,
     generate_unique_wallet,
     send_token_reward,
