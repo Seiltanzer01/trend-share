@@ -2,7 +2,6 @@
 
 import os
 import logging
-import traceback
 from datetime import datetime, timedelta
 import requests
 import secrets
@@ -184,6 +183,9 @@ swap_contract = web3.eth.contract(
 
 # 0x Swap v2 (permit2)
 ZEROX_API_KEY = os.environ.get("ZEROX_API_KEY", "")
+if not ZEROX_API_KEY:
+    logger.error("ZEROX_API_KEY не задан.")
+    raise ValueError("ZEROX_API_KEY не задан.")
 DEFAULT_0X_HEADERS = {
     "0x-api-key": ZEROX_API_KEY,
     "0x-version": "v2",
@@ -227,8 +229,8 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
         ).call()
         dec = contract.functions.decimals().call()
         return raw / (10 ** dec)
-    except:
-        logger.error("get_token_balance error", exc_info=True)
+    except Exception as e:
+        logger.error(f"get_token_balance error: {e}", exc_info=True)
         return 0.0
 
 def send_token_reward(
@@ -281,9 +283,14 @@ def send_token_reward(
     except Exception as e:
         if "replacement transaction underpriced" in str(e):
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
-            base_gas_price *= 1.1
-            maxPriorityFeePerGas *= 1.1
-            return send_token_reward(to_address, amount, from_address, private_key)
+            try:
+                base_gas_price = web3.eth.gas_price * 1.1
+                maxPriorityFeePerGas = int(Web3.to_wei(2.2, 'gwei'))
+                # Рекурсивный вызов с увеличенным gas_price
+                return send_token_reward(to_address, amount, from_address, private_key)
+            except Exception as inner_e:
+                logger.error(f"Ошибка при повторной попытке send_token_reward: {inner_e}", exc_info=True)
+                return False
         logger.error("send_token_reward except", exc_info=True)
         return False
 
@@ -316,7 +323,7 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         else:
             logger.error(f"send_eth fail: {tx_hash.hex()}")
             return False
-    except:
+    except Exception as e:
         logger.error("send_eth error", exc_info=True)
         return False
 
@@ -352,7 +359,7 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
         else:
             logger.error(f"deposit_eth_to_weth fail, tx={tx_hash.hex()}")
             return False
-    except:
+    except Exception as e:
         logger.error("deposit_eth_to_weth except", exc_info=True)
         return False
 
@@ -379,8 +386,8 @@ def get_balances(user: User) -> dict:
                 "ujo": float(ujo_bal)
             }
         }
-    except:
-        logger.error("get_balances error", exc_info=True)
+    except Exception as e:
+        logger.error(f"get_balances error: {e}", exc_info=True)
         return {"error": "Internal server error."}
 
 def get_token_price_in_usd() -> float:
@@ -407,8 +414,8 @@ def get_token_price_in_usd() -> float:
             return 0.0
 
         return float(pair.get("priceUsd", "0"))
-    except:
-        logger.error("get_token_price_in_usd except", exc_info=True)
+    except Exception as e:
+        logger.error(f"get_token_price_in_usd except: {e}", exc_info=True)
         return 0.0
 
 # --- 0x Swap v2 (permit2) ---
@@ -509,32 +516,32 @@ def decode_too_much_slippage(error_data: str) -> str:
     try:
         if error_data.startswith('0x'):
             error_data = error_data[2:]
-        
+
         # Проверяем, начинается ли ошибка с сигнатуры TooMuchSlippage
         # Сигнатура ошибки: keccak256("TooMuchSlippage(address,uint256,uint256)")[:4] = 0x4be6321b
         if not error_data.startswith('4be6321b'):
             return "Неизвестная ошибка контракта."
-        
+
         # Удаляем сигнатуру ошибки
         data = error_data[8:]
-        
+
         # Проверяем, что данных достаточно для декодирования
         if len(data) < 192:  # 3 поля по 64 символа (32 байта) каждое
             logger.error("Недостаточно данных для декодирования ошибки TooMuchSlippage.")
             return "Ошибка контракта: TooMuchSlippage (недостаточно данных для декодирования)."
-        
+
         # Каждое поле занимает 64 символа (32 байта) в hex представлении
         token_hex = data[0:64]
         expected_hex = data[64:128]
         actual_hex = data[128:192]
-        
+
         # Преобразуем значения
         token_address = '0x' + token_hex[-40:]  # Последние 40 символов представляют адрес
         expected = int(expected_hex, 16)
         actual = int(actual_hex, 16)
-        
+
         return f"Ошибка контракта: TooMuchSlippage(token={token_address}, expected={expected}, actual={actual})"
-    
+
     except Exception as e:
         logger.error(f"Ошибка декодирования TooMuchSlippage: {e}", exc_info=True)
         return "Ошибка декодирования ошибки контракта."
@@ -549,392 +556,17 @@ def decode_contract_error(error_data: str) -> str:
     try:
         if error_data.startswith('0x'):
             error_data = error_data[2:]
-        
+
         # Проверяем тип ошибки по сигнатуре
         error_signature = error_data[:8]
-        
-        if error_signature == "4be6321b":
-            # Это TooMuchSlippage(address,uint256,uint256)
-            return decode_too_much_slippage("0x" + error_data)
-        else:
-            # Неизвестная ошибка
-            return f"Неизвестная ошибка контракта: {error_signature}"
-    
-    except Exception as e:
-        logger.error(f"Ошибка декодирования ошибки контракта: {e}", exc_info=True)
-        return f"Ошибка декодирования: {e}"
-        
-def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -> bool:
-    """
-    Выполняет транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
-    """
-    if not quote_json:
-        logger.error("Пустой quote_json.")
-        return False
 
-    try:
-        # Логирование полного quote_json
-        logger.info(f"Полный quote_json: {json.dumps(quote_json, indent=2)}")
-    except Exception as e:
-        logger.error(f"Ошибка логирования quote_json: {e}", exc_info=True)
-
-    tx_obj = quote_json.get("transaction", {})
-    if not isinstance(tx_obj, dict):
-        logger.error("Поле 'transaction' в quote_json отсутствует или не является словарем.")
-        return False
-
-    # Извлечение параметров транзакции
-    try:
-        to_addr = Web3.to_checksum_address(tx_obj.get("to"))
-    except Exception as e:
-        logger.error(f"Некорректный адрес назначения: {tx_obj.get('to')}")
-        return False
-
-    data_hex = tx_obj.get("data")
-    val_str = tx_obj.get("value", "0")
-    gas_limit_str = tx_obj.get("gas", None)
-
-    if not to_addr or not data_hex:
-        logger.error("Недостаточно данных для транзакции (нет 'to' или 'data').")
-        return False
-
-    try:
-        value = int(val_str)
-    except ValueError:
-        logger.error("Ошибка преобразования 'value' в int.")
-        return False
-
-    # Преобразование gas_limit из строки в int
-    if gas_limit_str is not None:
-        try:
-            gas_limit = int(gas_limit_str)
-        except ValueError:
-            logger.error("Некорректное значение 'gas' в quote_json.")
-            return False
-    else:
-        gas_limit = 21000  # Значение по умолчанию
-
-    acct = Account.from_key(private_key)
-    nonce = web3.eth.get_transaction_count(acct.address, 'pending')
-
-    # Извлечение spender и sell_token
-    try:
-        # Используем spender из permit2 сообщения
-        permit_data = quote_json.get("permit2", {})
-        if not permit_data:
-            logger.error("Permit2 данные отсутствуют в quote_json.")
-            return False
-
-        spender = Web3.to_checksum_address(permit_data["eip712"]["message"]["spender"])
-        sell_token = Web3.to_checksum_address(quote_json.get("sellToken"))
-    except Exception as e:
-        logger.error(f"Некорректный адрес sell_token или spender: {e}")
-        return False
-
-    sell_amount = int(quote_json.get("sellAmount", "0"))
-    try:
-        allowance = token_contract.functions.allowance(acct.address, spender).call()
-        logger.info(f"Текущее allowance для {spender}: {allowance}")
-    except Exception as e:
-        logger.error(f"Ошибка вызова allowance: {e}")
-        return False
-
-    if allowance < sell_amount:
-        logger.info(f"Недостаточно allowance: {allowance}. Используем Permit2 для установки нового allowance.")
-        # Получаем Permit2 данные из quote_json
-
-        # Подписываем Permit2 сообщение
-        signature = sign_permit2(private_key, permit_data)
-        if not signature:
-            logger.error("Не удалось подписать Permit2.")
-            return False
-
-        # Создаем действие для Permit2
-        try:
-            permit_action = permit2_contract.encodeABI(
-                fn_name="permitTransferFrom",
-                args=[
-                    Web3.to_checksum_address(permit_data["eip712"]["message"]["permitted"]["token"]),
-                    acct.address,
-                    spender,
-                    int(permit_data["eip712"]["message"]["permitted"]["amount"]),
-                    int(permit_data["eip712"]["message"]["deadline"]),
-                    signature["v"],
-                    signature["r"],
-                    signature["s"]
-                ]
-            )
-        except Exception as e:
-            logger.error(f"Ошибка кодирования permitTransferFrom: {e}", exc_info=True)
-            return False
-
-        # Добавляем permit_action и data_hex
-        actions_encoded = [permit_action, data_hex]
-
-        # Кодируем массив действий в bytes[]
-        try:
-            actions_serialized = [bytes.fromhex(action[2:]) for action in actions_encoded]
-        except Exception as e:
-            logger.error(f"Ошибка сериализации действий: {e}", exc_info=True)
-            return False
-
-        # Получаем AllowedSlippage из quote_json с увеличенным сдвигом
-        try:
-            # Увеличиваем допустимый сдвиг до 2%
-            slippage_percentage = 0.02  # 2%
-            min_amount_out = int(float(quote_json.get("minBuyAmount", "0")) * (1 - slippage_percentage))
-            allowed_slippage = {
-                "recipient": Web3.to_checksum_address(user.unique_wallet_address),  # Изменено
-                "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
-                "minAmountOut": min_amount_out
-            }
-        except Exception as e:
-            logger.error(f"Ошибка получения AllowedSlippage: {e}", exc_info=True)
-            return False
-
-        # Создаем структуру AllowedSlippage
-        AllowedSlippage = (
-            allowed_slippage["recipient"],
-            allowed_slippage["buyToken"],
-            allowed_slippage["minAmountOut"]
-        )
-
-        # Генерация уникального bytes32 идентификатора (опционально)
-        unique_id = hashlib.sha256(nonce.to_bytes(32, byteorder='big')).hexdigest()[:64]
-
-        # Кодируем функцию 'execute' с новыми параметрами
-        try:
-            execute_data = swap_contract.encodeABI(
-                fn_name="execute",
-                args=[
-                    AllowedSlippage,
-                    actions_serialized,
-                    "0x" + unique_id  # Уникальный идентификатор вместо нулей
-                ]
-            )
-        except Exception as e:
-            logger.error(f"Ошибка кодирования execute: {e}", exc_info=True)
-            return False
-
-        # Обновляем данные транзакции
-        data_hex = execute_data
-
-        # Логируем обновленные данные транзакции
-        logger.info(f"Обновленные данные транзакции с Permit2: {data_hex}")
-
-    # Проверка баланса отправителя
-    sender_balance = web3.eth.get_balance(acct.address)
-    gas_price = int(web3.eth.gas_price)  # Убедитесь, что gas_price является int
-
-    required_amount = value + gas_price * gas_limit
-    logger.info(f"Баланс отправителя: {sender_balance}, необходимая сумма: {required_amount}")
-    if sender_balance < required_amount:
-        logger.error(
-            f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
-            f"необходимая сумма: {required_amount}"
-        )
-        return False
-
-    # Оценка газа с декодированием ошибки
-    try:
-        estimated_gas = web3.eth.estimate_gas({
-            "from": acct.address,
-            "to": to_addr,
-            "data": data_hex,
-            "value": value,
-        })
-        logger.info(f"Оценка газа: {estimated_gas}")
-    except ContractCustomError as e:  # Изменено
-        decoded_error = decode_contract_error(e.args[0])
-        logger.error(f"Ошибка при оценке газа: {decoded_error}")
-        return False
-    except Exception as e:
-        logger.error(f"Не удалось оценить газ: {e}", exc_info=True)
-        return False
-
-    # Если gas_limit меньше оцененного, используйте оцененное значение
-    if gas_limit < estimated_gas:
-        gas_limit = estimated_gas
-        logger.info(f"Используется оцененное значение газа: {gas_limit}")
-
-    logger.info(f"Установлен gas_limit: {gas_limit}")
-
-    # Устанавливаем параметры газа
-    try:
-        maxPriorityFeePerGas = min(Web3.to_wei(5, 'gwei'), gas_price // 2)  # Увеличиваем приоритетную комиссию до 5 gwei
-        maxFeePerGas = gas_price + maxPriorityFeePerGas
-    except Exception as e:
-        logger.error(f"Ошибка расчёта газа: {e}", exc_info=True)
-        return False
-
-    tx = {
-        "chainId": web3.eth.chain_id,
-        "nonce": nonce,
-        "to": to_addr,
-        "data": data_hex,
-        "value": value,
-        "gas": gas_limit,
-        "maxFeePerGas": int(maxFeePerGas),
-        "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
-    }
-
-    try:
-        signed_tx = acct.sign_transaction(tx)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-
-        if receipt.status == 1:
-            logger.info(f"Транзакция выполнена успешно, tx={tx_hash.hex()}")
-            return True
-        else:
-            logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
-            return False
-    except ContractCustomError as e:  # Изменено
-        decoded_error = decode_contract_error(e.args[0])
-        logger.error(f"Contract error: {decoded_error}")
-        return False
-    except Exception as e:
-        logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
-        return False
-
-def confirm_staking_tx(user: User, tx_hash: str) -> bool:
-    """
-    Если транзакция >=25$ => создаём запись в UserStaking + assistant_premium = True.
-    """
-    if not user or not user.unique_wallet_address or not tx_hash:
-        return False
-    try:
-        r = web3.eth.get_transaction_receipt(tx_hash)
-        if not r or r.status != 1:
-            return False
-
-        transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
-        price_usd      = get_token_price_in_usd()
-        if price_usd <= 0:
-            return False
-
-        found = None
-        for lg in r.logs:
-            if lg.address.lower() == token_contract.address.lower():
-                if len(lg.topics) >= 3:
-                    if lg.topics[0].hex().lower() == transfer_topic.lower():
-                        from_addr = "0x" + lg.topics[1].hex()[26:]
-                        to_addr   = "0x" + lg.topics[2].hex()[26:]
-                        from_addr = Web3.to_checksum_address(from_addr)
-                        to_addr   = Web3.to_checksum_address(to_addr)
-
-                        # Смотрим, что user.unique_wallet_address -> PROJECT_WALLET_ADDRESS
-                        if (from_addr.lower() == user.unique_wallet_address.lower()
-                                and to_addr.lower() == PROJECT_WALLET_ADDRESS.lower()):
-                            amt_int   = int(lg.data, 16)
-                            token_amt = amt_int / (10 ** 18)
-                            usd_amt   = token_amt * price_usd
-                            if usd_amt >= 25:
-                                found = {
-                                    "token_amount": token_amt,
-                                    "usd_amount": usd_amt
-                                }
-                                break
-        if not found:
-            return False
-
-        # Проверка на дублирующийся tx_hash
-        ex = UserStaking.query.filter_by(tx_hash=tx_hash).first()
-        if ex:
-            return False
-
-        new_s = UserStaking(
-            user_id=user.id,
-            tx_hash=tx_hash,
-            staked_usd=found["usd_amount"],
-            staked_amount=found["token_amount"],
-            created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow() + timedelta(days=30),
-            last_claim_at=datetime.utcnow()
-        )
-        db.session.add(new_s)
-        user.assistant_premium = True
-        db.session.commit()
-        logger.info(f"User {user.id} застейкал ~{found['usd_amount']:.2f}$ (tx={tx_hash}). Premium on.")
-        return True
-    except:
-        logger.error(f"confirm_staking_tx({tx_hash}) except", exc_info=True)
-        db.session.rollback()
-        return False
-
-def accumulate_staking_rewards():
-    """
-    Пример: раз в неделю добавляем всем, у кого staked_amount>0, +0.5 UJO к pending_rewards.
-    """
-    try:
-        st = UserStaking.query.all()
-        for s in st:
-            if s.staked_amount > 0:
-                s.pending_rewards += 0.5
-        db.session.commit()
-    except:
-        db.session.rollback()
-        logger.error("accumulate_staking_rewards except", exc_info=True)
-
-# --- 0x Swap v2 Permit2 Execution Functions ---
-
-# Функция для обработки ошибок "TooMuchSlippage"
-def decode_too_much_slippage(error_data: str) -> str:
-    """
-    Декодирует ошибку TooMuchSlippage(address,uint256,uint256).
-
-    :param error_data: Hex строка с данными ошибки.
-    :return: Строка с декодированной информацией об ошибке.
-    """
-    try:
-        if error_data.startswith('0x'):
-            error_data = error_data[2:]
-        
-        # Проверяем, начинается ли ошибка с сигнатуры TooMuchSlippage
-        # Сигнатура ошибки: keccak256("TooMuchSlippage(address,uint256,uint256)")[:4] = 0x4be6321b
-        if not error_data.startswith('4be6321b'):
-            return "Неизвестная ошибка контракта."
-        
-        # Удаляем сигнатуру ошибки
-        data = error_data[8:]
-        
-        # Каждое поле занимает 64 символа (32 байта) в hex представлении
-        token_hex = data[0:64]
-        expected_hex = data[64:128]
-        actual_hex = data[128:192]
-        
-        # Преобразуем значения
-        token_address = '0x' + token_hex[-40:]  # Последние 40 символов представляют адрес
-        expected = int(expected_hex, 16)
-        actual = int(actual_hex, 16)
-        
-        return f"Ошибка контракта: TooMuchSlippage(token={token_address}, expected={expected}, actual={actual})"
-    
-    except Exception as e:
-        logger.error(f"Ошибка декодирования TooMuchSlippage: {e}", exc_info=True)
-        return "Ошибка декодирования ошибки контракта."
-
-def decode_contract_error(error_data: str) -> str:
-    """
-    Декодирует ошибку контракта по предоставленным данным.
-
-    :param error_data: Hex строка с данными ошибки.
-    :return: Строка с декодированной информацией об ошибке.
-    """
-    try:
-        if error_data.startswith('0x'):
-            error_data = error_data[2:]
-        
-        # Проверяем тип ошибки по сигнатуре
-        error_signature = error_data[:8]
-        
         if error_signature == "4be6321b":
             # Это TooMuchSlippage(address,uint256,uint256)
             return decode_too_much_slippage("0x" + error_data)
         else:
             # Неизвестная ошибка
             return "Не удалось декодировать ошибку контракта."
-    
+
     except Exception as e:
         logger.error(f"Ошибка декодирования ошибки контракта: {e}", exc_info=True)
         return f"Ошибка декодирования: {e}"
@@ -1232,8 +864,8 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
         db.session.commit()
         logger.info(f"User {user.id} застейкал ~{found['usd_amount']:.2f}$ (tx={tx_hash}). Premium on.")
         return True
-    except:
-        logger.error(f"confirm_staking_tx({tx_hash}) except", exc_info=True)
+    except Exception as e:
+        logger.error(f"confirm_staking_tx({tx_hash}) except: {e}", exc_info=True)
         db.session.rollback()
         return False
 
@@ -1247,6 +879,6 @@ def accumulate_staking_rewards():
             if s.staked_amount > 0:
                 s.pending_rewards += 0.5
         db.session.commit()
-    except:
+    except Exception as e:
         db.session.rollback()
-        logger.error("accumulate_staking_rewards except", exc_info=True)
+        logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
