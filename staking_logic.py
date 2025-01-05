@@ -518,6 +518,11 @@ def decode_too_much_slippage(error_data: str) -> str:
         # Удаляем сигнатуру ошибки
         data = error_data[8:]
         
+        # Проверяем, что данных достаточно для декодирования
+        if len(data) < 192:  # 3 поля по 64 символа (32 байта) каждое
+            logger.error("Недостаточно данных для декодирования ошибки TooMuchSlippage.")
+            return "Ошибка контракта: TooMuchSlippage (недостаточно данных для декодирования)."
+        
         # Каждое поле занимает 64 символа (32 байта) в hex представлении
         token_hex = data[0:64]
         expected_hex = data[64:128]
@@ -553,12 +558,12 @@ def decode_contract_error(error_data: str) -> str:
             return decode_too_much_slippage("0x" + error_data)
         else:
             # Неизвестная ошибка
-            return "Не удалось декодировать ошибку контракта."
+            return f"Неизвестная ошибка контракта: {error_signature}"
     
     except Exception as e:
         logger.error(f"Ошибка декодирования ошибки контракта: {e}", exc_info=True)
         return f"Ошибка декодирования: {e}"
-
+        
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -> bool:
     """
     Выполняет транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
