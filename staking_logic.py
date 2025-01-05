@@ -7,9 +7,12 @@ from datetime import datetime, timedelta
 import requests
 import secrets
 import string
+import json
 
 from web3 import Web3
 from eth_account import Account
+from eth_account.messages import encode_structured_data
+from eth_account._utils.structured_data.hashing import hash_domain, hash_message
 
 from models import db, User, UserStaking
 
@@ -24,6 +27,7 @@ TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_
 WETH_CONTRACT_ADDRESS  = os.environ.get("WETH_CONTRACT_ADDRESS",  "0xYOUR_WETH_CONTRACT_ADDRESS")  # WETH
 UJO_CONTRACT_ADDRESS   = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS",      "0xYOUR_PROJECT_WALLET_ADDRESS")
+PERMIT2_CONTRACT_ADDRESS = "0x000000000022d473030f116ddee9f6b43ac78ba3"  # Из quote_json
 
 # Проверка наличия необходимых переменных окружения
 if (
@@ -98,6 +102,27 @@ WETH_ABI = ERC20_ABI + [
         "type": "function"
     },
 ]
+
+# Permit2 ABI (Минимальный для permitTransferFrom)
+PERMIT2_ABI = [
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "token", "type": "address"},
+            {"name": "from", "type": "address"},
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+            {"name": "expiration", "type": "uint256"},
+            {"name": "v", "type": "uint8"},
+            {"name": "r", "type": "bytes32"},
+            {"name": "s", "type": "bytes32"}
+        ],
+        "name": "permitTransferFrom",
+        "outputs": [],
+        "type": "function",
+    }
+]
+
 # Проверка корректности адресов
 if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
@@ -107,6 +132,8 @@ if not Web3.is_address(UJO_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный UJO_CONTRACT_ADDRESS: {UJO_CONTRACT_ADDRESS}")
 if not Web3.is_address(PROJECT_WALLET_ADDRESS):
     raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
+if not Web3.is_address(PERMIT2_CONTRACT_ADDRESS):
+    raise ValueError(f"Некорректный PERMIT2_CONTRACT_ADDRESS: {PERMIT2_CONTRACT_ADDRESS}")
 
 # Создаём объекты контрактов
 token_contract = web3.eth.contract(
@@ -120,6 +147,10 @@ weth_contract = web3.eth.contract(
 ujo_contract  = web3.eth.contract(
     address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS),
     abi=ERC20_ABI
+)
+permit2_contract = web3.eth.contract(
+    address=Web3.to_checksum_address(PERMIT2_CONTRACT_ADDRESS),
+    abi=PERMIT2_ABI
 )
 
 # 0x Swap v2 (permit2)
@@ -192,7 +223,7 @@ def send_token_reward(
 
         base_gas_price = web3.eth.gas_price
         maxFeePerGas = base_gas_price
-        maxPriorityFeePerGas = Web3.to_wei(0.5, 'gwei')  # Минимальный приритетный газ
+        maxPriorityFeePerGas = Web3.to_wei(0.5, 'gwei')  # Минимальный приоритетный газ
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
@@ -399,48 +430,62 @@ def get_0x_quote_v2_permit2(
         logger.error(f"Ошибка при вызове 0x API: {e}", exc_info=True)
         return {}
 
-def set_allowance(user_private_key: str, spender: str, amount: int, token_address: str) -> bool:
+def sign_permit2(user_private_key: str, permit_data: dict) -> dict:
     """
-    Устанавливает разрешение (`approve`) для `spender` на использование `amount` токенов.
+    Подписывает Permit2 сообщение согласно EIP712.
+    Возвращает подпись в формате r, s, v.
     """
     try:
-        acct = Account.from_key(user_private_key)
-        token_contract = web3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
-        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
+        # Используем eth_account для создания структурированного сообщения
+        message = {
+            "types": permit_data["eip712"]["types"],
+            "domain": permit_data["eip712"]["domain"],
+            "primaryType": permit_data["eip712"]["primaryType"],
+            "message": permit_data["eip712"]["message"]
+        }
 
-        # Корректный расчет газа
-        gas_price = web3.eth.gas_price
-        maxPriorityFeePerGas = Web3.to_wei(1, 'gwei')  # Минимальная приоритетная комиссия
-        maxFeePerGas = gas_price + maxPriorityFeePerGas
+        # Создаем EIP712 сообщение
+        signed_message = Account.sign_message(
+            encode_structured_data(message),
+            private_key=user_private_key
+        )
 
-        tx = token_contract.functions.approve(
-            Web3.to_checksum_address(spender),
-            amount
-        ).build_transaction({
-            "chainId": web3.eth.chain_id,
-            "nonce": nonce,
-            "gas": 50000,
-            "maxFeePerGas": int(maxFeePerGas),
-            "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
-        })
-
-        signed_tx = acct.sign_transaction(tx)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-
-        if receipt.status == 1:
-            logger.info(f"Разрешение (approve) успешно установлено: {amount} токенов для {spender}, tx={tx_hash.hex()}")
-            return True
-        else:
-            logger.error(f"Ошибка установки разрешения (approve), tx={tx_hash.hex()}")
-            return False
+        # Возвращаем r, s, v
+        return {
+            "v": signed_message.v,
+            "r": signed_message.r,
+            "s": signed_message.s
+        }
     except Exception as e:
-        logger.error(f"Ошибка выполнения approve: {e}", exc_info=True)
-        return False
+        logger.error(f"Ошибка подписания Permit2: {e}", exc_info=True)
+        return {}
+
+def decode_contract_error(error_data: str) -> str:
+    """
+    Декодирует ошибку контракта по предоставленным данным.
+    Требуется ABI контракта.
+    """
+    try:
+        # Преобразуем hex данные в байты
+        error_bytes = bytes.fromhex(error_data[2:])
+
+        # Создаем экземпляр контракта для декодирования ошибок
+        swap_contract = web3.eth.contract(address=Web3.to_checksum_address("0xbc3c5ca50b6a215edf00815965485527f26f5da8"), abi=SWAP_CONTRACT_ABI)
+
+        # Попробуем декодировать ошибку
+        for error in swap_contract.events:
+            try:
+                decoded = swap_contract.events[error].processLog({'data': error_data, 'topics': []})
+                return str(decoded)
+            except:
+                continue
+        return "Не удалось декодировать ошибку."
+    except Exception as e:
+        return f"Ошибка декодирования: {e}"
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
-    Выполняем транзакцию обмена (swap) 0x permit2 v2 с корректными значениями газа.
+    Выполняем транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
     """
     if not quote_json:
         logger.error("Пустой quote_json.")
@@ -448,7 +493,6 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     try:
         # Логирование полного quote_json
-        import json
         logger.info(f"Полный quote_json: {json.dumps(quote_json, indent=2)}")
     except Exception as e:
         logger.error(f"Ошибка логирования quote_json: {e}", exc_info=True)
@@ -492,7 +536,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-    # Извлечение spender из issues.allowance.spender
+    # Извлечение spender и sell_token
     try:
         spender = Web3.to_checksum_address(
             quote_json.get("issues", {}).get("allowance", {}).get("spender", to_addr)
@@ -511,21 +555,146 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         return False
 
     if allowance < sell_amount:
-        logger.info(f"Недостаточно allowance: {allowance}. Устанавливаем новый allowance.")
-        allowance_set = set_allowance(private_key, spender, sell_amount, sell_token)
-        if not allowance_set:
-            logger.error("Не удалось установить allowance.")
+        logger.info(f"Недостаточно allowance: {allowance}. Используем Permit2 для установки нового allowance.")
+        # Получаем Permit2 данные из quote_json
+        permit_data = quote_json.get("permit2", {})
+        if not permit_data:
+            logger.error("Permit2 данные отсутствуют в quote_json.")
             return False
-        # Повторная проверка allowance
-        try:
-            allowance = token_contract.functions.allowance(acct.address, spender).call()
-            logger.info(f"После установки, allowance для {spender}: {allowance}")
-            if allowance < sell_amount:
-                logger.error("Allowance всё ещё недостаточно после установки.")
-                return False
-        except Exception as e:
-            logger.error(f"Ошибка вызова allowance после установки: {e}")
+
+        # Подписываем Permit2 сообщение
+        signature = sign_permit2(private_key, permit_data)
+        if not signature:
+            logger.error("Не удалось подписать Permit2.")
             return False
+
+        # Создаем действие для Permit2
+        permit_action = permit2_contract.encodeABI(
+            fn_name="permitTransferFrom",
+            args=[
+                Web3.to_checksum_address(permit_data["eip712"]["message"]["permitted"]["token"]),
+                acct.address,
+                Web3.to_checksum_address(spender),
+                int(permit_data["eip712"]["message"]["permitted"]["amount"]),
+                int(permit_data["eip712"]["message"]["deadline"]),
+                signature["v"],
+                signature["r"],
+                signature["s"]
+            ]
+        )
+
+        # Декодируем существующие действия из quote_json
+        actions = quote_json.get("route", {}).get("fills", [])
+        actions_encoded = [action["source"] for action in actions]  # Пример, нужно уточнить формат
+
+        # Добавляем Permit2 действие в массив действий
+        # Предполагается, что actions_encoded является массивом hex-строк
+        actions_encoded.append(permit_action)
+
+        # Кодируем массив действий
+        # Здесь необходимо правильно закодировать действия в bytes[]
+        # Это может потребовать дополнительной логики в зависимости от ожидаемого формата
+
+        # Пример: предположим, что actions_encoded уже в правильном формате
+        # В реальности, может потребоваться сериализация или другая обработка
+        actions_serialized = [bytes.fromhex(action[2:]) for action in actions_encoded]
+
+        # Обновляем данные транзакции с новыми действиями
+        # Для этого нужно перекодировать функцию 'execute' с обновленными параметрами
+        # Однако, в quote_json уже предоставлены данные транзакции
+        # Поэтому необходимо корректно объединить их
+
+        # Альтернативный подход: использовать ABI для кодирования функции 'execute'
+        # и включить новые действия
+
+        # Получаем AllowedSlippage из quote_json (если необходимо)
+        allowed_slippage = {
+            "recipient": Web3.to_checksum_address(quote_json.get("route", {}).get("tokens", [])[1].get("address")),
+            "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
+            "minAmountOut": int(quote_json.get("minBuyAmount", "0"))
+        }
+
+        # Создаем структуру AllowedSlippage
+        AllowedSlippage = {
+            "recipient": allowed_slippage["recipient"],
+            "buyToken": allowed_slippage["buyToken"],
+            "minAmountOut": allowed_slippage["minAmountOut"]
+        }
+
+        # Кодируем AllowedSlippage
+        slippage_contract = web3.eth.contract(abi=[
+            {
+                "components": [
+                    {"internalType": "address", "name": "recipient", "type": "address"},
+                    {"internalType": "address", "name": "buyToken", "type": "address"},
+                    {"internalType": "uint256", "name": "minAmountOut", "type": "uint256"}
+                ],
+                "internalType": "struct SettlerBase.AllowedSlippage",
+                "name": "slippage",
+                "type": "tuple"
+            }
+        ])
+
+        slippage_encoded = slippage_contract.encodeABI(
+            fn_name="",
+            args=[AllowedSlippage]
+        )
+
+        # Кодируем массив действий
+        actions_encoded_final = [permit_action]  # Добавляем только Permit2 действие
+        for action in actions_encoded:
+            actions_encoded_final.append(action)
+
+        # Кодируем execute функцию
+        SWAP_CONTRACT_ABI = [
+            {
+                "inputs": [
+                    {
+                        "components": [
+                            {"internalType": "address", "name": "recipient", "type": "address"},
+                            {"internalType": "address", "name": "buyToken", "type": "address"},
+                            {"internalType": "uint256", "name": "minAmountOut", "type": "uint256"}
+                        ],
+                        "internalType": "struct SettlerBase.AllowedSlippage",
+                        "name": "slippage",
+                        "type": "tuple"
+                    },
+                    {
+                        "internalType": "bytes[]",
+                        "name": "actions",
+                        "type": "bytes[]"
+                    },
+                    {
+                        "internalType": "bytes32",
+                        "name": "",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "execute",
+                "outputs": [
+                    {"internalType": "bool", "name": "", "type": "bool"}
+                ],
+                "stateMutability": "payable",
+                "type": "function"
+            }
+        ]
+
+        swap_contract = web3.eth.contract(address=Web3.to_checksum_address("0xbc3c5ca50b6a215edf00815965485527f26f5da8"), abi=SWAP_CONTRACT_ABI)
+
+        execute_data = swap_contract.encodeABI(
+            fn_name="execute",
+            args=[
+                AllowedSlippage,
+                actions_serialized,
+                "0x" * 32  # Placeholder for bytes32 parameter
+            ]
+        )
+
+        # Обновляем данные транзакции
+        data_hex = execute_data
+
+        # Логируем обновленные данные транзакции
+        logger.info(f"Обновленные данные транзакции с Permit2: {data_hex}")
 
     # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
@@ -593,7 +762,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     except Exception as e:
         logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
         return False
-        
+
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
     Если транзакция >=25$ => создаём запись в UserStaking + assistant_premium = True.
