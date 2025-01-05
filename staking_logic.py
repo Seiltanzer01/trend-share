@@ -13,6 +13,8 @@ from eth_account import Account
 
 from models import db, User, UserStaking
 
+from eth_abi import decode_abi
+
 logger = logging.getLogger(__name__)
 
 # Подключение к RPC (например, Base)
@@ -438,6 +440,17 @@ def set_allowance(user_private_key: str, spender: str, amount: int, token_addres
         logger.error(f"Ошибка выполнения approve: {e}", exc_info=True)
         return False
 
+def decode_contract_error(error_data: str) -> str:
+    try:
+        method_id = error_data[:10]
+        if method_id == "0x4be6321b":
+            return "NotWhitelisted() - The spender address is not whitelisted."
+        # Добавьте другие декодирования ошибок по мере необходимости
+        return f"Unknown error with method ID {method_id}"
+    except Exception as e:
+        logger.error(f"Ошибка декодирования ошибки контракта: {e}")
+        return "Unable to decode contract error."
+
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
     Выполняем транзакцию обмена (swap) 0x permit2 v2 с корректными значениями газа.
@@ -503,6 +516,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     sell_amount = int(quote_json.get("sellAmount", "0"))
     try:
         allowance = token_contract.functions.allowance(acct.address, spender).call()
+        logger.info(f"Текущее allowance для {spender}: {allowance}")
     except Exception as e:
         logger.error(f"Ошибка вызова allowance: {e}")
         return False
@@ -513,12 +527,23 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         if not allowance_set:
             logger.error("Не удалось установить allowance.")
             return False
+        # Повторная проверка allowance
+        try:
+            allowance = token_contract.functions.allowance(acct.address, spender).call()
+            logger.info(f"После установки, allowance для {spender}: {allowance}")
+            if allowance < sell_amount:
+                logger.error("Allowance всё ещё недостаточно после установки.")
+                return False
+        except Exception as e:
+            logger.error(f"Ошибка вызова allowance после установки: {e}")
+            return False
 
     # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
     gas_price = int(web3.eth.gas_price)  # Убедитесь, что gas_price является int
 
     required_amount = value + gas_price * gas_limit
+    logger.info(f"Баланс отправителя: {sender_balance}, необходимая сумма: {required_amount}")
     if sender_balance < required_amount:
         logger.error(
             f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
@@ -534,6 +559,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             "data": data_hex,
             "value": value,
         })
+        logger.info(f"Оценка газа: {estimated_gas}")
     except Exception as e:
         logger.error(f"Не удалось оценить газ: {e}", exc_info=True)
         return False
@@ -571,6 +597,10 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         else:
             logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
             return False
+    except web3.exceptions.ContractCustomError as e:
+        decoded_error = decode_contract_error(e.args[0])
+        logger.error(f"Contract error: {decoded_error}")
+        return False
     except Exception as e:
         logger.error(f"Ошибка выполнения транзакции: {e}", exc_info=True)
         return False
