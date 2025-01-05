@@ -23,14 +23,14 @@ web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")  # UJO
 WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")    # WETH
 UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
-PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS",      "0xYOUR_PROJECT_WALLET_ADDRESS")
+PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")  # Изменено с "PROJECT_WALLET_ADDRESS" на "MY_WALLET_ADDRESS"
 UNISWAP_ROUTER_ADDRESS = os.environ.get("UNISWAP_ROUTER_ADDRESS", "0x2626664c2603336E57B271c5C0b26F421741e481")  # Адрес SwapRouter в сети Base
 
 # Проверка наличия необходимых переменных окружения
 required_env_vars = [
     "TOKEN_CONTRACT_ADDRESS",
     "WETH_CONTRACT_ADDRESS",
-    "PROJECT_WALLET_ADDRESS",
+    "MY_WALLET_ADDRESS",  # Изменено на "MY_WALLET_ADDRESS"
     "UNISWAP_ROUTER_ADDRESS",
     "PRIVATE_KEY"  # Закрытый ключ проекта для отправки токенов
 ]
@@ -251,6 +251,16 @@ def send_token_reward(
             logger.error(f"send_token_reward fail: {tx_hash.hex()}")
             return False
     except Exception as e:
+        if "replacement transaction underpriced" in str(e):
+            logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
+            try:
+                base_gas_price = web3.eth.gas_price * 1.1
+                maxPriorityFeePerGas = int(Web3.to_wei(2.2, 'gwei'))
+                # Рекурсивный вызов с увеличенным gas_price
+                return send_token_reward(to_address, amount, from_address, private_key)
+            except Exception as inner_e:
+                logger.error(f"Ошибка при повторной попытке send_token_reward: {inner_e}", exc_info=True)
+                return False
         logger.error("send_token_reward except", exc_info=True)
         return False
 
@@ -483,7 +493,7 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
             return False
 
         transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
-        price_usd = get_token_price_in_usd()
+        price_usd      = get_token_price_in_usd()
         if price_usd <= 0:
             return False
 
