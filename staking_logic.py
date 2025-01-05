@@ -160,6 +160,7 @@ UNISWAP_ROUTER_ABI = [
 # Контракты
 token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
 weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
+ujo_contract = token_contract  # Используем только token_contract
 swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_FACTORY_ABI)
 pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
 
