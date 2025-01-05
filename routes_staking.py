@@ -17,7 +17,7 @@ from staking_logic import (
     token_contract,
     weth_contract,
     ujo_contract,
-    PROJECT_WALLET_ADDRESS,
+    PROJECT_WALLET_ADDRESS,  # Теперь берётся из MY_WALLET_ADDRESS
     get_balances,
     generate_unique_wallet,
     send_token_reward,
