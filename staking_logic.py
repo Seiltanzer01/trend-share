@@ -8,12 +8,14 @@ import requests
 import secrets
 import string
 import json
+import hashlib  # Для генерации unique_id
 
-from web3.exceptions import ContractCustomError  # Добавлено
 from web3 import Web3
+from web3.exceptions import ContractCustomError  # Для корректной обработки исключений
 from eth_account import Account
 from eth_account.messages import encode_structured_data
 from eth_account._utils.structured_data.hashing import hash_domain, hash_message
+from eth_abi import decode_abi  # Для декодирования ошибок контракта
 
 from models import db, User, UserStaking
 
@@ -310,6 +312,9 @@ def send_token_reward(
     from_address: str = PROJECT_WALLET_ADDRESS,
     private_key: str = None
 ) -> bool:
+    """
+    Отправляет токены с PROJECT_WALLET_ADDRESS пользователю.
+    """
     try:
         if private_key:
             acct = Account.from_key(private_key)
@@ -324,8 +329,8 @@ def send_token_reward(
         amt_wei = int(amount * (10 ** decimals))
 
         base_gas_price = web3.eth.gas_price
-        maxFeePerGas = base_gas_price
-        maxPriorityFeePerGas = Web3.to_wei(0.5, 'gwei')  # Минимальный приоритетный газ
+        maxFeePerGas = base_gas_price * 2  # Увеличиваем gas price для большей вероятности включения в блок
+        maxPriorityFeePerGas = Web3.to_wei(2, 'gwei')  # Увеличиваем приоритетную комиссию
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
@@ -333,7 +338,7 @@ def send_token_reward(
         ).build_transaction({
             "chainId":  web3.eth.chain_id,
             "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
-            "gas":      50000,
+            "gas":      100000,  # Увеличиваем gas limit для успешного выполнения
             "maxFeePerGas": int(maxFeePerGas),
             "maxPriorityFeePerGas": int(maxPriorityFeePerGas),
             "value": 0
@@ -359,15 +364,14 @@ def send_token_reward(
 
 def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
     """
-    Отправка нативного ETH (для gas и т.п.) с низкой комиссией.
-    maxPriorityFeePerGas=0.002 gwei, maxFeePerGas=0.04 gwei, gas=50000
+    Отправка нативного ETH (для gas и т.п.) с увеличенной комиссией.
     """
     try:
         acct = Account.from_key(private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        priority_wei = Web3.to_wei(0.002, 'gwei')
-        max_fee_wei  = Web3.to_wei(0.04, 'gwei')
+        priority_wei = Web3.to_wei(2, 'gwei')  # Увеличиваем приоритетную комиссию
+        max_fee_wei  = Web3.to_wei(50, 'gwei')  # Увеличиваем общую комиссию
 
         tx = {
             "nonce": nonce,
@@ -376,7 +380,7 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
             "chainId": web3.eth.chain_id,
             "maxFeePerGas": max_fee_wei,
             "maxPriorityFeePerGas": priority_wei,
-            "gas": 50000
+            "gas": 21000  # Стандартный gas limit для ETH
         }
         signed = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
@@ -393,8 +397,7 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
 
 def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
     """
-    Выполняет WETH.deposit(), «заворачивая» заданное количество ETH в WETH,
-    также с фиксированно низкой комиссией.
+    Выполняет WETH.deposit(), «заворачивая» заданное количество ETH в WETH.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -404,15 +407,15 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        priority_wei = Web3.to_wei(0.002, 'gwei')
-        max_fee_wei  = Web3.to_wei(0.04, 'gwei')
+        priority_wei = Web3.to_wei(2, 'gwei')  # Увеличиваем приоритетную комиссию
+        max_fee_wei  = Web3.to_wei(50, 'gwei')  # Увеличиваем общую комиссию
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
             "maxFeePerGas": max_fee_wei,
             "maxPriorityFeePerGas": priority_wei,
-            "gas": 50000,
+            "gas": 100000,  # Увеличиваем gas limit для успешного выполнения
             "value": web3.to_wei(amount_eth, "ether"),
         })
         signed = acct.sign_transaction(deposit_tx)
@@ -466,7 +469,7 @@ def get_token_price_in_usd() -> float:
             logger.error("DEXScreener_PAIR_ADDRESS не задан.")
             return 0.0
 
-        chain_name = "base"  # Пример, уточните название цепочки для DexScreener
+        chain_name = "base"  # Уточните название цепочки для DexScreener
         api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
         resp = requests.get(api_url, timeout=10)
         if resp.status_code != 200:
@@ -521,12 +524,12 @@ def get_0x_quote_v2_permit2(
         if resp.status_code != 200:
             logger.error(f"Ошибка 0x API: {resp.status_code}, текст: {resp.text}")
             return {}
-        
+
         data = resp.json()
         if "transaction" not in data:
             logger.error("Ответ 0x API не содержит поля 'transaction'.")
             return {}
-        
+
         return data
     except Exception as e:
         logger.error(f"Ошибка при вызове 0x API: {e}", exc_info=True)
@@ -599,7 +602,7 @@ def decode_contract_error(error_data: str) -> str:
     except Exception as e:
         return f"Ошибка декодирования: {e}"
 
-def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
+def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -> bool:
     """
     Выполняем транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
     """
@@ -715,10 +718,13 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
         # Получаем AllowedSlippage из quote_json (изменено: recipient - пользователь)
         try:
+            # Увеличиваем допустимый сдвиг до 2%
+            slippage_percentage = 0.02  # 2%
+            min_amount_out = int(quote_json.get("minBuyAmount", "0")) * (1 - slippage_percentage)
             allowed_slippage = {
                 "recipient": Web3.to_checksum_address(user.unique_wallet_address),  # Изменено
                 "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
-                "minAmountOut": int(quote_json.get("minBuyAmount", "0"))
+                "minAmountOut": int(min_amount_out)
             }
         except Exception as e:
             logger.error(f"Ошибка получения AllowedSlippage: {e}", exc_info=True)
@@ -776,7 +782,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             "value": value,
         })
         logger.info(f"Оценка газа: {estimated_gas}")
-    except web3.exceptions.ContractCustomError as e:
+    except ContractCustomError as e:  # Изменено
         decoded_error = decode_contract_error(e.args[0])
         logger.error(f"Ошибка при оценке газа: {decoded_error}")
         return False
@@ -793,7 +799,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     # Устанавливаем параметры газа
     try:
-        maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), gas_price // 2)
+        maxPriorityFeePerGas = min(Web3.to_wei(5, 'gwei'), gas_price // 2)  # Увеличиваем приоритетную комиссию до 5 gwei
         maxFeePerGas = gas_price + maxPriorityFeePerGas
     except Exception as e:
         logger.error(f"Ошибка расчёта газа: {e}", exc_info=True)
@@ -821,7 +827,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         else:
             logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
             return False
-    except web3.exceptions.ContractCustomError as e:
+    except ContractCustomError as e:  # Изменено
         decoded_error = decode_contract_error(e.args[0])
         logger.error(f"Contract error: {decoded_error}")
         return False
