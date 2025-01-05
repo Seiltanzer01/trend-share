@@ -573,36 +573,6 @@ def sign_permit2(user_private_key: str, permit_data: dict) -> dict:
 def decode_contract_error(error_data: str) -> str:
     """
     Декодирует ошибку контракта по предоставленным данным.
-    Требуется ABI контракта.
-    """
-    try:
-        # Преобразуем hex данные в байты
-        error_bytes = bytes.fromhex(error_data[2:])
-
-        # Получаем сигнатуру ошибки (первые 4 байта)
-        error_signature = error_bytes[:4].hex()
-
-        # Создаем экземпляр контракта для декодирования ошибок
-        # Предполагается, что SWAP_CONTRACT_ABI включает определения ошибок
-        swap_contract = web3.eth.contract(address=Web3.to_checksum_address(SWAP_CONTRACT_ADDRESS), abi=SWAP_CONTRACT_ABI)
-
-        # Проверяем, соответствует ли сигнатура одной из известных ошибок
-        for error in swap_contract.abi:
-            if error['type'] != 'error':
-                continue
-            # Формируем сигнатуру ошибки
-            inputs = ','.join([input['type'] for input in error['inputs']])
-            signature = web3.keccak(text=f"{error['name']}({inputs})").hex()
-            if signature.startswith(error_signature):
-                return f"Ошибка контракта: {error['name']}"
-
-        return "Не удалось декодировать ошибку."
-    except Exception as e:
-        return f"Ошибка декодирования: {e}"
-
-def decode_contract_error(error_data: str) -> str:
-    """
-    Декодирует ошибку контракта по предоставленным данным.
     """
     try:
         # Преобразуем hex данные в байты
@@ -683,7 +653,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     # Извлечение spender и sell_token
     try:
-        # Исправлено: Используем spender из permit2 сообщения
+        # Используем spender из permit2 сообщения
         permit_data = quote_json.get("permit2", {})
         if not permit_data:
             logger.error("Permit2 данные отсутствуют в quote_json.")
@@ -706,7 +676,6 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     if allowance < sell_amount:
         logger.info(f"Недостаточно allowance: {allowance}. Используем Permit2 для установки нового allowance.")
         # Получаем Permit2 данные из quote_json
-        # permit_data уже получены выше
 
         # Подписываем Permit2 сообщение
         signature = sign_permit2(private_key, permit_data)
@@ -733,7 +702,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             logger.error(f"Ошибка кодирования permitTransferFrom: {e}", exc_info=True)
             return False
 
-        # Вместо использования 'source' из 'fills', добавляем только permit_action и data_hex
+        # Добавляем permit_action и data_hex
         actions_encoded = [permit_action, data_hex]
 
         # Кодируем массив действий в bytes[]
@@ -797,7 +766,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         )
         return False
 
-    # Оценка газа
+    # Оценка газа с декодированием ошибки
     try:
         estimated_gas = web3.eth.estimate_gas({
             "from": acct.address,
@@ -806,6 +775,10 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             "value": value,
         })
         logger.info(f"Оценка газа: {estimated_gas}")
+    except web3.exceptions.ContractCustomError as e:
+        decoded_error = decode_contract_error(e.args[0])
+        logger.error(f"Ошибка при оценке газа: {decoded_error}")
+        return False
     except Exception as e:
         logger.error(f"Не удалось оценить газ: {e}", exc_info=True)
         return False
