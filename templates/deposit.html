@@ -117,7 +117,7 @@
             // Инициализация балансов
             async function loadBalances(){
                 try{
-                    const response = await fetch('/staking/api/get_balances', {  // Корректный URL с префиксом /staking
+                    const response = await fetch('{{ url_for("staking_bp.get_balances_route") }}', {  // Корректный URL с префиксом Blueprint
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json'
@@ -159,7 +159,7 @@
 
                 try{
                     const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('/staking/api/exchange_tokens', {  // Корректный URL с префиксом /staking
+                    const response = await fetch('{{ url_for("staking_bp.exchange_tokens") }}', {  // Корректный URL с префиксом Blueprint
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -190,7 +190,7 @@
             document.getElementById('withdrawButton').addEventListener('click', async () => {
                 try{
                     const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('/staking/api/withdraw_funds', {  // Корректный URL с префиксом /staking
+                    const response = await fetch('{{ url_for("staking_bp.withdraw_funds") }}', {  // Корректный URL с префиксом Blueprint
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
