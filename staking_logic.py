@@ -704,13 +704,8 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             logger.error(f"Ошибка кодирования permitTransferFrom: {e}", exc_info=True)
             return False
 
-        # Декодируем существующие действия из quote_json
-        actions = quote_json.get("route", {}).get("fills", [])
-        actions_encoded = [action["source"] for action in actions]  # Предполагается, что 'source' содержит hex строку действий
-
-        # Добавляем Permit2 действие в массив действий
-        # Предполагается, что actions_encoded является массивом hex-строк
-        actions_encoded.append(permit_action)
+        # Вместо использования 'source' из 'fills', добавляем только permit_action и data_hex
+        actions_encoded = [permit_action, data_hex]
 
         # Кодируем массив действий в bytes[]
         try:
@@ -720,28 +715,36 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             return False
 
         # Получаем AllowedSlippage из quote_json (если необходимо)
-        allowed_slippage = {
-            "recipient": Web3.to_checksum_address(quote_json.get("route", {}).get("tokens", [])[1].get("address")),
-            "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
-            "minAmountOut": int(quote_json.get("minBuyAmount", "0"))
-        }
+        try:
+            allowed_slippage = {
+                "recipient": Web3.to_checksum_address(quote_json.get("route", {}).get("tokens", [])[1].get("address")),
+                "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
+                "minAmountOut": int(quote_json.get("minBuyAmount", "0"))
+            }
+        except Exception as e:
+            logger.error(f"Ошибка получения AllowedSlippage: {e}", exc_info=True)
+            return False
 
         # Создаем структуру AllowedSlippage
-        AllowedSlippage = {
-            "recipient": allowed_slippage["recipient"],
-            "buyToken": allowed_slippage["buyToken"],
-            "minAmountOut": allowed_slippage["minAmountOut"]
-        }
+        AllowedSlippage = (
+            allowed_slippage["recipient"],
+            allowed_slippage["buyToken"],
+            allowed_slippage["minAmountOut"]
+        )
 
         # Кодируем функцию 'execute' с новыми параметрами
-        execute_data = swap_contract.encodeABI(
-            fn_name="execute",
-            args=[
-                AllowedSlippage,
-                actions_serialized,
-                "0x" * 32  # Placeholder для параметра bytes32, если необходимо
-            ]
-        )
+        try:
+            execute_data = swap_contract.encodeABI(
+                fn_name="execute",
+                args=[
+                    AllowedSlippage,
+                    actions_serialized,
+                    "0x" * 32  # Placeholder для параметра bytes32, если необходимо
+                ]
+            )
+        except Exception as e:
+            logger.error(f"Ошибка кодирования execute: {e}", exc_info=True)
+            return False
 
         # Обновляем данные транзакции
         data_hex = execute_data
@@ -783,8 +786,12 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     logger.info(f"Установлен gas_limit: {gas_limit}")
 
     # Устанавливаем параметры газа
-    maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), gas_price // 2)
-    maxFeePerGas = gas_price + maxPriorityFeePerGas
+    try:
+        maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), gas_price // 2)
+        maxFeePerGas = gas_price + maxPriorityFeePerGas
+    except Exception as e:
+        logger.error(f"Ошибка расчёта газа: {e}", exc_info=True)
+        return False
 
     tx = {
         "chainId": web3.eth.chain_id,
