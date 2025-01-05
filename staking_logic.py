@@ -467,7 +467,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     data_hex = tx_obj.get("data")
     val_str = tx_obj.get("value", "0")
-    gas_limit = tx_obj.get("gas", None)
+    gas_limit_str = tx_obj.get("gas", None)
 
     if not to_addr or not data_hex:
         logger.error("Недостаточно данных для транзакции (нет 'to' или 'data').")
@@ -478,6 +478,16 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     except ValueError:
         logger.error("Ошибка преобразования 'value' в int.")
         return False
+
+    # Преобразование gas_limit из строки в int
+    if gas_limit_str is not None:
+        try:
+            gas_limit = int(gas_limit_str)
+        except ValueError:
+            logger.error("Некорректное значение 'gas' в quote_json.")
+            return False
+    else:
+        gas_limit = 21000  # Значение по умолчанию
 
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
@@ -506,11 +516,13 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     # Проверка баланса отправителя
     sender_balance = web3.eth.get_balance(acct.address)
-    gas_price = int(web3.eth.gas_price)
-    if sender_balance < value + gas_price * (gas_limit or 21000):
+    gas_price = int(web3.eth.gas_price)  # Убедитесь, что gas_price является int
+
+    required_amount = value + gas_price * gas_limit
+    if sender_balance < required_amount:
         logger.error(
             f"Недостаточно средств для выполнения транзакции. Баланс: {sender_balance}, "
-            f"необходимая сумма: {value + gas_price * (gas_limit or 21000)}"
+            f"необходимая сумма: {required_amount}"
         )
         return False
 
@@ -526,8 +538,12 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
         logger.error(f"Не удалось оценить газ: {e}", exc_info=True)
         return False
 
-    gas_limit = gas_limit or estimated_gas
-    logger.info(f"Оценка газа: {gas_limit}")
+    # Если gas_limit меньше оцененного, используйте оцененное значение
+    if gas_limit < estimated_gas:
+        gas_limit = estimated_gas
+        logger.info(f"Используется оцененное значение газа: {gas_limit}")
+
+    logger.info(f"Установлен gas_limit: {gas_limit}")
 
     # Устанавливаем параметры газа
     maxPriorityFeePerGas = min(Web3.to_wei(2, 'gwei'), gas_price // 2)
