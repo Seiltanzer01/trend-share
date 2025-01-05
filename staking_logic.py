@@ -237,7 +237,7 @@ def send_token_reward(
         amt_wei = int(amount * (10 ** decimals))
 
         # Параметры газа для сети Base
-        gas_price = web3.to_wei('1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
         gas_limit = 100000  # Стандартный gas limit для transfer
 
         tx = token_contract.functions.transfer(
@@ -265,7 +265,7 @@ def send_token_reward(
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
             try:
                 base_gas_price = web3.eth.gas_price * 1.1
-                maxPriorityFeePerGas = int(Web3.to_wei(2.2, 'gwei'))
+                maxPriorityFeePerGas = int(Web3.to_wei(1, 'gwei'))
                 # Рекурсивный вызов с увеличенным gas_price
                 return send_token_reward(to_address, amount, from_address, private_key)
             except Exception as inner_e:
@@ -282,7 +282,7 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         acct = Account.from_key(private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        gas_price = web3.to_wei('1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
         gas_limit = 21000  # Стандартный gas limit для ETH
 
         tx = {
@@ -318,7 +318,7 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        gas_price = web3.to_wei('1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
         gas_limit = 100000  # Увеличиваем gas limit для успешного выполнения
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
@@ -405,7 +405,7 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         acct = Account.from_key(user_private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        gas_price = web3.to_wei('1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
         gas_limit = 100000  # Стандартный gas limit для approve
 
         approve_tx = token_contract.functions.approve(
@@ -464,7 +464,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 return False
 
         # Построение транзакции обмена
-        gas_price = web3.to_wei('1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
         gas_limit = 200000  # Увеличьте при необходимости
 
         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
