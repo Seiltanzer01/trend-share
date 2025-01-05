@@ -10,12 +10,12 @@ import string
 import json
 import hashlib  # Для генерации unique_id
 
-from web3 import Web3
 from web3.exceptions import ContractCustomError  # Для корректной обработки исключений
+from web3 import Web3
 from eth_account import Account
 from eth_account.messages import encode_structured_data
 from eth_account._utils.structured_data.hashing import hash_domain, hash_message
-from eth_abi.abi import decode_abi  # Для декодирования ошибок контракта
+# from eth_abi.abi import decode_abi  # Удалено
 
 from models import db, User, UserStaking
 
@@ -129,96 +129,7 @@ PERMIT2_ABI = [
 
 # SWAP_CONTRACT_ABI: Используем предоставленный ABI
 SWAP_CONTRACT_ABI = [
-    {
-        "inputs":[{"internalType":"bytes20","name":"gitCommit","type":"bytes20"}],
-        "stateMutability":"nonpayable",
-        "type":"constructor"
-    },
-    {
-        "inputs":[
-            {"internalType":"uint256","name":"i","type":"uint256"},
-            {"internalType":"bytes4","name":"action","type":"bytes4"},
-            {"internalType":"bytes","name":"data","type":"bytes"}
-        ],
-        "name":"ActionInvalid",
-        "type":"error"
-    },
-    {
-        "inputs":[{"internalType":"uint256","name":"callbackInt","type":"uint256"}],
-        "name":"CallbackNotSpent",
-        "type":"error"
-    },
-    {"inputs":[],"name":"ConfusedDeputy","type":"error"},
-    {"inputs":[],"name":"ForwarderNotAllowed","type":"error"},
-    {"inputs":[],"name":"InvalidOffset","type":"error"},
-    {"inputs":[],"name":"InvalidSignatureLen","type":"error"},
-    {"inputs":[],"name":"InvalidTarget","type":"error"},
-    {"inputs":[],"name":"NotConverged","type":"error"},
-    {"inputs":[],"name":"PayerSpent","type":"error"},
-    {
-        "inputs":[{"internalType":"uint256","name":"callbackInt","type":"uint256"}],
-        "name":"ReentrantCallback",
-        "type":"error"
-    },
-    {
-        "inputs":[{"internalType":"address","name":"oldPayer","type":"address"}],
-        "name":"ReentrantPayer",
-        "type":"error"
-    },
-    {
-        "inputs":[{"internalType":"uint256","name":"deadline","type":"uint256"}],
-        "name":"SignatureExpired",
-        "type":"error"
-    },
-    {
-        "inputs":[
-            {"internalType":"contract IERC20","name":"token","type":"address"},
-            {"internalType":"uint256","name":"expected","type":"uint256"},
-            {"internalType":"uint256","name":"actual","type":"uint256"}
-        ],
-        "name":"TooMuchSlippage",
-        "type":"error"
-    },
-    {
-        "inputs":[{"internalType":"uint8","name":"forkId","type":"uint8"}],
-        "name":"UnknownForkId",
-        "type":"error"
-    },
-    {
-        "anonymous":False,
-        "inputs":[{"indexed":True,"internalType":"bytes20","name":"","type":"bytes20"}],
-        "name":"GitCommit",
-        "type":"event"
-    },
-    {"stateMutability":"nonpayable","type":"fallback"},
-    {
-        "inputs":[{"internalType":"address","name":"","type":"address"}],
-        "name":"balanceOf",
-        "outputs":[],
-        "stateMutability":"pure",
-        "type":"function"
-    },
-    {
-        "inputs":[
-            {
-                "components":[
-                    {"internalType":"address","name":"recipient","type":"address"},
-                    {"internalType":"contract IERC20","name":"buyToken","type":"address"},
-                    {"internalType":"uint256","name":"minAmountOut","type":"uint256"}
-                ],
-                "internalType":"struct SettlerBase.AllowedSlippage",
-                "name":"slippage",
-                "type":"tuple"
-            },
-            {"internalType":"bytes[]","name":"actions","type":"bytes[]"},
-            {"internalType":"bytes32","name":"","type":"bytes32"}
-        ],
-        "name":"execute",
-        "outputs":[{"internalType":"bool","name":"","type":"bool"}],
-        "stateMutability":"payable",
-        "type":"function"
-    },
-    {"stateMutability":"payable","type":"receive"}
+    # ... (оставьте как есть)
 ]
 
 # Проверка корректности адресов
@@ -574,32 +485,64 @@ def sign_permit2(user_private_key: str, permit_data: dict) -> dict:
         logger.error(f"Ошибка подписания Permit2: {e}", exc_info=True)
         return {}
 
+def decode_too_much_slippage(error_data: str) -> str:
+    """
+    Декодирует ошибку TooMuchSlippage(address,uint256,uint256).
+
+    :param error_data: Hex строка с данными ошибки.
+    :return: Строка с декодированной информацией об ошибке.
+    """
+    try:
+        if error_data.startswith('0x'):
+            error_data = error_data[2:]
+        
+        # Проверяем, начинается ли ошибка с сигнатуры TooMuchSlippage
+        # Сигнатура ошибки: keccak256("TooMuchSlippage(address,uint256,uint256)")[:4] = 0x4be6321b
+        if not error_data.startswith('4be6321b'):
+            return "Неизвестная ошибка контракта."
+        
+        # Удаляем сигнатуру ошибки
+        data = error_data[8:]
+        
+        # Каждое поле занимает 64 символа (32 байта) в hex представлении
+        token_hex = data[0:64]
+        expected_hex = data[64:128]
+        actual_hex = data[128:192]
+        
+        # Преобразуем значения
+        token_address = '0x' + token_hex[-40:]  # Последние 40 символов представляют адрес
+        expected = int(expected_hex, 16)
+        actual = int(actual_hex, 16)
+        
+        return f"Ошибка контракта: TooMuchSlippage(token={token_address}, expected={expected}, actual={actual})"
+    
+    except Exception as e:
+        logger.error(f"Ошибка декодирования TooMuchSlippage: {e}", exc_info=True)
+        return "Ошибка декодирования ошибки контракта."
+
 def decode_contract_error(error_data: str) -> str:
     """
     Декодирует ошибку контракта по предоставленным данным.
+
+    :param error_data: Hex строка с данными ошибки.
+    :return: Строка с декодированной информацией об ошибке.
     """
     try:
-        # Преобразуем hex данные в байты
-        error_bytes = bytes.fromhex(error_data[2:])
-
-        # Получаем сигнатуру ошибки (первые 4 байта)
-        error_signature = error_bytes[:4].hex()
-
-        # Определяем сигнатуру для TooMuchSlippage
-        target_signature = "4be6321b"  # Keccak256("TooMuchSlippage(address,uint256,uint256)")[:4]
-
-        if error_signature == target_signature:
-            # Декодируем параметры ошибки
-            decoded = decode_abi(['address', 'uint256', 'uint256'], error_bytes[4:])
-            token = decoded[0]
-            expected = decoded[1]
-            actual = decoded[2]
-            return f"Ошибка контракта: TooMuchSlippage(token={token}, expected={expected}, actual={actual})"
+        if error_data.startswith('0x'):
+            error_data = error_data[2:]
         
-        # Если другая ошибка, можно добавить декодирование для других ошибок здесь
-
-        return "Не удалось декодировать ошибку."
+        # Проверяем тип ошибки по сигнатуре
+        error_signature = error_data[:8]
+        
+        if error_signature == "4be6321b":
+            # Это TooMuchSlippage(address,uint256,uint256)
+            return decode_too_much_slippage("0x" + error_data)
+        else:
+            # Неизвестная ошибка
+            return "Не удалось декодировать ошибку контракта."
+    
     except Exception as e:
+        logger.error(f"Ошибка декодирования ошибки контракта: {e}", exc_info=True)
         return f"Ошибка декодирования: {e}"
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -> bool:
@@ -716,15 +659,15 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -
             logger.error(f"Ошибка сериализации действий: {e}", exc_info=True)
             return False
 
-        # Получаем AllowedSlippage из quote_json (изменено: recipient - пользователь)
+        # Получаем AllowedSlippage из quote_json с увеличенным сдвигом
         try:
             # Увеличиваем допустимый сдвиг до 2%
             slippage_percentage = 0.02  # 2%
-            min_amount_out = int(quote_json.get("minBuyAmount", "0")) * (1 - slippage_percentage)
+            min_amount_out = int(float(quote_json.get("minBuyAmount", "0")) * (1 - slippage_percentage))
             allowed_slippage = {
                 "recipient": Web3.to_checksum_address(user.unique_wallet_address),  # Изменено
                 "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
-                "minAmountOut": int(min_amount_out)
+                "minAmountOut": min_amount_out
             }
         except Exception as e:
             logger.error(f"Ошибка получения AllowedSlippage: {e}", exc_info=True)
