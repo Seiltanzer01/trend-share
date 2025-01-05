@@ -14,8 +14,6 @@ from web3.exceptions import ContractCustomError  # Для корректной �
 from web3 import Web3
 from eth_account import Account
 from eth_account.messages import encode_structured_data
-from eth_account._utils.structured_data.hashing import hash_domain, hash_message
-# from eth_abi.abi import decode_abi  # Удалено
 
 from models import db, User, UserStaking
 
@@ -30,8 +28,8 @@ TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_
 WETH_CONTRACT_ADDRESS  = os.environ.get("WETH_CONTRACT_ADDRESS",  "0xYOUR_WETH_CONTRACT_ADDRESS")  # WETH
 UJO_CONTRACT_ADDRESS   = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS",      "0xYOUR_PROJECT_WALLET_ADDRESS")
-PERMIT2_CONTRACT_ADDRESS = "0x000000000022d473030f116ddee9f6b43ac78ba3"  # Из quote_json
-SWAP_CONTRACT_ADDRESS = "0xbc3c5ca50b6a215edf00815965485527f26f5da8"  # Адрес 0x Swap v2
+PERMIT2_CONTRACT_ADDRESS = "0x000000000022d473030f116ddee9f6b43ac78ba3"  # Пример адреса Permit2
+SWAP_CONTRACT_ADDRESS = "0xbc3c5ca50b6a215edf00815965485527f26f5da8"  # Пример адреса 0x Swap v2
 
 # Проверка наличия необходимых переменных окружения
 if (
@@ -42,7 +40,7 @@ if (
     logger.error("Одна или несколько ENV-переменных (TOKEN_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, MY_WALLET_ADDRESS) не заданы.")
     raise ValueError("Некорректные ENV для TOKEN_CONTRACT_ADDRESS/WETH_CONTRACT_ADDRESS/MY_WALLET_ADDRESS.")
 
-# ERC20 ABI с decimals/transfer/balanceOf
+# ERC20 ABI с необходимыми методами
 ERC20_ABI = [
     # balanceOf
     {
@@ -95,18 +93,6 @@ ERC20_ABI = [
     },
 ]
 
-# Для WETH также нужен метод deposit() (ABI)
-WETH_ABI = ERC20_ABI + [
-    {
-        "constant": False,
-        "inputs": [],
-        "name": "deposit",
-        "outputs": [],
-        "payable": True,
-        "type": "function"
-    },
-]
-
 # Permit2 ABI (Минимальный для permitTransferFrom)
 PERMIT2_ABI = [
     {
@@ -127,9 +113,37 @@ PERMIT2_ABI = [
     }
 ]
 
-# SWAP_CONTRACT_ABI: Используем предоставленный ABI
+# SWAP_CONTRACT_ABI: Используем минимальный ABI для метода execute
 SWAP_CONTRACT_ABI = [
-    # ... (оставьте как есть)
+    {
+        "constant": False,
+        "inputs": [
+            {
+                "internalType": "tuple",
+                "name": "allowedSlippage",
+                "type": "tuple",
+                "components": [
+                    {"internalType": "address", "name": "recipient", "type": "address"},
+                    {"internalType": "address", "name": "buyToken", "type": "address"},
+                    {"internalType": "uint256", "name": "minAmountOut", "type": "uint256"}
+                ]
+            },
+            {
+                "internalType": "bytes[]",
+                "name": "actions",
+                "type": "bytes[]"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "uniqueId",
+                "type": "bytes32"
+            }
+        ],
+        "name": "execute",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
 ]
 
 # Проверка корректности адресов
@@ -153,7 +167,7 @@ token_contract = web3.eth.contract(
 )
 weth_contract = web3.eth.contract(
     address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS),
-    abi=WETH_ABI
+    abi=ERC20_ABI  # Используем ERC20 ABI для WETH
 )
 ujo_contract  = web3.eth.contract(
     address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS),
@@ -289,8 +303,8 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
             "to": Web3.to_checksum_address(to_address),
             "value": web3.to_wei(amount_eth, 'ether'),
             "chainId": web3.eth.chain_id,
-            "maxFeePerGas": max_fee_wei,
-            "maxPriorityFeePerGas": priority_wei,
+            "maxFeePerGas": int(max_fee_wei),
+            "maxPriorityFeePerGas": int(priority_wei),
             "gas": 21000  # Стандартный gas limit для ETH
         }
         signed = acct.sign_transaction(tx)
@@ -399,10 +413,10 @@ def get_token_price_in_usd() -> float:
 
 # --- 0x Swap v2 (permit2) ---
 
-def get_0x_quote_v2_permit2(
+def get_0x_quote(
     sell_token: str,
     buy_token: str,
-    sell_amount_wei: int,
+    sell_amount: int,
     taker_address: str,
     chain_id: int = 8453
 ) -> dict:
@@ -417,8 +431,8 @@ def get_0x_quote_v2_permit2(
     if not Web3.is_address(sell_token) or not Web3.is_address(buy_token):
         logger.error("Некорректные адреса sell_token или buy_token.")
         return {}
-    if sell_amount_wei <= 0:
-        logger.error("sell_amount_wei должно быть положительным.")
+    if sell_amount <= 0:
+        logger.error("sell_amount должно быть положительным.")
         return {}
 
     url = "https://api.0x.org/swap/permit2/quote"
@@ -426,7 +440,7 @@ def get_0x_quote_v2_permit2(
         "chainId": chain_id,
         "sellToken": sell_token,
         "buyToken": buy_token,
-        "sellAmount": str(sell_amount_wei),
+        "sellAmount": str(sell_amount),
         "taker": taker_address,
     }
 
@@ -545,9 +559,9 @@ def decode_contract_error(error_data: str) -> str:
         logger.error(f"Ошибка декодирования ошибки контракта: {e}", exc_info=True)
         return f"Ошибка декодирования: {e}"
 
-def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -> bool:
+def execute_swap(quote_json: dict, private_key: str, user: User) -> bool:
     """
-    Выполняем транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
+    Выполняет транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
     """
     if not quote_json:
         logger.error("Пустой quote_json.")
@@ -665,7 +679,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -
             slippage_percentage = 0.02  # 2%
             min_amount_out = int(float(quote_json.get("minBuyAmount", "0")) * (1 - slippage_percentage))
             allowed_slippage = {
-                "recipient": Web3.to_checksum_address(user.unique_wallet_address),  # Изменено
+                "recipient": Web3.to_checksum_address(user.unique_wallet_address),
                 "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
                 "minAmountOut": min_amount_out
             }
@@ -725,7 +739,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -
             "value": value,
         })
         logger.info(f"Оценка газа: {estimated_gas}")
-    except ContractCustomError as e:  # Изменено
+    except ContractCustomError as e:
         decoded_error = decode_contract_error(e.args[0])
         logger.error(f"Ошибка при оценке газа: {decoded_error}")
         return False
@@ -770,7 +784,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -
         else:
             logger.error(f"Транзакция завершилась с ошибкой, tx={tx_hash.hex()}")
             return False
-    except ContractCustomError as e:  # Изменено
+    except ContractCustomError as e:
         decoded_error = decode_contract_error(e.args[0])
         logger.error(f"Contract error: {decoded_error}")
         return False
@@ -856,3 +870,105 @@ def accumulate_staking_rewards():
     except:
         db.session.rollback()
         logger.error("accumulate_staking_rewards except", exc_info=True)
+
+# --- Новые функции для работы с 0x API Swap ---
+
+def initiate_swap(user: User, sell_token: str, buy_token: str, sell_amount: float) -> bool:
+    """
+    Инициирует процесс свапа: получает котировку, подписывает Permit2 и выполняет транзакцию.
+    """
+    try:
+        # Получаем цену токена
+        price_usd = get_token_price_in_usd()
+        if price_usd <= 0:
+            logger.error("Не удалось получить цену токена UJO.")
+            return False
+
+        # Конвертируем sell_amount в базовые единицы (wei)
+        sell_amount_wei = int(sell_amount * (10 ** token_contract.functions.decimals().call()))
+
+        # Получаем котировку от 0x API
+        quote = get_0x_quote(
+            sell_token=sell_token,
+            buy_token=buy_token,
+            sell_amount=sell_amount_wei,
+            taker_address=user.unique_wallet_address
+        )
+        if not quote:
+            logger.error("Не удалось получить котировку от 0x API.")
+            return False
+
+        # Выполняем свап
+        success = execute_swap(quote, user.unique_private_key, user)
+        if success:
+            logger.info(f"Свап успешно выполнен для пользователя {user.id}.")
+            return True
+        else:
+            logger.error(f"Свап не удался для пользователя {user.id}.")
+            return False
+    except Exception as e:
+        logger.error(f"Ошибка в initiate_swap: {e}", exc_info=True)
+        return False
+
+def handle_swap_request(user: User, sell_token: str, buy_token: str, sell_amount: float) -> dict:
+    """
+    Обрабатывает запрос на свап от пользователя.
+    """
+    if not verify_private_key(user):
+        return {"error": "Invalid private key."}
+
+    # Инициируем свап
+    if initiate_swap(user, sell_token, buy_token, sell_amount):
+        return {"status": "success", "message": "Swap executed successfully."}
+    else:
+        return {"error": "Swap failed."}
+
+# Пример маршрута Flask для обработки свапов
+from flask import Blueprint, request, jsonify, session
+from flask_wtf.csrf import CSRFError
+
+swap_bp = Blueprint('swap', __name__)
+
+@swap_bp.route('/api/swap', methods=['POST'])
+def swap_route():
+    try:
+        csrf_token = request.headers.get('X-CSRFToken')
+        if not csrf_token:
+            return jsonify({"error": "CSRF token missing."}), 400
+        validate_csrf(csrf_token)
+
+        if 'user_id' not in session:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        user = User.query.get(session['user_id'])
+        if not user or not user.unique_wallet_address or not user.unique_private_key:
+            return jsonify({"error": "User not found or wallet not set."}), 400
+
+        data = request.get_json() or {}
+        sell_token = data.get("sell_token")
+        buy_token = data.get("buy_token")
+        sell_amount = data.get("sell_amount")
+
+        if not sell_token or not buy_token or not sell_amount:
+            return jsonify({"error": "Missing parameters."}), 400
+
+        try:
+            sell_amount = float(sell_amount)
+            if sell_amount <= 0:
+                raise ValueError
+        except:
+            return jsonify({"error": "Invalid sell_amount."}), 400
+
+        result = handle_swap_request(user, sell_token, buy_token, sell_amount)
+        if "error" in result:
+            return jsonify(result), 400
+        else:
+            return jsonify(result), 200
+
+    except CSRFError:
+        return jsonify({"error": "CSRF token missing or invalid."}), 400
+    except Exception as e:
+        logger.error("swap_route exception", exc_info=True)
+        return jsonify({"error": "Internal server error."}), 500
+
+# --- Конец файла staking_logic.py ---
