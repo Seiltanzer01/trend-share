@@ -444,14 +444,16 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             "recipient": acct.address,
             "deadline": int(datetime.utcnow().timestamp()) + 60 * 20,
             "amountIn": amount_in,
-            "amountOutMinimum": 0,
+            "amountOutMinimum": 1,  # Минимальный выходной токен
             "sqrtPriceLimitX96": 0
         }
 
         allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
         if allowance < amount_in:
+            logger.info(f"Недостаточный allowance для {from_token}. Выполняем одобрение.")
             approved = approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in)
             if not approved:
+                logger.error("Не удалось одобрить токены для Uniswap.")
                 return False
 
         gas_price = web3.eth.gas_price
@@ -467,12 +469,12 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
         signed_tx = acct.sign_transaction(swap_tx)
 
-        # Попробуйте отправить транзакцию
         try:
             tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         except ValueError as e:
             if "replacement transaction underpriced" in str(e):
-                gas_price = int(gas_price * 1.2)  # Увеличиваем gas_price на 20%
+                logger.warning("Повышаем gasPrice для замены транзакции.")
+                gas_price = int(gas_price * 1.2)
                 swap_tx["gasPrice"] = gas_price
                 signed_tx = acct.sign_transaction(swap_tx)
                 tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -482,11 +484,15 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
 
         if receipt.status == 1:
-            logger.info(f"swap_tokens_via_uniswap_v3: Обмен успешно выполнен, tx={tx_hash.hex()}")
+            logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
             return True
         else:
             logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
             return False
+
+    except Exception as e:
+        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
+        return False
 
     except Exception as e:
         logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
