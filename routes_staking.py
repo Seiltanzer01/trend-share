@@ -248,8 +248,8 @@ def exchange_tokens():
             logger.error(f"Не удалось получить котировку 0x: {quote}")
             return jsonify({"error": "Не удалось получить котировку 0x."}), 400
 
-        # Выполняем swap
-        swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key)
+        # Выполняем swap с передачей объекта user
+        swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key, user)  # Изменено
         if not swap_ok:
             logger.error("Ошибка выполнения 0x swap.")
             return jsonify({"error": "Ошибка выполнения 0x swap."}), 400
