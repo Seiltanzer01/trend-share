@@ -434,7 +434,7 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int) -> float
     Получает предполагаемый выход токенов через QuoterV2.
     """
     try:
-        QUOTER_V2_ADDRESS = os.environ.get("UNISWAP_QUOTER_V2_ADDRESS", "0x...")  # Адрес Quoter V2
+        QUOTER_V2_ADDRESS = os.environ.get("QUOTER_V2_ADDRESS", "0x...")  # Адрес Quoter V2
         quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_ROUTER_ABI)
 
         # Запрос на QuoterV2
