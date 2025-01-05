@@ -13,7 +13,7 @@ from eth_account import Account
 
 from models import db, User, UserStaking
 
-from eth_abi.abi import decode_abi
+from eth_abi import decode_abi
 
 logger = logging.getLogger(__name__)
 
