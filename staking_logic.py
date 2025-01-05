@@ -28,6 +28,7 @@ WETH_CONTRACT_ADDRESS  = os.environ.get("WETH_CONTRACT_ADDRESS",  "0xYOUR_WETH_C
 UJO_CONTRACT_ADDRESS   = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS",      "0xYOUR_PROJECT_WALLET_ADDRESS")
 PERMIT2_CONTRACT_ADDRESS = "0x000000000022d473030f116ddee9f6b43ac78ba3"  # Из quote_json
+SWAP_CONTRACT_ADDRESS = "0xbc3c5ca50b6a215edf00815965485527f26f5da8"  # Адрес 0x Swap v2
 
 # Проверка наличия необходимых переменных окружения
 if (
@@ -123,6 +124,100 @@ PERMIT2_ABI = [
     }
 ]
 
+# SWAP_CONTRACT_ABI: Используем предоставленный ABI
+SWAP_CONTRACT_ABI = [
+    {
+        "inputs":[{"internalType":"bytes20","name":"gitCommit","type":"bytes20"}],
+        "stateMutability":"nonpayable",
+        "type":"constructor"
+    },
+    {
+        "inputs":[
+            {"internalType":"uint256","name":"i","type":"uint256"},
+            {"internalType":"bytes4","name":"action","type":"bytes4"},
+            {"internalType":"bytes","name":"data","type":"bytes"}
+        ],
+        "name":"ActionInvalid",
+        "type":"error"
+    },
+    {
+        "inputs":[{"internalType":"uint256","name":"callbackInt","type":"uint256"}],
+        "name":"CallbackNotSpent",
+        "type":"error"
+    },
+    {"inputs":[],"name":"ConfusedDeputy","type":"error"},
+    {"inputs":[],"name":"ForwarderNotAllowed","type":"error"},
+    {"inputs":[],"name":"InvalidOffset","type":"error"},
+    {"inputs":[],"name":"InvalidSignatureLen","type":"error"},
+    {"inputs":[],"name":"InvalidTarget","type":"error"},
+    {"inputs":[],"name":"NotConverged","type":"error"},
+    {"inputs":[],"name":"PayerSpent","type":"error"},
+    {
+        "inputs":[{"internalType":"uint256","name":"callbackInt","type":"uint256"}],
+        "name":"ReentrantCallback",
+        "type":"error"
+    },
+    {
+        "inputs":[{"internalType":"address","name":"oldPayer","type":"address"}],
+        "name":"ReentrantPayer",
+        "type":"error"
+    },
+    {
+        "inputs":[{"internalType":"uint256","name":"deadline","type":"uint256"}],
+        "name":"SignatureExpired",
+        "type":"error"
+    },
+    {
+        "inputs":[
+            {"internalType":"contract IERC20","name":"token","type":"address"},
+            {"internalType":"uint256","name":"expected","type":"uint256"},
+            {"internalType":"uint256","name":"actual","type":"uint256"}
+        ],
+        "name":"TooMuchSlippage",
+        "type":"error"
+    },
+    {
+        "inputs":[{"internalType":"uint8","name":"forkId","type":"uint8"}],
+        "name":"UnknownForkId",
+        "type":"error"
+    },
+    {
+        "anonymous":False,
+        "inputs":[{"indexed":True,"internalType":"bytes20","name":"","type":"bytes20"}],
+        "name":"GitCommit",
+        "type":"event"
+    },
+    {"stateMutability":"nonpayable","type":"fallback"},
+    {
+        "inputs":[{"internalType":"address","name":"","type":"address"}],
+        "name":"balanceOf",
+        "outputs":[],
+        "stateMutability":"pure",
+        "type":"function"
+    },
+    {
+        "inputs":[
+            {
+                "components":[
+                    {"internalType":"address","name":"recipient","type":"address"},
+                    {"internalType":"contract IERC20","name":"buyToken","type":"address"},
+                    {"internalType":"uint256","name":"minAmountOut","type":"uint256"}
+                ],
+                "internalType":"struct SettlerBase.AllowedSlippage",
+                "name":"slippage",
+                "type":"tuple"
+            },
+            {"internalType":"bytes[]","name":"actions","type":"bytes[]"},
+            {"internalType":"bytes32","name":"","type":"bytes32"}
+        ],
+        "name":"execute",
+        "outputs":[{"internalType":"bool","name":"","type":"bool"}],
+        "stateMutability":"payable",
+        "type":"function"
+    },
+    {"stateMutability":"payable","type":"receive"}
+]
+
 # Проверка корректности адресов
 if not Web3.is_address(TOKEN_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный TOKEN_CONTRACT_ADDRESS: {TOKEN_CONTRACT_ADDRESS}")
@@ -134,6 +229,8 @@ if not Web3.is_address(PROJECT_WALLET_ADDRESS):
     raise ValueError(f"Некорректный PROJECT_WALLET_ADDRESS: {PROJECT_WALLET_ADDRESS}")
 if not Web3.is_address(PERMIT2_CONTRACT_ADDRESS):
     raise ValueError(f"Некорректный PERMIT2_CONTRACT_ADDRESS: {PERMIT2_CONTRACT_ADDRESS}")
+if not Web3.is_address(SWAP_CONTRACT_ADDRESS):
+    raise ValueError(f"Некорректный SWAP_CONTRACT_ADDRESS: {SWAP_CONTRACT_ADDRESS}")
 
 # Создаём объекты контрактов
 token_contract = web3.eth.contract(
@@ -151,6 +248,10 @@ ujo_contract  = web3.eth.contract(
 permit2_contract = web3.eth.contract(
     address=Web3.to_checksum_address(PERMIT2_CONTRACT_ADDRESS),
     abi=PERMIT2_ABI
+)
+swap_contract = web3.eth.contract(
+    address=Web3.to_checksum_address(SWAP_CONTRACT_ADDRESS),
+    abi=SWAP_CONTRACT_ABI
 )
 
 # 0x Swap v2 (permit2)
@@ -444,6 +545,11 @@ def sign_permit2(user_private_key: str, permit_data: dict) -> dict:
             "message": permit_data["eip712"]["message"]
         }
 
+        # Преобразование полей из строк в целые числа
+        message["message"]["permitted"]["amount"] = int(message["message"]["permitted"]["amount"])
+        message["message"]["nonce"] = int(message["message"]["nonce"])
+        message["message"]["deadline"] = int(message["message"]["deadline"])
+
         # Создаем EIP712 сообщение
         signed_message = Account.sign_message(
             encode_structured_data(message),
@@ -469,16 +575,18 @@ def decode_contract_error(error_data: str) -> str:
         # Преобразуем hex данные в байты
         error_bytes = bytes.fromhex(error_data[2:])
 
-        # Создаем экземпляр контракта для декодирования ошибок
-        swap_contract = web3.eth.contract(address=Web3.to_checksum_address("0xbc3c5ca50b6a215edf00815965485527f26f5da8"), abi=SWAP_CONTRACT_ABI)
+        # Получаем сигнатуру ошибки (первые 4 байта)
+        error_signature = error_bytes[:4].hex()
 
-        # Попробуем декодировать ошибку
-        for error in swap_contract.events:
-            try:
-                decoded = swap_contract.events[error].processLog({'data': error_data, 'topics': []})
-                return str(decoded)
-            except:
-                continue
+        # Создаем экземпляр контракта для декодирования ошибок
+        # Предполагается, что SWAP_CONTRACT_ABI включает определения ошибок
+        swap_contract = web3.eth.contract(address=Web3.to_checksum_address(SWAP_CONTRACT_ADDRESS), abi=SWAP_CONTRACT_ABI)
+
+        # Проверяем, соответствует ли сигнатура одной из известных ошибок
+        for error in swap_contract.errors:
+            if swap_contract.encodeABI(fn_name=error["name"], args=[])[:10].lower() == error_signature:
+                return f"Ошибка контракта: {error['name']}"
+
         return "Не удалось декодировать ошибку."
     except Exception as e:
         return f"Ошибка декодирования: {e}"
@@ -569,43 +677,38 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             return False
 
         # Создаем действие для Permit2
-        permit_action = permit2_contract.encodeABI(
-            fn_name="permitTransferFrom",
-            args=[
-                Web3.to_checksum_address(permit_data["eip712"]["message"]["permitted"]["token"]),
-                acct.address,
-                Web3.to_checksum_address(spender),
-                int(permit_data["eip712"]["message"]["permitted"]["amount"]),
-                int(permit_data["eip712"]["message"]["deadline"]),
-                signature["v"],
-                signature["r"],
-                signature["s"]
-            ]
-        )
+        try:
+            permit_action = permit2_contract.encodeABI(
+                fn_name="permitTransferFrom",
+                args=[
+                    Web3.to_checksum_address(permit_data["eip712"]["message"]["permitted"]["token"]),
+                    acct.address,
+                    Web3.to_checksum_address(spender),
+                    int(permit_data["eip712"]["message"]["permitted"]["amount"]),
+                    int(permit_data["eip712"]["message"]["deadline"]),
+                    signature["v"],
+                    signature["r"],
+                    signature["s"]
+                ]
+            )
+        except Exception as e:
+            logger.error(f"Ошибка кодирования permitTransferFrom: {e}", exc_info=True)
+            return False
 
         # Декодируем существующие действия из quote_json
         actions = quote_json.get("route", {}).get("fills", [])
-        actions_encoded = [action["source"] for action in actions]  # Пример, нужно уточнить формат
+        actions_encoded = [action["source"] for action in actions]  # Предполагается, что 'source' содержит hex строку действий
 
         # Добавляем Permit2 действие в массив действий
         # Предполагается, что actions_encoded является массивом hex-строк
         actions_encoded.append(permit_action)
 
-        # Кодируем массив действий
-        # Здесь необходимо правильно закодировать действия в bytes[]
-        # Это может потребовать дополнительной логики в зависимости от ожидаемого формата
-
-        # Пример: предположим, что actions_encoded уже в правильном формате
-        # В реальности, может потребоваться сериализация или другая обработка
-        actions_serialized = [bytes.fromhex(action[2:]) for action in actions_encoded]
-
-        # Обновляем данные транзакции с новыми действиями
-        # Для этого нужно перекодировать функцию 'execute' с обновленными параметрами
-        # Однако, в quote_json уже предоставлены данные транзакции
-        # Поэтому необходимо корректно объединить их
-
-        # Альтернативный подход: использовать ABI для кодирования функции 'execute'
-        # и включить новые действия
+        # Кодируем массив действий в bytes[]
+        try:
+            actions_serialized = [bytes.fromhex(action[2:]) for action in actions_encoded]
+        except Exception as e:
+            logger.error(f"Ошибка сериализации действий: {e}", exc_info=True)
+            return False
 
         # Получаем AllowedSlippage из quote_json (если необходимо)
         allowed_slippage = {
@@ -621,72 +724,13 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             "minAmountOut": allowed_slippage["minAmountOut"]
         }
 
-        # Кодируем AllowedSlippage
-        slippage_contract = web3.eth.contract(abi=[
-            {
-                "components": [
-                    {"internalType": "address", "name": "recipient", "type": "address"},
-                    {"internalType": "address", "name": "buyToken", "type": "address"},
-                    {"internalType": "uint256", "name": "minAmountOut", "type": "uint256"}
-                ],
-                "internalType": "struct SettlerBase.AllowedSlippage",
-                "name": "slippage",
-                "type": "tuple"
-            }
-        ])
-
-        slippage_encoded = slippage_contract.encodeABI(
-            fn_name="",
-            args=[AllowedSlippage]
-        )
-
-        # Кодируем массив действий
-        actions_encoded_final = [permit_action]  # Добавляем только Permit2 действие
-        for action in actions_encoded:
-            actions_encoded_final.append(action)
-
-        # Кодируем execute функцию
-        SWAP_CONTRACT_ABI = [
-            {
-                "inputs": [
-                    {
-                        "components": [
-                            {"internalType": "address", "name": "recipient", "type": "address"},
-                            {"internalType": "address", "name": "buyToken", "type": "address"},
-                            {"internalType": "uint256", "name": "minAmountOut", "type": "uint256"}
-                        ],
-                        "internalType": "struct SettlerBase.AllowedSlippage",
-                        "name": "slippage",
-                        "type": "tuple"
-                    },
-                    {
-                        "internalType": "bytes[]",
-                        "name": "actions",
-                        "type": "bytes[]"
-                    },
-                    {
-                        "internalType": "bytes32",
-                        "name": "",
-                        "type": "bytes32"
-                    }
-                ],
-                "name": "execute",
-                "outputs": [
-                    {"internalType": "bool", "name": "", "type": "bool"}
-                ],
-                "stateMutability": "payable",
-                "type": "function"
-            }
-        ]
-
-        swap_contract = web3.eth.contract(address=Web3.to_checksum_address("0xbc3c5ca50b6a215edf00815965485527f26f5da8"), abi=SWAP_CONTRACT_ABI)
-
+        # Кодируем функцию 'execute' с новыми параметрами
         execute_data = swap_contract.encodeABI(
             fn_name="execute",
             args=[
                 AllowedSlippage,
                 actions_serialized,
-                "0x" * 32  # Placeholder for bytes32 parameter
+                "0x" * 32  # Placeholder для параметра bytes32, если необходимо
             ]
         )
 
