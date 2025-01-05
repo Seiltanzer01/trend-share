@@ -739,7 +739,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
                 args=[
                     AllowedSlippage,
                     actions_serialized,
-                    "0x" * 32  # Placeholder для параметра bytes32, если необходимо
+                    "0x" + "0" * 64  # Placeholder для параметра bytes32, если необходимо
                 ]
             )
         except Exception as e:
