@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import requests
 import secrets
 import string
+import hashlib
+import json
 
 from web3.exceptions import ContractCustomError
 from web3 import Web3
@@ -161,6 +163,14 @@ swap_router_contract = web3.eth.contract(
     address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS),
     abi=UNISWAP_ROUTER_ABI
 )
+
+permit2_contract = None  # Добавьте инициализацию Permit2 контракта, если необходимо
+# Например:
+# PERMIT2_CONTRACT_ADDRESS = os.environ.get("PERMIT2_CONTRACT_ADDRESS", "0x...")
+# permit2_contract = web3.eth.contract(
+#     address=Web3.to_checksum_address(PERMIT2_CONTRACT_ADDRESS),
+#     abi=PERMIT2_ABI
+# )
 
 def generate_unique_wallet():
     """
