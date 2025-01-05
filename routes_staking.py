@@ -17,7 +17,8 @@ from staking_logic import (
     token_contract,
     weth_contract,
     ujo_contract,
-    PROJECT_WALLET_ADDRESS,  # Теперь берётся из MY_WALLET_ADDRESS
+    UJO_CONTRACT_ADDRESS,          # Добавлен импорт UJO_CONTRACT_ADDRESS
+    PROJECT_WALLET_ADDRESS,        # Теперь берётся из MY_WALLET_ADDRESS
     get_balances,
     generate_unique_wallet,
     send_token_reward,
@@ -239,7 +240,17 @@ def exchange_tokens():
             if user_eth_balance < from_amount:
                 return jsonify({"error": "Недостаточно ETH для обмена."}), 400
         else:
-            sell_contract = token_contract if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower() else weth_contract if sell_token.lower() == WETH_CONTRACT_ADDRESS.lower() else ujo_contract
+            # Определяем контракт токена для проверки баланса
+            if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
+                sell_contract = token_contract
+            elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
+                sell_contract = weth_contract
+            elif sell_token.lower() == UJO_CONTRACT_ADDRESS.lower():
+                sell_contract = ujo_contract
+            else:
+                # Если токен не известен, предполагаем, что передан корректный адрес контракта
+                sell_contract = web3.eth.contract(address=Web3.to_checksum_address(sell_token), abi=ERC20_ABI)
+
             user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
             if user_balance < from_amount:
                 return jsonify({"error": f"Недостаточно {from_token} для обмена."}), 400
