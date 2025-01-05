@@ -142,7 +142,7 @@ def confirm_staking():
             return jsonify({"error": "Staking confirm failed"}), 400
 
     except CSRFError:
-        return jsonify({"error": "CSRF token missing or invalid"}), 400
+        return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
         logger.error(f"Ошибка confirm_staking: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
@@ -168,8 +168,8 @@ def get_user_stakes():
                 'unlocked_at':   int(s.unlocked_at.timestamp()*1000)
             })
         return jsonify({"stakes": stakes_data}), 200
-    except:
-        logger.error("Ошибка get_user_stakes", exc_info=True)
+    except Exception as e:
+        logger.error(f"Ошибка get_user_stakes: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
 @staking_bp.route('/api/get_balances', methods=['GET'])
@@ -179,7 +179,7 @@ def get_balances_route():
 
     user = User.query.get(session['user_id'])
     if not user or not user.unique_wallet_address:
-        return jsonify({"error": "User not found or unique wallet set."}), 404
+        return jsonify({"error": "User not found or unique wallet not set."}), 404
 
     result = get_balances(user)
     if "error" in result:
@@ -200,7 +200,7 @@ def exchange_tokens():
 
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
-            return jsonify({"error": "User not found or unique wallet set."}), 404
+            return jsonify({"error": "User not found or unique wallet not set."}), 404
 
         # Получение данных запроса
         data = request.get_json() or {}
@@ -221,11 +221,12 @@ def exchange_tokens():
 
         # Форматируем адреса для 0x API
         def to_0x_fmt(symbol: str) -> str:
-            if symbol.upper() == "ETH":
+            symbol_upper = symbol.upper()
+            if symbol_upper == "ETH":
                 return "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-            elif symbol.upper() == "WETH":
+            elif symbol_upper == "WETH":
                 return weth_contract.address
-            elif symbol.upper() == "UJO":
+            elif symbol_upper == "UJO":
                 return ujo_contract.address
             else:
                 return symbol  # Предполагается, что переданы корректные адреса
@@ -249,7 +250,7 @@ def exchange_tokens():
             return jsonify({"error": "Не удалось получить котировку 0x."}), 400
 
         # Выполняем swap с передачей объекта user
-        swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key, user)  # Изменено
+        swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key, user)
         if not swap_ok:
             logger.error("Ошибка выполнения 0x swap.")
             return jsonify({"error": "Ошибка выполнения 0x swap."}), 400
@@ -317,7 +318,7 @@ def claim_staking_rewards_route():
         return jsonify({"message": f"Claimed {totalRewards:.4f} UJO"}), 200
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
-    except:
+    except Exception as e:
         logger.error("claim_staking_rewards_route exception", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
@@ -412,7 +413,7 @@ def stake_tokens():
             amount_usd = float(amount_usd)
             if amount_usd <= 0:
                 raise ValueError
-        except:
+        except ValueError:
             return jsonify({"error": "Invalid amount_usd."}), 400
 
         price_usd = get_token_price_in_usd()
@@ -486,6 +487,6 @@ def withdraw_funds():
 
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
-    except:
+    except Exception as e:
         logger.error("withdraw_funds error", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
