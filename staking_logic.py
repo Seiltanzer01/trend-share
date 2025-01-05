@@ -9,6 +9,7 @@ import secrets
 import string
 import json
 
+from web3.exceptions import ContractCustomError  # Добавлено
 from web3 import Web3
 from eth_account import Account
 from eth_account.messages import encode_structured_data
