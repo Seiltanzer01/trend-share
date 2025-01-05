@@ -19,14 +19,14 @@ from staking_logic import (
     ujo_contract,
     PROJECT_WALLET_ADDRESS,
     get_balances,
-    generate_unique_wallet,  # Обновленный импорт
+    generate_unique_wallet,
     send_token_reward,
     get_0x_quote_v2_permit2,
     execute_0x_swap_v2_permit2,
     deposit_eth_to_weth,
     verify_private_key,
 )
-from best_setup_voting import send_token_reward as voting_send_token_reward
+from best_setup_voting import send_token_reward as voting_send_token_reward  # Убедитесь, что этот импорт корректен
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ def exchange_tokens():
 
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
-            return jsonify({"error": "User not found or wallet not set."}), 404
+            return jsonify({"error": "User not found or unique wallet set."}), 404
 
         # Получение данных запроса
         data = request.get_json() or {}
@@ -228,7 +228,7 @@ def exchange_tokens():
             elif symbol.upper() == "UJO":
                 return ujo_contract.address
             else:
-                return symbol
+                return symbol  # Предполагается, что переданы корректные адреса
 
         sell_token_0x = to_0x_fmt(from_token)
         buy_token_0x = to_0x_fmt(to_token)
@@ -353,7 +353,11 @@ def unstake_staking_route():
         fee = total_unstake * 0.01
 
         # Отправляем часть стейка пользователю от PROJECT_WALLET_ADDRESS
-        ok = send_token_reward(user.unique_wallet_address, unstake_after_fee, private_key=os.environ.get("PRIVATE_KEY"))
+        ok = send_token_reward(
+            to_address=user.unique_wallet_address,
+            amount=unstake_after_fee,
+            private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
+        )
         if not ok:
             db.session.rollback()
             return jsonify({"error": "send_token_reward failed"}), 400
