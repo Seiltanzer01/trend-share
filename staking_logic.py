@@ -21,20 +21,23 @@ logger = logging.getLogger(__name__)
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 
-# Адреса контрактов
-TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")  # UJO
-WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")    # WETH
-UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS  # Если UJO — это тот же токен
-PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")  # Изменено с "PROJECT_WALLET_ADDRESS" на "MY_WALLET_ADDRESS"
-UNISWAP_ROUTER_ADDRESS = os.environ.get("UNISWAP_ROUTER_ADDRESS", "0x2626664c2603336E57B271c5C0b26F421741e481")  # Адрес SwapRouter в сети Base
+# Переменные окружения
+TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")
+WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")
+UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
+PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
+UNISWAP_ROUTER_ADDRESS = os.environ.get("UNISWAP_ROUTER_ADDRESS", "0x2626664c2603336E57B271c5C0b26F421741e481")
+POOL_FACTORY_ADDRESS = os.environ.get("POOL_FACTORY_ADDRESS", "0x1F98431c8aD98523631AE4a59f267346ea31F984")
+QUOTER_V2_ADDRESS = os.environ.get("QUOTER_V2_ADDRESS", "0xYOUR_QUOTER_ADDRESS")
 
-# Проверка наличия необходимых переменных окружения
 required_env_vars = [
     "TOKEN_CONTRACT_ADDRESS",
     "WETH_CONTRACT_ADDRESS",
-    "MY_WALLET_ADDRESS",  # Изменено на "MY_WALLET_ADDRESS"
+    "MY_WALLET_ADDRESS",
     "UNISWAP_ROUTER_ADDRESS",
-    "PRIVATE_KEY"  # Закрытый ключ проекта для отправки токенов
+    "POOL_FACTORY_ADDRESS",
+    "QUOTER_V2_ADDRESS",
+    "PRIVATE_KEY"
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -95,6 +98,17 @@ ERC20_ABI = [
     },
 ]
 
+UNISWAP_FACTORY_ABI = [
+    {"inputs": [{"internalType": "address", "name": "tokenA", "type": "address"},
+                {"internalType": "address", "name": "tokenB", "type": "address"},
+                {"internalType": "uint24", "name": "fee", "type": "uint24"}],
+     "name": "getPool", "outputs": [{"internalType": "address", "name": "pool", "type": "address"}], "stateMutability": "view", "type": "function"}
+]
+
+UNISWAP_POOL_ABI = [
+    {"constant": True, "inputs": [], "name": "liquidity", "outputs": [{"name": "", "type": "uint128"}], "type": "function"}
+]
+
 # Дополнительные методы для WETH
 WETH_ABI = ERC20_ABI + [
     {
@@ -143,26 +157,11 @@ UNISWAP_ROUTER_ABI = [
     }
 ]
 
-# Создаём объекты контрактов
-token_contract = web3.eth.contract(
-    address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS),
-    abi=ERC20_ABI
-)
-
-weth_contract = web3.eth.contract(
-    address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS),
-    abi=WETH_ABI
-)
-
-ujo_contract = web3.eth.contract(
-    address=Web3.to_checksum_address(UJO_CONTRACT_ADDRESS),
-    abi=ERC20_ABI
-)
-
-swap_router_contract = web3.eth.contract(
-    address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS),
-    abi=UNISWAP_ROUTER_ABI
-)
+# Контракты
+token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
+swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_FACTORY_ABI)
+pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
 
 permit2_contract = None  # Добавьте инициализацию Permit2 контракта, если необходимо
 # Например:
@@ -477,6 +476,38 @@ def check_liquidity(from_token: str, to_token: str) -> bool:
         logger.error(f"Ошибка check_liquidity: {e}", exc_info=True)
         return False
 
+# Новый метод для получения адреса пула
+def get_pool_address(from_token: str, to_token: str, fee: int = 3000) -> str:
+    try:
+        pool_address = pool_factory_contract.functions.getPool(
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            fee
+        ).call()
+        if int(pool_address, 16) == 0:
+            logger.error("Пул не найден.")
+            return ""
+        return Web3.to_checksum_address(pool_address)
+    except Exception as e:
+        logger.error(f"Ошибка get_pool_address: {e}")
+        return ""
+
+
+# Обновленная функция проверки ликвидности
+def check_liquidity(from_token: str, to_token: str, fee: int = 3000) -> bool:
+    try:
+        pool_address = get_pool_address(from_token, to_token, fee)
+        if not pool_address:
+            logger.error("Пул не найден для указанных токенов.")
+            return False
+
+        pool_contract = web3.eth.contract(address=pool_address, abi=UNISWAP_POOL_ABI)
+        liquidity = pool_contract.functions.liquidity().call()
+        return liquidity > 0
+    except Exception as e:
+        logger.error(f"Ошибка check_liquidity: {e}")
+        return False
+        
 
 # Обновленный swap_tokens_via_uniswap_v3
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
