@@ -401,7 +401,8 @@ def get_token_price_in_usd() -> float:
             logger.error("DEXScreener_PAIR_ADDRESS не задан.")
             return 0.0
 
-        chain_name = "ethereum"  # Уточните название цепочки для DexScreener
+        # Уточните название цепочки для DexScreener. Например, для Base может быть 'base' или другое.
+        chain_name = "base"  # Замените на корректное название цепочки согласно DexScreener
         api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
         resp = requests.get(api_url, timeout=10)
         if resp.status_code != 200:
@@ -685,11 +686,9 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str, user: User) -
             logger.error(f"Ошибка сериализации действий: {e}", exc_info=True)
             return False
 
-        # Получаем AllowedSlippage из quote_json с увеличенным сдвигом
+        # Получаем AllowedSlippage из quote_json без дополнительного снижения
         try:
-            # Увеличиваем допустимый сдвиг до 2%
-            slippage_percentage = 0.02  # 2%
-            min_amount_out = int(float(quote_json.get("minBuyAmount", "0")) * (1 - slippage_percentage))
+            min_amount_out = int(quote_json.get("minBuyAmount", "0"))
             allowed_slippage = {
                 "recipient": Web3.to_checksum_address(user.unique_wallet_address),
                 "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
