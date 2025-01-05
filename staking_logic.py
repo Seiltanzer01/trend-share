@@ -13,8 +13,6 @@ from eth_account import Account
 
 from models import db, User, UserStaking
 
-from eth_abi import decode_abi
-
 logger = logging.getLogger(__name__)
 
 # Подключение к RPC (например, Base)
@@ -439,17 +437,6 @@ def set_allowance(user_private_key: str, spender: str, amount: int, token_addres
     except Exception as e:
         logger.error(f"Ошибка выполнения approve: {e}", exc_info=True)
         return False
-
-def decode_contract_error(error_data: str) -> str:
-    try:
-        method_id = error_data[:10]
-        if method_id == "0x4be6321b":
-            return "NotWhitelisted() - The spender address is not whitelisted."
-        # Добавьте другие декодирования ошибок по мере необходимости
-        return f"Unknown error with method ID {method_id}"
-    except Exception as e:
-        logger.error(f"Ошибка декодирования ошибки контракта: {e}")
-        return "Unable to decode contract error."
 
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
