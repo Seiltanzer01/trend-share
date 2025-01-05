@@ -492,9 +492,11 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     acct = Account.from_key(private_key)
     nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-    # Проверка и установка allowance
+    # Извлечение spender из issues.allowance.spender
     try:
-        spender = Web3.to_checksum_address(tx_obj.get("spender", to_addr))
+        spender = Web3.to_checksum_address(
+            quote_json.get("issues", {}).get("allowance", {}).get("spender", to_addr)
+        )
         sell_token = Web3.to_checksum_address(quote_json.get("sellToken"))
     except Exception as e:
         logger.error(f"Некорректный адрес sell_token или spender: {e}")
