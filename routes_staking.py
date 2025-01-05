@@ -21,8 +21,7 @@ from staking_logic import (
     get_balances,
     generate_unique_wallet,
     send_token_reward,
-    get_0x_quote_v2_permit2,
-    execute_0x_swap_v2_permit2,
+    swap_tokens_via_uniswap_v3,
     deposit_eth_to_weth,
     verify_private_key,
 )
@@ -219,53 +218,37 @@ def exchange_tokens():
         except ValueError:
             return jsonify({"error": "Некорректное значение from_amount."}), 400
 
-        # Форматируем адреса для 0x API
-        def to_0x_fmt(symbol: str) -> str:
+        # Форматируем адреса
+        def get_token_address(symbol: str) -> str:
             symbol_upper = symbol.upper()
             if symbol_upper == "ETH":
                 return "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
             elif symbol_upper == "WETH":
-                return weth_contract.address
+                return WETH_CONTRACT_ADDRESS
             elif symbol_upper == "UJO":
-                return ujo_contract.address
+                return UJO_CONTRACT_ADDRESS
             else:
                 return symbol  # Предполагается, что переданы корректные адреса
 
-        sell_token_0x = to_0x_fmt(from_token)
-        buy_token_0x = to_0x_fmt(to_token)
+        sell_token = get_token_address(from_token)
+        buy_token = get_token_address(to_token)
 
-        decimals = 18
-        sell_amount_wei = int(from_amount * (10 ** decimals))
+        decimals = 18  # Предполагается, что все токены имеют 18 десятичных знаков
+        sell_amount = from_amount * (10 ** decimals)
 
-        # Получаем котировку 0x
-        quote = get_0x_quote_v2_permit2(
-            sell_token_0x,
-            buy_token_0x,
-            sell_amount_wei,
-            user.unique_wallet_address,
-            web3.eth.chain_id
-        )
-        if not quote or "transaction" not in quote:
-            logger.error(f"Не удалось получить котировку 0x: {quote}")
-            return jsonify({"error": "Не удалось получить котировку 0x."}), 400
-
-        # Выполняем swap с передачей объекта user
-        swap_ok = execute_0x_swap_v2_permit2(quote, user.unique_private_key, user)
+        # Выполняем обмен через Uniswap v3
+        swap_ok = swap_tokens_via_uniswap_v3(user.unique_private_key, sell_token, buy_token, from_amount)
         if not swap_ok:
-            logger.error("Ошибка выполнения 0x swap.")
-            return jsonify({"error": "Ошибка выполнения 0x swap."}), 400
+            logger.error("Ошибка выполнения обмена через Uniswap v3.")
+            return jsonify({"error": "Ошибка выполнения обмена через Uniswap v3."}), 400
 
-        # Проверяем buyAmount
-        buyAmount = 0.0
-        if "buyAmount" in quote:
-            try:
-                buyAmount = float(quote["buyAmount"]) / (10 ** decimals)
-            except ValueError:
-                logger.error(f"Некорректное значение buyAmount в котировке: {quote.get('buyAmount')}")
-                return jsonify({"error": "Некорректное значение buyAmount."}), 400
+        # Обновляем балансы
+        result = get_balances(user)
+        if "error" in result:
+            return jsonify({"error": result["error"]}), 500
 
-        logger.info(f"Успешный обмен: {from_token} -> {to_token}, получено ~{buyAmount}")
-        return jsonify({"status": "success", "received_amount": buyAmount}), 200
+        logger.info(f"Успешный обмен: {from_token} -> {to_token}, сумма: {from_amount}")
+        return jsonify({"status": "success", "balances": result["balances"]}), 200
 
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
