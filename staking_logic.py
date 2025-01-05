@@ -556,11 +556,15 @@ def sign_permit2(user_private_key: str, permit_data: dict) -> dict:
             private_key=user_private_key
         )
 
+        # Преобразуем r и s в hex строки
+        r_hex = '0x' + format(signed_message.r, '064x')
+        s_hex = '0x' + format(signed_message.s, '064x')
+
         # Возвращаем r, s, v
         return {
             "v": signed_message.v,
-            "r": signed_message.r,
-            "s": signed_message.s
+            "r": r_hex,
+            "s": s_hex
         }
     except Exception as e:
         logger.error(f"Ошибка подписания Permit2: {e}", exc_info=True)
@@ -583,8 +587,13 @@ def decode_contract_error(error_data: str) -> str:
         swap_contract = web3.eth.contract(address=Web3.to_checksum_address(SWAP_CONTRACT_ADDRESS), abi=SWAP_CONTRACT_ABI)
 
         # Проверяем, соответствует ли сигнатура одной из известных ошибок
-        for error in swap_contract.errors:
-            if swap_contract.encodeABI(fn_name=error["name"], args=[])[:10].lower() == error_signature:
+        for error in swap_contract.abi:
+            if error['type'] != 'error':
+                continue
+            # Формируем сигнатуру ошибки
+            inputs = ','.join([input['type'] for input in error['inputs']])
+            signature = web3.keccak(text=f"{error['name']}({inputs})").hex()
+            if signature.startswith(error_signature):
                 return f"Ошибка контракта: {error['name']}"
 
         return "Не удалось декодировать ошибку."
