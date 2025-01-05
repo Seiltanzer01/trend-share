@@ -430,6 +430,55 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         logger.error("approve_token except", exc_info=True)
         return False
 
+def get_expected_output(from_token: str, to_token: str, amount_in: int) -> float:
+    """
+    Получает предполагаемый выход токенов через QuoterV2.
+    """
+    try:
+        QUOTER_V2_ADDRESS = os.environ.get("UNISWAP_QUOTER_V2_ADDRESS", "0x...")  # Адрес Quoter V2
+        quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_ROUTER_ABI)
+
+        # Запрос на QuoterV2
+        quote = quoter_contract.functions.quoteExactInputSingle(
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            3000,  # fee tier
+            amount_in,
+            0  # sqrtPriceLimitX96
+        ).call()
+
+        decimals = get_token_decimals(to_token)
+        return quote / (10 ** decimals)
+    except Exception as e:
+        logger.error(f"Ошибка get_expected_output: {e}", exc_info=True)
+        return 0.0
+
+
+def check_liquidity(from_token: str, to_token: str) -> bool:
+    """
+    Проверяет наличие ликвидности в пуле Uniswap V3.
+    """
+    try:
+        POOL_FACTORY_ADDRESS = os.environ.get("POOL_FACTORY_ADDRESS", "0x...")
+        pool_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_ROUTER_ABI)
+
+        pool_address = pool_contract.functions.getPool(
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            3000
+        ).call()
+
+        if not pool_address or int(pool_address, 16) == 0:
+            return False
+
+        liquidity = web3.eth.contract(address=pool_address, abi=UNISWAP_ROUTER_ABI).functions.liquidity().call()
+        return liquidity > 0
+    except Exception as e:
+        logger.error(f"Ошибка check_liquidity: {e}", exc_info=True)
+        return False
+
+
+# Обновленный swap_tokens_via_uniswap_v3
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     try:
         acct = Account.from_key(user_private_key)
@@ -437,6 +486,17 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         decimals = from_token_contract.functions.decimals().call()
         amount_in = int(amount * (10 ** decimals))
 
+        # Проверка ликвидности
+        if not check_liquidity(from_token, to_token):
+            logger.error("Ликвидность недоступна для свопа.")
+            return False
+
+        # Получаем предполагаемый выход токенов
+        slippage_tolerance = 0.005  # 0.5%
+        expected_output = get_expected_output(from_token, to_token, amount_in)
+        amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
+
+        # Параметры для exactInputSingle
         params = {
             "tokenIn": from_token,
             "tokenOut": to_token,
@@ -444,56 +504,55 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             "recipient": acct.address,
             "deadline": int(datetime.utcnow().timestamp()) + 60 * 20,
             "amountIn": amount_in,
-            "amountOutMinimum": 1,  # Минимальный выходной токен
+            "amountOutMinimum": amount_out_minimum,
             "sqrtPriceLimitX96": 0
         }
 
+        # Проверка allowance и его установка при необходимости
         allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
         if allowance < amount_in:
-            logger.info(f"Недостаточный allowance для {from_token}. Выполняем одобрение.")
-            approved = approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in)
-            if not approved:
-                logger.error("Не удалось одобрить токены для Uniswap.")
+            logger.info("Недостаточный allowance. Выполняем одобрение.")
+            if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
+                logger.error("Ошибка при одобрении токенов.")
                 return False
 
-        gas_price = web3.eth.gas_price
+        # Реализация EIP-1559 для газа
         gas_limit = 300000
+        max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
+        max_fee_per_gas = web3.eth.gas_price + max_priority_fee_per_gas
 
+        # Строим транзакцию
         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
             "gas": gas_limit,
-            "gasPrice": gas_price,
+            "maxFeePerGas": max_fee_per_gas,
+            "maxPriorityFeePerGas": max_priority_fee_per_gas,
             "value": 0
         })
 
         signed_tx = acct.sign_transaction(swap_tx)
 
-        try:
-            tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        except ValueError as e:
-            if "replacement transaction underpriced" in str(e):
-                logger.warning("Повышаем gasPrice для замены транзакции.")
-                gas_price = int(gas_price * 1.2)
-                swap_tx["gasPrice"] = gas_price
-                signed_tx = acct.sign_transaction(swap_tx)
+        # Отправка транзакции
+        retries = 3
+        for i in range(retries):
+            try:
                 tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            else:
-                raise e
-
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-
-        if receipt.status == 1:
-            logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
-            return True
-        else:
-            logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
-            return False
-
-    except Exception as e:
-        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
-        return False
-
+                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+                if receipt.status == 1:
+                    logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
+                    return True
+                else:
+                    logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
+                    return False
+            except ValueError as e:
+                if "replacement transaction underpriced" in str(e):
+                    logger.warning("Замена транзакции. Увеличиваем gas price.")
+                    max_fee_per_gas *= 1.2
+                    swap_tx["maxFeePerGas"] = max_fee_per_gas
+                    signed_tx = acct.sign_transaction(swap_tx)
+                else:
+                    raise e
     except Exception as e:
         logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
         return False
