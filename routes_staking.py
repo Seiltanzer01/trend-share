@@ -233,8 +233,16 @@ def exchange_tokens():
         sell_token = get_token_address(from_token)
         buy_token = get_token_address(to_token)
 
-        decimals = 18  # Предполагается, что все токены имеют 18 десятичных знаков
-        sell_amount = from_amount * (10 ** decimals)
+        # Проверка баланса пользователя
+        if from_token.upper() == "ETH":
+            user_eth_balance = web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
+            if user_eth_balance < from_amount:
+                return jsonify({"error": "Недостаточно ETH для обмена."}), 400
+        else:
+            sell_contract = token_contract if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower() else weth_contract if sell_token.lower() == WETH_CONTRACT_ADDRESS.lower() else ujo_contract
+            user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
+            if user_balance < from_amount:
+                return jsonify({"error": f"Недостаточно {from_token} для обмена."}), 400
 
         # Выполняем обмен через Uniswap v3
         swap_ok = swap_tokens_via_uniswap_v3(user.unique_private_key, sell_token, buy_token, from_amount)
@@ -404,6 +412,11 @@ def stake_tokens():
             return jsonify({"error": "Failed to get UJO price."}), 400
 
         amount_ujo = amount_usd / price_usd
+
+        # Проверка баланса PROJECT_WALLET_ADDRESS
+        project_balance = get_token_balance(PROJECT_WALLET_ADDRESS, token_contract)
+        if project_balance < amount_ujo:
+            return jsonify({"error": "Недостаточно UJO в проектном кошельке."}), 400
 
         # Отправляем UJO с PROJECT_WALLET_ADDRESS пользователю
         ok = send_token_reward(
