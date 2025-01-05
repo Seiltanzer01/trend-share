@@ -655,9 +655,13 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
 
     # Извлечение spender и sell_token
     try:
-        spender = Web3.to_checksum_address(
-            quote_json.get("issues", {}).get("allowance", {}).get("spender", to_addr)
-        )
+        # Исправлено: Используем spender из permit2 сообщения
+        permit_data = quote_json.get("permit2", {})
+        if not permit_data:
+            logger.error("Permit2 данные отсутствуют в quote_json.")
+            return False
+
+        spender = Web3.to_checksum_address(permit_data["eip712"]["message"]["spender"])
         sell_token = Web3.to_checksum_address(quote_json.get("sellToken"))
     except Exception as e:
         logger.error(f"Некорректный адрес sell_token или spender: {e}")
@@ -674,10 +678,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     if allowance < sell_amount:
         logger.info(f"Недостаточно allowance: {allowance}. Используем Permit2 для установки нового allowance.")
         # Получаем Permit2 данные из quote_json
-        permit_data = quote_json.get("permit2", {})
-        if not permit_data:
-            logger.error("Permit2 данные отсутствуют в quote_json.")
-            return False
+        # permit_data уже получены выше
 
         # Подписываем Permit2 сообщение
         signature = sign_permit2(private_key, permit_data)
@@ -692,7 +693,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
                 args=[
                     Web3.to_checksum_address(permit_data["eip712"]["message"]["permitted"]["token"]),
                     acct.address,
-                    Web3.to_checksum_address(spender),
+                    spender,
                     int(permit_data["eip712"]["message"]["permitted"]["amount"]),
                     int(permit_data["eip712"]["message"]["deadline"]),
                     signature["v"],
