@@ -15,7 +15,7 @@ from web3.exceptions import ContractCustomError  # Для корректной �
 from eth_account import Account
 from eth_account.messages import encode_structured_data
 from eth_account._utils.structured_data.hashing import hash_domain, hash_message
-from eth_abi import decode_abi  # Для декодирования ошибок контракта
+from eth_abi.abi import decode_abi  # Для декодирования ошибок контракта
 
 from models import db, User, UserStaking
 
