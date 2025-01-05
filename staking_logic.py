@@ -600,6 +600,34 @@ def decode_contract_error(error_data: str) -> str:
     except Exception as e:
         return f"Ошибка декодирования: {e}"
 
+def decode_contract_error(error_data: str) -> str:
+    """
+    Декодирует ошибку контракта по предоставленным данным.
+    """
+    try:
+        # Преобразуем hex данные в байты
+        error_bytes = bytes.fromhex(error_data[2:])
+
+        # Получаем сигнатуру ошибки (первые 4 байта)
+        error_signature = error_bytes[:4].hex()
+
+        # Определяем сигнатуру для TooMuchSlippage
+        target_signature = "4be6321b"  # Keccak256("TooMuchSlippage(address,uint256,uint256)")[:4]
+
+        if error_signature == target_signature:
+            # Декодируем параметры ошибки
+            decoded = decode_abi(['address', 'uint256', 'uint256'], error_bytes[4:])
+            token = decoded[0]
+            expected = decoded[1]
+            actual = decoded[2]
+            return f"Ошибка контракта: TooMuchSlippage(token={token}, expected={expected}, actual={actual})"
+        
+        # Если другая ошибка, можно добавить декодирование для других ошибок здесь
+
+        return "Не удалось декодировать ошибку."
+    except Exception as e:
+        return f"Ошибка декодирования: {e}"
+
 def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
     """
     Выполняем транзакцию обмена (swap) 0x permit2 v2 с использованием подписанного Permit2.
@@ -715,10 +743,10 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             logger.error(f"Ошибка сериализации действий: {e}", exc_info=True)
             return False
 
-        # Получаем AllowedSlippage из quote_json (если необходимо)
+        # Получаем AllowedSlippage из quote_json (изменено: recipient - пользователь)
         try:
             allowed_slippage = {
-                "recipient": Web3.to_checksum_address(quote_json.get("route", {}).get("tokens", [])[1].get("address")),
+                "recipient": Web3.to_checksum_address(user.unique_wallet_address),  # Изменено
                 "buyToken": Web3.to_checksum_address(quote_json.get("buyToken")),
                 "minAmountOut": int(quote_json.get("minBuyAmount", "0"))
             }
@@ -733,6 +761,9 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
             allowed_slippage["minAmountOut"]
         )
 
+        # Генерация уникального bytes32 идентификатора (опционально)
+        unique_id = hashlib.sha256(nonce.to_bytes(32, byteorder='big')).hexdigest()[:64]
+
         # Кодируем функцию 'execute' с новыми параметрами
         try:
             execute_data = swap_contract.encodeABI(
@@ -740,7 +771,7 @@ def execute_0x_swap_v2_permit2(quote_json: dict, private_key: str) -> bool:
                 args=[
                     AllowedSlippage,
                     actions_serialized,
-                    "0x" + "0" * 64  # Исправленный placeholder для bytes32
+                    "0x" + unique_id  # Уникальный идентификатор вместо нулей
                 ]
             )
         except Exception as e:
