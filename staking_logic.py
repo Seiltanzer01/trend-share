@@ -183,6 +183,28 @@ UNISWAP_ROUTER_ABI = [
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
+            {"internalType": "address", "name": "_factory", "type": "address"},
+            {"internalType": "address", "name": "_WETH9", "type": "address"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "inputs": [],
+        "name": "WETH9",
+        "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "factory",
+        "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
             {"internalType": "bytes", "name": "path", "type": "bytes"},
             {"internalType": "uint256", "name": "amountIn", "type": "uint256"}
         ],
@@ -200,31 +222,11 @@ UNISWAP_QUOTER_V2_ABI = [
         "inputs": [
             {
                 "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenIn",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "tokenOut",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amountIn",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint24",
-                        "name": "fee",
-                        "type": "uint24"
-                    },
-                    {
-                        "internalType": "uint160",
-                        "name": "sqrtPriceLimitX96",
-                        "type": "uint160"
-                    }
+                    {"internalType": "address", "name": "tokenIn", "type": "address"},
+                    {"internalType": "address", "name": "tokenOut", "type": "address"},
+                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
+                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
                 ],
                 "internalType": "struct IQuoterV2.QuoteExactInputSingleParams",
                 "name": "params",
@@ -260,31 +262,11 @@ UNISWAP_QUOTER_V2_ABI = [
         "inputs": [
             {
                 "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenIn",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "tokenOut",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "amount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint24",
-                        "name": "fee",
-                        "type": "uint24"
-                    },
-                    {
-                        "internalType": "uint160",
-                        "name": "sqrtPriceLimitX96",
-                        "type": "uint160"
-                    }
+                    {"internalType": "address", "name": "tokenIn", "type": "address"},
+                    {"internalType": "address", "name": "tokenOut", "type": "address"},
+                    {"internalType": "uint256", "name": "amount", "type": "uint256"},
+                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
+                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
                 ],
                 "internalType": "struct IQuoterV2.QuoteExactOutputSingleParams",
                 "name": "params",
@@ -299,6 +281,17 @@ UNISWAP_QUOTER_V2_ABI = [
             {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
         ],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "int256", "name": "amount0Delta", "type": "int256"},
+            {"internalType": "int256", "name": "amount1Delta", "type": "int256"},
+            {"internalType": "bytes", "name": "path", "type": "bytes"}
+        ],
+        "name": "uniswapV3SwapCallback",
+        "outputs": [],
+        "stateMutability": "view",
         "type": "function"
     }
 ]
@@ -623,10 +616,11 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     """
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, fee={fee}, amount_in={amount_in}, sqrtPriceLimitX96=0")
-        # Формирование params в виде tuple
+        # Формирование params в виде tuple с учетом amountIn
         params = (
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
+            amount_in,  # Добавляем amountIn
             fee,
             0  # sqrtPriceLimitX96
         )
@@ -725,11 +719,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             params = (
                 Web3.to_checksum_address(from_token),
                 Web3.to_checksum_address(to_token),
+                amount_in,  # Добавляем amountIn
                 fee,
-                acct.address,
-                int(datetime.utcnow().timestamp()) + 60 * 20,  # deadline: current time + 20 minutes
-                amount_in,
-                amount_out_minimum,
                 0  # sqrtPriceLimitX96
             )
 
@@ -795,7 +786,10 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         break  # Try next fee tier
-            # If retries exhausted or error occurred, try next fee tier
+        except Exception as e:
+            logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
+            return False
+
         logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
         return False
 
