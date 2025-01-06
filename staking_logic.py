@@ -296,7 +296,7 @@ UNISWAP_QUOTER_V2_ABI = [
     }
 ]
 
-# Инициализация контрактов
+# Uniswap V3 Quoter V2 контракт инициализация
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
     weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
@@ -308,7 +308,7 @@ except Exception as e:
     logger.error(f"Ошибка инициализации контрактов: {e}", exc_info=True)
     sys.exit(1)
 
-# Define multiple fee tiers
+# Определение нескольких fee tiers
 FEE_TIERS = [500, 3000, 10000]
 
 def generate_unique_wallet():
@@ -731,14 +731,14 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 logger.info("Недостаточный allowance. Выполняем одобрение.")
                 if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
                     logger.error("Ошибка при одобрении токенов.")
-                    continue  # Try next fee tier
+                    continue  # Пробуем следующий fee tier
 
             # Реализация EIP-1559 для газа
             gas_limit = 300000
             max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
-            # base_fee = web3.eth.gas_price  # web3.py does not directly provide base fee
-            # Instead, we can use eth_feeHistory or gas_fee APIs
-            # For simplicity, using current gas price
+            # base_fee = web3.eth.gas_price  # web3.py не предоставляет base fee напрямую
+            # Вместо этого можно использовать eth_feeHistory или gas_fee APIs
+            # Для простоты используем текущую цену газа
             gas_price_current = web3.eth.gas_price
             max_fee_per_gas = gas_price_current + max_priority_fee_per_gas
 
@@ -768,12 +768,12 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         return True
                     else:
                         logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
-                        break  # Try next fee tier
+                        break  # Переходим к следующему fee tier
                 except ValueError as e:
                     if "replacement transaction underpriced" in str(e):
                         logger.warning("Замена транзакции. Увеличиваем gas price.")
                         max_fee_per_gas = int(max_fee_per_gas * 1.2)
-                        # Обновляем params с новым gas price
+                        # Обновляем транзакцию с новым gas price
                         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
                             "chainId": web3.eth.chain_id,
                             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
@@ -785,13 +785,13 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         signed_tx = acct.sign_transaction(swap_tx)
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
-                        break  # Try next fee tier
-        except Exception as e:
-            logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
-            return False
-
-        logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
+                        break  # Переходим к следующему fee tier
+    except Exception as e:
+        logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
         return False
+
+    logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
+    return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
