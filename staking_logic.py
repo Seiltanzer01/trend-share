@@ -42,6 +42,7 @@ required_env_vars = [
     "WETH_CONTRACT_ADDRESS",
     "MY_WALLET_ADDRESS",
     "PRIVATE_KEY",
+    "DEXScreener_PAIR_ADDRESS"  # Добавлено для функции get_token_price_in_usd
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -195,7 +196,7 @@ UNISWAP_QUOTER_V2_ABI = [
     }
 ]
 
-# Контракты
+# Инициализация контрактов
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
     weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
@@ -215,11 +216,9 @@ def generate_unique_wallet():
     Генерирует уникальный приватный ключ и соответствующий ему адрес кошелька.
     """
     while True:
-        private_key = generate_unique_private_key()
-        acct = Account.from_key(private_key)
-        unique_wallet_address = Web3.to_checksum_address(acct.address)
+        unique_wallet_address, unique_private_key = generate_unique_private_key()
         if not User.query.filter_by(unique_wallet_address=unique_wallet_address).first():
-            return unique_wallet_address, private_key
+            return unique_wallet_address, unique_private_key
 
 def generate_unique_private_key():
     return '0x' + ''.join(secrets.choice(string.hexdigits.lower()) for _ in range(64))
@@ -653,7 +652,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             signed_tx = acct.sign_transaction(swap_tx)
 
-            # Отправка транзакции
+            # Отправка транзакции с повторными попытками
             retries = 3
             for i in range(retries):
                 try:
@@ -683,9 +682,11 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         return False
-        except Exception as e:
-            logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
-            return False
+        logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
+        return False
+    except Exception as e:
+        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
+        return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
@@ -767,6 +768,7 @@ def accumulate_staking_rewards():
             if s.staked_amount > 0:
                 s.pending_rewards += 0.5
         db.session.commit()
+        logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
     except Exception as e:
         db.session.rollback()
         logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
