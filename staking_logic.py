@@ -4,8 +4,6 @@ from datetime import datetime, timedelta
 import requests
 import secrets
 import string
-import hashlib
-import json
 
 from web3.exceptions import ContractCustomError
 from web3 import Web3
@@ -123,25 +121,6 @@ UNISWAP_POOL_ABI = [
     }
 ]
 
-# Дополнительные методы для WETH
-WETH_ABI = ERC20_ABI + [
-    {
-        "constant": False,
-        "inputs": [],
-        "name": "deposit",
-        "outputs": [],
-        "payable": True,
-        "type": "function"
-    },
-    {
-        "constant": False,
-        "inputs": [],
-        "name": "withdraw",
-        "outputs": [],
-        "type": "function"
-    },
-]
-
 # Uniswap V3 SwapRouter ABI (Минимальный для exactInputSingle)
 UNISWAP_ROUTER_ABI = [
     {
@@ -171,7 +150,7 @@ UNISWAP_ROUTER_ABI = [
     }
 ]
 
-# Uniswap V3 Quoter V2 ABI (Исправленный, принимает отдельные аргументы)
+# Uniswap V3 Quoter V2 ABI
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
@@ -198,13 +177,8 @@ swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWA
 pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
 quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_QUOTER_V2_ABI)
 
-permit2_contract = None  # Добавьте инициализацию Permit2 контракта, если необходимо
-# Например:
-# PERMIT2_CONTRACT_ADDRESS = os.environ.get("PERMIT2_CONTRACT_ADDRESS", "0x...")
-# permit2_contract = web3.eth.contract(
-#     address=Web3.to_checksum_address(PERMIT2_CONTRACT_ADDRESS),
-#     abi=PERMIT2_ABI
-# )
+# Определение поддерживаемых fee tiers
+FEE_TIERS = [500, 3000, 10000]  # 0.05%, 0.3%, 1%
 
 def generate_unique_wallet():
     """
@@ -371,41 +345,6 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         logger.error("send_eth error", exc_info=True)
         return False
 
-def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
-    """
-    Выполняет WETH.deposit(), «заворачивая» заданное количество ETH в WETH.
-    """
-    try:
-        acct = Account.from_key(user_private_key)
-        balance_wei = web3.eth.get_balance(acct.address)
-        eth_balance = Web3.from_wei(balance_wei, 'ether')
-        logger.info(f"User {acct.address} balance: {eth_balance} ETH")
-
-        nonce = web3.eth.get_transaction_count(acct.address, 'pending')
-
-        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
-        gas_limit = 100000  # Увеличиваем gas limit для успешного выполнения
-
-        deposit_tx = weth_contract.functions.deposit().build_transaction({
-            "chainId": web3.eth.chain_id,
-            "nonce":   nonce,
-            "gas":     gas_limit,
-            "gasPrice": gas_price,
-            "value": web3.to_wei(amount_eth, "ether"),
-        })
-        signed = acct.sign_transaction(deposit_tx)
-        tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
-        rcpt = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
-        if rcpt.status == 1:
-            logger.info(f"deposit_eth_to_weth success, ~{amount_eth} ETH -> WETH, tx={tx_hash.hex()}")
-            return True
-        else:
-            logger.error(f"deposit_eth_to_weth fail, tx={tx_hash.hex()}")
-            return False
-    except Exception as e:
-        logger.error("deposit_eth_to_weth except", exc_info=True)
-        return False
-
 def get_balances(user: User) -> dict:
     """
     Возвращает балансы ETH, WETH, UJO для указанного пользователя.
@@ -495,26 +434,7 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         logger.error("approve_token except", exc_info=True)
         return False
 
-def get_expected_output(from_token: str, to_token: str, amount_in: int) -> float:
-    """
-    Получает предполагаемый выход токенов через QuoterV2.
-    """
-    try:
-        quote = quoter_contract.functions.quoteExactInputSingle(
-            Web3.to_checksum_address(from_token),
-            Web3.to_checksum_address(to_token),
-            3000,  # fee tier
-            amount_in,
-            0  # sqrtPriceLimitX96
-        ).call()
-
-        decimals = get_token_decimals(to_token)
-        return quote / (10 ** decimals)
-    except Exception as e:
-        logger.error(f"Ошибка get_expected_output: {e}", exc_info=True)
-        return 0.0
-
-def get_pool_address(from_token: str, to_token: str, fee: int = 3000) -> str:
+def get_pool_address(from_token: str, to_token: str, fee: int) -> str:
     try:
         pool_address = pool_factory_contract.functions.getPool(
             Web3.to_checksum_address(from_token),
@@ -522,35 +442,45 @@ def get_pool_address(from_token: str, to_token: str, fee: int = 3000) -> str:
             fee
         ).call()
         if int(pool_address, 16) == 0:
-            logger.error("Пул не найден.")
+            logger.warning(f"Пул не найден для fee tier {fee}.")
             return ""
-        logger.info(f"Пул найден: {pool_address}")
+        logger.info(f"Пул найден для fee tier {fee}: {pool_address}")
         return Web3.to_checksum_address(pool_address)
     except Exception as e:
-        logger.error(f"Ошибка get_pool_address: {e}")
+        logger.error(f"Ошибка get_pool_address для fee tier {fee}: {e}")
         return ""
 
-def check_liquidity(from_token: str, to_token: str, fee: int = 3000) -> bool:
+def check_liquidity(from_token: str, to_token: str, fee: int) -> bool:
     """
     Проверяет наличие ликвидности в пуле Uniswap V3.
     """
     try:
         pool_address = get_pool_address(from_token, to_token, fee)
         if not pool_address:
-            logger.error("Пул не найден для указанных токенов.")
             return False
 
         pool_contract = web3.eth.contract(address=pool_address, abi=UNISWAP_POOL_ABI)
         liquidity = pool_contract.functions.liquidity().call()
-        logger.info(f"Ликвидность пула: {liquidity}")
+        logger.info(f"Ликвидность пула (fee tier {fee}): {liquidity}")
         return liquidity > 0
     except Exception as e:
-        logger.error(f"Ошибка check_liquidity: {e}")
+        logger.error(f"Ошибка check_liquidity для fee tier {fee}: {e}")
         return False
+
+def get_best_fee_tier(from_token: str, to_token: str) -> int:
+    """
+    Выбирает наилучший fee tier с доступной ликвидностью.
+    Приоритет от меньшего к большему fee.
+    """
+    for fee in sorted(FEE_TIERS):
+        if check_liquidity(from_token, to_token, fee):
+            return fee
+    logger.error("Не найден подходящий пул с доступной ликвидностью для всех fee tiers.")
+    return -1
 
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     """
-    Выполняет обмен токенов через Uniswap V3.
+    Выполняет обмен токенов через Uniswap V3 с учетом нескольких fee tiers.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -560,22 +490,30 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
         logger.info(f"Пытаемся обменять {amount} токенов {from_token} на {to_token}")
 
-        # Проверка ликвидности
-        if not check_liquidity(from_token, to_token):
-            logger.error("Ликвидность недоступна для свопа.")
+        # Определяем наилучший fee tier
+        fee = get_best_fee_tier(from_token, to_token)
+        if fee == -1:
+            logger.error("Не удалось найти пул с доступной ликвидностью для обмена.")
             return False
 
         # Получаем предполагаемый выход токенов
         slippage_tolerance = 0.005  # 0.5%
-        expected_output = get_expected_output(from_token, to_token, amount_in)
-        amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
-        logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
+        expected_output = quoter_contract.functions.quoteExactInputSingle(
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            fee,
+            amount_in,
+            0  # sqrtPriceLimitX96
+        ).call()
+        decimals_out = get_token_decimals(to_token)
+        amount_out_minimum = int(expected_output * (1 - slippage_tolerance) / (10 ** decimals_out))
+        logger.info(f"Предполагаемый выход: {expected_output / (10 ** decimals_out)} токенов, минимально допустимый: {amount_out_minimum / (10 ** decimals_out)} токенов")
 
         # Параметры для exactInputSingle
         params = {
             "tokenIn": from_token,
             "tokenOut": to_token,
-            "fee": 3000,
+            "fee": fee,
             "recipient": acct.address,
             "deadline": int(datetime.utcnow().timestamp()) + 60 * 20,
             "amountIn": amount_in,
@@ -594,8 +532,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
         # Реализация EIP-1559 для газа
         gas_limit = 300000
-        max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
-        base_fee = web3.eth.gas_price  # Можно использовать метод для получения base fee, если доступен
+        max_priority_fee_per_gas = web3.to_wei('2', 'gwei')
+        base_fee = web3.eth.gas_price  # Можно использовать более точный метод для получения base fee
         max_fee_per_gas = base_fee + max_priority_fee_per_gas
 
         logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas}, max_priority_fee_per_gas={max_priority_fee_per_gas}")
@@ -612,7 +550,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
         signed_tx = acct.sign_transaction(swap_tx)
 
-        # Отправка транзакции
+        # Отправка транзакции с повторными попытками
         retries = 3
         for i in range(retries):
             try:
@@ -634,8 +572,6 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 else:
                     logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                     return False
-    except Exception as e:
-        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
         return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
