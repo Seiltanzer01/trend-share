@@ -317,6 +317,7 @@ def send_token_reward(
         if "replacement transaction underpriced" in str(e):
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
             try:
+                # Увеличиваем gas price на 10%
                 base_gas_price = int(web3.eth.gas_price * 1.1)
                 gas_price_new = base_gas_price
                 gas_limit = 100000  # Стандартный gas limit для transfer
@@ -669,7 +670,15 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     if "replacement transaction underpriced" in str(e):
                         logger.warning("Замена транзакции. Увеличиваем gas price.")
                         max_fee_per_gas = int(max_fee_per_gas * 1.2)
-                        swap_tx["maxFeePerGas"] = max_fee_per_gas
+                        params["maxFeePerGas"] = max_fee_per_gas
+                        swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
+                            "chainId": web3.eth.chain_id,
+                            "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
+                            "gas": gas_limit,
+                            "maxFeePerGas": max_fee_per_gas,
+                            "maxPriorityFeePerGas": max_priority_fee_per_gas,
+                            "value": 0
+                        })
                         signed_tx = acct.sign_transaction(swap_tx)
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
