@@ -162,11 +162,11 @@ def get_user_stakes():
         stakes_data = []
         for s in stakes:
             stakes_data.append({
-                'tx_hash':       s.tx_hash,
-                'staked_amount': s.staked_amount,
-                'staked_usd':    s.staked_usd,
-                'pending_rewards': s.pending_rewards,
-                'unlocked_at':   int(s.unlocked_at.timestamp()*1000)
+                'tx_hash':           s.tx_hash,
+                'staked_amount':     s.staked_amount,
+                'staked_usd':        s.staked_usd,
+                'pending_rewards':   s.pending_rewards,
+                'unlocked_at':       int(s.unlocked_at.timestamp() * 1000)
             })
         return jsonify({"stakes": stakes_data}), 200
     except Exception as e:
@@ -451,7 +451,7 @@ def stake_tokens():
             staked_usd=amount_usd,
             pending_rewards=0.0,
             created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow()+timedelta(days=30),
+            unlocked_at=datetime.utcnow() + timedelta(days=30),
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_stake)
