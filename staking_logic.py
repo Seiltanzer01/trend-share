@@ -616,13 +616,13 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     """
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, fee={fee}, amount_in={amount_in}, sqrtPriceLimitX96=0")
-        # Формирование params в виде tuple с учетом amountIn
+        # Исправленный порядок параметров: fee перед amount_in
         params = (
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
-            amount_in,  # Добавляем amountIn
-            fee,
-            0  # sqrtPriceLimitX96
+            fee,              # fee теперь перед amount_in
+            amount_in,        # amount_in после fee
+            0                 # sqrtPriceLimitX96
         )
         # В соответствии с ABI, quoteExactInputSingle принимает params as tuple
         # It returns (amountOut, sqrtPriceX96After, initializedTicksCrossed, gasEstimate)
