@@ -1,3 +1,5 @@
+# staking_logic.py
+
 import os
 import logging
 from datetime import datetime, timedelta
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 
-if not web3.is_connected():  # Исправлено с isConnected() на is_connected()
+if not web3.is_connected():
     logger.error("Не удалось подключиться к RPC сети Base.")
     sys.exit(1)
 
@@ -181,17 +183,122 @@ UNISWAP_ROUTER_ABI = [
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
-            {"internalType": "address", "name": "tokenIn", "type": "address"},
-            {"internalType": "address", "name": "tokenOut", "type": "address"},
-            {"internalType": "uint24", "name": "fee", "type": "uint24"},
-            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-            {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
+            {"internalType": "bytes", "name": "path", "type": "bytes"},
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"}
+        ],
+        "name": "quoteExactInput",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
+            {"internalType": "uint160[]", "name": "sqrtPriceX96AfterList", "type": "uint160[]"},
+            {"internalType": "uint32[]", "name": "initializedTicksCrossedList", "type": "uint32[]"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "tokenIn",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "tokenOut",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "amountIn",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint24",
+                        "name": "fee",
+                        "type": "uint24"
+                    },
+                    {
+                        "internalType": "uint160",
+                        "name": "sqrtPriceLimitX96",
+                        "type": "uint160"
+                    }
+                ],
+                "internalType": "struct IQuoterV2.QuoteExactInputSingleParams",
+                "name": "params",
+                "type": "tuple"
+            }
         ],
         "name": "quoteExactInputSingle",
         "outputs": [
+            {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
+            {"internalType": "uint160", "name": "sqrtPriceX96After", "type": "uint160"},
+            {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "bytes", "name": "path", "type": "bytes"},
             {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
         ],
-        "stateMutability": "view",
+        "name": "quoteExactOutput",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint160[]", "name": "sqrtPriceX96AfterList", "type": "uint160[]"},
+            {"internalType": "uint32[]", "name": "initializedTicksCrossedList", "type": "uint32[]"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "tokenIn",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "tokenOut",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint24",
+                        "name": "fee",
+                        "type": "uint24"
+                    },
+                    {
+                        "internalType": "uint160",
+                        "name": "sqrtPriceLimitX96",
+                        "type": "uint160"
+                    }
+                ],
+                "internalType": "struct IQuoterV2.QuoteExactOutputSingleParams",
+                "name": "params",
+                "type": "tuple"
+            }
+        ],
+        "name": "quoteExactOutputSingle",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint160", "name": "sqrtPriceX96After", "type": "uint160"},
+            {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
+        ],
+        "stateMutability": "nonpayable",
         "type": "function"
     }
 ]
@@ -516,17 +623,20 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     """
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, fee={fee}, amount_in={amount_in}, sqrtPriceLimitX96=0")
-        quote = quoter_contract.functions.quoteExactInputSingle(
+        # Формирование params в виде tuple
+        params = (
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
-            fee,  # fee tier
-            amount_in,
+            fee,
             0  # sqrtPriceLimitX96
-        ).call()
+        )
+        # В соответствии с ABI, quoteExactInputSingle принимает params as tuple
+        # It returns (amountOut, sqrtPriceX96After, initializedTicksCrossed, gasEstimate)
+        amount_out, _, _, _ = quoter_contract.functions.quoteExactInputSingle(params).call()
 
-        logger.info(f"Полученный quote: {quote}")
+        logger.info(f"Полученный quote: {amount_out}")
         decimals = get_token_decimals(to_token)
-        return quote / (10 ** decimals)
+        return amount_out / (10 ** decimals)
     except ContractCustomError as e:
         logger.error(f"ContractCustomError в get_expected_output: {e}")
         return 0.0
@@ -612,16 +722,16 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
             # Параметры для exactInputSingle
-            params = {
-                "tokenIn": from_token,
-                "tokenOut": to_token,
-                "fee": fee,
-                "recipient": acct.address,
-                "deadline": int(datetime.utcnow().timestamp()) + 60 * 20,
-                "amountIn": amount_in,
-                "amountOutMinimum": amount_out_minimum,
-                "sqrtPriceLimitX96": 0
-            }
+            params = (
+                Web3.to_checksum_address(from_token),
+                Web3.to_checksum_address(to_token),
+                fee,
+                acct.address,
+                int(datetime.utcnow().timestamp()) + 60 * 20,  # deadline: current time + 20 minutes
+                amount_in,
+                amount_out_minimum,
+                0  # sqrtPriceLimitX96
+            )
 
             # Проверка allowance и его установка при необходимости
             allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
@@ -630,13 +740,16 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 logger.info("Недостаточный allowance. Выполняем одобрение.")
                 if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
                     logger.error("Ошибка при одобрении токенов.")
-                    return False
+                    continue  # Try next fee tier
 
             # Реализация EIP-1559 для газа
             gas_limit = 300000
             max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
-            base_fee = web3.eth.gas_price  # Можно использовать метод для получения base fee, если доступен
-            max_fee_per_gas = base_fee + max_priority_fee_per_gas
+            # base_fee = web3.eth.gas_price  # web3.py does not directly provide base fee
+            # Instead, we can use eth_feeHistory or gas_fee APIs
+            # For simplicity, using current gas price
+            gas_price_current = web3.eth.gas_price
+            max_fee_per_gas = gas_price_current + max_priority_fee_per_gas
 
             logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas}, max_priority_fee_per_gas={max_priority_fee_per_gas}")
 
@@ -664,12 +777,12 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         return True
                     else:
                         logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
-                        return False
+                        break  # Try next fee tier
                 except ValueError as e:
                     if "replacement transaction underpriced" in str(e):
                         logger.warning("Замена транзакции. Увеличиваем gas price.")
                         max_fee_per_gas = int(max_fee_per_gas * 1.2)
-                        params["maxFeePerGas"] = max_fee_per_gas
+                        # Обновляем params с новым gas price
                         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
                             "chainId": web3.eth.chain_id,
                             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
@@ -681,11 +794,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         signed_tx = acct.sign_transaction(swap_tx)
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
-                        return False
+                        break  # Try next fee tier
+            # If retries exhausted or error occurred, try next fee tier
         logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
-        return False
-    except Exception as e:
-        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
         return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
