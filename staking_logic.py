@@ -1,5 +1,3 @@
-# staking_logic.py
-
 import os
 import logging
 from datetime import datetime, timedelta
@@ -99,14 +97,27 @@ ERC20_ABI = [
 ]
 
 UNISWAP_FACTORY_ABI = [
-    {"inputs": [{"internalType": "address", "name": "tokenA", "type": "address"},
-                {"internalType": "address", "name": "tokenB", "type": "address"},
-                {"internalType": "uint24", "name": "fee", "type": "uint24"}],
-     "name": "getPool", "outputs": [{"internalType": "address", "name": "pool", "type": "address"}], "stateMutability": "view", "type": "function"}
+    {
+        "inputs": [
+            {"internalType": "address", "name": "tokenA", "type": "address"},
+            {"internalType": "address", "name": "tokenB", "type": "address"},
+            {"internalType": "uint24", "name": "fee", "type": "uint24"}
+        ],
+        "name": "getPool",
+        "outputs": [{"internalType": "address", "name": "pool", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
 ]
 
 UNISWAP_POOL_ABI = [
-    {"constant": True, "inputs": [], "name": "liquidity", "outputs": [{"name": "", "type": "uint128"}], "type": "function"}
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "liquidity",
+        "outputs": [{"name": "", "type": "uint128"}],
+        "type": "function"
+    }
 ]
 
 # Дополнительные методы для WETH
@@ -157,12 +168,39 @@ UNISWAP_ROUTER_ABI = [
     }
 ]
 
+# Uniswap v3 Quoter V2 ABI (Минимальный для quoteExactInputSingle)
+UNISWAP_QUOTER_V2_ABI = [
+    {
+        "inputs": [
+            {
+                "components": [
+                    {"internalType": "address", "name": "tokenIn", "type": "address"},
+                    {"internalType": "address", "name": "tokenOut", "type": "address"},
+                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
+                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
+                ],
+                "internalType": "struct IQuoterV2.QuoteExactInputSingleParams",
+                "name": "params",
+                "type": "tuple"
+            }
+        ],
+        "name": "quoteExactInputSingle",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
+
 # Контракты
 token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
 weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
 ujo_contract = token_contract  # Используем только token_contract
-swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_FACTORY_ABI)
+swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_ROUTER_ABI)
 pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
+quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_QUOTER_V2_ABI)
 
 permit2_contract = None  # Добавьте инициализацию Permit2 контракта, если необходимо
 # Например:
@@ -197,6 +235,17 @@ def verify_private_key(user: User) -> bool:
     except Exception as e:
         logger.error(f"Verification failed for user {user.id}: {e}", exc_info=True)
         return False
+
+def get_token_decimals(token_address: str) -> int:
+    """
+    Получает количество десятичных знаков токена по его адресу.
+    """
+    try:
+        token = web3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
+        return token.functions.decimals().call()
+    except Exception as e:
+        logger.error(f"get_token_decimals error: {e}", exc_info=True)
+        return 18  # Default to 18 decimals if not found
 
 def get_token_balance(wallet_address: str, contract=None) -> float:
     """
@@ -435,10 +484,6 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int) -> float
     Получает предполагаемый выход токенов через QuoterV2.
     """
     try:
-        QUOTER_V2_ADDRESS = os.environ.get("QUOTER_V2_ADDRESS", "0x...")  # Адрес Quoter V2
-        quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_ROUTER_ABI)
-
-        # Запрос на QuoterV2
         quote = quoter_contract.functions.quoteExactInputSingle(
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
@@ -453,31 +498,6 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int) -> float
         logger.error(f"Ошибка get_expected_output: {e}", exc_info=True)
         return 0.0
 
-
-def check_liquidity(from_token: str, to_token: str) -> bool:
-    """
-    Проверяет наличие ликвидности в пуле Uniswap V3.
-    """
-    try:
-        POOL_FACTORY_ADDRESS = os.environ.get("POOL_FACTORY_ADDRESS", "0x...")
-        pool_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_ROUTER_ABI)
-
-        pool_address = pool_contract.functions.getPool(
-            Web3.to_checksum_address(from_token),
-            Web3.to_checksum_address(to_token),
-            3000
-        ).call()
-
-        if not pool_address or int(pool_address, 16) == 0:
-            return False
-
-        liquidity = web3.eth.contract(address=pool_address, abi=UNISWAP_ROUTER_ABI).functions.liquidity().call()
-        return liquidity > 0
-    except Exception as e:
-        logger.error(f"Ошибка check_liquidity: {e}", exc_info=True)
-        return False
-
-# Новый метод для получения адреса пула
 def get_pool_address(from_token: str, to_token: str, fee: int = 3000) -> str:
     try:
         pool_address = pool_factory_contract.functions.getPool(
@@ -493,9 +513,10 @@ def get_pool_address(from_token: str, to_token: str, fee: int = 3000) -> str:
         logger.error(f"Ошибка get_pool_address: {e}")
         return ""
 
-
-# Обновленная функция проверки ликвидности
 def check_liquidity(from_token: str, to_token: str, fee: int = 3000) -> bool:
+    """
+    Проверяет наличие ликвидности в пуле Uniswap V3.
+    """
     try:
         pool_address = get_pool_address(from_token, to_token, fee)
         if not pool_address:
@@ -508,10 +529,11 @@ def check_liquidity(from_token: str, to_token: str, fee: int = 3000) -> bool:
     except Exception as e:
         logger.error(f"Ошибка check_liquidity: {e}")
         return False
-        
 
-# Обновленный swap_tokens_via_uniswap_v3
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
+    """
+    Выполняет обмен токенов через Uniswap V3.
+    """
     try:
         acct = Account.from_key(user_private_key)
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
@@ -580,7 +602,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             except ValueError as e:
                 if "replacement transaction underpriced" in str(e):
                     logger.warning("Замена транзакции. Увеличиваем gas price.")
-                    max_fee_per_gas *= 1.2
+                    max_fee_per_gas = int(max_fee_per_gas * 1.2)
                     swap_tx["maxFeePerGas"] = max_fee_per_gas
                     signed_tx = acct.sign_transaction(swap_tx)
                 else:
