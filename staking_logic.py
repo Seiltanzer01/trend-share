@@ -246,7 +246,7 @@ UNISWAP_QUOTER_V2_ABI = [
     # Другие функции QuoterV2 опущены для краткости
 ]
 
-# Инициализация контрактов
+# Uniswap V3 Quoter V2 контракт инициализация
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
     weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
@@ -351,7 +351,8 @@ def send_token_reward(
             "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
             "gas":      gas_limit,
             "gasPrice": gas_price,
-            "value": 0
+            "value": 0,
+            "from":     acct.address  # Добавлено поле "from"
         })
         signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -380,7 +381,8 @@ def send_token_reward(
                     "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
                     "gas":      gas_limit,
                     "gasPrice": gas_price_new,
-                    "value": 0
+                    "value": 0,
+                    "from":     acct.address  # Добавлено поле "from"
                 })
                 signed_tx = acct.sign_transaction(tx)
                 tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -417,7 +419,8 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
             "value": web3.to_wei(amount_eth, 'ether'),
             "chainId": web3.eth.chain_id,
             "gas": gas_limit,
-            "gasPrice": gas_price
+            "gasPrice": gas_price,
+            "from": acct.address  # Добавлено поле "from"
         }
         signed = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
@@ -455,6 +458,7 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
             "gas":     gas_limit,
             "gasPrice": gas_price,
             "value": web3.to_wei(amount_eth, "ether"),
+            "from":    acct.address  # Добавлено поле "from"
         })
         signed = acct.sign_transaction(deposit_tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
@@ -553,6 +557,7 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
             "nonce": nonce,
             "gas": gas_limit,
             "gasPrice": gas_price,
+            "from": acct.address  # Добавлено поле "from"
         })
         signed_tx = acct.sign_transaction(approve_tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -755,7 +760,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 "gas": gas_limit,
                 "maxFeePerGas": max_fee_per_gas,
                 "maxPriorityFeePerGas": max_priority_fee_per_gas,
-                "value": 0
+                "value": 0,
+                "from": acct.address  # Добавлено поле "from"
             })
 
             # Симулируем транзакцию для получения причины отката, если она будет
@@ -808,7 +814,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                             "gas": gas_limit,
                             "maxFeePerGas": max_fee_per_gas,
                             "maxPriorityFeePerGas": max_priority_fee_per_gas,
-                            "value": 0
+                            "value": 0,
+                            "from": acct.address  # Добавлено поле "from"
                         })
                         # Симулируем транзакцию с обновленными параметрами
                         simulate_transaction_result = simulate_transaction(swap_tx)
