@@ -28,6 +28,7 @@ UNISWAP_ROUTER_ADDRESS = os.environ.get("UNISWAP_ROUTER_ADDRESS", "0x2626664c260
 POOL_FACTORY_ADDRESS = os.environ.get("POOL_FACTORY_ADDRESS", "0x1F98431c8aD98523631AE4a59f267346ea31F984")
 QUOTER_V2_ADDRESS = os.environ.get("QUOTER_V2_ADDRESS", "0xYOUR_QUOTER_ADDRESS")
 
+# Проверьте, что переменные окружения установлены корректно
 required_env_vars = [
     "TOKEN_CONTRACT_ADDRESS",
     "WETH_CONTRACT_ADDRESS",
@@ -96,6 +97,7 @@ ERC20_ABI = [
     },
 ]
 
+# Uniswap V3 Factory ABI
 UNISWAP_FACTORY_ABI = [
     {
         "inputs": [
@@ -110,6 +112,7 @@ UNISWAP_FACTORY_ABI = [
     }
 ]
 
+# Uniswap V3 Pool ABI
 UNISWAP_POOL_ABI = [
     {
         "constant": True,
@@ -139,7 +142,7 @@ WETH_ABI = ERC20_ABI + [
     },
 ]
 
-# Uniswap v3 SwapRouter ABI (Минимальный для exactInputSingle)
+# Uniswap V3 SwapRouter ABI (Минимальный для exactInputSingle)
 UNISWAP_ROUTER_ABI = [
     {
         "inputs": [
@@ -168,7 +171,7 @@ UNISWAP_ROUTER_ABI = [
     }
 ]
 
-# Uniswap v3 Quoter V2 ABI (Исправленный, принимает отдельные аргументы)
+# Uniswap V3 Quoter V2 ABI (Исправленный, принимает отдельные аргументы)
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
@@ -306,9 +309,8 @@ def send_token_reward(
         if "replacement transaction underpriced" in str(e):
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
             try:
-                base_gas_price = web3.eth.gas_price * 1.1
-                # Обновляем газ-прайс и повторяем транзакцию
-                gas_price_new = int(base_gas_price)
+                base_gas_price = int(web3.eth.gas_price * 1.1)
+                gas_price_new = base_gas_price
                 gas_limit = 100000  # Стандартный gas limit для transfer
 
                 tx = token_contract.functions.transfer(
@@ -522,6 +524,7 @@ def get_pool_address(from_token: str, to_token: str, fee: int = 3000) -> str:
         if int(pool_address, 16) == 0:
             logger.error("Пул не найден.")
             return ""
+        logger.info(f"Пул найден: {pool_address}")
         return Web3.to_checksum_address(pool_address)
     except Exception as e:
         logger.error(f"Ошибка get_pool_address: {e}")
@@ -539,6 +542,7 @@ def check_liquidity(from_token: str, to_token: str, fee: int = 3000) -> bool:
 
         pool_contract = web3.eth.contract(address=pool_address, abi=UNISWAP_POOL_ABI)
         liquidity = pool_contract.functions.liquidity().call()
+        logger.info(f"Ликвидность пула: {liquidity}")
         return liquidity > 0
     except Exception as e:
         logger.error(f"Ошибка check_liquidity: {e}")
@@ -554,6 +558,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         decimals = from_token_contract.functions.decimals().call()
         amount_in = int(amount * (10 ** decimals))
 
+        logger.info(f"Пытаемся обменять {amount} токенов {from_token} на {to_token}")
+
         # Проверка ликвидности
         if not check_liquidity(from_token, to_token):
             logger.error("Ликвидность недоступна для свопа.")
@@ -563,6 +569,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         slippage_tolerance = 0.005  # 0.5%
         expected_output = get_expected_output(from_token, to_token, amount_in)
         amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
+        logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
         # Параметры для exactInputSingle
         params = {
@@ -578,6 +585,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
         # Проверка allowance и его установка при необходимости
         allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
+        logger.info(f"Текущий allowance: {allowance}, необходимый: {amount_in}")
         if allowance < amount_in:
             logger.info("Недостаточный allowance. Выполняем одобрение.")
             if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
@@ -587,7 +595,10 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         # Реализация EIP-1559 для газа
         gas_limit = 300000
         max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
-        max_fee_per_gas = web3.eth.gas_price + max_priority_fee_per_gas
+        base_fee = web3.eth.gas_price  # Можно использовать метод для получения base fee, если доступен
+        max_fee_per_gas = base_fee + max_priority_fee_per_gas
+
+        logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas}, max_priority_fee_per_gas={max_priority_fee_per_gas}")
 
         # Строим транзакцию
         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
@@ -606,6 +617,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         for i in range(retries):
             try:
                 tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                logger.info(f"Отправлена транзакция обмена, tx_hash={tx_hash.hex()}")
                 receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
                 if receipt.status == 1:
                     logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
@@ -620,7 +632,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     swap_tx["maxFeePerGas"] = max_fee_per_gas
                     signed_tx = acct.sign_transaction(swap_tx)
                 else:
-                    raise e
+                    logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
+                    return False
     except Exception as e:
         logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
         return False
@@ -634,11 +647,13 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     try:
         r = web3.eth.get_transaction_receipt(tx_hash)
         if not r or r.status != 1:
+            logger.error(f"Транзакция не подтверждена или не найдена: {tx_hash}")
             return False
 
         transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
-        price_usd      = get_token_price_in_usd()
+        price_usd = get_token_price_in_usd()
         if price_usd <= 0:
+            logger.error("Не удалось получить цену токена в USD.")
             return False
 
         found = None
@@ -657,6 +672,7 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                             amt_int = int(lg.data, 16)
                             token_amt = amt_int / (10 ** 18)
                             usd_amt = token_amt * price_usd
+                            logger.info(f"Транзакция {tx_hash}: {token_amt} токенов, стоимость {usd_amt} USD")
                             if usd_amt >= 25:
                                 found = {
                                     "token_amount": token_amt,
@@ -664,11 +680,13 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                                 }
                                 break
         if not found:
+            logger.error(f"Транзакция {tx_hash} не соответствует критериям стейкинга.")
             return False
 
         # Проверка на дублирующийся tx_hash
         ex = UserStaking.query.filter_by(tx_hash=tx_hash).first()
         if ex:
+            logger.warning(f"Транзакция {tx_hash} уже существует в базе.")
             return False
 
         new_s = UserStaking(
