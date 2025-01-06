@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 
-if not web3.isConnected():
+if not web3.is_connected():  # Исправлено с isConnected() на is_connected()
     logger.error("Не удалось подключиться к RPC сети Base.")
     sys.exit(1)
 
