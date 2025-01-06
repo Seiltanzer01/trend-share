@@ -19,24 +19,23 @@ logger = logging.getLogger(__name__)
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 
-# Переменные окружения
+# Переменные окружения для сети Base
 TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")
 WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CONTRACT_ADDRESS")
 UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
-UNISWAP_ROUTER_ADDRESS = os.environ.get("UNISWAP_ROUTER_ADDRESS", "0xE592427A0AEce92De3Edee1F18E0157C05861564")  # Убедитесь, что это правильный адрес для сети Base
-POOL_FACTORY_ADDRESS = os.environ.get("POOL_FACTORY_ADDRESS", "0x1F98431c8aD98523631AE4a59f267346ea31F984")  # Проверьте корректность
-QUOTER_V2_ADDRESS = os.environ.get("QUOTER_V2_ADDRESS", "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6")  # Убедитесь, что это правильный адрес для сети Base
+
+# Адреса контрактов Uniswap V3 для сети Base
+UNISWAP_ROUTER_ADDRESS = "0x2626664c2603336E57B271c5C0b26F421741e481"  # SwapRouter02
+POOL_FACTORY_ADDRESS = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"      # UniswapV3Factory
+QUOTER_V2_ADDRESS = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"        # QuoterV2
 
 # Проверьте, что переменные окружения установлены корректно
 required_env_vars = [
     "TOKEN_CONTRACT_ADDRESS",
     "WETH_CONTRACT_ADDRESS",
     "MY_WALLET_ADDRESS",
-    "UNISWAP_ROUTER_ADDRESS",
-    "POOL_FACTORY_ADDRESS",
-    "QUOTER_V2_ADDRESS",
-    "PRIVATE_KEY"
+    "PRIVATE_KEY",
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -171,7 +170,7 @@ UNISWAP_ROUTER_ABI = [
     }
 ]
 
-# Uniswap V3 Quoter V2 ABI (Исправленный, принимает отдельные аргументы)
+# Uniswap V3 Quoter V2 ABI
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
@@ -192,7 +191,7 @@ UNISWAP_QUOTER_V2_ABI = [
 
 # Контракты
 token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
-weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI)
+weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
 ujo_contract = token_contract  # Используем только token_contract
 swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_ROUTER_ABI)
 pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
