@@ -343,8 +343,8 @@ def unstake_staking_route():
             return jsonify({"error": "Unauthorized"}), 401
 
         user = User.query.get(session['user_id'])
-        if not user or not user.unique_wallet_address:
-            return jsonify({"error": "User not found or unique wallet set."}), 400
+        if not user or not user.unique_wallet_address or not user.wallet_address:
+            return jsonify({"error": "User not found or wallet address not set."}), 400
 
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
         total_unstake = 0.0
