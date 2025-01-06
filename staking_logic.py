@@ -6,6 +6,8 @@ import secrets
 import string
 import hashlib
 import json
+import sys
+import binascii
 
 from web3.exceptions import ContractCustomError
 from web3 import Web3
@@ -18,6 +20,10 @@ logger = logging.getLogger(__name__)
 # Подключение к RPC сети Base
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
+
+if not web3.isConnected():
+    logger.error("Не удалось подключиться к RPC сети Base.")
+    sys.exit(1)
 
 # Переменные окружения для сети Base
 TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_TOKEN_CONTRACT_ADDRESS")
@@ -190,12 +196,16 @@ UNISWAP_QUOTER_V2_ABI = [
 ]
 
 # Контракты
-token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
-weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
-ujo_contract = token_contract  # Используем только token_contract
-swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_ROUTER_ABI)
-pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
-quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_QUOTER_V2_ABI)
+try:
+    token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
+    weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
+    ujo_contract = token_contract  # Используем только token_contract
+    swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_ROUTER_ABI)
+    pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
+    quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_QUOTER_V2_ABI)
+except Exception as e:
+    logger.error(f"Ошибка инициализации контрактов: {e}", exc_info=True)
+    sys.exit(1)
 
 # Define multiple fee tiers
 FEE_TIERS = [500, 3000, 10000]
@@ -232,7 +242,9 @@ def get_token_decimals(token_address: str) -> int:
     """
     try:
         token = web3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
-        return token.functions.decimals().call()
+        decimals = token.functions.decimals().call()
+        logger.info(f"Token {token_address} has {decimals} decimals.")
+        return decimals
     except Exception as e:
         logger.error(f"get_token_decimals error: {e}", exc_info=True)
         return 18  # Default to 18 decimals if not found
@@ -248,7 +260,9 @@ def get_token_balance(wallet_address: str, contract=None) -> float:
             Web3.to_checksum_address(wallet_address)
         ).call()
         dec = contract.functions.decimals().call()
-        return raw / (10 ** dec)
+        balance = raw / (10 ** dec)
+        logger.info(f"Баланс кошелька {wallet_address}: {balance} токенов.")
+        return balance
     except Exception as e:
         logger.error(f"get_token_balance error: {e}", exc_info=True)
         return 0.0
@@ -449,9 +463,16 @@ def get_token_price_in_usd() -> float:
         data = resp.json()
         pair = data.get("pair", {})
         if not pair:
+            logger.warning("Пара не найдена на DexScreener.")
             return 0.0
 
-        return float(pair.get("priceUsd", "0"))
+        price_usd = pair.get("priceUsd", "0")
+        if not price_usd:
+            logger.warning("Цена USD не найдена в ответе DexScreener.")
+            return 0.0
+
+        logger.info(f"Цена UJO: {price_usd} USD")
+        return float(price_usd)
     except Exception as e:
         logger.error(f"get_token_price_in_usd except: {e}", exc_info=True)
         return 0.0
@@ -508,6 +529,21 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
         return quote / (10 ** decimals)
     except ContractCustomError as e:
         logger.error(f"ContractCustomError в get_expected_output: {e}")
+        return 0.0
+    except ValueError as ve:
+        # Попытка извлечь revert reason
+        if 'execution reverted' in str(ve):
+            error_data = ve.args[0].get('data', '')
+            if error_data and len(error_data) > 10:
+                try:
+                    revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
+                    logger.error(f"Revert reason: {revert_reason}")
+                except Exception:
+                    logger.error("Не удалось декодировать revert reason.")
+            else:
+                logger.error("Нет данных для извлечения revert reason.")
+        else:
+            logger.error(f"ValueError в get_expected_output: {ve}")
         return 0.0
     except Exception as e:
         logger.error(f"Ошибка get_expected_output: {e}", exc_info=True)
@@ -638,9 +674,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         return False
-    except Exception as e:
-        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
-        return False
+        except Exception as e:
+            logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
+            return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
