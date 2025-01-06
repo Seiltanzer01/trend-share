@@ -243,57 +243,7 @@ UNISWAP_QUOTER_V2_ABI = [
         "stateMutability": "nonpayable",
         "type": "function"
     },
-    {
-        "inputs": [
-            {"internalType": "bytes", "name": "path", "type": "bytes"},
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
-        ],
-        "name": "quoteExactOutput",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-            {"internalType": "uint160[]", "name": "sqrtPriceX96AfterList", "type": "uint160[]"},
-            {"internalType": "uint32[]", "name": "initializedTicksCrossedList", "type": "uint32[]"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "tokenIn", "type": "address"},
-                    {"internalType": "address", "name": "tokenOut", "type": "address"},
-                    {"internalType": "uint256", "name": "amount", "type": "uint256"},
-                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
-                ],
-                "internalType": "struct IQuoterV2.QuoteExactOutputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "quoteExactOutputSingle",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-            {"internalType": "uint160", "name": "sqrtPriceX96After", "type": "uint160"},
-            {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {"internalType": "int256", "name": "amount0Delta", "type": "int256"},
-            {"internalType": "int256", "name": "amount1Delta", "type": "int256"},
-            {"internalType": "bytes", "name": "path", "type": "bytes"}
-        ],
-        "name": "uniswapV3SwapCallback",
-        "outputs": [],
-        "stateMutability": "view",
-        "type": "function"
-    }
+    # Другие функции QuoterV2 опущены для краткости
 ]
 
 # Uniswap V3 Quoter V2 контракт инициализация
@@ -610,6 +560,34 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         logger.error("approve_token except", exc_info=True)
         return False
 
+def simulate_transaction(tx):
+    """
+    Симулирует транзакцию и возвращает причину отката, если она произошла.
+    """
+    try:
+        # Получаем calldata
+        call_data = tx['data']
+        # Выполняем вызов без отправки транзакции
+        result = web3.eth.call({
+            'to': tx['to'],
+            'from': tx['from'],
+            'data': call_data,
+            'value': tx.get('value', 0)
+        }, block_identifier='latest')
+        # Если вызов прошел успешно, возвращаем None
+        return None
+    except Exception as e:
+        # Извлекаем revert reason
+        error_data = e.args[0].get('data', '')
+        if error_data and len(error_data) > 10:
+            try:
+                revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
+                return revert_reason
+            except Exception:
+                return "Не удалось декодировать revert reason."
+        else:
+            return "Нет данных для извлечения revert reason."
+
 def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int) -> float:
     """
     Получает предполагаемый выход токенов через QuoterV2.
@@ -617,16 +595,16 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
         
-        # Правильный порядок параметров: amount_in перед fee
-        params = {
-            'tokenIn': Web3.to_checksum_address(from_token),
-            'tokenOut': Web3.to_checksum_address(to_token),
-            'amountIn': amount_in,            # amount_in перед fee
-            'fee': fee,                       # fee после amount_in
-            'sqrtPriceLimitX96': 0            # sqrtPriceLimitX96
-        }
+        # Создаем кортеж в правильном порядке
+        params = (
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            amount_in,
+            fee,
+            0  # sqrtPriceLimitX96
+        )
         
-        # Вызов функции с передачей dict
+        # Вызов функции с передачей кортежа
         amount_out, _, _, _ = quoter_contract.functions.quoteExactInputSingle(params).call()
         
         logger.info(f"Полученный quote: {amount_out}")
@@ -728,17 +706,17 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
-            # Параметры для exactInputSingle
-            params = {
-                'tokenIn': Web3.to_checksum_address(from_token),
-                'tokenOut': Web3.to_checksum_address(to_token),
-                'fee': fee,
-                'recipient': acct.address,
-                'deadline': int(datetime.utcnow().timestamp()) + 600,  # Текущая метка времени + 10 минут
-                'amountIn': amount_in,
-                'amountOutMinimum': amount_out_minimum,
-                'sqrtPriceLimitX96': 0
-            }
+            # Параметры для exactInputSingle как кортеж
+            params = (
+                Web3.to_checksum_address(from_token),
+                Web3.to_checksum_address(to_token),
+                fee,
+                acct.address,
+                int(datetime.utcnow().timestamp()) + 600,  # Deadline
+                amount_in,
+                amount_out_minimum,
+                0  # sqrtPriceLimitX96
+            )
 
             # Проверка allowance и его установка при необходимости
             allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
@@ -751,13 +729,16 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             # Реализация EIP-1559 для газа
             gas_limit = 300000
-            max_priority_fee_per_gas = web3.to_wei(10, 'gwei')  # Увеличиваем priority fee
-            gas_price_current = web3.eth.gas_price
-            max_fee_per_gas = gas_price_current + max_priority_fee_per_gas
+            # Получаем текущую базовую газовую плату
+            pending_block = web3.eth.get_block('pending')
+            base_fee = pending_block['baseFeePerGas'] if 'baseFeePerGas' in pending_block else web3.eth.gas_price
+            max_priority_fee_per_gas = web3.to_wei(2, 'gwei')  # Установите в соответствии с текущими условиями сети
+            max_fee_per_gas = base_fee + max_priority_fee_per_gas
 
+            logger.info(f"Базовая газовая плата: {base_fee} wei")
             logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas} wei, max_priority_fee_per_gas={max_priority_fee_per_gas} wei")
 
-            # Строим транзакцию
+            # Строим транзакцию с кортежем параметров
             swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
                 "chainId": web3.eth.chain_id,
                 "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
@@ -766,6 +747,16 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 "maxPriorityFeePerGas": max_priority_fee_per_gas,
                 "value": 0
             })
+
+            # Симулируем транзакцию для получения причины отката, если она будет
+            try:
+                simulate_transaction_result = simulate_transaction(swap_tx)
+                if simulate_transaction_result:
+                    logger.error(f"Симуляция транзакции не удалась: {simulate_transaction_result}")
+                    continue  # Переходим к следующему fee tier
+            except Exception as sim_e:
+                logger.error(f"Ошибка при симуляции транзакции: {sim_e}", exc_info=True)
+                continue  # Переходим к следующему fee tier
 
             signed_tx = acct.sign_transaction(swap_tx)
 
@@ -781,14 +772,31 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         return True
                     else:
                         logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
+                        # После неудачной отправки можно попытаться симулировать транзакцию для получения причины отката
+                        try:
+                            revert_reason = simulate_transaction(swap_tx)
+                            if revert_reason:
+                                logger.error(f"Revert reason после отправки транзакции: {revert_reason}")
+                        except Exception as sim_e:
+                            logger.error(f"Ошибка при симуляции после отката транзакции: {sim_e}", exc_info=True)
                         break  # Переходим к следующему fee tier
                 except ValueError as e:
                     if "replacement transaction underpriced" in str(e):
                         logger.warning("Замена транзакции. Увеличиваем gas price.")
                         max_fee_per_gas = int(max_fee_per_gas * 1.2)
-                        # Обновляем транзакцию с новым gas price
-                        params['maxFeePerGas'] = max_fee_per_gas
-                        swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
+                        # Обновляем параметры
+                        new_params = (
+                            Web3.to_checksum_address(from_token),
+                            Web3.to_checksum_address(to_token),
+                            fee,
+                            acct.address,
+                            int(datetime.utcnow().timestamp()) + 600,
+                            amount_in,
+                            amount_out_minimum,
+                            0
+                        )
+                        # Перестраиваем транзакцию с новым gas price
+                        swap_tx = swap_router_contract.functions.exactInputSingle(new_params).build_transaction({
                             "chainId": web3.eth.chain_id,
                             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
                             "gas": gas_limit,
@@ -796,16 +804,25 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                             "maxPriorityFeePerGas": max_priority_fee_per_gas,
                             "value": 0
                         })
+                        # Симулируем транзакцию с обновленными параметрами
+                        try:
+                            simulate_transaction_result = simulate_transaction(swap_tx)
+                            if simulate_transaction_result:
+                                logger.error(f"Симуляция транзакции после увеличения газа не удалась: {simulate_transaction_result}")
+                                break  # Переходим к следующему fee tier
+                        except Exception as sim_e:
+                            logger.error(f"Ошибка при симуляции транзакции после увеличения газа: {sim_e}", exc_info=True)
+                            break  # Переходим к следующему fee tier
                         signed_tx = acct.sign_transaction(swap_tx)
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         break  # Переходим к следующему fee tier
-    except Exception as e:
-        logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
-        return False
+        except Exception as e:
+            logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
+            return False
 
-    logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
-    return False
+        logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
+        return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
