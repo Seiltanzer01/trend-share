@@ -168,22 +168,15 @@ UNISWAP_ROUTER_ABI = [
     }
 ]
 
-# Uniswap v3 Quoter V2 ABI (Минимальный для quoteExactInputSingle)
+# Uniswap v3 Quoter V2 ABI (Исправленный, принимает отдельные аргументы)
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "tokenIn", "type": "address"},
-                    {"internalType": "address", "name": "tokenOut", "type": "address"},
-                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
-                ],
-                "internalType": "struct IQuoterV2.QuoteExactInputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
+            {"internalType": "address", "name": "tokenIn", "type": "address"},
+            {"internalType": "address", "name": "tokenOut", "type": "address"},
+            {"internalType": "uint24", "name": "fee", "type": "uint24"},
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
         ],
         "name": "quoteExactInputSingle",
         "outputs": [
@@ -314,9 +307,30 @@ def send_token_reward(
             logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
             try:
                 base_gas_price = web3.eth.gas_price * 1.1
-                maxPriorityFeePerGas = int(Web3.to_wei(1, 'gwei'))
-                # Рекурсивный вызов с увеличенным gas_price
-                return send_token_reward(to_address, amount, from_address, private_key)
+                # Обновляем газ-прайс и повторяем транзакцию
+                gas_price_new = int(base_gas_price)
+                gas_limit = 100000  # Стандартный gas limit для transfer
+
+                tx = token_contract.functions.transfer(
+                    Web3.to_checksum_address(to_address),
+                    amt_wei
+                ).build_transaction({
+                    "chainId":  web3.eth.chain_id,
+                    "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
+                    "gas":      gas_limit,
+                    "gasPrice": gas_price_new,
+                    "value": 0
+                })
+                signed_tx = acct.sign_transaction(tx)
+                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+
+                if receipt.status == 1:
+                    logger.info(f"send_token_reward: {amount} UJO -> {to_address}, tx={tx_hash.hex()}")
+                    return True
+                else:
+                    logger.error(f"send_token_reward fail: {tx_hash.hex()}")
+                    return False
             except Exception as inner_e:
                 logger.error(f"Ошибка при повторной попытке send_token_reward: {inner_e}", exc_info=True)
                 return False
