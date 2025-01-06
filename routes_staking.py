@@ -2,7 +2,6 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 import secrets
-import string
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
@@ -24,7 +23,6 @@ from staking_logic import (
     generate_unique_wallet,
     send_token_reward,
     swap_tokens_via_uniswap_v3,
-    deposit_eth_to_weth,
     verify_private_key,
 )
 from best_setup_voting import send_token_reward as voting_send_token_reward  # Убедитесь, что этот импорт корректен
