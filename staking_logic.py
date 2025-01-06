@@ -700,9 +700,10 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         logger.info(f"ETH Баланс пользователя {acct.address}: {eth_balance} ETH")
         
         # Оценка необходимого количества ETH для газа
-        estimated_gas_cost = 300000 * web3.to_wei(0.1237, 'gwei') / 1e18  # Пример: 300k gas * 0.1237 gwei
+        estimated_gas_cost = 300000 * web3.to_wei(0.1237, 'gwei') / 1e18  # Пример: 300k gas * 0.1237 gwei = ~0.03711 ETH
         if eth_balance < estimated_gas_cost:
             logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{estimated_gas_cost} ETH, доступно: {eth_balance} ETH")
+            # Информируем пользователя через интерфейс (можно добавить обратную связь)
             return False
 
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
@@ -770,15 +771,6 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 "from": acct.address  # Добавлено поле "from"
             })
 
-            # Логирование параметров транзакции перед симуляцией
-            logger.debug(f"Simulating transaction with params: {swap_tx}")
-
-            # Симулируем транзакцию для получения причины отката, если она будет
-            simulate_transaction_result = simulate_transaction(swap_tx)
-            if simulate_transaction_result:
-                logger.error(f"Симуляция транзакции не удалась: {simulate_transaction_result}")
-                continue  # Переходим к следующему fee tier
-
             signed_tx = acct.sign_transaction(swap_tx)
 
             # Отправка транзакции с повторными попытками
@@ -793,13 +785,6 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         return True
                     else:
                         logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
-                        # После неудачной отправки можно попытаться симулировать транзакцию для получения причины отката
-                        try:
-                            revert_reason = simulate_transaction(swap_tx)
-                            if revert_reason:
-                                logger.error(f"Revert reason после отправки транзакции: {revert_reason}")
-                        except Exception as sim_e:
-                            logger.error(f"Ошибка при симуляции после отката транзакции: {sim_e}", exc_info=True)
                         break  # Переходим к следующему fee tier
                 except ValueError as e:
                     if "replacement transaction underpriced" in str(e):
@@ -826,15 +811,13 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                             "value": 0,
                             "from": acct.address  # Добавлено поле "from"
                         })
-                        # Симулируем транзакцию с обновленными параметрами
-                        simulate_transaction_result = simulate_transaction(swap_tx)
-                        if simulate_transaction_result:
-                            logger.error(f"Симуляция транзакции после увеличения газа не удалась: {simulate_transaction_result}")
-                            break  # Переходим к следующему fee tier
                         signed_tx = acct.sign_transaction(swap_tx)
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         break  # Переходим к следующему fee tier
+                except Exception as e:
+                    logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
+                    break  # Переходим к следующему fee tier
     except Exception as e:
         logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
         return False
