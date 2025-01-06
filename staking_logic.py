@@ -246,7 +246,7 @@ UNISWAP_QUOTER_V2_ABI = [
     # Другие функции QuoterV2 опущены для краткости
 ]
 
-# Uniswap V3 Quoter V2 контракт инициализация
+# Инициализация контрактов
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
     weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
@@ -338,8 +338,9 @@ def send_token_reward(
         decimals = token_contract.functions.decimals().call()
         amt_wei = int(amount * (10 ** decimals))
 
-        # Параметры газа для сети Base
-        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        # Параметры газа для сети Base с запасом 0.1 gwei
+        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
+        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
         gas_limit = 100000  # Стандартный gas limit для transfer
 
         tx = token_contract.functions.transfer(
@@ -405,7 +406,9 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         acct = Account.from_key(private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        # Параметры газа с запасом 0.1 gwei
+        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
+        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
         gas_limit = 21000  # Стандартный gas limit для ETH
 
         tx = {
@@ -441,7 +444,9 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        # Параметры газа с запасом 0.1 gwei
+        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
+        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
         gas_limit = 100000  # Увеличиваем gas limit для успешного выполнения
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
@@ -535,7 +540,9 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         acct = Account.from_key(user_private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        gas_price = web3.to_wei('0.1', 'gwei')  # Настройте в соответствии с текущими условиями сети Base
+        # Параметры газа с запасом 0.1 gwei
+        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
+        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
         gas_limit = 100000  # Стандартный gas limit для approve
 
         approve_tx = token_contract.functions.approve(
@@ -682,7 +689,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         logger.info(f"ETH Баланс пользователя {acct.address}: {eth_balance} ETH")
         
         # Оценка необходимого количества ETH для газа
-        estimated_gas_cost = 300000 * web3.to_wei('10', 'gwei') / 1e18  # Пример: 300k gas * 10 gwei
+        estimated_gas_cost = 300000 * web3.to_wei(0.1237, 'gwei') / 1e18  # Пример: 300k gas * 0.1237 gwei
         if eth_balance < estimated_gas_cost:
             logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{estimated_gas_cost} ETH, доступно: {eth_balance} ETH")
             return False
@@ -728,14 +735,14 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 logger.info("Недостаточный allowance. Выполняем одобрение.")
                 if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
                     logger.error("Ошибка при одобрении токенов.")
-                    continue  # Переходим к следующему fee tier
+                    continue  # Пробуем следующий fee tier
 
             # Реализация EIP-1559 для газа
             gas_limit = 300000
             # Получаем текущую базовую газовую плату
             pending_block = web3.eth.get_block('pending')
             base_fee = pending_block['baseFeePerGas'] if 'baseFeePerGas' in pending_block else web3.eth.gas_price
-            max_priority_fee_per_gas = web3.to_wei(2, 'gwei')  # Установите в соответствии с текущими условиями сети
+            max_priority_fee_per_gas = web3.to_wei(0.1, 'gwei')  # Добавляем запас 0.1 gwei
             max_fee_per_gas = base_fee + max_priority_fee_per_gas
 
             logger.info(f"Базовая газовая плата: {base_fee} wei")
@@ -752,13 +759,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             })
 
             # Симулируем транзакцию для получения причины отката, если она будет
-            try:
-                simulate_transaction_result = simulate_transaction(swap_tx)
-                if simulate_transaction_result:
-                    logger.error(f"Симуляция транзакции не удалась: {simulate_transaction_result}")
-                    continue  # Переходим к следующему fee tier
-            except Exception as sim_e:
-                logger.error(f"Ошибка при симуляции транзакции: {sim_e}", exc_info=True)
+            simulate_transaction_result = simulate_transaction(swap_tx)
+            if simulate_transaction_result:
+                logger.error(f"Симуляция транзакции не удалась: {simulate_transaction_result}")
                 continue  # Переходим к следующему fee tier
 
             signed_tx = acct.sign_transaction(swap_tx)
@@ -808,13 +811,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                             "value": 0
                         })
                         # Симулируем транзакцию с обновленными параметрами
-                        try:
-                            simulate_transaction_result = simulate_transaction(swap_tx)
-                            if simulate_transaction_result:
-                                logger.error(f"Симуляция транзакции после увеличения газа не удалась: {simulate_transaction_result}")
-                                break  # Переходим к следующему fee tier
-                        except Exception as sim_e:
-                            logger.error(f"Ошибка при симуляции транзакции после увеличения газа: {sim_e}", exc_info=True)
+                        simulate_transaction_result = simulate_transaction(swap_tx)
+                        if simulate_transaction_result:
+                            logger.error(f"Симуляция транзакции после увеличения газа не удалась: {simulate_transaction_result}")
                             break  # Переходим к следующему fee tier
                         signed_tx = acct.sign_transaction(swap_tx)
                     else:
