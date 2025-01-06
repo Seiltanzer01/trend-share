@@ -589,18 +589,24 @@ def simulate_transaction(tx):
         # Если вызов прошел успешно, возвращаем None
         return None
     except Exception as e:
+        logger.error(f"simulate_transaction exception: {e}", exc_info=True)
         # Извлекаем revert reason
-        if len(e.args) > 0 and hasattr(e.args[0], 'get'):
-            error_data = e.args[0].get('data', '')
-        else:
-            error_data = ''
+        error_data = ""
+        if len(e.args) > 0:
+            error_info = e.args[0]
+            if isinstance(error_info, dict) and 'data' in error_info:
+                error_data = error_info['data']
+
         if error_data and len(error_data) > 10:
             try:
                 revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
+                logger.error(f"Revert reason: {revert_reason}")
                 return revert_reason
             except Exception:
+                logger.error("Не удалось декодировать revert reason.")
                 return "Не удалось декодировать revert reason."
         else:
+            logger.error("Нет данных для извлечения revert reason.")
             return "Нет данных для извлечения revert reason."
 
 def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int) -> float:
@@ -718,7 +724,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 continue
 
             slippage_tolerance = 0.005  # 0.5%
-            amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
+            amount_out_minimum = max(int(expected_output * (1 - slippage_tolerance)), 1)
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
             # Параметры для exactInputSingle как кортеж
@@ -763,6 +769,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 "value": 0,
                 "from": acct.address  # Добавлено поле "from"
             })
+
+            # Логирование параметров транзакции перед симуляцией
+            logger.debug(f"Simulating transaction with params: {swap_tx}")
 
             # Симулируем транзакцию для получения причины отката, если она будет
             simulate_transaction_result = simulate_transaction(swap_tx)
