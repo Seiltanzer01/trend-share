@@ -494,6 +494,7 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     Получает предполагаемый выход токенов через QuoterV2.
     """
     try:
+        logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, fee={fee}, amount_in={amount_in}, sqrtPriceLimitX96=0")
         quote = quoter_contract.functions.quoteExactInputSingle(
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
@@ -502,6 +503,7 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
             0  # sqrtPriceLimitX96
         ).call()
 
+        logger.info(f"Полученный quote: {quote}")
         decimals = get_token_decimals(to_token)
         return quote / (10 ** decimals)
     except ContractCustomError as e:
