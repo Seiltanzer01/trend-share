@@ -716,13 +716,16 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
             # Параметры для exactInputSingle
-            params = (
-                Web3.to_checksum_address(from_token),
-                Web3.to_checksum_address(to_token),
-                amount_in,  # Добавляем amountIn
-                fee,
-                0  # sqrtPriceLimitX96
-            )
+            params = {
+                'tokenIn': Web3.to_checksum_address(from_token),
+                'tokenOut': Web3.to_checksum_address(to_token),
+                'fee': fee,
+                'recipient': acct.address,
+                'deadline': int(datetime.utcnow().timestamp()) + 600,  # Текущая метка времени + 10 минут
+                'amountIn': amount_in,
+                'amountOutMinimum': amount_out_minimum,
+                'sqrtPriceLimitX96': 0
+            }
 
             # Проверка allowance и его установка при необходимости
             allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
@@ -736,9 +739,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             # Реализация EIP-1559 для газа
             gas_limit = 300000
             max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
-            # base_fee = web3.eth.gas_price  # web3.py не предоставляет base fee напрямую
-            # Вместо этого можно использовать eth_feeHistory или gas_fee APIs
-            # Для простоты используем текущую цену газа
+            # Для deadline используем текущую цену газа + priority fee
             gas_price_current = web3.eth.gas_price
             max_fee_per_gas = gas_price_current + max_priority_fee_per_gas
 
@@ -774,6 +775,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                         logger.warning("Замена транзакции. Увеличиваем gas price.")
                         max_fee_per_gas = int(max_fee_per_gas * 1.2)
                         # Обновляем транзакцию с новым gas price
+                        params['maxFeePerGas'] = max_fee_per_gas
                         swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
                             "chainId": web3.eth.chain_id,
                             "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
