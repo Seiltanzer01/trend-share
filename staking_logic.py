@@ -615,19 +615,20 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     Получает предполагаемый выход токенов через QuoterV2.
     """
     try:
-        logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, fee={fee}, amount_in={amount_in}, sqrtPriceLimitX96=0")
-        # Исправленный порядок параметров: fee перед amount_in
-        params = (
-            Web3.to_checksum_address(from_token),
-            Web3.to_checksum_address(to_token),
-            fee,              # fee теперь перед amount_in
-            amount_in,        # amount_in после fee
-            0                 # sqrtPriceLimitX96
-        )
-        # В соответствии с ABI, quoteExactInputSingle принимает params as tuple
-        # It returns (amountOut, sqrtPriceX96After, initializedTicksCrossed, gasEstimate)
+        logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
+        
+        # Правильный порядок параметров: amount_in перед fee
+        params = {
+            'tokenIn': Web3.to_checksum_address(from_token),
+            'tokenOut': Web3.to_checksum_address(to_token),
+            'amountIn': amount_in,            # amount_in перед fee
+            'fee': fee,                       # fee после amount_in
+            'sqrtPriceLimitX96': 0            # sqrtPriceLimitX96
+        }
+        
+        # Вызов функции с передачей dict
         amount_out, _, _, _ = quoter_contract.functions.quoteExactInputSingle(params).call()
-
+        
         logger.info(f"Полученный quote: {amount_out}")
         decimals = get_token_decimals(to_token)
         return amount_out / (10 ** decimals)
