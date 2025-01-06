@@ -1,5 +1,3 @@
-# routes_staking.py
-
 import logging
 import traceback
 from datetime import datetime, timedelta
@@ -237,9 +235,12 @@ def exchange_tokens():
         sell_token = get_token_address(from_token)
         buy_token = get_token_address(to_token)
 
+        logger.info(f"Обмен: {from_amount} {from_token} ({sell_token}) -> {to_token} ({buy_token})")
+
         # Проверка баланса пользователя
         if from_token.upper() == "ETH":
             user_eth_balance = web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
+            logger.info(f"Баланс пользователя ETH: {user_eth_balance}")
             if user_eth_balance < from_amount:
                 return jsonify({"error": "Недостаточно ETH для обмена."}), 400
         else:
@@ -255,6 +256,7 @@ def exchange_tokens():
                 sell_contract = web3.eth.contract(address=Web3.to_checksum_address(sell_token), abi=ERC20_ABI)
 
             user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
+            logger.info(f"Баланс пользователя {from_token}: {user_balance}")
             if user_balance < from_amount:
                 return jsonify({"error": f"Недостаточно {from_token} для обмена."}), 400
 
@@ -429,12 +431,13 @@ def stake_tokens():
 
         # Проверка баланса PROJECT_WALLET_ADDRESS
         project_balance = get_token_balance(PROJECT_WALLET_ADDRESS, token_contract)
+        logger.info(f"Баланс PROJECT_WALLET_ADDRESS: {project_balance} UJO, требуется: {amount_ujo} UJO")
         if project_balance < amount_ujo:
             return jsonify({"error": "Недостаточно UJO в проектном кошельке."}), 400
 
         # Отправляем UJO с PROJECT_WALLET_ADDRESS пользователю
         ok = send_token_reward(
-            to_address=PROJECT_WALLET_ADDRESS,
+            to_address=user.unique_wallet_address,
             amount=amount_ujo,
             private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
         )
@@ -481,6 +484,7 @@ def withdraw_funds():
             return jsonify({"error": "User not found or wallet address not set."}), 400
 
         bal = get_token_balance(user.unique_wallet_address, ujo_contract)
+        logger.info(f"Баланс пользователя для вывода: {bal} UJO")
         if bal <= 0:
             return jsonify({"error": "No UJO tokens to withdraw."}), 400
 
