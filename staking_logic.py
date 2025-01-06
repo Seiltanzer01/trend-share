@@ -694,6 +694,18 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
     """
     try:
         acct = Account.from_key(user_private_key)
+        
+        # Проверка баланса ETH
+        raw_eth_balance = web3.eth.get_balance(acct.address)
+        eth_balance = Web3.from_wei(raw_eth_balance, 'ether')
+        logger.info(f"ETH Баланс пользователя {acct.address}: {eth_balance} ETH")
+        
+        # Оценка необходимого количества ETH для газа
+        estimated_gas_cost = 300000 * web3.to_wei('10', 'gwei') / 1e18  # Пример: 300k gas * 10 gwei
+        if eth_balance < estimated_gas_cost:
+            logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{estimated_gas_cost} ETH, доступно: {eth_balance} ETH")
+            return False
+
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
         decimals = from_token_contract.functions.decimals().call()
         amount_in = int(amount * (10 ** decimals))
@@ -739,12 +751,11 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             # Реализация EIP-1559 для газа
             gas_limit = 300000
-            max_priority_fee_per_gas = web3.to_wei(2, 'gwei')
-            # Для deadline используем текущую цену газа + priority fee
+            max_priority_fee_per_gas = web3.to_wei(10, 'gwei')  # Увеличиваем priority fee
             gas_price_current = web3.eth.gas_price
             max_fee_per_gas = gas_price_current + max_priority_fee_per_gas
 
-            logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas}, max_priority_fee_per_gas={max_priority_fee_per_gas}")
+            logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas} wei, max_priority_fee_per_gas={max_priority_fee_per_gas} wei")
 
             # Строим транзакцию
             swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
