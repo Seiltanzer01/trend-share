@@ -636,9 +636,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         return False
-        except Exception as e:
-            logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
-            return False
+    except Exception as e:
+        logger.error(f"Ошибка в swap_tokens_via_uniswap_v3: {e}", exc_info=True)
+        return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
