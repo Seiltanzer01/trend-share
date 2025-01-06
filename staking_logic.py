@@ -578,7 +578,10 @@ def simulate_transaction(tx):
         return None
     except Exception as e:
         # Извлекаем revert reason
-        error_data = e.args[0].get('data', '')
+        if len(e.args) > 0 and hasattr(e.args[0], 'get'):
+            error_data = e.args[0].get('data', '')
+        else:
+            error_data = ''
         if error_data and len(error_data) > 10:
             try:
                 revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
@@ -616,7 +619,7 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     except ValueError as ve:
         # Попытка извлечь revert reason
         if 'execution reverted' in str(ve):
-            error_data = ve.args[0].get('data', '')
+            error_data = ve.args[0].get('data', '') if hasattr(ve.args[0], 'get') else ''
             if error_data and len(error_data) > 10:
                 try:
                     revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
@@ -725,7 +728,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 logger.info("Недостаточный allowance. Выполняем одобрение.")
                 if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
                     logger.error("Ошибка при одобрении токенов.")
-                    continue  # Пробуем следующий fee tier
+                    continue  # Переходим к следующему fee tier
 
             # Реализация EIP-1559 для газа
             gas_limit = 300000
@@ -817,12 +820,12 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     else:
                         logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
                         break  # Переходим к следующему fee tier
-        except Exception as e:
-            logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
-            return False
-
-        logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
+    except Exception as e:
+        logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
         return False
+
+    logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
+    return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
