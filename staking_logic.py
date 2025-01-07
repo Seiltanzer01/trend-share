@@ -549,6 +549,9 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
         else:
             logger.error(f"swap_tokens_via_1inch fail: {tx_hash.hex()}")
             return False
+    except Exception as e:
+        logger.error("swap_tokens_via_1inch except", exc_info=True)
+        return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
