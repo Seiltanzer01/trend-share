@@ -153,7 +153,7 @@ UNISWAP_ROUTER_ABI = [
         "outputs": [
             {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
         ],
-        "stateMutability": "payable",
+        "stateMutability": "nonpayable",  # <-- Исправлено с "payable" на "nonpayable"
         "type": "function"
     },
     {
@@ -606,16 +606,16 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
 
-        # Создаём структуру параметров как кортеж из пяти элементов
-        params = (
-            Web3.to_checksum_address(from_token),
-            Web3.to_checksum_address(to_token),
-            amount_in,
-            fee,
-            0  # sqrtPriceLimitX96
-        )
+        # Создаём структуру параметров как словарь
+        params = {
+            "tokenIn": Web3.to_checksum_address(from_token),
+            "tokenOut": Web3.to_checksum_address(to_token),
+            "fee": fee,
+            "amountIn": amount_in,
+            "sqrtPriceLimitX96": 0  # sqrtPriceLimitX96 обычно устанавливается в 0
+        }
 
-        # Вызов функции с передачей структуры как кортеж
+        # Вызов функции с передачей структуры как словаря
         result = quoter_contract.functions.quoteExactInputSingle(params).call()
 
         amount_out = result[0]  # amountOut
@@ -680,7 +680,7 @@ def check_liquidity(from_token: str, to_token: str, fee: int) -> bool:
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     """
     Выполняет обмен токенов через Uniswap V3 с поддержкой нескольких fee tiers.
-    Устанавливает amount_out_minimum с последними четырьмя цифрами 1234.
+    Устанавливает amount_out_minimum с учётом проскальзывания.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -711,20 +711,19 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 logger.warning(f"Не удалось получить ожидаемый выход для fee tier {fee}. Пробуем следующий.")
                 continue
 
-            # Устанавливаем amount_out_minimum с последними четырьмя цифрами как 1234
+            # Устанавливаем amount_out_minimum с учётом проскальзывания
             slippage_tolerance = 0.12  # 12%
             slippage_amount = int(expected_output * slippage_tolerance)
             amount_out_minimum = expected_output - slippage_amount
-
-            # Добавляем 1234 в последние цифры
-            amount_out_minimum = (amount_out_minimum // 10000) * 10000 + 1234
 
             # Убедимся, что amount_out_minimum не превышает expected_output
             if amount_out_minimum > expected_output:
                 amount_out_minimum = expected_output
 
-            logger.info(f"Предполагаемый выход: {expected_output / (10 ** get_token_decimals(to_token))} токенов, "
-                        f"минимально допустимый: {amount_out_minimum}")
+            # Логирование в удобочитаемом формате
+            token_decimals = get_token_decimals(to_token)
+            logger.info(f"Предполагаемый выход: {expected_output / (10 ** token_decimals)} токенов, "
+                        f"минимально допустимый: {amount_out_minimum / (10 ** token_decimals)} токенов")
 
             # Проверка allowance и его установка при необходимости
             allowance = from_token_contract.functions.allowance(user_address, UNISWAP_ROUTER_ADDRESS).call()
@@ -844,7 +843,8 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         if (from_addr.lower() == user.unique_wallet_address.lower()
                                 and to_addr.lower() == PROJECT_WALLET_ADDRESS.lower()):
                             amt_int = int(lg.data, 16)
-                            token_amt = amt_int / (10 ** 18)
+                            token_decimals = get_token_decimals(token_contract.address)
+                            token_amt = amt_int / (10 ** token_decimals)
                             usd_amt = token_amt * price_usd
                             logger.info(f"Транзакция {tx_hash}: {token_amt} токенов, стоимость {usd_amt} USD")
                             if usd_amt >= 25:
@@ -896,3 +896,4 @@ def accumulate_staking_rewards():
     except Exception as e:
         db.session.rollback()
         logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
+
