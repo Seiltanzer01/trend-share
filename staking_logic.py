@@ -339,20 +339,20 @@ def send_token_reward(
         amt_wei = int(amount * (10 ** decimals))
 
         # Параметры газа для сети Base с запасом 0.1 gwei
-        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
-        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
+        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
         gas_limit = 100000  # Стандартный gas limit для transfer
 
         tx = token_contract.functions.transfer(
             Web3.to_checksum_address(to_address),
             amt_wei
         ).build_transaction({
-            "chainId":  web3.eth.chain_id,
-            "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
-            "gas":      gas_limit,
-            "gasPrice": gas_price,
+            "chainId": web3.eth.chain_id,
+            "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
+            "gas": gas_limit,
+            "maxFeePerGas": gas_price,
+            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
             "value": 0,
-            "from":     acct.address  # Добавлено поле "from"
+            "from": acct.address  # Добавлено поле "from"
         })
         signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -365,38 +365,6 @@ def send_token_reward(
             logger.error(f"send_token_reward fail: {tx_hash.hex()}")
             return False
     except Exception as e:
-        if "replacement transaction underpriced" in str(e):
-            logger.warning("Ошибка замены транзакции, увеличиваем gas price.")
-            try:
-                # Увеличиваем gas price на 10%
-                base_gas_price = int(web3.eth.gas_price * 1.1)
-                gas_price_new = base_gas_price
-                gas_limit = 100000  # Стандартный gas limit для transfer
-
-                tx = token_contract.functions.transfer(
-                    Web3.to_checksum_address(to_address),
-                    amt_wei
-                ).build_transaction({
-                    "chainId":  web3.eth.chain_id,
-                    "nonce":    web3.eth.get_transaction_count(acct.address, 'pending'),
-                    "gas":      gas_limit,
-                    "gasPrice": gas_price_new,
-                    "value": 0,
-                    "from":     acct.address  # Добавлено поле "from"
-                })
-                signed_tx = acct.sign_transaction(tx)
-                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-
-                if receipt.status == 1:
-                    logger.info(f"send_token_reward: {amount} UJO -> {to_address}, tx={tx_hash.hex()}")
-                    return True
-                else:
-                    logger.error(f"send_token_reward fail: {tx_hash.hex()}")
-                    return False
-            except Exception as inner_e:
-                logger.error(f"Ошибка при повторной попытке send_token_reward: {inner_e}", exc_info=True)
-                return False
         logger.error("send_token_reward except", exc_info=True)
         return False
 
@@ -409,8 +377,7 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
         # Параметры газа с запасом 0.1 gwei
-        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
-        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
+        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
         gas_limit = 21000  # Стандартный gas limit для ETH
 
         tx = {
@@ -419,7 +386,8 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
             "value": web3.to_wei(amount_eth, 'ether'),
             "chainId": web3.eth.chain_id,
             "gas": gas_limit,
-            "gasPrice": gas_price,
+            "maxFeePerGas": gas_price,
+            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
             "from": acct.address  # Добавлено поле "from"
         }
         signed = acct.sign_transaction(tx)
@@ -448,15 +416,15 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
         # Параметры газа с запасом 0.1 gwei
-        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
-        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
+        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
         gas_limit = 100000  # Увеличиваем gas limit для успешного выполнения
 
         deposit_tx = weth_contract.functions.deposit().build_transaction({
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
             "gas":     gas_limit,
-            "gasPrice": gas_price,
+            "maxFeePerGas": gas_price,
+            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
             "value": web3.to_wei(amount_eth, "ether"),
             "from":    acct.address  # Добавлено поле "from"
         })
@@ -545,8 +513,7 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
         # Параметры газа с запасом 0.1 gwei
-        # current fast gas: 0.0237 gwei, buffer: 0.1 gwei => total: 0.1237 gwei
-        gas_price = web3.to_wei(0.1237, 'gwei')  # 0.0237 + 0.1 gwei
+        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
         gas_limit = 100000  # Стандартный gas limit для approve
 
         approve_tx = token_contract.functions.approve(
@@ -556,7 +523,9 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
             "chainId": web3.eth.chain_id,
             "nonce": nonce,
             "gas": gas_limit,
-            "gasPrice": gas_price,
+            "maxFeePerGas": gas_price,
+            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
+            "value": 0,
             "from": acct.address  # Добавлено поле "from"
         })
         signed_tx = acct.sign_transaction(approve_tx)
@@ -572,43 +541,6 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         logger.error("approve_token except", exc_info=True)
         return False
 
-def simulate_transaction(tx):
-    """
-    Симулирует транзакцию и возвращает причину отката, если она произошла.
-    """
-    try:
-        # Получаем calldata
-        call_data = tx['data']
-        # Выполняем вызов без отправки транзакции
-        result = web3.eth.call({
-            'to': tx['to'],
-            'from': tx['from'],
-            'data': call_data,
-            'value': tx.get('value', 0)
-        }, block_identifier='latest')
-        # Если вызов прошел успешно, возвращаем None
-        return None
-    except Exception as e:
-        logger.error(f"simulate_transaction exception: {e}", exc_info=True)
-        # Извлекаем revert reason
-        error_data = ""
-        if len(e.args) > 0:
-            error_info = e.args[0]
-            if isinstance(error_info, dict) and 'data' in error_info:
-                error_data = error_info['data']
-
-        if error_data and len(error_data) > 10:
-            try:
-                revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
-                logger.error(f"Revert reason: {revert_reason}")
-                return revert_reason
-            except Exception:
-                logger.error("Не удалось декодировать revert reason.")
-                return "Не удалось декодировать revert reason."
-        else:
-            logger.error("Нет данных для извлечения revert reason.")
-            return "Нет данных для извлечения revert reason."
-
 def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int) -> float:
     """
     Получает предполагаемый выход токенов через QuoterV2.
@@ -620,13 +552,18 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
         params = (
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
-            amount_in,
             fee,
             0  # sqrtPriceLimitX96
         )
         
-        # Вызов функции с передачей кортежа
-        amount_out, _, _, _ = quoter_contract.functions.quoteExactInputSingle(params).call()
+        # Используем функцию quoteExactInputSingle с параметрами
+        amount_out, _, _, _ = quoter_contract.functions.quoteExactInputSingle(
+            from_token,
+            to_token,
+            fee,
+            amount_in,
+            0
+        ).call()
         
         logger.info(f"Полученный quote: {amount_out}")
         decimals = get_token_decimals(to_token)
@@ -693,18 +630,27 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
     """
     try:
         acct = Account.from_key(user_private_key)
+        user_address = Web3.to_checksum_address(acct.address)
         
         # Проверка баланса ETH
-        raw_eth_balance = web3.eth.get_balance(acct.address)
+        raw_eth_balance = web3.eth.get_balance(user_address)
         eth_balance = Web3.from_wei(raw_eth_balance, 'ether')
-        logger.info(f"ETH Баланс пользователя {acct.address}: {eth_balance} ETH")
+        logger.info(f"ETH Баланс пользователя {user_address}: {eth_balance} ETH")
         
-        # Оценка необходимого количества ETH для газа
-        estimated_gas_cost = 300000 * web3.to_wei(0.1237, 'gwei') / 1e18  # Пример: 300k gas * 0.1237 gwei = ~0.03711 ETH
-        if eth_balance < estimated_gas_cost:
-            logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{estimated_gas_cost} ETH, доступно: {eth_balance} ETH")
-            # Информируем пользователя через интерфейс (можно добавить обратную связь)
-            return False
+        # Получаем текущую базовую газовую плату
+        try:
+            pending_block = web3.eth.get_block('pending')
+            base_fee = pending_block['baseFeePerGas']
+        except Exception as e:
+            logger.error(f"Ошибка получения base fee: {e}")
+            base_fee = web3.eth.gas_price  # fallback
+
+        # Устанавливаем max_priority_fee_per_gas на 0.1 gwei
+        max_priority_fee_per_gas = web3.to_wei(0.1, 'gwei')
+        max_fee_per_gas = base_fee + max_priority_fee_per_gas
+
+        logger.info(f"Базовая газовая плата: {base_fee} wei")
+        logger.info(f"Используем max_fee_per_gas={max_fee_per_gas} wei, max_priority_fee_per_gas={max_priority_fee_per_gas} wei")
 
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
         decimals = from_token_contract.functions.decimals().call()
@@ -725,23 +671,11 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 continue
 
             slippage_tolerance = 0.005  # 0.5%
-            amount_out_minimum = max(int(expected_output * (1 - slippage_tolerance)), 1)
+            amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
-            # Параметры для exactInputSingle как кортеж
-            params = (
-                Web3.to_checksum_address(from_token),
-                Web3.to_checksum_address(to_token),
-                fee,
-                acct.address,
-                int(datetime.utcnow().timestamp()) + 600,  # Deadline
-                amount_in,
-                amount_out_minimum,
-                0  # sqrtPriceLimitX96
-            )
-
             # Проверка allowance и его установка при необходимости
-            allowance = from_token_contract.functions.allowance(acct.address, UNISWAP_ROUTER_ADDRESS).call()
+            allowance = from_token_contract.functions.allowance(user_address, UNISWAP_ROUTER_ADDRESS).call()
             logger.info(f"Текущий allowance: {allowance}, необходимый: {amount_in}")
             if allowance < amount_in:
                 logger.info("Недостаточный allowance. Выполняем одобрение.")
@@ -749,75 +683,100 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     logger.error("Ошибка при одобрении токенов.")
                     continue  # Пробуем следующий fee tier
 
-            # Реализация EIP-1559 для газа
-            gas_limit = 300000
-            # Получаем текущую базовую газовую плату
-            pending_block = web3.eth.get_block('pending')
-            base_fee = pending_block['baseFeePerGas'] if 'baseFeePerGas' in pending_block else web3.eth.gas_price
-            max_priority_fee_per_gas = web3.to_wei(0.1, 'gwei')  # Добавляем запас 0.1 gwei
-            max_fee_per_gas = base_fee + max_priority_fee_per_gas
+            # Определение параметров для транзакции
+            params = {
+                "tokenIn": Web3.to_checksum_address(from_token),
+                "tokenOut": Web3.to_checksum_address(to_token),
+                "fee": fee,
+                "recipient": user_address,
+                "deadline": int(datetime.utcnow().timestamp()) + 600,  # 10 минут
+                "amountIn": amount_in,
+                "amountOutMinimum": amount_out_minimum,
+                "sqrtPriceLimitX96": 0
+            }
 
-            logger.info(f"Базовая газовая плата: {base_fee} wei")
-            logger.info(f"Используем gas_limit={gas_limit}, max_fee_per_gas={max_fee_per_gas} wei, max_priority_fee_per_gas={max_priority_fee_per_gas} wei")
+            # Строим транзакцию с точной оценкой газа
+            try:
+                gas_estimate = swap_router_contract.functions.exactInputSingle(params).estimateGas({
+                    "from": user_address,
+                    "value": 0
+                })
+                logger.info(f"Оценка газа для транзакции: {gas_estimate}")
+            except Exception as e:
+                logger.error(f"Ошибка при оценке газа: {e}")
+                continue
 
-            # Строим транзакцию с кортежем параметров
+            # Проверяем, хватает ли ETH для оплаты газа
+            gas_cost_eth = Web3.from_wei(max_fee_per_gas * gas_estimate, 'ether')
+            logger.info(f"Ожидаемая стоимость газа: {gas_cost_eth} ETH")
+            if eth_balance < gas_cost_eth:
+                logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{gas_cost_eth} ETH, доступно: {eth_balance} ETH")
+                return False
+
+            # Строим транзакцию
             swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
                 "chainId": web3.eth.chain_id,
-                "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
-                "gas": gas_limit,
+                "nonce": web3.eth.get_transaction_count(user_address, 'pending'),
+                "gas": gas_estimate,
                 "maxFeePerGas": max_fee_per_gas,
                 "maxPriorityFeePerGas": max_priority_fee_per_gas,
                 "value": 0,
-                "from": acct.address  # Добавлено поле "from"
+                "from": user_address  # Добавлено поле "from"
             })
 
+            # Подписываем транзакцию
             signed_tx = acct.sign_transaction(swap_tx)
 
-            # Отправка транзакции с повторными попытками
-            retries = 3
-            for i in range(retries):
-                try:
-                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                    logger.info(f"Отправлена транзакция обмена, tx_hash={tx_hash.hex()}")
-                    receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-                    if receipt.status == 1:
-                        logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
-                        return True
-                    else:
-                        logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
-                        break  # Переходим к следующему fee tier
-                except ValueError as e:
-                    if "replacement transaction underpriced" in str(e):
-                        logger.warning("Замена транзакции. Увеличиваем gas price.")
-                        max_fee_per_gas = int(max_fee_per_gas * 1.2)
-                        # Обновляем параметры
-                        new_params = (
-                            Web3.to_checksum_address(from_token),
-                            Web3.to_checksum_address(to_token),
-                            fee,
-                            acct.address,
-                            int(datetime.utcnow().timestamp()) + 600,
-                            amount_in,
-                            amount_out_minimum,
-                            0
-                        )
-                        # Перестраиваем транзакцию с новым gas price
-                        swap_tx = swap_router_contract.functions.exactInputSingle(new_params).build_transaction({
+            # Отправляем транзакцию
+            try:
+                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                logger.info(f"Отправлена транзакция обмена, tx_hash={tx_hash.hex()}")
+                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+                if receipt.status == 1:
+                    logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
+                    return True
+                else:
+                    logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
+                    continue  # Переходим к следующему fee tier
+            except ValueError as e:
+                if "replacement transaction underpriced" in str(e):
+                    logger.warning("Замена транзакции. Увеличиваем gas price.")
+                    max_fee_per_gas = int(max_fee_per_gas * 1.2)
+                    # Обновляем параметры
+                    params["deadline"] = int(datetime.utcnow().timestamp()) + 600  # Обновляем deadline
+                    try:
+                        gas_estimate = swap_router_contract.functions.exactInputSingle(params).estimateGas({
+                            "from": user_address,
+                            "value": 0
+                        })
+                        swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
                             "chainId": web3.eth.chain_id,
-                            "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
-                            "gas": gas_limit,
+                            "nonce": web3.eth.get_transaction_count(user_address, 'pending'),
+                            "gas": gas_estimate,
                             "maxFeePerGas": max_fee_per_gas,
                             "maxPriorityFeePerGas": max_priority_fee_per_gas,
                             "value": 0,
-                            "from": acct.address  # Добавлено поле "from"
+                            "from": user_address
                         })
                         signed_tx = acct.sign_transaction(swap_tx)
-                    else:
-                        logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
-                        break  # Переходим к следующему fee tier
-                except Exception as e:
+                        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                        logger.info(f"Отправлена повторная транзакция обмена, tx_hash={tx_hash.hex()}")
+                        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+                        if receipt.status == 1:
+                            logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен после повышения газа, tx={tx_hash.hex()}")
+                            return True
+                        else:
+                            logger.error(f"swap_tokens_via_uniswap_v3 fail после повышения газа: {tx_hash.hex()}")
+                            continue  # Переходим к следующему fee tier
+                    except Exception as inner_e:
+                        logger.error(f"Ошибка при повторной попытке обмена: {inner_e}", exc_info=True)
+                        continue  # Переходим к следующему fee tier
+                else:
                     logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
-                    break  # Переходим к следующему fee tier
+                    continue  # Переходим к следующему fee tier
+            except Exception as e:
+                logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
+                continue  # Переходим к следующему fee tier
     except Exception as e:
         logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
         return False
