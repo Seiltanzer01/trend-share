@@ -735,17 +735,17 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     logger.error("Ошибка при одобрении токенов.")
                     continue  # Пробуем следующий fee tier
 
-            # Определение параметров для транзакции как кортеж
-            exact_input_params = (
-                Web3.to_checksum_address(from_token),
-                Web3.to_checksum_address(to_token),
-                fee,
-                Web3.to_checksum_address(user_address),
-                int(datetime.utcnow().timestamp()) + 600,  # deadline
-                amount_in,
-                amount_out_minimum,
-                0  # sqrtPriceLimitX96
-            )
+            # Определение параметров для транзакции как словарь
+            exact_input_params = {
+                "tokenIn": Web3.to_checksum_address(from_token),
+                "tokenOut": Web3.to_checksum_address(to_token),
+                "fee": fee,
+                "recipient": Web3.to_checksum_address(user_address),
+                "deadline": int(datetime.utcnow().timestamp()) + 600,  # deadline
+                "amountIn": amount_in,
+                "amountOutMinimum": amount_out_minimum,
+                "sqrtPriceLimitX96": 0  # Обычно устанавливается в 0
+            }
 
             # Строим транзакцию с точной оценкой газа используя SwapRouter
             try:
