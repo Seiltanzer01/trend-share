@@ -7,7 +7,6 @@ import requests
 import secrets
 import string
 import sys
-import binascii
 import json
 
 from web3.exceptions import ContractCustomError
@@ -288,94 +287,47 @@ def send_eth_from_user(user_private_key: str, to_address: str, amount_eth: float
         logger.error("send_eth_from_user error", exc_info=True)
         return False
 
-def send_token_reward(
-    to_address: str,
-    amount: float,
-    from_address: str = PROJECT_WALLET_ADDRESS,
-    private_key: str = None,
-    token_contract_instance=None
-) -> bool:
+def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: float) -> bool:
     """
-    Отправляет токены с указанного адреса на адрес получателя.
-    """
-    try:
-        if not token_contract_instance:
-            token_contract_instance = token_contract  # По умолчанию UJO
-
-        if private_key:
-            acct = Account.from_key(private_key)
-        else:
-            proj_pk = os.environ.get("PRIVATE_KEY", "")
-            if not proj_pk:
-                logger.error("PRIVATE_KEY не задан.")
-                return False
-            acct = Account.from_key(proj_pk)
-
-        decimals = token_contract_instance.functions.decimals().call()
-        amt_wei = int(amount * (10 ** decimals))
-
-        # Параметры газа для сети Base установлены на 0.1 gwei
-        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
-        gas_limit = 100000  # Стандартный gas limit для transfer
-
-        tx = token_contract_instance.functions.transfer(
-            Web3.to_checksum_address(to_address),
-            amt_wei
-        ).build_transaction({
-            "chainId": web3.eth.chain_id,
-            "nonce": web3.eth.get_transaction_count(acct.address, 'pending'),
-            "gas": gas_limit,
-            "maxFeePerGas": gas_price,
-            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
-            "value": 0,
-            "to": Web3.to_checksum_address(token_contract_instance.address)  # Correctly set the 'to' field
-        })
-        signed_tx = acct.sign_transaction(tx)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-
-        if receipt.status == 1:
-            logger.info(f"send_token_reward: {amount} токенов -> {to_address}, tx={tx_hash.hex()}")
-            return True
-        else:
-            logger.error(f"send_token_reward fail: {tx_hash.hex()}")
-            return False
-    except Exception as e:
-        logger.error("send_token_reward except", exc_info=True)
-        return False
-
-def send_eth_from_user(user_private_key: str, to_address: str, amount_eth: float) -> bool:
-    """
-    Отправляет ETH с уникального кошелька пользователя на указанный адрес.
+    Выполняет WETH.deposit(), «заворачивая» заданное количество ETH в WETH.
     """
     try:
         acct = Account.from_key(user_private_key)
+        balance_wei = web3.eth.get_balance(acct.address)
+        eth_balance = Web3.from_wei(balance_wei, 'ether')
+        logger.info(f"User {acct.address} balance: {eth_balance} ETH")
+
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        # Параметры газа установлены на 0.1 gwei
-        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
-        gas_limit = 21000  # Стандартный gas limit для ETH
+        # Параметры газа для EIP-1559
+        latest_block = web3.eth.get_block('latest')
+        base_fee = latest_block['baseFeePerGas']
+        max_priority_fee = web3.to_wei(1, 'gwei')  # Установите желаемую приоритетную цену газа
+        max_fee = base_fee * 2 + max_priority_fee  # Например, двойная базовая цена + приоритетная
 
-        tx = {
-            "nonce": nonce,
-            "to": Web3.to_checksum_address(to_address),
-            "value": web3.to_wei(amount_eth, 'ether'),
+        # Параметры газа установлены на 0.1 gwei (можно изменить при необходимости)
+        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
+        gas_limit = 100000  # Увеличиваем gas limit для успешного выполнения
+
+        deposit_tx = weth_contract.functions.deposit().build_transaction({
             "chainId": web3.eth.chain_id,
-            "gas": gas_limit,
-            "maxFeePerGas": gas_price,
-            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
-        }
-        signed = acct.sign_transaction(tx)
+            "nonce":   nonce,
+            "gas":     gas_limit,
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": max_priority_fee,
+            "value": web3.to_wei(amount_eth, "ether"),
+        })
+        signed = acct.sign_transaction(deposit_tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
-        if receipt.status == 1:
-            logger.info(f"send_eth_from_user: {amount_eth} ETH -> {to_address}, tx={tx_hash.hex()}")
+        rcpt = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
+        if rcpt.status == 1:
+            logger.info(f"deposit_eth_to_weth success, ~{amount_eth} ETH -> WETH, tx={tx_hash.hex()}")
             return True
         else:
-            logger.error(f"send_eth_from_user fail: {tx_hash.hex()}")
+            logger.error(f"deposit_eth_to_weth fail, tx={tx_hash.hex()}")
             return False
     except Exception as e:
-        logger.error("send_eth_from_user error", exc_info=True)
+        logger.error("deposit_eth_to_weth except", exc_info=True)
         return False
 
 def get_balances(user: User) -> dict:
