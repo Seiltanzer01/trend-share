@@ -606,20 +606,17 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
 
-        # Создаём структуру параметров как кортеж
+        # Создаём структуру параметров как кортеж из пяти элементов
         params = (
             Web3.to_checksum_address(from_token),
             Web3.to_checksum_address(to_token),
-            fee,
-            Web3.to_checksum_address(PROJECT_WALLET_ADDRESS),  # или другой адрес
-            int(datetime.utcnow().timestamp()) + 600,  # 10 минут
             amount_in,
-            1234,  # Установлено на 1234 вместо 1
-            0  # Без ограничения цены
+            fee,
+            0  # sqrtPriceLimitX96
         )
 
         # Вызов функции с передачей структуры как кортеж
-        result = quoter_contract.functions.quoteExactInputSingle(*params).call()
+        result = quoter_contract.functions.quoteExactInputSingle(params).call()
 
         amount_out = result[0]  # amountOut
         logger.info(f"Полученный quote: {amount_out}")
@@ -699,6 +696,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
         logger.info(f"Пытаемся обменять {amount} токенов {from_token} на {to_token}")
 
+        gas_price = web3.to_wei(0.1, 'gwei')  # Определение gas_price
+
         for fee in FEE_TIERS:
             logger.info(f"Проверяем пул с fee tier {fee}...")
             if not check_liquidity(from_token, to_token, fee):
@@ -730,17 +729,14 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             params = (
                 Web3.to_checksum_address(from_token),
                 Web3.to_checksum_address(to_token),
-                fee,
-                Web3.to_checksum_address(user_address),
-                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
                 amount_in,
-                amount_out_minimum,
-                0  # Без ограничения цены
+                fee,
+                0  # sqrtPriceLimitX96
             )
 
             # Строим транзакцию с точной оценкой газа
             try:
-                gas_estimate = swap_router_contract.functions.exactInputSingle(*params).estimateGas({
+                gas_estimate = quoter_contract.functions.quoteExactInputSingle(params).estimateGas({
                     "from": user_address,
                     "value": 0
                 })
@@ -757,12 +753,21 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 return False
 
             # Строим транзакцию
-            swap_tx = swap_router_contract.functions.exactInputSingle(*params).build_transaction({
+            swap_tx = swap_router_contract.functions.exactInputSingle(
+                Web3.to_checksum_address(from_token),
+                Web3.to_checksum_address(to_token),
+                fee,
+                Web3.to_checksum_address(user_address),
+                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
+                amount_in,
+                amount_out_minimum,
+                0  # Без ограничения цены
+            ).build_transaction({
                 "chainId": web3.eth.chain_id,
                 "nonce": web3.eth.get_transaction_count(user_address, 'pending'),
                 "gas": gas_estimate,
-                "maxFeePerGas": web3.to_wei(0.1, 'gwei'),  # Установлено на 0.1 gwei
-                "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),  # Установлено на 0.1 gwei
+                "maxFeePerGas": gas_price,  # Установлено на 0.1 gwei
+                "maxPriorityFeePerGas": gas_price,  # Установлено на 0.1 gwei
                 "value": 0,
                 "from": user_address  # Добавлено поле "from"
             })
