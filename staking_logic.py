@@ -35,7 +35,7 @@ PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WAL
 # 1inch API настройки
 ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.dev/swap/v6.0/8453")  # Используем chain_id=8453 для Base
 ONEINCH_API_KEY = os.environ.get("ONEINCH_API_KEY", "")  # Если требуется API ключ
-ONEINCH_ROUTER_ADDRESS = os.environ.get("ONEINCH_ROUTER_ADDRESS", "")
+ONEINCH_ROUTER_ADDRESS = os.environ.get("ONEINCH_ROUTER_ADDRESS", "")  # Добавлено
 
 # Проверьте, что переменные окружения установлены корректно
 required_env_vars = [
@@ -45,8 +45,8 @@ required_env_vars = [
     "PRIVATE_KEY",
     "DEXScreener_PAIR_ADDRESS",
     "ONEINCH_API_URL",
-    "ONEINCH_API_KEY"
-    "ONEINCH_ROUTER_ADDRESS"
+    "ONEINCH_API_KEY",  # Добавлена запятая
+    "ONEINCH_ROUTER_ADDRESS"  # Исправлено
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -500,7 +500,7 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
             'gas': int(tx['gas']),
             'maxFeePerGas': int(tx['maxFeePerGas']),
             'maxPriorityFeePerGas': int(tx['maxPriorityFeePerGas']),
-            'nonce': web3.eth.get_transaction_count(user_address),
+            'nonce': web3.eth.get_transaction_count(user_address, 'pending'),  # Добавлен 'pending'
             'chainId': web3.eth.chain_id
         }
 
