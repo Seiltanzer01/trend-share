@@ -25,7 +25,7 @@ from staking_logic import (
     get_balances,
     generate_unique_wallet,
     send_token_reward,
-    swap_tokens_via_uniswap_v3,
+    swap_tokens_via_1inch,         # Обновлено для использования 1inch
     deposit_eth_to_weth,
     verify_private_key,
 )
@@ -262,11 +262,11 @@ def exchange_tokens():
             if user_balance < from_amount:
                 return jsonify({"error": f"Недостаточно {from_token} для обмена."}), 400
 
-        # Выполняем обмен через Uniswap v3
-        swap_ok = swap_tokens_via_uniswap_v3(user.unique_private_key, sell_token, buy_token, from_amount)
+        # Выполняем обмен через 1inch
+        swap_ok = swap_tokens_via_1inch(user.unique_private_key, sell_token, buy_token, from_amount)
         if not swap_ok:
-            logger.error("Ошибка выполнения обмена через Uniswap v3.")
-            return jsonify({"error": "Ошибка выполнения обмена через Uniswap v3."}), 400
+            logger.error("Ошибка выполнения обмена через 1inch.")
+            return jsonify({"error": "Ошибка выполнения обмена через 1inch."}), 400
 
         # Обновляем балансы
         result = get_balances(user)
