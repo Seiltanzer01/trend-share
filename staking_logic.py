@@ -598,35 +598,35 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         logger.error("approve_token except", exc_info=True)
         return False
 
-def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int) -> float:
+def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int) -> int:
     """
     Получает предполагаемый выход токенов через QuoterV2.
+    Возвращает amount_out в наименьших единицах токена (например, wei).
     """
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
 
-        # Создаём структуру параметров как словарь
-        params = {
-            "tokenIn": Web3.to_checksum_address(from_token),
-            "tokenOut": Web3.to_checksum_address(to_token),
-            "fee": fee,
-            "recipient": Web3.to_checksum_address(PROJECT_WALLET_ADDRESS),  # или другой адрес
-            "deadline": int(datetime.utcnow().timestamp()) + 600,  # 10 минут
-            "amountIn": amount_in,
-            "amountOutMinimum": 1,  # Минимальный выход
-            "sqrtPriceLimitX96": 0  # Без ограничения цены
-        }
+        # Создаём структуру параметров как кортеж
+        params = (
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            fee,
+            Web3.to_checksum_address(PROJECT_WALLET_ADDRESS),  # или другой адрес
+            int(datetime.utcnow().timestamp()) + 600,  # 10 минут
+            amount_in,
+            1234,  # Установлено на 1234 вместо 1
+            0  # Без ограничения цены
+        )
 
-        # Вызов функции с передачей структуры как словаря
-        result = quoter_contract.functions.quoteExactInputSingle(params).call()
+        # Вызов функции с передачей структуры как кортеж
+        result = quoter_contract.functions.quoteExactInputSingle(*params).call()
 
         amount_out = result[0]  # amountOut
         logger.info(f"Полученный quote: {amount_out}")
-        decimals = get_token_decimals(to_token)
-        return amount_out / (10 ** decimals)
+        return amount_out
     except ContractCustomError as e:
         logger.error(f"ContractCustomError в get_expected_output: {e}")
-        return 0.0
+        return 0
     except ValueError as ve:
         # Попытка извлечь revert reason
         if 'execution reverted' in str(ve):
@@ -641,10 +641,10 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
                 logger.error("Нет данных для извлечения revert reason.")
         else:
             logger.error(f"ValueError в get_expected_output: {ve}")
-        return 0.0
+        return 0
     except Exception as e:
         logger.error(f"Ошибка get_expected_output: {e}", exc_info=True)
-        return 0.0
+        return 0
 
 def get_pool_address(from_token: str, to_token: str, fee: int) -> str:
     try:
@@ -707,17 +707,15 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             # Получаем предполагаемый выход токенов
             expected_output = get_expected_output(from_token, to_token, amount_in, fee)
-            if expected_output == 0.0:
+            if expected_output == 0:
                 logger.warning(f"Не удалось получить ожидаемый выход для fee tier {fee}. Пробуем следующий.")
                 continue
 
-            slippage_tolerance = 0.005  # 0.5%
+            slippage_tolerance = 0.12  # 12%
             amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
-            decimals_out = get_token_decimals(to_token)
-            if amount_out_minimum < 1:
-                # Устанавливаем минимально допустимое количество токенов с учетом десятичных знаков
-                amount_out_minimum = 1
-            logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
+            if amount_out_minimum < 1234:
+                amount_out_minimum = 1234  # Установлено на 1234 вместо 1
+            logger.info(f"Предполагаемый выход: {expected_output / (10 ** get_token_decimals(to_token))} токенов, минимально допустимый: {amount_out_minimum}")
 
             # Проверка allowance и его установка при необходимости
             allowance = from_token_contract.functions.allowance(user_address, UNISWAP_ROUTER_ADDRESS).call()
@@ -728,21 +726,21 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     logger.error("Ошибка при одобрении токенов.")
                     continue  # Пробуем следующий fee tier
 
-            # Определение параметров для транзакции как словаря
-            params = {
-                "tokenIn": Web3.to_checksum_address(from_token),
-                "tokenOut": Web3.to_checksum_address(to_token),
-                "fee": fee,
-                "recipient": user_address,
-                "deadline": int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
-                "amountIn": amount_in,
-                "amountOutMinimum": amount_out_minimum,
-                "sqrtPriceLimitX96": 0  # Без ограничения цены
-            }
+            # Определение параметров для транзакции как кортеж
+            params = (
+                Web3.to_checksum_address(from_token),
+                Web3.to_checksum_address(to_token),
+                fee,
+                Web3.to_checksum_address(user_address),
+                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
+                amount_in,
+                amount_out_minimum,
+                0  # Без ограничения цены
+            )
 
             # Строим транзакцию с точной оценкой газа
             try:
-                gas_estimate = swap_router_contract.functions.exactInputSingle(params).estimateGas({
+                gas_estimate = swap_router_contract.functions.exactInputSingle(*params).estimateGas({
                     "from": user_address,
                     "value": 0
                 })
@@ -759,7 +757,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 return False
 
             # Строим транзакцию
-            swap_tx = swap_router_contract.functions.exactInputSingle(params).build_transaction({
+            swap_tx = swap_router_contract.functions.exactInputSingle(*params).build_transaction({
                 "chainId": web3.eth.chain_id,
                 "nonce": web3.eth.get_transaction_count(user_address, 'pending'),
                 "gas": gas_estimate,
