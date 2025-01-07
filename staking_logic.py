@@ -297,7 +297,13 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        # Параметры газа установлены на 0.1 gwei
+        # Получение текущей базовой цены газа для EIP-1559
+        latest_block = web3.eth.get_block('latest')
+        base_fee = latest_block['baseFeePerGas']
+        max_priority_fee = web3.to_wei(1, 'gwei')  # Установите желаемую приоритетную цену газа
+        max_fee = base_fee * 2 + max_priority_fee  # Например, двойная базовая цена + приоритетная
+
+        # Параметры газа установлены на 0.1 gwei (можно изменить при необходимости)
         gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
         gas_limit = 100000  # Увеличиваем gas limit для успешного выполнения
 
@@ -305,8 +311,8 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
             "chainId": web3.eth.chain_id,
             "nonce":   nonce,
             "gas":     gas_limit,
-            "maxFeePerGas": gas_price,
-            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": max_priority_fee,
             "value": web3.to_wei(amount_eth, "ether"),
             # "from":    acct.address  # Удалено поле "from"
         })
@@ -394,8 +400,14 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         acct = Account.from_key(user_private_key)
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
 
-        # Параметры газа установлены на 0.1 gwei
-        gas_price = web3.to_wei(0.1, 'gwei')  # Установлено на 0.1 gwei
+        # Получение текущей базовой цены газа для EIP-1559
+        latest_block = web3.eth.get_block('latest')
+        base_fee = latest_block['baseFeePerGas']
+        max_priority_fee = web3.to_wei(1, 'gwei')  # Установите желаемую приоритетную цену газа
+        max_fee = base_fee * 2 + max_priority_fee  # Например, двойная базовая цена + приоритетная
+
+        gas_price = max_fee  # Для EIP-1559
+
         gas_limit = 100000  # Стандартный gas limit для approve
 
         approve_tx = token_contract.functions.approve(
@@ -405,8 +417,8 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
             "chainId": web3.eth.chain_id,
             "nonce": nonce,
             "gas": gas_limit,
-            "maxFeePerGas": gas_price,
-            "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
+            "maxFeePerGas": max_fee,
+            "maxPriorityFeePerGas": max_priority_fee,
             "value": 0,
             # "from": acct.address  # Удалено поле "from"
         })
@@ -506,30 +518,24 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
         tx = swap_data['tx']
         logger.debug(f"Транзакция обмена: {tx}")
 
-        # Подготовка транзакции
+        # Подготовка транзакции с использованием EIP-1559
+        latest_block = web3.eth.get_block('latest')
+        base_fee = latest_block['baseFeePerGas']
+        max_priority_fee = web3.to_wei(1, 'gwei')  # Установите желаемую приоритетную цену газа
+        max_fee = base_fee * 2 + max_priority_fee  # Например, двойная базовая цена + приоритетная
+
         txn = {
             'to': tx['to'],
             'data': tx['data'],
             'value': int(tx['value']),
             'gas': int(tx['gas']),
-            'nonce': web3.eth.get_transaction_count(user_address, 'pending'),  # Добавлен 'pending'
-            'chainId': web3.eth.chain_id
+            'nonce': web3.eth.get_transaction_count(user_address, 'pending'),
+            'chainId': web3.eth.chain_id,
+            'type': 2,  # Указание типа транзакции для EIP-1559
+            'maxFeePerGas': max_fee,
+            'maxPriorityFeePerGas': max_priority_fee
         }
         logger.debug(f"Параметры транзакции перед подписанием: {txn}")
-
-        # Проверка наличия полей 'maxFeePerGas' и 'maxPriorityFeePerGas'
-        if 'maxFeePerGas' in tx and 'maxPriorityFeePerGas' in tx:
-            txn['maxFeePerGas'] = int(tx['maxFeePerGas'])
-            txn['maxPriorityFeePerGas'] = int(tx['maxPriorityFeePerGas'])
-            logger.debug("Используются параметры EIP-1559 для газа.")
-        elif 'gasPrice' in tx:
-            txn['gasPrice'] = int(tx['gasPrice'])
-            logger.debug("Используется параметр gasPrice для газа.")
-        else:
-            logger.error("Не найдены поля gasPrice или maxFeePerGas в ответе 1inch.")
-            return False
-
-        logger.debug(f"Подготовленные параметры транзакции: {txn}")
 
         # Подписание транзакции
         signed_tx = acct.sign_transaction(txn)
