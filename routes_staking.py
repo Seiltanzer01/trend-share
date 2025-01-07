@@ -530,7 +530,7 @@ def withdraw_funds():
                 amount=amount,
                 from_address=user.unique_wallet_address,
                 private_key=user.unique_private_key,
-                token_contract=contract
+                token_contract_instance=contract
             )
         else:
             return jsonify({"error": "Неподдерживаемая монета для вывода."}), 400
