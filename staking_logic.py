@@ -33,7 +33,7 @@ UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
 
 # 1inch API настройки
-ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.io/v5.0/1")  # Замените '1' на нужный chain_id
+ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.io/v5.0/8453")  # Используем chain_id=8453 для Base
 ONEINCH_API_KEY = os.environ.get("ONEINCH_API_KEY", "")  # Если требуется API ключ
 
 # Проверьте, что переменные окружения установлены корректно
@@ -129,15 +129,14 @@ except Exception as e:
     logger.error(f"Ошибка инициализации контрактов: {e}", exc_info=True)
     sys.exit(1)
 
-# Определение нескольких fee tiers (удалено, т.к. не требуется для 1inch)
-# FEE_TIERS = [500, 3000, 10000]
-
 def generate_unique_wallet():
     """
     Генерирует уникальный приватный ключ и соответствующий ему адрес кошелька.
     """
     while True:
-        unique_wallet_address, unique_private_key = generate_unique_private_key()
+        unique_private_key = generate_unique_private_key()
+        acct = Account.from_key(unique_private_key)
+        unique_wallet_address = Web3.to_checksum_address(acct.address)
         if not User.query.filter_by(unique_wallet_address=unique_wallet_address).first():
             return unique_wallet_address, unique_private_key
 
@@ -448,8 +447,8 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
 
         swap_endpoint = f"{ONEINCH_API_URL}/swap"
 
-        # Формирование запроса
-        swap_payload = {
+        # Формирование запроса с параметрами через URL
+        params = {
             "fromTokenAddress": from_token,
             "toTokenAddress": to_token,
             "amount": str(int(amount * (10 ** get_token_decimals(from_token)))),  # Передаем как строку
@@ -459,10 +458,10 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
             "allowPartialFill": False
         }
 
-        logger.info(f"Отправка запроса на обмен: {swap_payload}")
+        logger.info(f"Отправка запроса на обмен: {params}")
 
-        response = requests.post(swap_endpoint, json=swap_payload, headers=headers)
-        logger.info(f"Ответ от 1inch API: статус={response.status_code}, тело={response.text}")
+        response = requests.get(swap_endpoint, params=params, headers=headers)
+        logger.info(f"Ответ от 1inch API: статус={response.status_code}, заголовки={response.headers}, тело={response.text}")
 
         if response.status_code != 200:
             logger.error(f"1inch API вернул код={response.status_code}: {response.text}")
