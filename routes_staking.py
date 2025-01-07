@@ -28,6 +28,7 @@ from staking_logic import (
     swap_tokens_via_1inch,         # Обновлено для использования 1inch
     deposit_eth_to_weth,
     verify_private_key,
+    send_eth_from_user,
 )
 from best_setup_voting import send_token_reward as voting_send_token_reward  # Убедитесь, что этот импорт корректен
 
