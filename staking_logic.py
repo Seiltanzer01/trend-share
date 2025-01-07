@@ -651,6 +651,8 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             slippage_tolerance = 0.005  # 0.5%
             amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
+            if amount_out_minimum == 0:
+                amount_out_minimum = 1  # Устанавливаем минимум 1 единицу токена, чтобы избежать проблем
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
             # Проверка allowance и его установка при необходимости
@@ -662,17 +664,17 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     logger.error("Ошибка при одобрении токенов.")
                     continue  # Пробуем следующий fee tier
 
-            # Определение параметров для транзакции
-            params = {
-                "tokenIn": Web3.to_checksum_address(from_token),
-                "tokenOut": Web3.to_checksum_address(to_token),
-                "fee": fee,
-                "recipient": user_address,
-                "deadline": int(datetime.utcnow().timestamp()) + 600,  # 10 минут
-                "amountIn": amount_in,
-                "amountOutMinimum": amount_out_minimum,
-                "sqrtPriceLimitX96": 0
-            }
+            # Определение параметров для транзакции как кортеж
+            params = (
+                Web3.to_checksum_address(from_token),
+                Web3.to_checksum_address(to_token),
+                fee,
+                user_address,
+                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
+                amount_in,
+                amount_out_minimum,
+                0  # sqrtPriceLimitX96
+            )
 
             # Строим транзакцию с точной оценкой газа
             try:
