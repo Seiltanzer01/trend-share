@@ -35,6 +35,7 @@ PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WAL
 # 1inch API настройки
 ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.dev/swap/v6.0/8453")  # Используем chain_id=8453 для Base
 ONEINCH_API_KEY = os.environ.get("ONEINCH_API_KEY", "")  # Если требуется API ключ
+ONEINCH_ROUTER_ADDRESS = os.environ.get("ONEINCH_ROUTER_ADDRESS", "")
 
 # Проверьте, что переменные окружения установлены корректно
 required_env_vars = [
