@@ -546,16 +546,19 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
         
-        # Создаём структуру параметров как кортеж
-        params = (
-            Web3.to_checksum_address(from_token),
-            Web3.to_checksum_address(to_token),
-            amount_in,
-            fee,
-            0  # sqrtPriceLimitX96
-        )
+        # Создаём структуру параметров как словарь
+        params = {
+            "tokenIn": Web3.to_checksum_address(from_token),
+            "tokenOut": Web3.to_checksum_address(to_token),
+            "fee": fee,
+            "recipient": Web3.to_checksum_address(PROJECT_WALLET_ADDRESS),  # или другой адрес
+            "deadline": int(datetime.utcnow().timestamp()) + 600,  # 10 минут
+            "amountIn": amount_in,
+            "amountOutMinimum": 1,  # Минимальный выход
+            "sqrtPriceLimitX96": 0  # Без ограничения цены
+        }
         
-        # Вызов функции с передачей структуры
+        # Вызов функции с передачей структуры как словаря
         result = quoter_contract.functions.quoteExactInputSingle(params).call()
         
         amount_out = result[0]  # amountOut
@@ -664,17 +667,17 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     logger.error("Ошибка при одобрении токенов.")
                     continue  # Пробуем следующий fee tier
 
-            # Определение параметров для транзакции как кортеж
-            params = (
-                Web3.to_checksum_address(from_token),
-                Web3.to_checksum_address(to_token),
-                fee,
-                user_address,
-                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
-                amount_in,
-                amount_out_minimum,
-                0  # sqrtPriceLimitX96
-            )
+            # Определение параметров для транзакции как словарь
+            params = {
+                "tokenIn": Web3.to_checksum_address(from_token),
+                "tokenOut": Web3.to_checksum_address(to_token),
+                "fee": fee,
+                "recipient": user_address,
+                "deadline": int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
+                "amountIn": amount_in,
+                "amountOutMinimum": amount_out_minimum,
+                "sqrtPriceLimitX96": 0  # Без ограничения цены
+            }
 
             # Строим транзакцию с точной оценкой газа
             try:
