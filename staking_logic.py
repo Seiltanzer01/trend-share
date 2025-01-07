@@ -8,6 +8,7 @@ import secrets
 import string
 import sys
 import binascii
+import json
 
 from web3.exceptions import ContractCustomError
 from web3 import Web3
@@ -31,10 +32,9 @@ WETH_CONTRACT_ADDRESS = os.environ.get("WETH_CONTRACT_ADDRESS", "0xYOUR_WETH_CON
 UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
 
-# Адреса контрактов Uniswap V3 для сети Base
-UNISWAP_ROUTER_ADDRESS = "0x2626664c2603336E57B271c5C0b26F421741e481"  # SwapRouter02
-POOL_FACTORY_ADDRESS = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"      # UniswapV3Factory
-QUOTER_V2_ADDRESS = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"        # QuoterV2
+# 1inch API настройки
+ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.io/v5.0/1")  # Замените '1' на нужный chain_id
+ONEINCH_API_KEY = os.environ.get("ONEINCH_API_KEY", "")  # Если требуется API ключ
 
 # Проверьте, что переменные окружения установлены корректно
 required_env_vars = [
@@ -42,7 +42,8 @@ required_env_vars = [
     "WETH_CONTRACT_ADDRESS",
     "MY_WALLET_ADDRESS",
     "PRIVATE_KEY",
-    "DEXScreener_PAIR_ADDRESS"  # Добавлено для функции get_token_price_in_usd
+    "DEXScreener_PAIR_ADDRESS",
+    "ONEINCH_API_URL"
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -103,190 +104,6 @@ ERC20_ABI = [
     },
 ]
 
-# Uniswap V3 Factory ABI
-UNISWAP_FACTORY_ABI = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "tokenA", "type": "address"},
-            {"internalType": "address", "name": "tokenB", "type": "address"},
-            {"internalType": "uint24", "name": "fee", "type": "uint24"}
-        ],
-        "name": "getPool",
-        "outputs": [{"internalType": "address", "name": "pool", "type": "address"}],
-        "stateMutability": "view",
-        "type": "function"
-    }
-]
-
-# Uniswap V3 Pool ABI
-UNISWAP_POOL_ABI = [
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "liquidity",
-        "outputs": [{"name": "", "type": "uint128"}],
-        "type": "function"
-    }
-]
-
-# Uniswap V3 SwapRouter ABI (Полный ABI)
-UNISWAP_ROUTER_ABI = [
-    {
-        "inputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "tokenIn", "type": "address"},
-                    {"internalType": "address", "name": "tokenOut", "type": "address"},
-                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                    {"internalType": "address", "name": "recipient", "type": "address"},
-                    {"internalType": "uint256", "name": "deadline", "type": "uint256"},
-                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-                    {"internalType": "uint256", "name": "amountOutMinimum", "type": "uint256"},
-                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
-                ],
-                "internalType": "struct IV3SwapRouter.ExactInputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactInputSingle",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",  # <-- Исправлено с "payable" на "nonpayable"
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {"internalType": "bytes", "name": "path", "type": "bytes"},
-                    {"internalType": "address", "name": "recipient", "type": "address"},
-                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-                    {"internalType": "uint256", "name": "amountOutMinimum", "type": "uint256"}
-                ],
-                "internalType": "struct IV3SwapRouter.ExactInputParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "exactInput",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    # Добавьте остальные функции по необходимости
-]
-
-# Uniswap V3 Quoter V2 ABI (Полный ABI)
-UNISWAP_QUOTER_V2_ABI = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "_factory", "type": "address"},
-            {"internalType": "address", "name": "_WETH9", "type": "address"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "constructor"
-    },
-    {
-        "inputs": [],
-        "name": "WETH9",
-        "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "factory",
-        "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {"internalType": "bytes", "name": "path", "type": "bytes"},
-            {"internalType": "uint256", "name": "amountIn", "type": "uint256"}
-        ],
-        "name": "quoteExactInput",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
-            {"internalType": "uint160[]", "name": "sqrtPriceX96AfterList", "type": "uint160[]"},
-            {"internalType": "uint32[]", "name": "initializedTicksCrossedList", "type": "uint32[]"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "tokenIn", "type": "address"},
-                    {"internalType": "address", "name": "tokenOut", "type": "address"},
-                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
-                ],
-                "internalType": "struct IQuoterV2.QuoteExactInputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "quoteExactInputSingle",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
-            {"internalType": "uint160", "name": "sqrtPriceX96After", "type": "uint160"},
-            {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {"internalType": "bytes", "name": "path", "type": "bytes"},
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
-        ],
-        "name": "quoteExactOutput",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-            {"internalType": "uint160[]", "name": "sqrtPriceX96AfterList", "type": "uint160[]"},
-            {"internalType": "uint32[]", "name": "initializedTicksCrossedList", "type": "uint32[]"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "tokenIn", "type": "address"},
-                    {"internalType": "address", "name": "tokenOut", "type": "address"},
-                    {"internalType": "uint256", "name": "amount", "type": "uint256"},
-                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
-                ],
-                "internalType": "struct IQuoterV2.QuoteExactOutputSingleParams",
-                "name": "params",
-                "type": "tuple"
-            }
-        ],
-        "name": "quoteExactOutputSingle",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-            {"internalType": "uint160", "name": "sqrtPriceX96After", "type": "uint160"},
-            {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    # Добавьте остальные функции QuoterV2 по необходимости
-]
-
 # Инициализация контрактов
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
@@ -308,15 +125,12 @@ try:
         },
     ])
     ujo_contract = token_contract  # Используем только token_contract
-    swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_ROUTER_ABI)
-    pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
-    quoter_contract = web3.eth.contract(address=Web3.to_checksum_address(QUOTER_V2_ADDRESS), abi=UNISWAP_QUOTER_V2_ABI)
 except Exception as e:
     logger.error(f"Ошибка инициализации контрактов: {e}", exc_info=True)
     sys.exit(1)
 
-# Определение нескольких fee tiers
-FEE_TIERS = [500, 3000, 10000]
+# Определение нескольких fee tiers (удалено, т.к. не требуется для 1inch)
+# FEE_TIERS = [500, 3000, 10000]
 
 def generate_unique_wallet():
     """
@@ -598,227 +412,94 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         logger.error("approve_token except", exc_info=True)
         return False
 
-def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int) -> int:
+def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     """
-    Получает предполагаемый выход токенов через QuoterV2.
-    Возвращает amount_out в наименьших единицах токена (например, wei).
-    """
-    try:
-        logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
-
-        # Создаём структуру параметров как словарь
-        params = {
-            "tokenIn": Web3.to_checksum_address(from_token),
-            "tokenOut": Web3.to_checksum_address(to_token),
-            "fee": fee,
-            "amountIn": amount_in,
-            "sqrtPriceLimitX96": 0  # sqrtPriceLimitX96 обычно устанавливается в 0
-        }
-
-        # Вызов функции с передачей структуры как словаря
-        result = quoter_contract.functions.quoteExactInputSingle(params).call()
-
-        amount_out = result[0]  # amountOut
-        logger.info(f"Полученный quote: {amount_out}")
-        return amount_out
-    except ContractCustomError as e:
-        logger.error(f"ContractCustomError в get_expected_output: {e}")
-        return 0
-    except ValueError as ve:
-        # Попытка извлечь revert reason
-        if 'execution reverted' in str(ve):
-            error_data = ve.args[0].get('data', '') if hasattr(ve.args[0], 'get') else ''
-            if error_data and len(error_data) > 10:
-                try:
-                    revert_reason = binascii.unhexlify(error_data[10:]).decode('utf-8')
-                    logger.error(f"Revert reason: {revert_reason}")
-                except Exception:
-                    logger.error("Не удалось декодировать revert reason.")
-            else:
-                logger.error("Нет данных для извлечения revert reason.")
-        else:
-            logger.error(f"ValueError в get_expected_output: {ve}")
-        return 0
-    except Exception as e:
-        logger.error(f"Ошибка get_expected_output: {e}", exc_info=True)
-        return 0
-
-def get_pool_address(from_token: str, to_token: str, fee: int) -> str:
-    try:
-        pool_address = pool_factory_contract.functions.getPool(
-            Web3.to_checksum_address(from_token),
-            Web3.to_checksum_address(to_token),
-            fee
-        ).call()
-        if int(pool_address, 16) == 0:
-            logger.error(f"Пул не найден для fee tier {fee}.")
-            return ""
-        logger.info(f"Пул найден для fee tier {fee}: {pool_address}")
-        return Web3.to_checksum_address(pool_address)
-    except Exception as e:
-        logger.error(f"Ошибка get_pool_address: {e}")
-        return ""
-
-def check_liquidity(from_token: str, to_token: str, fee: int) -> bool:
-    """
-    Проверяет наличие ликвидности в пуле Uniswap V3.
-    """
-    try:
-        pool_address = get_pool_address(from_token, to_token, fee)
-        if not pool_address:
-            logger.error("Пул не найден для указанных токенов и fee tier.")
-            return False
-
-        pool_contract = web3.eth.contract(address=pool_address, abi=UNISWAP_POOL_ABI)
-        liquidity = pool_contract.functions.liquidity().call()
-        logger.info(f"Ликвидность пула (fee tier {fee}): {liquidity}")
-        return liquidity > 0
-    except Exception as e:
-        logger.error(f"Ошибка check_liquidity: {e}")
-        return False
-
-def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
-    """
-    Выполняет обмен токенов через Uniswap V3 с поддержкой нескольких fee tiers.
-    Устанавливает amount_out_minimum с учётом проскальзывания.
-    Добавляет небольшую фиксированную часть к amount_in.
+    Выполняет обмен токенов через 1inch.
     """
     try:
         acct = Account.from_key(user_private_key)
         user_address = Web3.to_checksum_address(acct.address)
 
-        # Проверка баланса ETH
-        raw_eth_balance = web3.eth.get_balance(user_address)
-        eth_balance = Web3.from_wei(raw_eth_balance, 'ether')
-        logger.info(f"ETH Баланс пользователя {user_address}: {eth_balance} ETH")
-
-        from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
-        decimals = from_token_contract.functions.decimals().call()
-        amount_in = int(amount * (10 ** decimals))
-
-        # Добавляем фиксированную часть (например, 1234 единиц в наименьших единицах токена)
-        fixed_addition = 1234
-        amount_in += fixed_addition
-        logger.info(f"Amount_in после добавления фиксированной части: {amount_in} (наименьшие единицы токена)")
-
-        logger.info(f"Пытаемся обменять {amount} токенов {from_token} на {to_token}")
-
-        gas_price = web3.to_wei(0.1, 'gwei')  # Определение gas_price
-
-        for fee in FEE_TIERS:
-            logger.info(f"Проверяем пул с fee tier {fee}...")
-            if not check_liquidity(from_token, to_token, fee):
-                logger.warning(f"Пул с fee tier {fee} не имеет достаточной ликвидности.")
-                continue
-
-            # Получаем предполагаемый выход токенов
-            expected_output = get_expected_output(from_token, to_token, amount_in, fee)
-            if expected_output == 0:
-                logger.warning(f"Не удалось получить ожидаемый выход для fee tier {fee}. Пробуем следующий.")
-                continue
-
-            # Устанавливаем amount_out_minimum с учётом проскальзывания
-            slippage_tolerance = 0.12  # 12%
-            slippage_amount = int(expected_output * slippage_tolerance)
-            amount_out_minimum = expected_output - slippage_amount
-
-            # Убедимся, что amount_out_minimum не превышает expected_output
-            if amount_out_minimum > expected_output:
-                amount_out_minimum = expected_output
-
-            # Логирование в удобочитаемом формате
-            token_decimals = get_token_decimals(to_token)
-            logger.info(f"Предполагаемый выход: {expected_output / (10 ** token_decimals)} токенов, "
-                        f"минимально допустимый: {amount_out_minimum / (10 ** token_decimals)} токенов")
-
-            # Проверка allowance и его установка при необходимости
-            allowance = from_token_contract.functions.allowance(user_address, UNISWAP_ROUTER_ADDRESS).call()
-            logger.info(f"Текущий allowance: {allowance}, необходимый: {amount_in}")
-            if allowance < amount_in:
-                logger.info("Недостаточный allowance. Выполняем одобрение.")
-                if not approve_token(user_private_key, from_token_contract, UNISWAP_ROUTER_ADDRESS, amount_in):
-                    logger.error("Ошибка при одобрении токенов.")
-                    continue  # Пробуем следующий fee tier
-
-            # Определение параметров для транзакции как словарь
-            exact_input_params = {
-                "tokenIn": Web3.to_checksum_address(from_token),
-                "tokenOut": Web3.to_checksum_address(to_token),
-                "fee": fee,
-                "recipient": Web3.to_checksum_address(user_address),
-                "deadline": int(datetime.utcnow().timestamp()) + 600,  # deadline
-                "amountIn": amount_in,
-                "amountOutMinimum": amount_out_minimum,
-                "sqrtPriceLimitX96": 0  # Обычно устанавливается в 0
-            }
-
-            # Строим транзакцию с точной оценкой газа используя SwapRouter
-            try:
-                gas_estimate = swap_router_contract.functions.exactInputSingle(
-                    exact_input_params
-                ).estimateGas({
-                    "from": user_address,
-                    "value": 0
-                })
-                logger.info(f"Оценка газа для транзакции: {gas_estimate}")
-            except AttributeError as ae:
-                logger.error(f"Ошибка при вызове estimateGas: {ae}")
-                continue  # Переходим к следующему fee tier
-            except Exception as e:
-                logger.error(f"Ошибка при оценке газа: {e}")
-                continue
-
-            # Проверяем, хватает ли ETH для оплаты газа
-            gas_cost_eth = Web3.from_wei(gas_price * gas_estimate, 'ether')
-            logger.info(f"Ожидаемая стоимость газа: {gas_cost_eth} ETH")
-            if eth_balance < gas_cost_eth:
-                logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{gas_cost_eth} ETH, доступно: {eth_balance} ETH")
+        # Проверка баланса токенов
+        if from_token.upper() == "ETH":
+            raw_eth_balance = web3.eth.get_balance(user_address)
+            eth_balance = Web3.from_wei(raw_eth_balance, 'ether')
+            logger.info(f"ETH Баланс пользователя {user_address}: {eth_balance} ETH")
+            if eth_balance < amount:
+                logger.error("Недостаточно ETH для обмена.")
+                return False
+        else:
+            from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
+            decimals = from_token_contract.functions.decimals().call()
+            amount_in = int(amount * (10 ** decimals))
+            user_balance = from_token_contract.functions.balanceOf(user_address).call()
+            user_balance = user_balance / (10 ** decimals)
+            logger.info(f"Баланс пользователя {from_token}: {user_balance}")
+            if user_balance < amount:
+                logger.error(f"Недостаточно {from_token} для обмена.")
                 return False
 
-            # Строим транзакцию
-            swap_tx = swap_router_contract.functions.exactInputSingle(
-                exact_input_params
-            ).build_transaction({
-                "chainId": web3.eth.chain_id,
-                "nonce": web3.eth.get_transaction_count(user_address, 'pending'),
-                "gas": gas_estimate,
-                "maxFeePerGas": gas_price,  # Установлено на 0.1 gwei
-                "maxPriorityFeePerGas": gas_price,  # Установлено на 0.1 gwei
-                "value": 0,
-                "from": user_address  # Добавлено поле "from"
-            })
+        # Получение параметров обмена от 1inch
+        headers = {}
+        if ONEINCH_API_KEY:
+            headers["Authorization"] = f"Bearer {ONEINCH_API_KEY}"
 
-            # Подписываем транзакцию
-            signed_tx = acct.sign_transaction(swap_tx)
+        swap_endpoint = f"{ONEINCH_API_URL}/swap"
 
-            # Отправляем транзакцию
-            try:
-                tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                logger.info(f"Отправлена транзакция обмена, tx_hash={tx_hash.hex()}")
-                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-                if receipt.status == 1:
-                    logger.info(f"swap_tokens_via_uniswap_v3: Успешный обмен, tx={tx_hash.hex()}")
-                    return True
-                else:
-                    logger.error(f"swap_tokens_via_uniswap_v3 fail: {tx_hash.hex()}")
-                    continue  # Переходим к следующему fee tier
-            except ValueError as e:
-                if "replacement transaction underpriced" in str(e):
-                    logger.warning("Замена транзакции. Увеличиваем gas price.")
-                    # В данном случае, мы уже установили фиксированную стоимость газа, поэтому продолжаем
-                    continue
-                else:
-                    logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
-                    continue  # Переходим к следующему fee tier
-            except Exception as e:
-                logger.error(f"Ошибка при отправке транзакции: {e}", exc_info=True)
-                continue  # Переходим к следующему fee tier
+        # Формирование запроса
+        swap_params = {
+            "fromTokenAddress": from_token,
+            "toTokenAddress": to_token,
+            "amount": int(amount * (10 ** get_token_decimals(from_token))),
+            "fromAddress": user_address,
+            "slippage": 1,  # Допустимое проскальзывание в процентах
+            "disableEstimate": False,
+            "allowPartialFill": False
+        }
+
+        response = requests.get(swap_endpoint, params=swap_params, headers=headers)
+        if response.status_code != 200:
+            logger.error(f"1inch API вернул код={response.status_code}: {response.text}")
+            return False
+
+        swap_data = response.json()
+        if 'tx' not in swap_data:
+            logger.error("Не удалось получить данные транзакции от 1inch.")
+            return False
+
+        tx = swap_data['tx']
+
+        # Подготовка транзакции
+        txn = {
+            'from': user_address,
+            'to': tx['to'],
+            'data': tx['data'],
+            'value': int(tx['value']),
+            'gas': int(tx['gas']),
+            'gasPrice': int(tx['gasPrice']),
+            'nonce': web3.eth.get_transaction_count(user_address),
+            'chainId': web3.eth.chain_id
+        }
+
+        # Подписание транзакции
+        signed_tx = acct.sign_transaction(txn)
+
+        # Отправка транзакции
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"Отправлена транзакция обмена через 1inch, tx_hash={tx_hash.hex()}")
+
+        # Ожидание подтверждения
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status == 1:
+            logger.info(f"swap_tokens_via_1inch: Успешный обмен, tx={tx_hash.hex()}")
+            return True
+        else:
+            logger.error(f"swap_tokens_via_1inch fail: {tx_hash.hex()}")
+            return False
+
     except Exception as e:
-        logger.error(f"swap_tokens_via_uniswap_v3 exception: {e}", exc_info=True)
+        logger.error(f"swap_tokens_via_1inch exception: {e}", exc_info=True)
         return False
-
-    logger.error("swap_tokens_via_uniswap_v3: Не удалось выполнить обмен ни с одним fee tier.")
-    return False
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
@@ -905,4 +586,3 @@ def accumulate_staking_rewards():
     except Exception as e:
         db.session.rollback()
         logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
-
