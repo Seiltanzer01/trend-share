@@ -46,6 +46,7 @@ required_env_vars = [
     "DEXScreener_PAIR_ADDRESS",
     "ONEINCH_API_URL",
     "ONEINCH_API_KEY"
+    "ONEINCH_ROUTER_ADDRESS"
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
