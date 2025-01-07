@@ -546,14 +546,14 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
         
-        # Создаём структуру параметров
-        params = {
-            "tokenIn": Web3.to_checksum_address(from_token),
-            "tokenOut": Web3.to_checksum_address(to_token),
-            "amountIn": amount_in,
-            "fee": fee,
-            "sqrtPriceLimitX96": 0
-        }
+        # Создаём структуру параметров как кортеж
+        params = (
+            Web3.to_checksum_address(from_token),
+            Web3.to_checksum_address(to_token),
+            amount_in,
+            fee,
+            0  # sqrtPriceLimitX96
+        )
         
         # Вызов функции с передачей структуры
         result = quoter_contract.functions.quoteExactInputSingle(params).call()
