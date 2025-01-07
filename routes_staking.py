@@ -241,7 +241,7 @@ def exchange_tokens():
 
         # Проверка баланса пользователя
         if from_token.upper() == "ETH":
-            user_eth_balance = web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
+            user_eth_balance = Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
             logger.info(f"Баланс пользователя ETH: {user_eth_balance}")
             if user_eth_balance < from_amount:
                 return jsonify({"error": "Недостаточно ETH для обмена."}), 400
