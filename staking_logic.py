@@ -712,7 +712,6 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 continue
 
             # Устанавливаем amount_out_minimum с последними четырьмя цифрами как 1234
-            # Например, если expected_output = 401766757377968, то amount_out_minimum = 401766757377968 - (expected_output * slippage) + 1234
             slippage_tolerance = 0.12  # 12%
             slippage_amount = int(expected_output * slippage_tolerance)
             amount_out_minimum = expected_output - slippage_amount
@@ -737,12 +736,12 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     continue  # Пробуем следующий fee tier
 
             # Определение параметров для транзакции как кортеж
-            params = (
+            exact_input_params = (
                 Web3.to_checksum_address(from_token),
                 Web3.to_checksum_address(to_token),
                 fee,
                 Web3.to_checksum_address(user_address),
-                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
+                int(datetime.utcnow().timestamp()) + 600,  # deadline
                 amount_in,
                 amount_out_minimum,
                 0  # sqrtPriceLimitX96
@@ -751,14 +750,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             # Строим транзакцию с точной оценкой газа используя SwapRouter
             try:
                 gas_estimate = swap_router_contract.functions.exactInputSingle(
-                    Web3.to_checksum_address(from_token),
-                    Web3.to_checksum_address(to_token),
-                    fee,
-                    Web3.to_checksum_address(user_address),
-                    int(datetime.utcnow().timestamp()) + 600,  # deadline
-                    amount_in,
-                    amount_out_minimum,
-                    0  # Без ограничения цены
+                    exact_input_params
                 ).estimateGas({
                     "from": user_address,
                     "value": 0
@@ -777,14 +769,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             # Строим транзакцию
             swap_tx = swap_router_contract.functions.exactInputSingle(
-                Web3.to_checksum_address(from_token),
-                Web3.to_checksum_address(to_token),
-                fee,
-                Web3.to_checksum_address(user_address),
-                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
-                amount_in,
-                amount_out_minimum,
-                0  # Без ограничения цены
+                exact_input_params
             ).build_transaction({
                 "chainId": web3.eth.chain_id,
                 "nonce": web3.eth.get_transaction_count(user_address, 'pending'),
