@@ -440,29 +440,40 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
                 return False
 
         # Получение параметров обмена от 1inch
-        headers = {}
+        headers = {
+            "Content-Type": "application/json"
+        }
         if ONEINCH_API_KEY:
             headers["Authorization"] = f"Bearer {ONEINCH_API_KEY}"
 
         swap_endpoint = f"{ONEINCH_API_URL}/swap"
 
         # Формирование запроса
-        swap_params = {
+        swap_payload = {
             "fromTokenAddress": from_token,
             "toTokenAddress": to_token,
-            "amount": int(amount * (10 ** get_token_decimals(from_token))),
+            "amount": str(int(amount * (10 ** get_token_decimals(from_token)))),  # Передаем как строку
             "fromAddress": user_address,
-            "slippage": 1,  # Допустимое проскальзывание в процентах
+            "slippage": "1",  # Допустимое проскальзывание в процентах, передаем как строку
             "disableEstimate": False,
             "allowPartialFill": False
         }
 
-        response = requests.get(swap_endpoint, params=swap_params, headers=headers)
+        logger.info(f"Отправка запроса на обмен: {swap_payload}")
+
+        response = requests.post(swap_endpoint, json=swap_payload, headers=headers)
+        logger.info(f"Ответ от 1inch API: статус={response.status_code}, тело={response.text}")
+
         if response.status_code != 200:
             logger.error(f"1inch API вернул код={response.status_code}: {response.text}")
             return False
 
-        swap_data = response.json()
+        try:
+            swap_data = response.json()
+        except json.JSONDecodeError as jde:
+            logger.error(f"Ошибка декодирования JSON: {jde}")
+            return False
+
         if 'tx' not in swap_data:
             logger.error("Не удалось получить данные транзакции от 1inch.")
             return False
@@ -476,10 +487,13 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
             'data': tx['data'],
             'value': int(tx['value']),
             'gas': int(tx['gas']),
-            'gasPrice': int(tx['gasPrice']),
+            'maxFeePerGas': int(tx['maxFeePerGas']),
+            'maxPriorityFeePerGas': int(tx['maxPriorityFeePerGas']),
             'nonce': web3.eth.get_transaction_count(user_address),
             'chainId': web3.eth.chain_id
         }
+
+        logger.info(f"Подготовка транзакции: {txn}")
 
         # Подписание транзакции
         signed_tx = acct.sign_transaction(txn)
