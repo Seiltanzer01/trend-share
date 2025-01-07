@@ -377,7 +377,7 @@ def get_token_price_in_usd() -> float:
 
 def approve_token(user_private_key: str, token_contract, spender: str, amount: int) -> bool:
     """
-    Одобрение токенов для расходования контрактом.
+    Одобрение токенов для расходования контрактом 1inch Router.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -414,7 +414,7 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
 
 def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     """
-    Выполняет обмен токенов через 1inch.
+    Выполняет обмен токенов через 1inch, предварительно одобряя необходимые токены.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -438,6 +438,15 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
             if user_balance < amount:
                 logger.error(f"Недостаточно {from_token} для обмена.")
                 return False
+
+            # Проверка текущего разрешения
+            current_allowance = from_token_contract.functions.allowance(user_address, ONEINCH_ROUTER_ADDRESS).call()
+            if current_allowance < amount_in:
+                logger.info(f"Текущая allowance: {current_allowance}, требуется: {amount_in}. Выполняем approve.")
+                approved = approve_token(user_private_key, from_token_contract, ONEINCH_ROUTER_ADDRESS, amount_in)
+                if not approved:
+                    logger.error("Не удалось одобрить токены для 1inch Router.")
+                    return False
 
         # Получение параметров обмена от 1inch
         headers = {
