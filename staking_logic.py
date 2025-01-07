@@ -234,7 +234,7 @@ def send_token_reward(
             "maxFeePerGas": gas_price,
             "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
             "value": 0,
-            # "from": acct.address  # Удалено поле "from"
+            "to": Web3.to_checksum_address(token_contract.address)  # Correctly set the 'to' field
         })
         signed_tx = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -270,7 +270,6 @@ def send_eth(to_address: str, amount_eth: float, private_key: str) -> bool:
             "gas": gas_limit,
             "maxFeePerGas": gas_price,
             "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
-            # "from": acct.address  # Удалено поле "from"
         }
         signed = acct.sign_transaction(tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
@@ -314,7 +313,6 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": max_priority_fee,
             "value": web3.to_wei(amount_eth, "ether"),
-            # "from":    acct.address  # Удалено поле "from"
         })
         signed = acct.sign_transaction(deposit_tx)
         tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
@@ -420,7 +418,6 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
             "maxFeePerGas": max_fee,
             "maxPriorityFeePerGas": max_priority_fee,
             "value": 0,
-            # "from": acct.address  # Удалено поле "from"
         })
         signed_tx = acct.sign_transaction(approve_tx)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -525,7 +522,7 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
         max_fee = base_fee * 2 + max_priority_fee  # Например, двойная базовая цена + приоритетная
 
         txn = {
-            'to': tx['to'],
+            'to': Web3.to_checksum_address(tx['to']),  # Преобразуем в checksum формат
             'data': tx['data'],
             'value': int(tx['value']),
             'gas': int(tx['gas']),
