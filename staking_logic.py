@@ -45,8 +45,8 @@ required_env_vars = [
     "PRIVATE_KEY",
     "DEXScreener_PAIR_ADDRESS",
     "ONEINCH_API_URL",
-    "ONEINCH_API_KEY",  # Добавлена запятая
-    "ONEINCH_ROUTER_ADDRESS"  # Исправлено
+    "ONEINCH_API_KEY",
+    "ONEINCH_ROUTER_ADDRESS"
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -57,6 +57,7 @@ if missing_vars:
 # Преобразуем ONEINCH_ROUTER_ADDRESS в checksum формат
 try:
     ONEINCH_ROUTER_ADDRESS = Web3.to_checksum_address(ONEINCH_ROUTER_ADDRESS)
+    logger.info(f"ONEINCH_ROUTER_ADDRESS установлен на: {ONEINCH_ROUTER_ADDRESS}")
 except Exception as e:
     logger.error(f"Invalid ONEINCH_ROUTER_ADDRESS: {ONEINCH_ROUTER_ADDRESS}. Error: {e}")
     raise ValueError(f"Invalid ONEINCH_ROUTER_ADDRESS: {ONEINCH_ROUTER_ADDRESS}. Error: {e}")
@@ -135,6 +136,7 @@ try:
         },
     ])
     ujo_contract = token_contract  # Используем только token_contract
+    logger.info("Контракты успешно инициализированы.")
 except Exception as e:
     logger.error(f"Ошибка инициализации контрактов: {e}", exc_info=True)
     sys.exit(1)
@@ -540,89 +542,3 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
     except Exception as e:
         logger.error(f"swap_tokens_via_1inch exception: {e}", exc_info=True)
         return False
-
-def confirm_staking_tx(user: User, tx_hash: str) -> bool:
-    """
-    Если транзакция >=25$ => создаём запись в UserStaking + assistant_premium = True.
-    """
-    if not user or not user.unique_wallet_address or not tx_hash:
-        return False
-    try:
-        r = web3.eth.get_transaction_receipt(tx_hash)
-        if not r or r.status != 1:
-            logger.error(f"Транзакция не подтверждена или не найдена: {tx_hash}")
-            return False
-
-        transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
-        price_usd = get_token_price_in_usd()
-        if price_usd <= 0:
-            logger.error("Не удалось получить цену токена в USD.")
-            return False
-
-        found = None
-        for lg in r.logs:
-            if lg.address.lower() == token_contract.address.lower():
-                if len(lg.topics) >= 3:
-                    if lg.topics[0].hex().lower() == transfer_topic.lower():
-                        from_addr = "0x" + lg.topics[1].hex()[26:]
-                        to_addr = "0x" + lg.topics[2].hex()[26:]
-                        from_addr = Web3.to_checksum_address(from_addr)
-                        to_addr = Web3.to_checksum_address(to_addr)
-
-                        # Смотрим, что PROJECT_WALLET_ADDRESS -> user.unique_wallet_address
-                        if (from_addr.lower() == PROJECT_WALLET_ADDRESS.lower()
-                                and to_addr.lower() == user.unique_wallet_address.lower()):
-                            amt_int = int(lg.data, 16)
-                            token_decimals = get_token_decimals(token_contract.address)
-                            token_amt = amt_int / (10 ** token_decimals)
-                            usd_amt = token_amt * price_usd
-                            logger.info(f"Транзакция {tx_hash}: {token_amt} токенов, стоимость {usd_amt} USD")
-                            if usd_amt >= 25:
-                                found = {
-                                    "token_amount": token_amt,
-                                    "usd_amount": usd_amt
-                                }
-                                break
-        if not found:
-            logger.error(f"Транзакция {tx_hash} не соответствует критериям стейкинга.")
-            return False
-
-        # Проверка на дублирующийся tx_hash
-        ex = UserStaking.query.filter_by(tx_hash=tx_hash).first()
-        if ex:
-            logger.warning(f"Транзакция {tx_hash} уже существует в базе.")
-            return False
-
-        new_s = UserStaking(
-            user_id=user.id,
-            tx_hash=tx_hash,
-            staked_usd=found["usd_amount"],
-            staked_amount=found["token_amount"],
-            created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow() + timedelta(days=30),
-            last_claim_at=datetime.utcnow()
-        )
-        db.session.add(new_s)
-        user.assistant_premium = True
-        db.session.commit()
-        logger.info(f"User {user.id} застейкал ~{found['usd_amount']:.2f}$ (tx={tx_hash}). Premium on.")
-        return True
-    except Exception as e:
-        logger.error(f"confirm_staking_tx({tx_hash}) except: {e}", exc_info=True)
-        db.session.rollback()
-        return False
-
-def accumulate_staking_rewards():
-    """
-    Пример: раз в неделю добавляем всем, у кого staked_amount>0, +0.5 UJO к pending_rewards.
-    """
-    try:
-        st = UserStaking.query.all()
-        for s in st:
-            if s.staked_amount > 0:
-                s.pending_rewards += 0.5
-        db.session.commit()
-        logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
