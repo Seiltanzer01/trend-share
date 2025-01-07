@@ -17,7 +17,7 @@ from models import db, User, UserStaking
 
 logger = logging.getLogger(__name__)
 
-# Обновлённый RPC URL
+# Обновленный RPC URL
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.public.blastapi.io")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 
@@ -129,26 +129,7 @@ UNISWAP_POOL_ABI = [
     }
 ]
 
-# Дополнительные методы для WETH
-WETH_ABI = ERC20_ABI + [
-    {
-        "constant": False,
-        "inputs": [],
-        "name": "deposit",
-        "outputs": [],
-        "payable": True,
-        "type": "function"
-    },
-    {
-        "constant": False,
-        "inputs": [],
-        "name": "withdraw",
-        "outputs": [],
-        "type": "function"
-    },
-]
-
-# Uniswap V3 SwapRouter ABI (Минимальный для exactInputSingle)
+# Uniswap V3 SwapRouter ABI (Полный ABI)
 UNISWAP_ROUTER_ABI = [
     {
         "inputs": [
@@ -163,7 +144,7 @@ UNISWAP_ROUTER_ABI = [
                     {"internalType": "uint256", "name": "amountOutMinimum", "type": "uint256"},
                     {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
                 ],
-                "internalType": "struct ISwapRouter.ExactInputSingleParams",
+                "internalType": "struct IV3SwapRouter.ExactInputSingleParams",
                 "name": "params",
                 "type": "tuple"
             }
@@ -174,10 +155,32 @@ UNISWAP_ROUTER_ABI = [
         ],
         "stateMutability": "payable",
         "type": "function"
-    }
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {"internalType": "bytes", "name": "path", "type": "bytes"},
+                    {"internalType": "address", "name": "recipient", "type": "address"},
+                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+                    {"internalType": "uint256", "name": "amountOutMinimum", "type": "uint256"}
+                ],
+                "internalType": "struct IV3SwapRouter.ExactInputParams",
+                "name": "params",
+                "type": "tuple"
+            }
+        ],
+        "name": "exactInput",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
+        ],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    # Добавьте остальные функции по необходимости
 ]
 
-# Uniswap V3 Quoter V2 ABI
+# Uniswap V3 Quoter V2 ABI (Полный ABI)
 UNISWAP_QUOTER_V2_ABI = [
     {
         "inputs": [
@@ -241,13 +244,69 @@ UNISWAP_QUOTER_V2_ABI = [
         "stateMutability": "nonpayable",
         "type": "function"
     },
-    # Другие функции QuoterV2 опущены для краткости
+    {
+        "inputs": [
+            {"internalType": "bytes", "name": "path", "type": "bytes"},
+            {"internalType": "uint256", "name": "amountOut", "type": "uint256"}
+        ],
+        "name": "quoteExactOutput",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint160[]", "name": "sqrtPriceX96AfterList", "type": "uint160[]"},
+            {"internalType": "uint32[]", "name": "initializedTicksCrossedList", "type": "uint32[]"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {"internalType": "address", "name": "tokenIn", "type": "address"},
+                    {"internalType": "address", "name": "tokenOut", "type": "address"},
+                    {"internalType": "uint256", "name": "amount", "type": "uint256"},
+                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
+                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"}
+                ],
+                "internalType": "struct IQuoterV2.QuoteExactOutputSingleParams",
+                "name": "params",
+                "type": "tuple"
+            }
+        ],
+        "name": "quoteExactOutputSingle",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint160", "name": "sqrtPriceX96After", "type": "uint160"},
+            {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    # Добавьте остальные функции QuoterV2 по необходимости
 ]
 
 # Инициализация контрактов
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
-    weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
+    weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=ERC20_ABI + [
+        {
+            "constant": False,
+            "inputs": [],
+            "name": "deposit",
+            "outputs": [],
+            "payable": True,
+            "type": "function"
+        },
+        {
+            "constant": False,
+            "inputs": [],
+            "name": "withdraw",
+            "outputs": [],
+            "type": "function"
+        },
+    ])
     ujo_contract = token_contract  # Используем только token_contract
     swap_router_contract = web3.eth.contract(address=Web3.to_checksum_address(UNISWAP_ROUTER_ADDRESS), abi=UNISWAP_ROUTER_ABI)
     pool_factory_contract = web3.eth.contract(address=Web3.to_checksum_address(POOL_FACTORY_ADDRESS), abi=UNISWAP_FACTORY_ABI)
@@ -449,8 +508,8 @@ def get_balances(user: User) -> dict:
         raw_eth = web3.eth.get_balance(ua)
         eth_bal = Web3.from_wei(raw_eth, 'ether')
 
-        wdec = weth_contract.functions.decimals().call()
         raw_w = weth_contract.functions.balanceOf(ua).call()
+        wdec = weth_contract.functions.decimals().call()
         wbal = raw_w / (10 ** wdec)
 
         ujo_bal = get_token_balance(ua, ujo_contract)
@@ -545,7 +604,7 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
     """
     try:
         logger.info(f"Вызов quoteExactInputSingle с параметрами: from_token={from_token}, to_token={to_token}, amount_in={amount_in}, fee={fee}, sqrtPriceLimitX96=0")
-        
+
         # Создаём структуру параметров как словарь
         params = {
             "tokenIn": Web3.to_checksum_address(from_token),
@@ -557,10 +616,10 @@ def get_expected_output(from_token: str, to_token: str, amount_in: int, fee: int
             "amountOutMinimum": 1,  # Минимальный выход
             "sqrtPriceLimitX96": 0  # Без ограничения цены
         }
-        
+
         # Вызов функции с передачей структуры как словаря
         result = quoter_contract.functions.quoteExactInputSingle(params).call()
-        
+
         amount_out = result[0]  # amountOut
         logger.info(f"Полученный quote: {amount_out}")
         decimals = get_token_decimals(to_token)
@@ -628,12 +687,12 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
     try:
         acct = Account.from_key(user_private_key)
         user_address = Web3.to_checksum_address(acct.address)
-        
+
         # Проверка баланса ETH
         raw_eth_balance = web3.eth.get_balance(user_address)
         eth_balance = Web3.from_wei(raw_eth_balance, 'ether')
         logger.info(f"ETH Баланс пользователя {user_address}: {eth_balance} ETH")
-        
+
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
         decimals = from_token_contract.functions.decimals().call()
         amount_in = int(amount * (10 ** decimals))
@@ -654,8 +713,10 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
 
             slippage_tolerance = 0.005  # 0.5%
             amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
-            if amount_out_minimum == 0:
-                amount_out_minimum = 1  # Устанавливаем минимум 1 единицу токена, чтобы избежать проблем
+            decimals_out = get_token_decimals(to_token)
+            if amount_out_minimum < 1:
+                # Устанавливаем минимально допустимое количество токенов с учетом десятичных знаков
+                amount_out_minimum = 1
             logger.info(f"Предполагаемый выход: {expected_output} токенов, минимально допустимый: {amount_out_minimum}")
 
             # Проверка allowance и его установка при необходимости
@@ -667,7 +728,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     logger.error("Ошибка при одобрении токенов.")
                     continue  # Пробуем следующий fee tier
 
-            # Определение параметров для транзакции как словарь
+            # Определение параметров для транзакции как словаря
             params = {
                 "tokenIn": Web3.to_checksum_address(from_token),
                 "tokenOut": Web3.to_checksum_address(to_token),
@@ -691,7 +752,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 continue
 
             # Проверяем, хватает ли ETH для оплаты газа
-            gas_cost_eth = Web3.from_wei(0.1 * gas_estimate, 'ether')  # 0.1 gwei * gas_estimate
+            gas_cost_eth = Web3.from_wei(gas_price * gas_estimate, 'ether')
             logger.info(f"Ожидаемая стоимость газа: {gas_cost_eth} ETH")
             if eth_balance < gas_cost_eth:
                 logger.error(f"Недостаточно ETH для оплаты газа. Требуется: ~{gas_cost_eth} ETH, доступно: {eth_balance} ETH")
