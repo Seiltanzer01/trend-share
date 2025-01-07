@@ -58,8 +58,25 @@
         
         <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
         
-        <!-- Кнопка вывода средств -->
-        <button class="nes-btn is-error" id="withdrawButton"><i class="fas fa-wallet"></i> Вывести Средства</button>
+        <hr>
+        <h3>Вывод Средств</h3>
+        <div class="withdraw-section">
+            <div class="nes-field">
+                <label for="withdrawToken">Выберите монету для вывода:</label>
+                <div class="nes-select">
+                    <select id="withdrawToken">
+                        <option value="ETH">ETH</option>
+                        <option value="WETH">WETH</option>
+                        <option value="UJO">UJO</option>
+                    </select>
+                </div>
+            </div>
+            <div class="nes-field">
+                <label for="withdrawAmount">Сумма для вывода:</label>
+                <input type="number" id="withdrawAmount" class="nes-input" placeholder="0.0" min="0" step="0.0001" required>
+            </div>
+            <button class="nes-btn is-error" id="withdrawButton"><i class="fas fa-wallet"></i> Вывести Средства</button>
+        </div>
     {% else %}
         <p>Сгенерируйте уникальный кошелёк для депозита:</p>
         <button class="nes-btn is-primary" id="generateUniqueWalletBtn"><i class="fas fa-wallet"></i> Сгенерировать Кошелёк</button>
@@ -188,6 +205,23 @@
 
             // Обработчик кнопки "Вывести Средства"
             document.getElementById('withdrawButton').addEventListener('click', async () => {
+                const withdrawToken = document.getElementById('withdrawToken').value;
+                const withdrawAmount = parseFloat(document.getElementById('withdrawAmount').value);
+
+                if(!withdrawToken){
+                    alert('Пожалуйста, выберите монету для вывода.');
+                    return;
+                }
+
+                if(isNaN(withdrawAmount) || withdrawAmount <= 0){
+                    alert('Пожалуйста, введите корректную сумму для вывода.');
+                    return;
+                }
+
+                if(!confirm(`Вы уверены, что хотите вывести ${withdrawAmount} ${withdrawToken}?`)){
+                    return;
+                }
+
                 try{
                     const csrfToken = "{{ csrf_token }}";
                     const response = await fetch('{{ url_for("staking_bp.withdraw_funds") }}', {  // Корректный URL с префиксом Blueprint
@@ -196,12 +230,16 @@
                             'Content-Type': 'application/json',
                             'X-CSRFToken': csrfToken
                         },
+                        body: JSON.stringify({
+                            token: withdrawToken,
+                            amount: withdrawAmount
+                        }),
                         credentials: 'include'  // Включаем куки-сессии
                     });
 
                     const data = await response.json();
                     if(data.status === 'success'){
-                        alert('Средства успешно выведены на ваш кошелек.');
+                        alert('Средства успешно выведены на ваш кошелёк.');
                         loadBalances();
                     } else{
                         alert('Ошибка: ' + data.error);
