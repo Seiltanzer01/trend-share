@@ -681,6 +681,7 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
     """
     Выполняет обмен токенов через Uniswap V3 с поддержкой нескольких fee tiers.
     Устанавливает amount_out_minimum с учётом проскальзывания.
+    Добавляет небольшую фиксированную часть к amount_in.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -694,6 +695,11 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
         from_token_contract = web3.eth.contract(address=Web3.to_checksum_address(from_token), abi=ERC20_ABI)
         decimals = from_token_contract.functions.decimals().call()
         amount_in = int(amount * (10 ** decimals))
+
+        # Добавляем фиксированную часть (например, 1234 единиц в наименьших единицах токена)
+        fixed_addition = 1234
+        amount_in += fixed_addition
+        logger.info(f"Amount_in после добавления фиксированной части: {amount_in} (наименьшие единицы токена)")
 
         logger.info(f"Пытаемся обменять {amount} токенов {from_token} на {to_token}")
 
@@ -755,6 +761,9 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                     "value": 0
                 })
                 logger.info(f"Оценка газа для транзакции: {gas_estimate}")
+            except AttributeError as ae:
+                logger.error(f"Ошибка при вызове estimateGas: {ae}")
+                continue  # Переходим к следующему fee tier
             except Exception as e:
                 logger.error(f"Ошибка при оценке газа: {e}")
                 continue
