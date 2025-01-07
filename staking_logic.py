@@ -33,7 +33,7 @@ UJO_CONTRACT_ADDRESS = TOKEN_CONTRACT_ADDRESS
 PROJECT_WALLET_ADDRESS = os.environ.get("MY_WALLET_ADDRESS", "0xYOUR_PROJECT_WALLET_ADDRESS")
 
 # 1inch API настройки
-ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.io/v5.0/8453")  # Используем chain_id=8453 для Base
+ONEINCH_API_URL = os.environ.get("ONEINCH_API_URL", "https://api.1inch.dev/swap/v6.0/8453")  # Используем chain_id=8453 для Base
 ONEINCH_API_KEY = os.environ.get("ONEINCH_API_KEY", "")  # Если требуется API ключ
 
 # Проверьте, что переменные окружения установлены корректно
@@ -43,7 +43,8 @@ required_env_vars = [
     "MY_WALLET_ADDRESS",
     "PRIVATE_KEY",
     "DEXScreener_PAIR_ADDRESS",
-    "ONEINCH_API_URL"
+    "ONEINCH_API_URL",
+    "ONEINCH_API_KEY"
 ]
 
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -440,10 +441,10 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
 
         # Получение параметров обмена от 1inch
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {ONEINCH_API_KEY}" if ONEINCH_API_KEY else "",
+            "Accept": "application/json"
         }
-        if ONEINCH_API_KEY:
-            headers["Authorization"] = f"Bearer {ONEINCH_API_KEY}"
 
         swap_endpoint = f"{ONEINCH_API_URL}/swap"
 
@@ -542,9 +543,9 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         from_addr = Web3.to_checksum_address(from_addr)
                         to_addr = Web3.to_checksum_address(to_addr)
 
-                        # Смотрим, что user.unique_wallet_address -> PROJECT_WALLET_ADDRESS
-                        if (from_addr.lower() == user.unique_wallet_address.lower()
-                                and to_addr.lower() == PROJECT_WALLET_ADDRESS.lower()):
+                        # Смотрим, что PROJECT_WALLET_ADDRESS -> user.unique_wallet_address
+                        if (from_addr.lower() == PROJECT_WALLET_ADDRESS.lower()
+                                and to_addr.lower() == user.unique_wallet_address.lower()):
                             amt_int = int(lg.data, 16)
                             token_decimals = get_token_decimals(token_contract.address)
                             token_amt = amt_int / (10 ** token_decimals)
