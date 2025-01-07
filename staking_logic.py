@@ -680,6 +680,7 @@ def check_liquidity(from_token: str, to_token: str, fee: int) -> bool:
 def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     """
     Выполняет обмен токенов через Uniswap V3 с поддержкой нескольких fee tiers.
+    Устанавливает amount_out_minimum с последними четырьмя цифрами 1234.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -710,11 +711,21 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
                 logger.warning(f"Не удалось получить ожидаемый выход для fee tier {fee}. Пробуем следующий.")
                 continue
 
+            # Устанавливаем amount_out_minimum с последними четырьмя цифрами как 1234
+            # Например, если expected_output = 401766757377968, то amount_out_minimum = 401766757377968 - (expected_output * slippage) + 1234
             slippage_tolerance = 0.12  # 12%
-            amount_out_minimum = int(expected_output * (1 - slippage_tolerance))
-            if amount_out_minimum < 1234:
-                amount_out_minimum = 1234  # Установлено на 1234 вместо 1
-            logger.info(f"Предполагаемый выход: {expected_output / (10 ** get_token_decimals(to_token))} токенов, минимально допустимый: {amount_out_minimum}")
+            slippage_amount = int(expected_output * slippage_tolerance)
+            amount_out_minimum = expected_output - slippage_amount
+
+            # Добавляем 1234 в последние цифры
+            amount_out_minimum = (amount_out_minimum // 10000) * 10000 + 1234
+
+            # Убедимся, что amount_out_minimum не превышает expected_output
+            if amount_out_minimum > expected_output:
+                amount_out_minimum = expected_output
+
+            logger.info(f"Предполагаемый выход: {expected_output / (10 ** get_token_decimals(to_token))} токенов, "
+                        f"минимально допустимый: {amount_out_minimum}")
 
             # Проверка allowance и его установка при необходимости
             allowance = from_token_contract.functions.allowance(user_address, UNISWAP_ROUTER_ADDRESS).call()
@@ -729,14 +740,26 @@ def swap_tokens_via_uniswap_v3(user_private_key: str, from_token: str, to_token:
             params = (
                 Web3.to_checksum_address(from_token),
                 Web3.to_checksum_address(to_token),
-                amount_in,
                 fee,
+                Web3.to_checksum_address(user_address),
+                int(datetime.utcnow().timestamp()) + 600,  # 10 минут deadline
+                amount_in,
+                amount_out_minimum,
                 0  # sqrtPriceLimitX96
             )
 
-            # Строим транзакцию с точной оценкой газа
+            # Строим транзакцию с точной оценкой газа используя SwapRouter
             try:
-                gas_estimate = quoter_contract.functions.quoteExactInputSingle(params).estimateGas({
+                gas_estimate = swap_router_contract.functions.exactInputSingle(
+                    Web3.to_checksum_address(from_token),
+                    Web3.to_checksum_address(to_token),
+                    fee,
+                    Web3.to_checksum_address(user_address),
+                    int(datetime.utcnow().timestamp()) + 600,  # deadline
+                    amount_in,
+                    amount_out_minimum,
+                    0  # Без ограничения цены
+                ).estimateGas({
                     "from": user_address,
                     "value": 0
                 })
