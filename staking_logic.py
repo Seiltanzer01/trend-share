@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 import requests
 import secrets
 import string
-import hashlib
-import json
 import sys
 import binascii
 
@@ -19,8 +17,8 @@ from models import db, User, UserStaking
 
 logger = logging.getLogger(__name__)
 
-# Подключение к RPC сети Base
-BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID")
+# Обновлённый RPC URL
+BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://base-mainnet.public.blastapi.io")
 web3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
 
 if not web3.is_connected():
@@ -246,7 +244,7 @@ UNISWAP_QUOTER_V2_ABI = [
     # Другие функции QuoterV2 опущены для краткости
 ]
 
-# Uniswap V3 Quoter V2 контракт инициализация
+# Инициализация контрактов
 try:
     token_contract = web3.eth.contract(address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS), abi=ERC20_ABI)
     weth_contract = web3.eth.contract(address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS), abi=WETH_ABI)
