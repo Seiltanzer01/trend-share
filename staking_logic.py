@@ -505,11 +505,19 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
             'data': tx['data'],
             'value': int(tx['value']),
             'gas': int(tx['gas']),
-            'maxFeePerGas': int(tx['maxFeePerGas']),
-            'maxPriorityFeePerGas': int(tx['maxPriorityFeePerGas']),
             'nonce': web3.eth.get_transaction_count(user_address, 'pending'),  # Добавлен 'pending'
             'chainId': web3.eth.chain_id
         }
+
+        # Проверка наличия полей 'maxFeePerGas' и 'maxPriorityFeePerGas'
+        if 'maxFeePerGas' in tx and 'maxPriorityFeePerGas' in tx:
+            txn['maxFeePerGas'] = int(tx['maxFeePerGas'])
+            txn['maxPriorityFeePerGas'] = int(tx['maxPriorityFeePerGas'])
+        elif 'gasPrice' in tx:
+            txn['gasPrice'] = int(tx['gasPrice'])
+        else:
+            logger.error("Не найдены поля gasPrice или maxFeePerGas в ответе 1inch.")
+            return False
 
         logger.info(f"Подготовка транзакции: {txn}")
 
