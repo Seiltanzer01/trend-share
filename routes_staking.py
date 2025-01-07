@@ -318,7 +318,11 @@ def claim_staking_rewards_route():
             return jsonify({"error": "No unique wallet address"}), 400
 
         # Отправляем награды от PROJECT_WALLET_ADDRESS пользователю
-        ok = send_token_reward(user.unique_wallet_address, totalRewards, private_key=os.environ.get("PRIVATE_KEY"))
+        ok = send_token_reward(
+            to_address=user.unique_wallet_address,
+            amount=totalRewards,
+            private_key=os.environ.get("PRIVATE_KEY")
+        )
         if not ok:
             db.session.rollback()
             return jsonify({"error": "Ошибка транзакции"}), 400
