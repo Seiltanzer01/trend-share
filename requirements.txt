@@ -87,5 +87,5 @@ matplotlib
 Flask-APScheduler
 pytz
 psycopg2
-web3==6.5.0
+web3
 eth_account==0.8.0
