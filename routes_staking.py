@@ -490,21 +490,55 @@ def withdraw_funds():
         if not user or not user.unique_wallet_address or not user.wallet_address:
             return jsonify({"error": "User not found or wallet address not set."}), 400
 
-        bal = get_token_balance(user.unique_wallet_address, ujo_contract)
-        logger.info(f"Баланс пользователя для вывода: {bal} UJO")
-        if bal <= 0:
-            return jsonify({"error": "No UJO tokens to withdraw."}), 400
+        data = request.get_json() or {}
+        token = data.get("token")
+        amount = data.get("amount")
 
-        # Отправляем UJO с PROJECT_WALLET_ADDRESS пользователю
-        ok = send_token_reward(
-            to_address=user.wallet_address,
-            amount=bal,
-            private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
-        )
-        if ok:
+        if not token or amount is None:
+            return jsonify({"error": "Недостаточно данных для вывода."}), 400
+
+        token = token.upper()
+        try:
+            amount = float(amount)
+            if amount <= 0:
+                raise ValueError
+        except ValueError:
+            return jsonify({"error": "Некорректная сумма для вывода."}), 400
+
+        # Получение балансов
+        balances = get_balances(user)
+        if "error" in balances:
+            return jsonify({"error": balances["error"]}), 500
+
+        available_balance = balances["balances"].get(token.lower(), 0.0)
+        if available_balance < amount:
+            return jsonify({"error": f"Недостаточно {token} для вывода."}), 400
+
+        # В зависимости от токена, используем соответствующую функцию
+        if token == "ETH":
+            # Отправка ETH
+            success = send_eth_from_user(
+                user_private_key=user.unique_private_key,
+                to_address=user.wallet_address,
+                amount_eth=amount
+            )
+        elif token in ["WETH", "UJO"]:
+            # Отправка ERC20 токенов
+            contract = weth_contract if token == "WETH" else ujo_contract
+            success = send_token_reward(
+                to_address=user.wallet_address,
+                amount=amount,
+                from_address=user.unique_wallet_address,
+                private_key=user.unique_private_key,
+                token_contract=contract
+            )
+        else:
+            return jsonify({"error": "Неподдерживаемая монета для вывода."}), 400
+
+        if success:
             return jsonify({"status": "success"}), 200
         else:
-            return jsonify({"error": "Failed to send tokens."}), 400
+            return jsonify({"error": "Не удалось вывести средства."}), 400
 
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
