@@ -54,6 +54,13 @@ if missing_vars:
     logger.error(f"Отсутствуют необходимые переменные окружения: {', '.join(missing_vars)}")
     raise ValueError(f"Отсутствуют необходимые переменные окружения: {', '.join(missing_vars)}")
 
+# Преобразуем ONEINCH_ROUTER_ADDRESS в checksum формат
+try:
+    ONEINCH_ROUTER_ADDRESS = Web3.to_checksum_address(ONEINCH_ROUTER_ADDRESS)
+except Exception as e:
+    logger.error(f"Invalid ONEINCH_ROUTER_ADDRESS: {ONEINCH_ROUTER_ADDRESS}. Error: {e}")
+    raise ValueError(f"Invalid ONEINCH_ROUTER_ADDRESS: {ONEINCH_ROUTER_ADDRESS}. Error: {e}")
+
 # ERC20 ABI с необходимыми функциями
 ERC20_ABI = [
     # balanceOf
@@ -390,7 +397,7 @@ def approve_token(user_private_key: str, token_contract, spender: str, amount: i
         gas_limit = 100000  # Стандартный gas limit для approve
 
         approve_tx = token_contract.functions.approve(
-            Web3.to_checksum_address(spender),
+            spender,
             amount
         ).build_transaction({
             "chainId": web3.eth.chain_id,
