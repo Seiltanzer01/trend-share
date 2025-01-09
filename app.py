@@ -583,7 +583,7 @@ scheduler.add_job(
     id='Accumulate Staking Rewards',
     func=lambda: accumulate_staking_rewards(),
     trigger='interval',
-    days=7,
+    minutes=1, #days=7,
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
 
