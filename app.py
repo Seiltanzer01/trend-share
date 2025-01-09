@@ -487,6 +487,13 @@ def initialize():
         # Мини-хак: Добавляем нужные колонки, если их нет
         try:
             with db.engine.connect() as con:
+                 # 1) Сначала удаляем (если есть):
+                con.execute("""
+                    ALTER TABLE user_staking
+                    DROP COLUMN IF EXISTS stake_amount
+                """)
+                logger.info("Колонка 'stake_amount' удалена из user_staking (если существовала).")
+    
                 # Добавление колонок в user_staking
                 con.execute("""
                     ALTER TABLE user_staking
