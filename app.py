@@ -596,6 +596,7 @@ atexit.register(lambda: scheduler.shutdown())
 # Импорт маршрутов после инициализации APScheduler
 from routes import *
 
+app.register_blueprint(main_bp)
 # Подключаем наш новый blueprint staking_bp с префиксом '/staking'
 app.register_blueprint(staking_bp, url_prefix='/staking')
 
