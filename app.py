@@ -18,7 +18,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from routes_staking import staking_bp  # Удаляем импорт функций генерации кошелька
+from routes_staking import staking_bp  # Убедитесь, что routes_staking.py существует и содержит staking_bp
 # Добавление OpenAI
 import openai
 
@@ -48,7 +48,7 @@ csrf = CSRFProtect(app)
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
-    
+
 @app.route('/info')
 def info():
     return render_template('info.html')
@@ -596,9 +596,8 @@ atexit.register(lambda: scheduler.shutdown())
 # Импорт маршрутов после инициализации APScheduler
 from routes import *
 
-app.register_blueprint(main_bp)
-# Подключаем наш новый blueprint staking_bp с префиксом '/staking'
-app.register_blueprint(staking_bp, url_prefix='/staking')
+# Регистрация Blueprints
+app.register_blueprint(staking_bp, url_prefix='/staking')  # Регистрация staking_bp здесь
 
 # Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
