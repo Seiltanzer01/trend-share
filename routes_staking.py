@@ -161,9 +161,9 @@ def get_user_stakes():
         return jsonify({"error": "User not found"}), 404
 
     try:
-        stakes = UserStaking.query.filter_by(user_id=user.id).all()
+        stakings = UserStaking.query.filter_by(user_id=user.id).all()
         stakes_data = []
-        for s in stakes:
+        for s in stakings:
             stakes_data.append({
                 'tx_hash':           s.tx_hash,
                 'staked_amount':     s.staked_amount,
@@ -308,8 +308,9 @@ def claim_staking_rewards_route():
             if s.staked_amount > 0:
                 delta = now - s.last_claim_at
                 if delta >= timedelta(days=7):
-                    totalRewards += s.pending_rewards
-                    s.pending_rewards = 0.0
+                    reward = s.staked_amount * 0.0023  # 0.23% за неделю
+                    totalRewards += reward
+                    s.pending_rewards += reward
                     s.last_claim_at = now
 
         if totalRewards <= 0:
@@ -318,11 +319,12 @@ def claim_staking_rewards_route():
         if not user.unique_wallet_address:
             return jsonify({"error": "No unique wallet address"}), 400
 
-        # Отправляем награды от PROJECT_WALLET_ADDRESS пользователю
+        # Отправляем награды из кошелька проекта на уникальный кошелек пользователя
         ok = send_token_reward(
             to_address=user.unique_wallet_address,
             amount=totalRewards,
-            private_key=os.environ.get("PRIVATE_KEY")
+            private_key=os.environ.get("PRIVATE_KEY"),
+            token_contract_instance=token_contract
         )
         if not ok:
             db.session.rollback()
@@ -362,30 +364,33 @@ def unstake_staking_route():
                 s.pending_rewards = 0.0
 
         if total_unstake <= 0:
-            return jsonify({"error": "Нет доступных стейков"}), 400
+            return jsonify({"error": "Нет доступных стейкингов для unstake."}), 400
 
-        unstake_after_fee = total_unstake * 0.99
+        # 1% fee
         fee = total_unstake * 0.01
+        withdraw_amount = total_unstake - fee
 
-        # Отправляем часть стейка пользователю от PROJECT_WALLET_ADDRESS
-        ok = send_token_reward(
+        # Отправка UJO из кошелька проекта на уникальный кошелек пользователя
+        success = send_token_reward(
             to_address=user.unique_wallet_address,
-            amount=unstake_after_fee,
-            private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
+            amount=withdraw_amount,
+            private_key=os.environ.get("PRIVATE_KEY"),
+            token_contract_instance=token_contract
         )
-        if not ok:
+        if not success:
             db.session.rollback()
-            return jsonify({"error": "send_token_reward failed"}), 400
+            return jsonify({"error": "Ошибка при отправке UJO на кошелек пользователя."}), 400
 
-        # Отправляем комиссию на PROJECT_WALLET_ADDRESS
-        if not PROJECT_WALLET_ADDRESS:
+        # Отправка комиссии на PROJECT_WALLET_ADDRESS
+        fee_success = send_token_reward(
+            to_address=PROJECT_WALLET_ADDRESS,
+            amount=fee,
+            private_key=os.environ.get("PRIVATE_KEY"),
+            token_contract_instance=token_contract
+        )
+        if not fee_success:
             db.session.rollback()
-            return jsonify({"error": "PROJECT_WALLET_ADDRESS not set"}), 500
-
-        fee_ok = send_token_reward(PROJECT_WALLET_ADDRESS, fee, private_key=os.environ.get("PRIVATE_KEY"))
-        if not fee_ok:
-            db.session.rollback()
-            return jsonify({"error": "Failed to send fee"}), 400
+            return jsonify({"error": "Ошибка при отправке комиссии."}), 400
 
         # Проверяем, остались ли активные стейки
         remaining = UserStaking.query.filter(
@@ -396,15 +401,16 @@ def unstake_staking_route():
             user.assistant_premium = False
 
         db.session.commit()
-        return jsonify({"message": f"Unstaked {total_unstake:.4f}, fee=1%, you got {unstake_after_fee:.4f}"}), 200
+        return jsonify({"message": f"Unstaked {total_unstake:.4f} UJO (fee: 1%, you got {withdraw_amount:.4f} UJO)."}), 200
+
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
-        logger.error(f"unstake error: {e}", exc_info=True)
+        logger.error(f"unstake_staking error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
 @staking_bp.route('/api/stake_tokens', methods=['POST'])
-def stake_tokens():
+def stake_tokens_route():
     try:
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
@@ -425,37 +431,40 @@ def stake_tokens():
 
         try:
             amount_usd = float(amount_usd)
-            if amount_usd <= 0:
-                raise ValueError
+            if amount_usd != 25.0:
+                return jsonify({"error": "Please stake exactly 25 USD equivalent in UJO tokens."}), 400
         except ValueError:
             return jsonify({"error": "Invalid amount_usd."}), 400
 
         price_usd = get_token_price_in_usd()
-        if not price_usd:
+        if not price_usd or price_usd <=0:
             return jsonify({"error": "Failed to get UJO price."}), 400
 
         amount_ujo = amount_usd / price_usd
+        staked_usd = 20.0
+        staked_amount = staked_usd / price_usd
 
-        # Проверка баланса PROJECT_WALLET_ADDRESS
-        project_balance = get_token_balance(PROJECT_WALLET_ADDRESS, token_contract)
-        logger.info(f"Баланс PROJECT_WALLET_ADDRESS: {project_balance} UJO, требуется: {amount_ujo} UJO")
-        if project_balance < amount_ujo:
-            return jsonify({"error": "Недостаточно UJO в проектном кошельке."}), 400
+        # Проверка баланса пользователя на уникальном кошельке
+        user_balance = get_token_balance(user.unique_wallet_address, token_contract)
+        if user_balance < amount_ujo:
+            return jsonify({"error": "Недостаточно UJO для стейкинга."}), 400
 
-        # Отправляем UJO с PROJECT_WALLET_ADDRESS пользователю
-        ok = send_token_reward(
-            to_address=user.unique_wallet_address,
+        # Отправка UJO с уникального кошелька на кошелек проекта
+        success = send_token_reward(
+            to_address=PROJECT_WALLET_ADDRESS,
             amount=amount_ujo,
-            private_key=os.environ.get("PRIVATE_KEY")  # Используем приватный ключ проекта
+            private_key=user.unique_private_key,
+            token_contract_instance=token_contract
         )
-        if not ok:
-            return jsonify({"error": "Staking failed."}), 400
+        if not success:
+            return jsonify({"error": "Ошибка при отправке UJO на кошелек проекта."}), 400
 
+        # Создание записи стейкинга
         new_stake = UserStaking(
             user_id=user.id,
             tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
-            staked_amount=amount_ujo,
-            staked_usd=amount_usd,
+            staked_amount=staked_amount,
+            staked_usd=staked_usd,
             pending_rewards=0.0,
             created_at=datetime.utcnow(),
             unlocked_at=datetime.utcnow() + timedelta(days=30),
@@ -463,10 +472,11 @@ def stake_tokens():
         )
         db.session.add(new_stake)
         db.session.commit()
+        logger.info(f"Стейкинг: Пользователь ID {user.id} застейкал {staked_amount} UJO (~{staked_usd}$).")
         return jsonify({
             "status": "success",
-            "staked_amount": amount_ujo,
-            "staked_usd": amount_usd
+            "staked_amount": staked_amount,
+            "staked_usd": staked_usd
         }), 200
 
     except CSRFError:
@@ -545,3 +555,20 @@ def withdraw_funds():
     except Exception as e:
         logger.error("withdraw_funds error", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
+
+def accumulate_staking_rewards():
+    """
+    Накопление наград для всех стейкинговых позиций.
+    Награды добавляются раз в неделю и составляют 0.23% от стейкинговой суммы.
+    """
+    try:
+        stakings = UserStaking.query.all()
+        for s in stakings:
+            if s.staked_amount > 0:
+                reward = s.staked_amount * 0.0023  # 0.23% за неделю
+                s.pending_rewards += reward
+        db.session.commit()
+        logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
