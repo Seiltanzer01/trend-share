@@ -550,7 +550,7 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                         usd_amt   = token_amt * price_usd
                         logger.info(f"[confirm_staking_tx] found {token_amt} UJO => ~{usd_amt} USD")
                         # Для теста можно usd_amt >= 0.5
-                        if usd_amt >= 25:
+                        if usd_amt >= 0.5: #  if usd_amt >= 25:
                             found = {"token_amount":token_amt, "usd_amount":usd_amt}
                             break
 
