@@ -7,6 +7,7 @@ import secrets
 import string
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
+from web3 import Web3
 from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, UserStaking
 from staking_logic import (
