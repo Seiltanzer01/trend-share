@@ -7,8 +7,8 @@ import secrets
 import string
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
-from web3 import Web3
 from flask_wtf.csrf import validate_csrf, CSRFError
+from web3 import Web3
 from models import db, User, UserStaking
 from staking_logic import (
     confirm_staking_tx,
@@ -18,20 +18,21 @@ from staking_logic import (
     token_contract,
     weth_contract,
     ujo_contract,
-    UJO_CONTRACT_ADDRESS,          # Импорт UJO_CONTRACT_ADDRESS
-    TOKEN_CONTRACT_ADDRESS,        # Импорт TOKEN_CONTRACT_ADDRESS
-    WETH_CONTRACT_ADDRESS,         # Импорт WETH_CONTRACT_ADDRESS
-    PROJECT_WALLET_ADDRESS,        # Импорт PROJECT_WALLET_ADDRESS
-    ERC20_ABI,                     # Импорт ERC20_ABI
+    UJO_CONTRACT_ADDRESS,
+    TOKEN_CONTRACT_ADDRESS,
+    WETH_CONTRACT_ADDRESS,
+    PROJECT_WALLET_ADDRESS,
+    ERC20_ABI,
     get_balances,
     generate_unique_wallet,
     send_token_reward,
-    swap_tokens_via_1inch,         # Обновлено для использования 1inch
+    swap_tokens_via_1inch,
     deposit_eth_to_weth,
     verify_private_key,
     send_eth_from_user,
 )
-from best_setup_voting import send_token_reward as voting_send_token_reward  # Убедитесь, что этот импорт корректен
+
+from best_setup_voting import send_token_reward as voting_send_token_reward  # Проверяйте корректность импорта
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +55,23 @@ def generate_unique_wallet_route():
             return jsonify({"error": "User not found."}), 404
 
         if user.unique_wallet_address:
-            return jsonify({"error": "Unique wallet already exists.",
-                            "unique_wallet_address": user.unique_wallet_address}), 400
+            return jsonify({
+                "error": "Unique wallet already exists.",
+                "unique_wallet_address": user.unique_wallet_address
+            }), 400
 
-        # Генерация уникального кошелька
         unique_wallet_address, unique_private_key = generate_unique_wallet()
 
         # Проверка соответствия приватного ключа и адреса
-        temp_user = User(unique_wallet_address=unique_wallet_address, unique_private_key=unique_private_key)
+        temp_user = User(
+            unique_wallet_address=unique_wallet_address,
+            unique_private_key=unique_private_key
+        )
         if not verify_private_key(temp_user):
             return jsonify({"error": "Generated private key does not match the wallet address."}), 500
 
         user.unique_wallet_address = unique_wallet_address
-        user.unique_private_key    = unique_private_key
+        user.unique_private_key = unique_private_key
         db.session.commit()
 
         logger.info(f"Уникальный кошелёк {unique_wallet_address} для user_id={user_id}")
@@ -166,11 +171,11 @@ def get_user_stakes():
         stakes_data = []
         for s in stakings:
             stakes_data.append({
-                'tx_hash':           s.tx_hash,
-                'staked_amount':     s.staked_amount,
-                'staked_usd':        s.staked_usd,
-                'pending_rewards':   s.pending_rewards,
-                'unlocked_at':       int(s.unlocked_at.timestamp() * 1000)
+                'tx_hash': s.tx_hash,
+                'staked_amount': s.staked_amount,
+                'staked_usd': s.staked_usd,
+                'pending_rewards': s.pending_rewards,
+                'unlocked_at': int(s.unlocked_at.timestamp() * 1000)
             })
         return jsonify({"stakes": stakes_data}), 200
     except Exception as e:
@@ -193,6 +198,10 @@ def get_balances_route():
 
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
+    """
+    Рабочий код обмена через 1inch, 
+    не вызываем decimals() для ETH (0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE).
+    """
     try:
         # CSRF проверка и авторизация
         csrf_token = request.headers.get('X-CSRFToken')
@@ -207,7 +216,6 @@ def exchange_tokens():
         if not user or not user.unique_wallet_address:
             return jsonify({"error": "User not found or unique wallet not set."}), 404
 
-        # Получение данных запроса
         data = request.get_json() or {}
         from_token = data.get("from_token")
         to_token = data.get("to_token")
@@ -216,7 +224,6 @@ def exchange_tokens():
         if not from_token or not to_token or from_amount is None:
             return jsonify({"error": "Недостаточно данных для обмена."}), 400
 
-        # Проверка корректности данных
         try:
             from_amount = float(from_amount)
             if from_amount <= 0:
@@ -224,7 +231,7 @@ def exchange_tokens():
         except ValueError:
             return jsonify({"error": "Некорректное значение from_amount."}), 400
 
-        # Форматируем адреса
+        # Определяем, ETH ли это
         def get_token_address(symbol: str) -> str:
             symbol_upper = symbol.upper()
             if symbol_upper == "ETH":
@@ -234,21 +241,24 @@ def exchange_tokens():
             elif symbol_upper == "UJO":
                 return UJO_CONTRACT_ADDRESS
             else:
-                return symbol  # Предполагается, что переданы корректные адреса
+                return symbol
 
         sell_token = get_token_address(from_token)
         buy_token = get_token_address(to_token)
-
         logger.info(f"Обмен: {from_amount} {from_token} ({sell_token}) -> {to_token} ({buy_token})")
 
         # Проверка баланса пользователя
         if from_token.upper() == "ETH":
-            user_eth_balance = Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
+            # Баланс ETH проверяем напрямую
+            user_eth_balance = Web3.from_wei(
+                web3.eth.get_balance(user.unique_wallet_address),
+                'ether'
+            )
             logger.info(f"Баланс пользователя ETH: {user_eth_balance}")
             if user_eth_balance < from_amount:
                 return jsonify({"error": "Недостаточно ETH для обмена."}), 400
         else:
-            # Определяем контракт токена для проверки баланса
+            # Иначе это ERC20
             if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
                 sell_contract = token_contract
             elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
@@ -256,27 +266,37 @@ def exchange_tokens():
             elif sell_token.lower() == UJO_CONTRACT_ADDRESS.lower():
                 sell_contract = ujo_contract
             else:
-                # Если токен не известен, предполагаем, что передан корректный адрес контракта
-                sell_contract = web3.eth.contract(address=Web3.to_checksum_address(sell_token), abi=ERC20_ABI)
-
+                # Любой другой кастомный токен
+                sell_contract = web3.eth.contract(
+                    address=Web3.to_checksum_address(sell_token),
+                    abi=ERC20_ABI
+                )
             user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
             logger.info(f"Баланс пользователя {from_token}: {user_balance}")
             if user_balance < from_amount:
                 return jsonify({"error": f"Недостаточно {from_token} для обмена."}), 400
 
-        # Выполняем обмен через 1inch
-        swap_ok = swap_tokens_via_1inch(user.unique_private_key, sell_token, buy_token, from_amount)
+        # Обмен через 1inch
+        swap_ok = swap_tokens_via_1inch(
+            user.unique_private_key,
+            sell_token,
+            buy_token,
+            from_amount
+        )
         if not swap_ok:
             logger.error("Ошибка выполнения обмена через 1inch.")
             return jsonify({"error": "Ошибка выполнения обмена через 1inch."}), 400
 
-        # Обновляем балансы
+        # Обновим балансы
         result = get_balances(user)
         if "error" in result:
             return jsonify({"error": result["error"]}), 500
 
         logger.info(f"Успешный обмен: {from_token} -> {to_token}, сумма: {from_amount}")
-        return jsonify({"status": "success", "balances": result["balances"]}), 200
+        return jsonify({
+            "status": "success",
+            "balances": result["balances"]
+        }), 200
 
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
@@ -309,9 +329,9 @@ def claim_staking_rewards_route():
             if s.staked_amount > 0:
                 delta = now - s.last_claim_at
                 if delta >= timedelta(days=7):
-                    reward = s.staked_amount * 0.0023  # 0.23% за неделю
-                    totalRewards += reward
-                    s.pending_rewards += reward
+                    # В старом коде вы клеймили полностью pending_rewards
+                    totalRewards += s.pending_rewards
+                    s.pending_rewards = 0.0
                     s.last_claim_at = now
 
         if totalRewards <= 0:
@@ -320,12 +340,11 @@ def claim_staking_rewards_route():
         if not user.unique_wallet_address:
             return jsonify({"error": "No unique wallet address"}), 400
 
-        # Отправляем награды из кошелька проекта на уникальный кошелек пользователя
+        # Отправляем награды от PROJECT_WALLET_ADDRESS пользователю
         ok = send_token_reward(
             to_address=user.unique_wallet_address,
             amount=totalRewards,
-            private_key=os.environ.get("PRIVATE_KEY"),
-            token_contract_instance=token_contract
+            private_key=os.environ.get("PRIVATE_KEY")
         )
         if not ok:
             db.session.rollback()
@@ -333,6 +352,7 @@ def claim_staking_rewards_route():
 
         db.session.commit()
         return jsonify({"message": f"Claimed {totalRewards:.4f} UJO"}), 200
+
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
@@ -357,6 +377,7 @@ def unstake_staking_route():
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
         total_unstake = 0.0
         now = datetime.utcnow()
+
         for s in stakings:
             if s.staked_amount > 0 and s.unlocked_at <= now:
                 total_unstake += s.staked_amount
@@ -402,7 +423,9 @@ def unstake_staking_route():
             user.assistant_premium = False
 
         db.session.commit()
-        return jsonify({"message": f"Unstaked {total_unstake:.4f} UJO (fee: 1%, you got {withdraw_amount:.4f} UJO)."}), 200
+        return jsonify({
+            "message": f"Unstaked {total_unstake:.4f} UJO (fee: 1%, you got {withdraw_amount:.4f} UJO)."
+        }), 200
 
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
@@ -432,40 +455,39 @@ def stake_tokens_route():
 
         try:
             amount_usd = float(amount_usd)
-            if amount_usd != 25.0:
-                return jsonify({"error": "Please stake exactly 25 USD equivalent in UJO tokens."}), 400
+            if amount_usd <= 0:
+                raise ValueError
         except ValueError:
             return jsonify({"error": "Invalid amount_usd."}), 400
 
         price_usd = get_token_price_in_usd()
-        if not price_usd or price_usd <=0:
+        if not price_usd or price_usd <= 0:
             return jsonify({"error": "Failed to get UJO price."}), 400
 
+        # Допустим, берем amount_ujo = amount_usd / price_usd
         amount_ujo = amount_usd / price_usd
-        staked_usd = 20.0
-        staked_amount = staked_usd / price_usd
 
-        # Проверка баланса пользователя на уникальном кошельке
-        user_balance = get_token_balance(user.unique_wallet_address, token_contract)
-        if user_balance < amount_ujo:
-            return jsonify({"error": "Недостаточно UJO для стейкинга."}), 400
+        # Проверка баланса PROJECT_WALLET_ADDRESS
+        project_balance = get_token_balance(PROJECT_WALLET_ADDRESS, token_contract)
+        logger.info(f"Баланс PROJECT_WALLET_ADDRESS: {project_balance} UJO, требуется: {amount_ujo} UJO")
+        if project_balance < amount_ujo:
+            return jsonify({"error": "Недостаточно UJO в проектном кошельке."}), 400
 
-        # Отправка UJO с уникального кошелька на кошелек проекта
-        success = send_token_reward(
-            to_address=PROJECT_WALLET_ADDRESS,
+        # Отправляем UJO с проекта -> уникальный кошелек пользователя
+        ok = send_token_reward(
+            to_address=user.unique_wallet_address,
             amount=amount_ujo,
-            private_key=user.unique_private_key,
+            private_key=os.environ.get("PRIVATE_KEY"),
             token_contract_instance=token_contract
         )
-        if not success:
-            return jsonify({"error": "Ошибка при отправке UJO на кошелек проекта."}), 400
+        if not ok:
+            return jsonify({"error": "Staking failed."}), 400
 
-        # Создание записи стейкинга
         new_stake = UserStaking(
             user_id=user.id,
             tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
-            staked_amount=staked_amount,
-            staked_usd=staked_usd,
+            staked_amount=amount_ujo,
+            staked_usd=amount_usd,
             pending_rewards=0.0,
             created_at=datetime.utcnow(),
             unlocked_at=datetime.utcnow() + timedelta(days=30),
@@ -473,11 +495,12 @@ def stake_tokens_route():
         )
         db.session.add(new_stake)
         db.session.commit()
-        logger.info(f"Стейкинг: Пользователь ID {user.id} застейкал {staked_amount} UJO (~{staked_usd}$).")
+        logger.info(f"Стейкинг: Пользователь ID {user.id} застейкал {amount_ujo} UJO (~{amount_usd}$).")
+
         return jsonify({
             "status": "success",
-            "staked_amount": staked_amount,
-            "staked_usd": staked_usd
+            "staked_amount": amount_ujo,
+            "staked_usd": amount_usd
         }), 200
 
     except CSRFError:
@@ -516,25 +539,22 @@ def withdraw_funds():
         except ValueError:
             return jsonify({"error": "Некорректная сумма для вывода."}), 400
 
-        # Получение балансов
-        balances = get_balances(user)
-        if "error" in balances:
-            return jsonify({"error": balances["error"]}), 500
+        # Получаем балансы
+        balances_dict = get_balances(user)
+        if "error" in balances_dict:
+            return jsonify({"error": balances_dict["error"]}), 500
 
-        available_balance = balances["balances"].get(token.lower(), 0.0)
+        available_balance = balances_dict["balances"].get(token.lower(), 0.0)
         if available_balance < amount:
             return jsonify({"error": f"Недостаточно {token} для вывода."}), 400
 
-        # В зависимости от токена, используем соответствующую функцию
         if token == "ETH":
-            # Отправка ETH
             success = send_eth_from_user(
                 user_private_key=user.unique_private_key,
                 to_address=user.wallet_address,
                 amount_eth=amount
             )
         elif token in ["WETH", "UJO"]:
-            # Отправка ERC20 токенов
             contract = weth_contract if token == "WETH" else ujo_contract
             success = send_token_reward(
                 to_address=user.wallet_address,
@@ -569,17 +589,18 @@ def get_token_price_api():
         logger.error(f"get_token_price_api error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
+
 def accumulate_staking_rewards():
     """
-    Накопление наград для всех стейкинговых позиций.
-    Награды добавляются раз в неделю и составляют 0.23% от стейкинговой суммы.
+    Пример накопления наград для всех стейкинговых позиций.
+    Раз в неделю/раз в N интервалов добавляется некий % к pending_rewards.
     """
     try:
         stakings = UserStaking.query.all()
         for s in stakings:
             if s.staked_amount > 0:
-                reward = s.staked_amount * 0.0023  # 0.23% за неделю
-                s.pending_rewards += reward
+                # Пример фиксированного бонуса
+                s.pending_rewards += 0.5
         db.session.commit()
         logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
     except Exception as e:
