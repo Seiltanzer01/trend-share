@@ -516,8 +516,12 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
 
 def confirm_staking_tx(user: User, tx_hash: str) -> bool:
     """
-    Если транзакция >= 25$ => стейк. 
-    (Для теста можно поставить >= 0.5$, если надо.)
+    Если транзакция >= 25$ => создаём запись в UserStaking + assistant_premium = True.
+    (В ТЕСТЕ: >= 0.5$)
+    
+    Но ВНИМАНИЕ! Если пользователь отправляет UJO => проекту,
+    тогда мы ищем from_addr == user.unique_wallet_address 
+                 and to_addr   == PROJECT_WALLET_ADDRESS.
     """
     if not user or not tx_hash:
         return False
@@ -541,20 +545,20 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                     from_addr = Web3.to_checksum_address(from_addr)
                     to_addr   = Web3.to_checksum_address(to_addr)
 
-                    # Ищем PROJECT_WALLET_ADDRESS -> user.unique_wallet_address
-                    if from_addr.lower() == PROJECT_WALLET_ADDRESS.lower() and \
-                       to_addr.lower()   == user.unique_wallet_address.lower():
+                    # Ищем именно user -> project (в тесте 0.5$, в основном 25$).
+                    if from_addr.lower() == user.unique_wallet_address.lower() and \
+                       to_addr.lower()   == PROJECT_WALLET_ADDRESS.lower():
                         amt_int = int(lg.data, 16)
                         token_decimals = get_token_decimals(token_contract.address)
                         token_amt = amt_int / (10**token_decimals)
                         usd_amt   = token_amt * price_usd
                         logger.info(f"[confirm_staking_tx] found {token_amt} UJO => ~{usd_amt} USD")
-                        # Для теста можно usd_amt >= 0.5
-                        if usd_amt >= 0.5: #  if usd_amt >= 25:
-                            found = {"token_amount":token_amt, "usd_amount":usd_amt}
+                        if usd_amt >= 0.5:  # или 25
+                            found = {"token_amount": token_amt, "usd_amount": usd_amt}
                             break
 
         if not found:
+            logger.warning("Not found an appropriate Transfer in logs.")
             return False
 
         # Проверка на дубликат
@@ -563,17 +567,21 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
             logger.warning(f"Tx {tx_hash} already in DB.")
             return False
 
+        # Создаём запись
         new_s = UserStaking(
             user_id=user.id,
             tx_hash=tx_hash,
             staked_usd=found["usd_amount"],
             staked_amount=found["token_amount"],
             created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow() + timedelta(days=30),
+            unlocked_at=datetime.utcnow() + timedelta(days=30),  # ИЛИ на 5 минут в тесте
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_s)
+
+        # Активируем premium
         user.assistant_premium = True
+
         db.session.commit()
 
         logger.info(f"User {user.id}: staked ~{found['usd_amount']:.2f}$ => premium ON.")
