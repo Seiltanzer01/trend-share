@@ -33,7 +33,6 @@ from best_setup_voting import send_token_reward as voting_send_token_reward
 # Регистрация Blueprints
 from routes_staking import staking_bp
 
-main_bp = Blueprint('main_bp', __name__)
 app.register_blueprint(staking_bp, url_prefix='/staking')
 
 # **Интеграция OpenAI**
