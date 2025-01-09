@@ -556,6 +556,18 @@ def withdraw_funds():
         logger.error("withdraw_funds error", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
+@staking_bp.route('/api/get_token_price', methods=['GET'])
+def get_token_price_api():
+    try:
+        price = get_token_price_in_usd()
+        if price > 0:
+            return jsonify({"price_usd": price}), 200
+        else:
+            return jsonify({"error": "Price not available"}), 400
+    except Exception as e:
+        logger.error(f"get_token_price_api error: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error."}), 500
+
 def accumulate_staking_rewards():
     """
     Накопление наград для всех стейкинговых позиций.
