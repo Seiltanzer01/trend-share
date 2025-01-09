@@ -589,20 +589,3 @@ def get_token_price_api():
         logger.error(f"get_token_price_api error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
-
-def accumulate_staking_rewards():
-    """
-    Пример накопления наград для всех стейкинговых позиций.
-    Раз в неделю/раз в N интервалов добавляется некий % к pending_rewards.
-    """
-    try:
-        stakings = UserStaking.query.all()
-        for s in stakings:
-            if s.staked_amount > 0:
-                # Пример фиксированного бонуса
-                s.pending_rewards += 0.5
-        db.session.commit()
-        logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
