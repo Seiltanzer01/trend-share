@@ -471,8 +471,8 @@ def stake_tokens_route():
             return jsonify({"error": "Invalid amount_usd."}), 400
 
         # Жёстко делим: 20$ на стейк, 5$ — сбор
-        stake_usd = 20.0
-        fee_usd   = 5.0
+        stake_usd = 0.3    #stake_usd = 20.0
+        fee_usd   = 0.2    #fee_usd   = 5.0
 
         # Берём актуальную цену токена
         price_usd = get_token_price_in_usd()
