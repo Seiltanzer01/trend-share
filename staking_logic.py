@@ -589,9 +589,10 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
 def accumulate_staking_rewards():
     try:
         st = UserStaking.query.all()
+        minute_rate = 0.12 / 525600  # 12%/год на каждую минуту
         for s in st:
             if s.staked_amount > 0:
-                s.pending_rewards += 0.5
+                s.pending_rewards += s.staked_amount * minute_rate
         db.session.commit()
         logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
     except Exception as e:
