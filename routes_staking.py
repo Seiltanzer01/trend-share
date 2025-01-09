@@ -203,7 +203,6 @@ def exchange_tokens():
     не вызываем decimals() для ETH (0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE).
     """
     try:
-        # CSRF проверка и авторизация
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
@@ -433,8 +432,19 @@ def unstake_staking_route():
         logger.error(f"unstake_staking error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
+
+###################################################################
+# В ЭТОМ МЕСТЕ ОСНОВНОЕ ИЗМЕНЕНИЕ! Ставим логику 25$ => (5$ сбор + 20$ стейк)
+###################################################################
 @staking_bp.route('/api/stake_tokens', methods=['POST'])
 def stake_tokens_route():
+    """
+    При нажатии "Застейкать (25$)":
+    - Проверяем, что на уникальном кошельке пользователя есть 25$ в UJO.
+    - 5$ (в UJO) списываем как сбор в PROJECT_WALLET_ADDRESS (не пишем в БД).
+    - 20$ (в UJO) тоже списываем в PROJECT_WALLET_ADDRESS, но
+      в БД записываем стейк на 20$ (staked_usd=20, staked_amount=...).
+    """
     try:
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
@@ -449,58 +459,78 @@ def stake_tokens_route():
             return jsonify({"error": "User not found or unique wallet set."}), 404
 
         data = request.get_json() or {}
-        amount_usd = data.get("amount_usd")
-        if amount_usd is None:
+        total_usd = data.get("amount_usd")  # Ожидаем 25$
+        if total_usd is None:
             return jsonify({"error": "No amount_usd provided."}), 400
 
         try:
-            amount_usd = float(amount_usd)
-            if amount_usd <= 0:
-                raise ValueError
+            total_usd = float(total_usd)
+            if total_usd < 25:
+                return jsonify({"error": "Сейчас нужно внести ровно 25$."}), 400
         except ValueError:
             return jsonify({"error": "Invalid amount_usd."}), 400
 
+        # Жёстко делим: 20$ на стейк, 5$ — сбор
+        stake_usd = 20.0
+        fee_usd   = 5.0
+
+        # Берём актуальную цену токена
         price_usd = get_token_price_in_usd()
         if not price_usd or price_usd <= 0:
             return jsonify({"error": "Failed to get UJO price."}), 400
 
-        # Допустим, берем amount_ujo = amount_usd / price_usd
-        amount_ujo = amount_usd / price_usd
+        # Считаем UJO для fee и для stake
+        fee_ujo   = fee_usd   / price_usd
+        stake_ujo = stake_usd / price_usd
 
-        # Проверка баланса PROJECT_WALLET_ADDRESS
-        project_balance = get_token_balance(PROJECT_WALLET_ADDRESS, token_contract)
-        logger.info(f"Баланс PROJECT_WALLET_ADDRESS: {project_balance} UJO, требуется: {amount_ujo} UJO")
-        if project_balance < amount_ujo:
-            return jsonify({"error": "Недостаточно UJO в проектном кошельке."}), 400
+        # Итого нужно списать 25$ (fee_ujo + stake_ujo)
+        total_ujo_needed = fee_ujo + stake_ujo
 
-        # Отправляем UJO с проекта -> уникальный кошелек пользователя
-        ok = send_token_reward(
-            to_address=user.unique_wallet_address,
-            amount=amount_ujo,
-            private_key=os.environ.get("PRIVATE_KEY"),
+        # Проверяем баланс на уникальном кошельке пользователя
+        user_balance = get_token_balance(user.unique_wallet_address, token_contract)
+        if user_balance < total_ujo_needed:
+            return jsonify({"error": "Недостаточно UJO на вашем кошельке (нужно 25$)."}), 400
+
+        # 1. Списываем 5$ (fee_ujo) => PROJECT_WALLET_ADDRESS
+        ok_fee = send_token_reward(
+            to_address=PROJECT_WALLET_ADDRESS,
+            amount=fee_ujo,
+            private_key=user.unique_private_key,
             token_contract_instance=token_contract
         )
-        if not ok:
-            return jsonify({"error": "Staking failed."}), 400
+        if not ok_fee:
+            return jsonify({"error": "Ошибка при отправке 5$ в проектный кошелёк."}), 400
 
+        # 2. Списываем 20$ (stake_ujo) => PROJECT_WALLET_ADDRESS
+        ok_stake = send_token_reward(
+            to_address=PROJECT_WALLET_ADDRESS,
+            amount=stake_ujo,
+            private_key=user.unique_private_key,
+            token_contract_instance=token_contract
+        )
+        if not ok_stake:
+            return jsonify({"error": "Ошибка при отправке 20$ в проектный кошелёк."}), 400
+
+        # В БД записываем только часть стейка (20$)
         new_stake = UserStaking(
             user_id=user.id,
             tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
-            staked_amount=amount_ujo,
-            staked_usd=amount_usd,
+            staked_amount=stake_ujo,
+            staked_usd=stake_usd,  # 20$
             pending_rewards=0.0,
             created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow() + timedelta(minutes=5),   #unlocked_at=datetime.utcnow() + timedelta(days=30),
+            # Для теста сделаем разблокировку через 5 минут
+            unlocked_at=datetime.utcnow() + timedelta(minutes=5),
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_stake)
         db.session.commit()
-        logger.info(f"Стейкинг: Пользователь ID {user.id} застейкал {amount_ujo} UJO (~{amount_usd}$).")
 
+        logger.info(f"Пользователь ID {user.id}: стейк={stake_usd}$, сбор={fee_usd}$.")
         return jsonify({
             "status": "success",
-            "staked_amount": amount_ujo,
-            "staked_usd": amount_usd
+            "staked_amount": stake_ujo,
+            "staked_usd": stake_usd
         }), 200
 
     except CSRFError:
@@ -508,6 +538,7 @@ def stake_tokens_route():
     except Exception as e:
         logger.error(f"stake_tokens error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
+
 
 @staking_bp.route('/api/withdraw_funds', methods=['POST'])
 def withdraw_funds():
@@ -588,4 +619,3 @@ def get_token_price_api():
     except Exception as e:
         logger.error(f"get_token_price_api error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
