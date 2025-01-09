@@ -552,7 +552,7 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
                             token_amt = amt_int / (10 ** token_decimals)
                             usd_amt = token_amt * price_usd
                             logger.info(f"Транзакция {tx_hash}: {token_amt} токенов, ~{usd_amt} USD")
-                            if usd_amt >= 25:
+                            if usd_amt >= 0.5:  #if usd_amt >= 25:
                                 found = {
                                     "token_amount": token_amt,
                                     "usd_amount": usd_amt
