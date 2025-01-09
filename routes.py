@@ -30,11 +30,6 @@ from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 from functools import wraps
 from best_setup_voting import send_token_reward as voting_send_token_reward
 
-# Регистрация Blueprints
-from routes_staking import staking_bp
-
-app.register_blueprint(staking_bp, url_prefix='/staking')
-
 # **Интеграция OpenAI**
 import openai
 import yfinance as yf
@@ -79,7 +74,7 @@ from PIL import Image
 # Импорт функций для голосования и диаграмм
 from poll_functions import start_new_poll, process_poll_results, get_real_price  # Импортируем get_real_price
 
-# Инициализация OpenAI API
+# **Инициализация OpenAI API**
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
     logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
@@ -522,7 +517,7 @@ def fetch_charts():
     Обрабатывает только активные опросы.
     """
     if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error':'Unauthorized'}),401
 
     user_id = session['user_id']
     user = User.query.get(user_id)
@@ -1591,15 +1586,15 @@ def claim_staking_rewards():
     totalRewards = 0.0
     updated_stakes = []
     for s in stakings:
-        if s.staked_amount>0:
+        if s.staked_amount > 0:
             # проверим, прошло ли 7 дней
             delta = now - s.last_claim_at
-            if delta.total_seconds()>=7*24*3600:
+            if delta.total_seconds() >= 7 * 24 * 3600:
                 totalRewards += s.pending_rewards
                 s.pending_rewards = 0.0
                 s.last_claim_at = now
                 updated_stakes.append(s)
-    if totalRewards<=0:
+    if totalRewards <= 0:
         return jsonify({'error':'Пока нечего клеймить, либо не прошла неделя.'}),400
     
     # Отправим пользователю
@@ -1635,17 +1630,17 @@ def unstake_staking():
     total_unstake = 0.0
     changed_stakes = []
     for st in stakings:
-        if st.staked_amount>0 and now>=st.unlocked_at:
+        if st.staked_amount > 0 and now >= st.unlocked_at:
             # можно вывести
             total_unstake += st.staked_amount
             st.staked_amount = 0.0
             st.pending_rewards = 0.0
             changed_stakes.append(st)
-    if total_unstake<=0:
+    if total_unstake <= 0:
         return jsonify({'error':'Нет доступных стейков (30 дней не прошло).'}),400
     
     # 1% fee
-    fee = total_unstake*0.01
+    fee = total_unstake * 0.01
     withdraw_amount = total_unstake - fee
     success = send_token_reward(user.wallet_address, withdraw_amount)
     if success:
@@ -1654,8 +1649,8 @@ def unstake_staking():
         db.session.commit()
         # проверяем, остались ли у него стейки
         active_left = UserStaking.query.filter(
-            UserStaking.user_id==user_id,
-            UserStaking.staked_amount>0
+            UserStaking.user_id == user_id,
+            UserStaking.staked_amount > 0
         ).all()
         if not active_left:
             user.assistant_premium = False
@@ -1681,7 +1676,4 @@ def unstake_staking():
 # Обычно Flask-приложение запускается из файла app.py,
 # но если необходимо, можно оставить этот блок
 
-if __name__ == '__main__':
-    # Запуск приложения
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+# Этот блок уже удалён ранее
