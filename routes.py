@@ -25,10 +25,15 @@ from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 )
 from telegram.ext import Dispatcher, CommandHandler, CallbackQueryHandler
-from staking_logic import get_token_price_in_usd
+# from staking_logic import get_token_price_in_usd
 from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 from functools import wraps
-from best_setup_voting import send_token_reward
+from best_setup_voting import send_token_reward as voting_send_token_reward
+
+# Регистрация Blueprints
+from routes_staking import staking_bp
+
+app.register_blueprint(staking_bp, url_prefix='/staking')
 
 # **Интеграция OpenAI**
 import openai
