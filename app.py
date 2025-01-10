@@ -572,8 +572,8 @@ scheduler.add_job(
     id='Start Poll',
     func=start_new_poll_job,  # Используем обёртку
     trigger='interval',
-    days=3,
-    next_run_time=datetime.now(pytz.UTC)  # Используем timezone-aware datetime
+    minutes=10,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # Используем timezone-aware datetime #+ timedelta(minutes=5) 
 )
 
 # Планирование задачи обработки результатов опроса каждые 5 минут
@@ -592,6 +592,14 @@ scheduler.add_job(
     trigger='interval',
     minutes=1, #days=7,
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
+)
+
+scheduler.add_job(
+    id='Update Real Prices',
+    func=update_real_prices_job,
+    trigger='interval',
+    minutes=5,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
 )
 
 # Запуск планировщика
