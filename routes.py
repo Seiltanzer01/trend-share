@@ -512,10 +512,6 @@ def vote():
 
 @app.route('/fetch_charts', methods=['GET'])
 def fetch_charts():
-    """
-    API маршрут для получения обновлённых диаграмм предсказаний.
-    Обрабатывает только активные опросы.
-    """
     if 'user_id' not in session:
         return jsonify({'error':'Unauthorized'}),401
 
@@ -526,61 +522,53 @@ def fetch_charts():
 
     charts = {}
 
-    # Обработка активных опросов
     active_polls = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).all()
     logger.debug(f"Найдено {len(active_polls)} активных опросов.")
 
     for poll in active_polls:
-        logger.debug(f"Обработка опроса ID {poll.id} с инструментами {[pi.instrument.name for pi in poll.poll_instruments]}.")
-        for poll_instrument in poll.poll_instruments:
-            instrument = poll_instrument.instrument
-            instrument_name = instrument.name
-            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instrument.id).all()
-            logger.debug(f"Найдено {len(predictions)} предсказаний для инструмента {instrument_name} в опросе ID {poll.id}.")
+        logger.debug(f"Обработка опроса ID {poll.id}. Инструменты: {[pi.instrument.name for pi in poll.poll_instruments]}")
+        for pi in poll.poll_instruments:
+            instr = pi.instrument
+            predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instr.id).all()
+            logger.debug(f"[fetch_charts] {len(predictions)} предсказаний для {instr.name} (poll {poll.id}).")
 
             if not predictions:
-                logger.debug(f"Нет предсказаний для инструмента {instrument_name} в опросе ID {poll.id}.")
                 continue
 
-            for pred in predictions:
-                logger.debug(f"UserPred: user={pred.user_id}, predicted={pred.predicted_price}, real={pred.real_price}")
+            # Логируем, чтоб понять, есть ли 0.0
+            for p in predictions:
+                logger.debug(f"UserPred: user={p.user_id}, predicted={p.predicted_price}, real={p.real_price}")
 
-            # Создание DataFrame для текущих предсказаний
             df = pd.DataFrame([{
-                'user': pred.user.username or pred.user.first_name,
-                'predicted_price': pred.predicted_price
-            } for pred in predictions])
+                'user': p.user.username or p.user.first_name,
+                'predicted_price': float(p.predicted_price or 0.0)
+            } for p in predictions])
 
             if df.empty:
-                logger.debug(f"DataFrame для инструмента {instrument_name} пуст.")
                 continue
 
-            # Получение реальной цены (предполагается, что она одинакова для всех предсказаний данного инструмента в опросе)
             real_price = predictions[0].real_price
 
-            # Построение диаграммы (например, распределение предсказанных цен)
             plt.figure(figsize=(10, 6))
             plt.hist(df['predicted_price'], bins=20, color='green', alpha=0.7)
             plt.xlabel('Предсказанная Цена')
             plt.ylabel('Количество Предсказаний')
-            plt.title(f'Распределение Предсказанных Цен для {instrument.name} в Опросе {poll.id} (Активный)')
+            plt.title(f'Распределение Предсказаний для {instr.name} (Poll {poll.id})')
 
-            # Добавление реальной цены на диаграмму, если она доступна
             if real_price is not None:
-                plt.axvline(real_price, color='red', linestyle='dashed', linewidth=2, label=f'Реальная цена: {real_price}')
+                plt.axvline(float(real_price), color='red', linestyle='dashed', linewidth=2,
+                            label=f'Реальная цена: {real_price}')
                 plt.legend()
 
             plt.tight_layout()
 
-            # Сохранение диаграммы в буфер и преобразование в base64
             buf = io.BytesIO()
             plt.savefig(buf, format='png')
             buf.seek(0)
-            image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            image_base64 = base64.b64encode(buf.getvalue()).decode()
             plt.close()
 
-            charts[f"Active - {instrument.name} (Опрос {poll.id})"] = image_base64
-            logger.debug(f"Диаграмма для инструмента {instrument.name} в опросе ID {poll.id} добавлена.")
+            charts[f"Active - {instr.name} (Poll {poll.id})"] = image_base64
 
     logger.debug(f"Всего диаграмм для отправки: {len(charts)}.")
     return jsonify({'charts': charts})
