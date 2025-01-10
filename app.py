@@ -551,12 +551,12 @@ def inject_admin_ids():
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
 # Добавление тестового опроса при запуске приложения
-scheduler.add_job(
-    id='Start Test Poll',
-    func=start_new_poll_test_job,  # Используем обёртку
-    trigger='date',
-    run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
-)
+#scheduler.add_job(
+ #   id='Start Test Poll',
+  #  func=start_new_poll_test_job,  # Используем обёртку
+   # trigger='date',
+    #run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
+#)
 
 # Добавляем в APScheduler задачу автозавершения каждые 5 минут
 scheduler.add_job(
