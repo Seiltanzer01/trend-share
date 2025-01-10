@@ -547,18 +547,49 @@ def initialize():
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-# Инициализация APScheduler с временной зоной UTC
+####################
+# Планировщики APScheduler
+####################
+
+# 1) Функция-обёртка для накопления наград, чтобы вызвать её в контексте приложения
+def accumulate_staking_rewards_job():
+    with app.app_context():
+        accumulate_staking_rewards()
+
+# 2) Функция-обёртка для start_new_poll, если нужно (уже обёрнута в start_new_poll_job)
+def start_new_poll_job():
+    with app.app_context():
+        try:
+            start_new_poll()
+            logger.info("Задача 'Start Poll' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
+            logger.error(traceback.format_exc())
+
+# 3) Функция-обёртка для process_poll_results
+def process_poll_results_job():
+    with app.app_context():
+        try:
+            process_poll_results()
+            logger.info("Задача 'Process Poll Results' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
+            logger.error(traceback.format_exc())
+
+# 4) Функция-обёртка для update_real_prices_for_active_polls
+def update_real_prices_job():
+    with app.app_context():
+        try:
+            update_real_prices_for_active_polls()
+            logger.info("Задача 'Update Real Prices' выполнена успешно.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
+            logger.error(traceback.format_exc())
+
+# Создаём планировщик
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
-# Добавление тестового опроса при запуске приложения
-#scheduler.add_job(
- #   id='Start Test Poll',
-  #  func=start_new_poll_test_job,  # Используем обёртку
-   # trigger='date',
-    #run_date=datetime.utcnow() + timedelta(seconds=10),  # Запуск через 10 секунд после старта
-#)
-
-# Добавляем в APScheduler задачу автозавершения каждые 5 минут
+# Задача автозавершения best_setup_voting каждые 5 минут
 scheduler.add_job(
     id='Auto Finalize Best Setup Voting',
     func=lambda: auto_finalize_best_setup_voting(),
@@ -567,33 +598,34 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Планирование основной задачи создания опроса каждые 3 дня
+# Задача создания опроса (по умолчанию каждые 10 минут для теста)
 scheduler.add_job(
     id='Start Poll',
-    func=start_new_poll_job,  # Используем обёртку
+    func=start_new_poll_job,  
     trigger='interval',
     minutes=10,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # Используем timezone-aware datetime #+ timedelta(minutes=5) 
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Планирование задачи обработки результатов опроса каждые 5 минут
+# Задача обработки результатов опросов каждые 5 минут
 scheduler.add_job(
     id='Process Poll Results',
-    func=process_poll_results_job,  # Используем обёртку
+    func=process_poll_results_job,
     trigger='interval',
-    minutes=5,  # Запускать каждые 5 минут
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)  # timezone-aware
+    minutes=5,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Планирование задачи накопления наград раз в неделю
+# Задача накопления наград (раз в 1 минуту — для тестов; в реальности можно days=7)
 scheduler.add_job(
     id='Accumulate Staking Rewards',
-    func=lambda: accumulate_staking_rewards(),
+    func=accumulate_staking_rewards_job,
     trigger='interval',
-    minutes=1, #days=7,
+    minutes=1,
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
 
+# Задача обновления реальных цен каждые 5 минут
 scheduler.add_job(
     id='Update Real Prices',
     func=update_real_prices_job,
@@ -602,10 +634,10 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
 )
 
-# Запуск планировщика
+# Запускаем планировщик
 scheduler.start()
 
-# Остановка планировщика при завершении приложения
+# Останавливаем планировщик при завершении приложения
 atexit.register(lambda: scheduler.shutdown())
 
 # Импорт маршрутов после инициализации APScheduler
