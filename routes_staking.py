@@ -5,6 +5,7 @@ import traceback
 from datetime import datetime, timedelta
 import secrets
 import string
+import os
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
@@ -100,6 +101,11 @@ def deposit_page():
     if not user:
         flash('Нет пользователя', 'danger')
         return redirect(url_for('login'))
+
+    # <-- NEW! Проверяем, есть ли уже запись в UserStaking
+    existing_stake = UserStaking.query.filter_by(user_id=user.id).first()
+    if existing_stake:
+        return jsonify({"error": "Вы уже внесли стейк. Повторный стейк невозможен."}), 400
 
     if not user.unique_wallet_address:
         flash('Сначала сгенерируйте кошелёк.', 'warning')
