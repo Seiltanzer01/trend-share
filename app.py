@@ -557,34 +557,20 @@ def accumulate_staking_rewards_job():
 
 def start_new_poll_job():
     with app.app_context():
-        try:
-            start_new_poll()
-            logger.info("Задача 'Start Poll' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
-            logger.error(traceback.format_exc())
+        # Новый опрос на 10 минут (см. poll_functions.py)
+        start_new_poll()
 
 def process_poll_results_job():
     with app.app_context():
-        try:
-            process_poll_results()
-            logger.info("Задача 'Process Poll Results' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
-            logger.error(traceback.format_exc())
+        process_poll_results()
 
 def update_real_prices_job():
     with app.app_context():
-        try:
-            update_real_prices_for_active_polls()
-            logger.info("Задача 'Update Real Prices' выполнена успешно.")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
-            logger.error(traceback.format_exc())
+        update_real_prices_for_active_polls()
 
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
-# Автозавершение best_setup_voting каждые 5 минут
+# 1) Автозавершение best_setup_voting каждые 5 минут
 scheduler.add_job(
     id='Auto Finalize Best Setup Voting',
     func=lambda: auto_finalize_best_setup_voting(),
@@ -593,7 +579,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Запуск нового опроса каждые 10 минут (тестовый цикл)
+# 2) Запуск нового опроса каждые 10 минут
 scheduler.add_job(
     id='Start Poll',
     func=start_new_poll_job,
@@ -602,7 +588,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Обработка результатов опроса каждые 2 минуты (чтобы сразу начался следующий)
+# 3) Проверка завершения опроса каждые 2 минуты (сразу запускает новый)
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,
@@ -611,7 +597,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
 )
 
-# Накопление наград (каждую 1 минуту в тестовом режиме)
+# 4) Накопление стейкинг наград — каждую минуту
 scheduler.add_job(
     id='Accumulate Staking Rewards',
     func=accumulate_staking_rewards_job,
@@ -620,7 +606,7 @@ scheduler.add_job(
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
 
-# Обновление реальных цен каждые 2 минуты
+# 5) Обновление реальной цены каждые 2 минуты
 scheduler.add_job(
     id='Update Real Prices',
     func=update_real_prices_job,
