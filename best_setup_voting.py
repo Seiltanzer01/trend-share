@@ -379,7 +379,6 @@ def vote_best_setup():
     return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
 @best_setup_voting_bp.route('/set_wallet', methods=['GET', 'POST'])
-@premium_required
 def set_wallet():
     user_id = session['user_id']
     user = User.query.get(user_id)
