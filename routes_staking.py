@@ -102,11 +102,6 @@ def deposit_page():
         flash('Нет пользователя', 'danger')
         return redirect(url_for('login'))
 
-    # <-- NEW! Проверяем, есть ли уже запись в UserStaking
-    existing_stake = UserStaking.query.filter_by(user_id=user.id).first()
-    if existing_stake:
-        return jsonify({"error": "Вы уже внесли стейк. Повторный стейк невозможен."}), 400
-
     if not user.unique_wallet_address:
         flash('Сначала сгенерируйте кошелёк.', 'warning')
         return redirect(url_for('staking_bp.generate_unique_wallet_page'))
@@ -455,6 +450,11 @@ def stake_tokens_route():
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
             return jsonify({"error": "User not found or unique wallet."}), 404
+
+        # <-- NEW! Проверяем, есть ли уже запись в UserStaking
+        existing_stake = UserStaking.query.filter_by(user_id=user.id).first()
+        if existing_stake:
+            return jsonify({"error": "Вы уже внесли стейк. Повторный стейк невозможен."}), 400
 
         data = request.get_json() or {}
         total_usd = data.get("amount_usd")  # Ожидаем 0.5
