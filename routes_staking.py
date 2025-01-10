@@ -2,10 +2,10 @@
 
 import logging
 import traceback
+import os
 from datetime import datetime, timedelta
 import secrets
 import string
-import os
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
@@ -37,6 +37,7 @@ from best_setup_voting import send_token_reward as voting_send_token_reward  # �
 logger = logging.getLogger(__name__)
 
 staking_bp = Blueprint('staking_bp', __name__)
+
 
 @staking_bp.route('/generate_unique_wallet', methods=['POST'])
 def generate_unique_wallet_route():
@@ -71,7 +72,7 @@ def generate_unique_wallet_route():
             return jsonify({"error": "Generated private key does not match the wallet address."}), 500
 
         user.unique_wallet_address = unique_wallet_address
-        user.unique_private_key    = unique_private_key
+        user.unique_private_key = unique_private_key
         db.session.commit()
 
         logger.info(f"Уникальный кошелёк {unique_wallet_address} для user_id={user_id}")
@@ -84,12 +85,14 @@ def generate_unique_wallet_route():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error."}), 500
 
+
 @staking_bp.route('/generate_unique_wallet_page', methods=['GET'])
 def generate_unique_wallet_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите.', 'warning')
         return redirect(url_for('login'))
     return render_template('generate_unique_wallet.html')
+
 
 @staking_bp.route('/deposit', methods=['GET'])
 def deposit_page():
@@ -108,6 +111,7 @@ def deposit_page():
 
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
 
+
 @staking_bp.route('/subscription', methods=['GET'])
 def subscription_page():
     if 'user_id' not in session:
@@ -125,6 +129,7 @@ def subscription_page():
 
     return render_template('subscription.html', user=user)
 
+
 @staking_bp.route('/confirm', methods=['POST'])
 def confirm_staking():
     try:
@@ -140,8 +145,8 @@ def confirm_staking():
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        data   = request.get_json() or {}
-        tx_hash= data.get("txHash")
+        data = request.get_json() or {}
+        tx_hash = data.get("txHash")
         if not tx_hash:
             return jsonify({"error": "No txHash provided"}), 400
 
@@ -157,8 +162,14 @@ def confirm_staking():
         logger.error(f"Ошибка confirm_staking: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
+
 @staking_bp.route('/api/get_user_stakes', methods=['GET'])
 def get_user_stakes():
+    """
+    Возвращаем стейки, но показываем только те, у которых staked_amount > 0.
+    Таким образом, если пользователь сделал unstake и staked_amount=0,
+    они не будут отображаться.
+    """
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -168,19 +179,22 @@ def get_user_stakes():
 
     try:
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
+
         stakes_data = []
         for s in stakings:
-            stakes_data.append({
-                'tx_hash':         s.tx_hash,
-                'staked_amount':   s.staked_amount,
-                'staked_usd':      s.staked_usd,
-                'pending_rewards': s.pending_rewards,
-                'unlocked_at':     int(s.unlocked_at.timestamp() * 1000)
-            })
+            if s.staked_amount > 0:  # Показываем только активные стейки
+                stakes_data.append({
+                    'tx_hash': s.tx_hash,
+                    'staked_amount': float(s.staked_amount),
+                    'staked_usd': float(s.staked_usd),
+                    'pending_rewards': float(s.pending_rewards),
+                    'unlocked_at': int(s.unlocked_at.timestamp() * 1000)
+                })
         return jsonify({"stakes": stakes_data}), 200
     except Exception as e:
         logger.error(f"Ошибка get_user_stakes: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
+
 
 @staking_bp.route('/api/get_balances', methods=['GET'])
 def get_balances_route():
@@ -195,6 +209,7 @@ def get_balances_route():
     if "error" in result:
         return jsonify({"error": result["error"]}), 500
     return jsonify(result), 200
+
 
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
@@ -215,8 +230,8 @@ def exchange_tokens():
             return jsonify({"error": "User not found or unique wallet not set."}), 404
 
         data = request.get_json() or {}
-        from_token  = data.get("from_token")
-        to_token    = data.get("to_token")
+        from_token = data.get("from_token")
+        to_token = data.get("to_token")
         from_amount = data.get("from_amount")
 
         if not from_token or not to_token or from_amount is None:
@@ -247,7 +262,6 @@ def exchange_tokens():
 
         # Проверка баланса пользователя
         if from_token.upper() == "ETH":
-            # Баланс ETH проверяем напрямую
             user_eth_balance = Web3.from_wei(
                 web3.eth.get_balance(user.unique_wallet_address),
                 'ether'
@@ -256,7 +270,7 @@ def exchange_tokens():
             if user_eth_balance < from_amount:
                 return jsonify({"error": "Недостаточно ETH для обмена."}), 400
         else:
-            # Иначе это ERC20
+            # ERC20
             if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
                 sell_contract = token_contract
             elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
@@ -264,7 +278,6 @@ def exchange_tokens():
             elif sell_token.lower() == UJO_CONTRACT_ADDRESS.lower():
                 sell_contract = ujo_contract
             else:
-                # Любой другой кастомный токен
                 sell_contract = web3.eth.contract(
                     address=Web3.to_checksum_address(sell_token),
                     abi=ERC20_ABI
@@ -302,6 +315,7 @@ def exchange_tokens():
         logger.error(f"Ошибка exchange_tokens: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
+
 @staking_bp.route('/api/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards_route():
     try:
@@ -329,7 +343,7 @@ def claim_staking_rewards_route():
                 if delta >= timedelta(days=7):
                     totalRewards += s.pending_rewards
                     s.pending_rewards = 0.0
-                    s.last_claim_at   = now
+                    s.last_claim_at = now
 
         if totalRewards <= 0:
             return jsonify({"error": "Пока нечего клеймить"}), 400
@@ -355,10 +369,14 @@ def claim_staking_rewards_route():
         logger.error("claim_staking_rewards_route exception", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
+
 @staking_bp.route('/api/unstake', methods=['POST'])
 def unstake_staking_route():
     """
-    Unstake c 1% fee
+    Unstake c 1% fee.
+    Если пользователь unstake'ит всё (staked_amount=...), тогда
+    staked_amount=0 -> запись перестаёт отображаться в /api/get_user_stakes
+    и пользователь может заново сделать stake.
     """
     try:
         csrf_token = request.headers.get('X-CSRFToken')
@@ -380,8 +398,8 @@ def unstake_staking_route():
         for s in stakings:
             if s.staked_amount > 0 and s.unlocked_at <= now:
                 total_unstake += s.staked_amount
-                s.staked_amount   = 0.0
-                s.staked_usd      = 0.0
+                s.staked_usd = 0.0
+                s.staked_amount = 0.0
                 s.pending_rewards = 0.0
 
         if total_unstake <= 0:
@@ -410,11 +428,12 @@ def unstake_staking_route():
             db.session.rollback()
             return jsonify({"error": "Ошибка при отправке комиссии."}), 400
 
-        remaining = UserStaking.query.filter(
+        # Если у пользователя больше не осталось стейков >0, снимаем premium
+        active_count = UserStaking.query.filter(
             UserStaking.user_id == user.id,
             UserStaking.staked_amount > 0
         ).count()
-        if remaining == 0:
+        if active_count == 0:
             user.assistant_premium = False
 
         db.session.commit()
@@ -437,6 +456,9 @@ def stake_tokens_route():
     """
     (ТЕСТОВЫЙ вариант)
     total_usd=0.5 => fee=0.2, stake=0.3
+
+    Теперь проверяем, есть ли у пользователя стейки >0. 
+    Если нет, разрешаем стейк. Если хотя бы один > 0, запрещаем.
     """
     try:
         csrf_token = request.headers.get('X-CSRFToken')
@@ -451,10 +473,13 @@ def stake_tokens_route():
         if not user or not user.unique_wallet_address:
             return jsonify({"error": "User not found or unique wallet."}), 404
 
-        # <-- NEW! Проверяем, есть ли уже запись в UserStaking
-        existing_stake = UserStaking.query.filter_by(user_id=user.id).first()
-        if existing_stake:
-            return jsonify({"error": "Вы уже внесли стейк. Повторный стейк невозможен."}), 400
+        # Есть ли у пользователя стейк staked_amount>0?
+        active_stake = UserStaking.query.filter(
+            UserStaking.user_id == user.id,
+            UserStaking.staked_amount > 0
+        ).first()
+        if active_stake:
+            return jsonify({"error": "У вас уже есть активный стейк. Повторный стейк невозможен."}), 400
 
         data = request.get_json() or {}
         total_usd = data.get("amount_usd")  # Ожидаем 0.5
@@ -469,13 +494,13 @@ def stake_tokens_route():
             return jsonify({"error": "Invalid amount_usd."}), 400
 
         stake_usd = 0.3
-        fee_usd   = 0.2
+        fee_usd = 0.2
 
         price_usd = get_token_price_in_usd()
         if not price_usd or price_usd <= 0:
             return jsonify({"error": "Failed to get UJO price."}), 400
 
-        fee_ujo   = fee_usd / price_usd
+        fee_ujo = fee_usd / price_usd
         stake_ujo = stake_usd / price_usd
         total_need_ujo = fee_ujo + stake_ujo
 
@@ -508,8 +533,8 @@ def stake_tokens_route():
         new_stake = UserStaking(
             user_id=user.id,
             tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
-            staked_amount=stake_ujo,  # float
-            staked_usd=stake_usd,     # 0.3
+            staked_amount=stake_ujo,
+            staked_usd=stake_usd,
             pending_rewards=0.0,
             created_at=datetime.utcnow(),
             unlocked_at=datetime.utcnow() + timedelta(minutes=5),
@@ -522,7 +547,7 @@ def stake_tokens_route():
         return jsonify({
             "status": "success",
             "staked_amount": stake_ujo,
-            "staked_usd":    stake_usd
+            "staked_usd": stake_usd
         }), 200
 
     except CSRFError:
@@ -536,7 +561,8 @@ def stake_tokens_route():
 @staking_bp.route('/api/withdraw_funds', methods=['POST'])
 def withdraw_funds():
     """
-    Логика вывода.
+    Логика вывода. Пусть любой юзер может установить кошелёк (wallet_address),
+    независимо от премиума.
     """
     try:
         csrf_token = request.headers.get('X-CSRFToken')
@@ -551,8 +577,8 @@ def withdraw_funds():
         if not user or not user.unique_wallet_address or not user.wallet_address:
             return jsonify({"error": "User not found or wallet address not set."}), 400
 
-        data   = request.get_json() or {}
-        token  = data.get("token")
+        data = request.get_json() or {}
+        token = data.get("token")
         amount = data.get("amount")
 
         if not token or amount is None:
@@ -603,6 +629,7 @@ def withdraw_funds():
     except Exception as e:
         logger.error("withdraw_funds error", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
+
 
 @staking_bp.route('/api/get_token_price', methods=['GET'])
 def get_token_price_api():
