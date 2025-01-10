@@ -442,10 +442,10 @@ def vote():
 
                 # 1. Ограничение по времени: предсказание должно быть отправлено за 1 день до закрытия опроса
                 now = datetime.utcnow()
-                one_day_before_end = active_poll.end_date - timedelta(minutes=1)
-                if now > one_day_before_end:
-                    flash('Вы не можете отправлять предсказания менее чем за 1 день до закрытия голосования.', 'danger')
-                    logger.info(f"Пользователь ID {user_id} попытался отправить предсказание слишком поздно для опроса ID {active_poll.id}.")
+                two_minutes_before_end = active_poll.end_date - timedelta(minutes=2)
+                if now > two_minutes_before_end:
+                    flash('Вы не можете отправлять предсказания менее чем за 2 минуты до закрытия голосования.', 'danger')
+                    logger.info(f"User {user_id} попытался голосовать слишком поздно для poll {active_poll.id}.")
                     return redirect(url_for('vote'))
 
                 # 2. Ограничение по цене: предсказанная цена должна быть в пределах ±20% от текущей реальной цены
