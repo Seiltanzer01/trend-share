@@ -542,6 +542,9 @@ def fetch_charts():
                 logger.debug(f"Нет предсказаний для инструмента {instrument_name} в опросе ID {poll.id}.")
                 continue
 
+            for pred in predictions:
+                logger.debug(f"UserPred: user={pred.user_id}, predicted={pred.predicted_price}, real={pred.real_price}")
+
             # Создание DataFrame для текущих предсказаний
             df = pd.DataFrame([{
                 'user': pred.user.username or pred.user.first_name,
