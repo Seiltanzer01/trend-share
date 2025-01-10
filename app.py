@@ -551,12 +551,10 @@ def inject_admin_ids():
 # Планировщики APScheduler
 ####################
 
-# 1) Функция-обёртка для накопления наград, чтобы вызвать её в контексте приложения
 def accumulate_staking_rewards_job():
     with app.app_context():
         accumulate_staking_rewards()
 
-# 2) Функция-обёртка для start_new_poll, если нужно (уже обёрнута в start_new_poll_job)
 def start_new_poll_job():
     with app.app_context():
         try:
@@ -566,7 +564,6 @@ def start_new_poll_job():
             logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
             logger.error(traceback.format_exc())
 
-# 3) Функция-обёртка для process_poll_results
 def process_poll_results_job():
     with app.app_context():
         try:
@@ -576,7 +573,6 @@ def process_poll_results_job():
             logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
             logger.error(traceback.format_exc())
 
-# 4) Функция-обёртка для update_real_prices_for_active_polls
 def update_real_prices_job():
     with app.app_context():
         try:
@@ -586,10 +582,9 @@ def update_real_prices_job():
             logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
 
-# Создаём планировщик
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
-# Задача автозавершения best_setup_voting каждые 5 минут
+# Автозавершение best_setup_voting каждые 5 минут
 scheduler.add_job(
     id='Auto Finalize Best Setup Voting',
     func=lambda: auto_finalize_best_setup_voting(),
@@ -598,25 +593,25 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Задача создания опроса (по умолчанию каждые 10 минут для теста)
+# Запуск нового опроса каждые 10 минут (тестовый цикл)
 scheduler.add_job(
     id='Start Poll',
-    func=start_new_poll_job,  
+    func=start_new_poll_job,
     trigger='interval',
     minutes=10,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# Задача обработки результатов опросов каждые 5 минут
+# Обработка результатов опроса каждые 2 минуты (чтобы сразу начался следующий)
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,
     trigger='interval',
-    minutes=5,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
+    minutes=2,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
 )
 
-# Задача накопления наград (раз в 1 минуту — для тестов; в реальности можно days=7)
+# Накопление наград (каждую 1 минуту в тестовом режиме)
 scheduler.add_job(
     id='Accumulate Staking Rewards',
     func=accumulate_staking_rewards_job,
@@ -625,19 +620,16 @@ scheduler.add_job(
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
 
-# Задача обновления реальных цен каждые 5 минут
+# Обновление реальных цен каждые 2 минуты
 scheduler.add_job(
     id='Update Real Prices',
     func=update_real_prices_job,
     trigger='interval',
-    minutes=5,
+    minutes=2,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
 )
 
-# Запускаем планировщик
 scheduler.start()
-
-# Останавливаем планировщик при завершении приложения
 atexit.register(lambda: scheduler.shutdown())
 
 # Импорт маршрутов после инициализации APScheduler
