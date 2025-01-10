@@ -68,7 +68,7 @@ def update_real_prices_for_active_polls():
             for prediction in poll.predictions:
                 instrument_name = prediction.instrument.name
                 real_price = get_real_price(instrument_name)
-                
+
                 if real_price is not None:
                     prediction.real_price = real_price
                     if prediction.predicted_price != 0:
@@ -76,8 +76,8 @@ def update_real_prices_for_active_polls():
                     else:
                         prediction.deviation = None
                     current_app.logger.debug(
-                        f"Обновлена real_price для пользователя ID {prediction.user_id} в опросе ID {poll.id}: "
-                        f"Предсказано {prediction.predicted_price}, Реальная цена {real_price}, Отклонение {prediction.deviation}%."
+                        f"[update_real_prices_for_active_polls] User {prediction.user_id}, Poll {poll.id}: "
+                        f"Predicted={prediction.predicted_price}, Real={real_price}, Dev={prediction.deviation}"
                     )
         
         db.session.commit()
@@ -86,37 +86,38 @@ def update_real_prices_for_active_polls():
         db.session.rollback()
         current_app.logger.error(f"Ошибка при обновлении real_price для активных опросов: {e}")
         current_app.logger.error(traceback.format_exc())
-        
+
+
 def get_real_price(instrument_name):
     """
-    Получает текущую цену инструмента с использованием yfinance.
-    :param instrument_name: Название инструмента (например, 'Crude Oil')
-    :return: Текущая цена или None, если не удалось получить
+    Получаем текущую цену инструмента с использованием yfinance.
     """
     try:
         ticker_symbol = YFINANCE_TICKERS.get(instrument_name)
         if not ticker_symbol:
-            current_app.logger.error(f"No yfinance ticker mapping found for instrument: {instrument_name}")
+            current_app.logger.error(f"No yfinance ticker mapping for instrument: {instrument_name}")
             return None
 
         ticker = yf.Ticker(ticker_symbol)
         data = ticker.history(period="1d")
         if data.empty:
-            current_app.logger.warning(f"Данные для {ticker_symbol} пусты.")
+            current_app.logger.warning(f"YFinance data empty for {ticker_symbol}.")
             return None
-        current_price = data['Close'][0]
+        current_price = data['Close'][-1]
         current_app.logger.info(f"Реальная цена для {instrument_name} ({ticker_symbol}): {current_price}")
-        return current_price
+        return float(current_price)
     except Exception as e:
-        current_app.logger.error(f"Ошибка при получении реальной цены для {instrument_name}: {e}")
+        current_app.logger.error(f"Ошибка при get_real_price: {e}")
         current_app.logger.error(traceback.format_exc())
         return None
 
+
 def start_new_poll(test_mode=False):
     """
-    Создаёт новый опрос, выбирая по одному инструменту из 4 случайных категорий.
-    :param test_mode: Если True, устанавливает короткую длительность опроса для тестирования.
+    Теперь опрос создаётся раз в 5 дней (смотрите app.py),
+    выбирает 4 случайные категории, из каждой - по 1 инструмент.
     """
+    # Проверяем, нет ли уже активного опроса
     existing_active_poll = Poll.query.filter_by(status='active').first()
     if existing_active_poll:
         current_app.logger.info("Активный опрос уже существует. Пропуск создания нового.")
@@ -127,115 +128,105 @@ def start_new_poll(test_mode=False):
         current_app.logger.error("Недостаточно категорий инструментов для создания опроса.")
         return
 
+    import random
+    selected_categories = random.sample(categories, 4)
     selected_instruments = []
-    # Выбираем 4 случайные категории
-    selected_categories = random.sample(categories, min(4, len(categories)))
-    for category in selected_categories:
-        instruments = category.instruments
-        if not instruments:
-            current_app.logger.warning(f"Категория '{category.name}' не содержит инструментов.")
-            continue
-        instrument = random.choice(instruments)
-        selected_instruments.append(instrument)
+    for cat in selected_categories:
+        if cat.instruments:
+            selected_instruments.append(random.choice(cat.instruments))
 
     if not selected_instruments:
         current_app.logger.error("Не удалось выбрать инструменты для опроса.")
         return
 
-    # Установка длительности опроса
+    # Если test_mode, 5 минут, иначе 5 дней
     if test_mode:
-        duration = timedelta(minutes=1)  # Для тестирования устанавливаем 1 минуту
+        duration = timedelta(minutes=2)
     else:
-        duration = timedelta(minutes=5)     # В продакшене устанавливайте 3 дня
+        duration = timedelta(days=5)
 
-    # Создание опроса
     poll = Poll(
         start_date=datetime.utcnow(),
         end_date=datetime.utcnow() + duration,
         status='active'
     )
     db.session.add(poll)
-    db.session.flush()  # Получение ID опроса
+    db.session.flush()
 
-    for instrument in selected_instruments:
-        poll_instrument = PollInstrument(
-            poll_id=poll.id,
-            instrument_id=instrument.id
-        )
-        db.session.add(poll_instrument)
+    for instr in selected_instruments:
+        pi = PollInstrument(poll_id=poll.id, instrument_id=instr.id)
+        db.session.add(pi)
 
     db.session.commit()
-    current_app.logger.info(f"Новый опрос ID {poll.id} создан с инструментами {[instr.name for instr in selected_instruments]}.")
-    if test_mode:
-        current_app.logger.info("Опрос создан в тестовом режиме с короткой длительностью.")
+    current_app.logger.info(f"Новый опрос ID {poll.id} создан. Инструменты: {', '.join(i.name for i in selected_instruments)}")
+
 
 def process_poll_results():
     """
-    Обрабатывает результаты опросов, завершённых на текущий момент, и инициирует новые опросы.
+    Обрабатываем результаты опросов, которые завершились (status='active', end_date <= now).
+    Выбираем по каждому активу ближайшего к реальности, собираем победителей,
+    потом случайно 1 из них получает премиум.
     """
     try:
-        # Получение завершённых опросов (status='active' и end_date <= сейчас)
         now = datetime.utcnow()
         completed_polls = Poll.query.filter_by(status='active').filter(Poll.end_date <= now).all()
-        current_app.logger.info(f"Обработка {len(completed_polls)} завершённых опросов.")
+        if not completed_polls:
+            current_app.logger.info("Нет завершённых опросов для обработки.")
+            return
 
         for poll in completed_polls:
-            real_prices = {}  # Хранит реальные цены для инструментов опроса
-            for prediction in poll.predictions:
-                # Получение реальной цены
-                instrument_name = prediction.instrument.name
-                real_price = get_real_price(instrument_name)
-                if real_price is not None:
-                    real_prices[instrument_name] = real_price
-                    prediction.real_price = real_price
-                    # Расчёт отклонения
-                    if prediction.predicted_price != 0:
-                        prediction.deviation = ((real_price - prediction.predicted_price) / prediction.predicted_price) * 100
+            real_prices = {}
+            # Обновим real_price/deviation
+            for pred in poll.predictions:
+                instrument_name = pred.instrument.name
+                rp = get_real_price(instrument_name)
+                if rp is not None:
+                    pred.real_price = rp
+                    if pred.predicted_price != 0:
+                        pred.deviation = ((rp - pred.predicted_price) / pred.predicted_price) * 100
                     else:
-                        prediction.deviation = None
-
-            # Сохранение реальных цен и обновление статуса опроса
-            poll.real_prices = real_prices  # Убедитесь, что поле real_prices поддерживает JSON
+                        pred.deviation = None
+                    real_prices[instrument_name] = rp
+            poll.real_prices = real_prices
             poll.status = 'completed'
             db.session.commit()
-            current_app.logger.info(f"Опрос ID {poll.id} завершен с реальными ценами: {real_prices}.")
 
-            # Определение ближайших предсказаний для каждого инструмента
-            for poll_instrument in poll.poll_instruments:
-                instrument_name = poll_instrument.instrument.name
-                real_price = real_prices.get(instrument_name)
-                if real_price is None:
+            # Теперь найдём победителей по каждому инструменту
+            all_winners = []  # Список (User)
+
+            poll_instruments = PollInstrument.query.filter_by(poll_id=poll.id).all()
+            for pi in poll_instruments:
+                instr = pi.instrument
+                preds = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instr.id).all()
+                if not preds:
+                    continue
+                # valid preds
+                valid_preds = [p for p in preds if p.deviation is not None]
+                if not valid_preds:
                     continue
 
-                predictions = UserPrediction.query.filter_by(
-                    poll_id=poll.id,
-                    instrument_id=poll_instrument.instrument.id
-                ).all()
+                min_dev = min(abs(p.deviation) for p in valid_preds)
+                # Берём тех, у кого abs(deviation) == min_dev
+                winners_for_instr = [p.user for p in valid_preds if abs(p.deviation) == min_dev]
+                # Если есть несколько, это означает несколько победителей по этому инструменту
+                # Но дальше случайный общий от всех 4
+                if winners_for_instr:
+                    all_winners.extend(winners_for_instr)
 
-                if not predictions:
-                    continue
+            # Теперь из all_winners берём случайного одного
+            if all_winners:
+                winner = random.choice(all_winners)
+                if not winner.assistant_premium:
+                    winner.assistant_premium = True
+                    db.session.commit()
+                current_app.logger.info(f"Случайный победитель за опрос {poll.id} => user_id={winner.id}")
+                # Уведомим (пример: flash)
+                flash(f"Поздравляем! Пользователь {winner.username or winner.first_name} получил премиум!", 'success')
+            else:
+                current_app.logger.info(f"В опросе {poll.id} нет победителей.")
 
-                # Находим минимальное отклонение
-                valid_predictions = [pred for pred in predictions if pred.deviation is not None]
-                if not valid_predictions:
-                    continue
-
-                min_deviation = min(pred.deviation for pred in valid_predictions)
-                closest_predictions = [pred for pred in valid_predictions if pred.deviation == min_deviation]
-
-                for pred in closest_predictions:
-                    # Логика награждения пользователей, например, предоставление премиум-доступа
-                    user = pred.user
-                    if not user.assistant_premium:
-                        user.assistant_premium = True
-                        current_app.logger.info(f"Пользователь ID {user.id} получил премиум-доступ за точное предсказание в опросе ID {poll.id}.")
-
-            db.session.commit()
-
-        # Запуск нового опроса после обработки текущих
-        start_new_poll()
-
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Ошибка при обработке результатов опроса: {e}")
+        current_app.logger.error(f"Ошибка при process_poll_results: {e}")
         current_app.logger.error(traceback.format_exc())
