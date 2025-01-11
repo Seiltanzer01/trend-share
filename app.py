@@ -693,8 +693,11 @@ def initialize():
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
 # Очистка инструментов и категорий критериев (осторожно – этот код удалит данные!)
+# Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории
         try:
-            # Очистка данных (порядок удаления может зависеть от связей в БД)
+            db.session.execute("DELETE FROM trade_criteria")
+            db.session.commit()
+            # Теперь очищаем таблицы критериев и категори
             db.session.query(models.Criterion).delete()
             db.session.query(models.CriterionSubcategory).delete()
             db.session.query(models.CriterionCategory).delete()
