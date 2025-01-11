@@ -668,21 +668,24 @@ def initialize():
         if os.environ.get('RESET_DB', '').lower() == 'true':
             try:
                
-                # 1) Удаляем связанные записи, чтобы не нарушить FK
-                #    (best_setup_vote ссылается на best_setup_candidate)
-                
+                # 1) best_setup_vote -> best_setup_candidate
                 db.session.execute("DELETE FROM best_setup_vote")
                 db.session.execute("DELETE FROM best_setup_candidate")
 
+        # 2) poll_instrument -> instrument
+        #    user_prediction -> instrument, poll
+        #    а также сами poll'ы.
+                db.session.execute("DELETE FROM user_prediction")
+                db.session.execute("DELETE FROM poll_instrument")
+                db.session.execute("DELETE FROM poll")
 
-                # 2) Удаляем сделки, сетапы и т.д.
-                db.session.execute("DELETE FROM trade")
-                db.session.execute("DELETE FROM setup")
+        # 3) Удаляем trade, setup и их связи
                 db.session.execute("DELETE FROM trade_criteria")
                 db.session.execute("DELETE FROM setup_criteria")
-                db.session.commit()
+                db.session.execute("DELETE FROM trade")
+                db.session.execute("DELETE FROM setup")
 
-                # 3) Теперь очищаем основные таблицы
+        # 4) Теперь можно удалить критерии/инструменты и их категории
                 db.session.query(models.Criterion).delete()
                 db.session.query(models.CriterionSubcategory).delete()
                 db.session.query(models.CriterionCategory).delete()
