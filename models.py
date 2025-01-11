@@ -29,8 +29,8 @@ class User(db.Model):
     private_key = db.Column(db.String(128), nullable=True)  # Приватный ключ основного кошелька
 
     # **Новые поля для уникального кошелька**
-    unique_wallet_address = db.Column(db.String(42), unique=True, nullable=True)  # Уникальный кошелёк для депозитов
-    unique_private_key = db.Column(db.String(128), nullable=True)  # Приватный ключ уникального кошелька
+    unique_wallet_address = db.Column(db.String(42), unique=True, nullable=True)
+    unique_private_key = db.Column(db.String(128), nullable=True)
 
     # Связи
     trades = db.relationship('Trade', back_populates='user', lazy=True)
@@ -50,7 +50,7 @@ class UserStaking(db.Model):
     unlocked_at = db.Column(db.DateTime, nullable=False)
     
     # Для наград
-    pending_rewards = db.Column(db.Float, default=0.0)  
+    pending_rewards = db.Column(db.Float, default=0.0)
     last_claim_at   = db.Column(db.DateTime, nullable=False)
 
     user = db.relationship('User', back_populates='user_stakings')
@@ -89,9 +89,15 @@ class CriterionSubcategory(db.Model):
 class Criterion(db.Model):
     __tablename__ = 'criterion'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
+    # ВАЖНО: убираем глобальный unique=True и вместо этого делаем уникальной пару (name, subcategory_id)
+    name = db.Column(db.String(100), nullable=False)
     subcategory_id = db.Column(db.Integer, db.ForeignKey('criterion_subcategory.id'), nullable=False)
-    
+
+    # Уникальная пара (name, subcategory_id)
+    __table_args__ = (
+        db.UniqueConstraint('name', 'subcategory_id', name='uix_criterion_name_subcat'),
+    )
+
     subcategory = db.relationship('CriterionSubcategory', back_populates='criteria')
 
     # Отношение с Trade
@@ -124,7 +130,7 @@ class Trade(db.Model):
     profit_loss = db.Column(db.Float, nullable=True)
     profit_loss_percentage = db.Column(db.Float, nullable=True)
 
-    # Отношение с Criterion
+    # Критерии
     criteria = db.relationship(
         'Criterion',
         secondary=trade_criteria,
@@ -143,7 +149,7 @@ class Setup(db.Model):
     description = db.Column(db.Text, nullable=True)
     screenshot = db.Column(db.String(100), nullable=True)
 
-    # Отношение с Criterion
+    # Критерии
     criteria = db.relationship(
         'Criterion',
         secondary=setup_criteria,
@@ -173,7 +179,7 @@ class Poll(db.Model):
     end_date = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='active')  # 'active' или 'completed'
     poll_instruments = db.relationship('PollInstrument', back_populates='poll', lazy=True)
-    real_prices = db.Column(db.JSON, nullable=True)  # Хранит реальные цены после завершения голосования
+    real_prices = db.Column(db.JSON, nullable=True)
     predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)
 
 class PollInstrument(db.Model):
@@ -191,8 +197,8 @@ class UserPrediction(db.Model):
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     instrument_id = db.Column(db.Integer, db.ForeignKey('instrument.id'), nullable=False)
     predicted_price = db.Column(db.Float, nullable=False)
-    real_price = db.Column(db.Float, nullable=True)        # Добавлено поле real_price
-    deviation = db.Column(db.Float, nullable=True)         # Добавлено поле deviation
+    real_price = db.Column(db.Float, nullable=True)
+    deviation = db.Column(db.Float, nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint('user_id', 'poll_id', 'instrument_id', name='unique_user_poll_instrument'),
@@ -220,7 +226,6 @@ class PriceHistory(db.Model):
     volume = db.Column(db.BigInteger, nullable=False)
     
     instrument = db.relationship('Instrument', back_populates='price_history')
-    
     __table_args__ = (db.UniqueConstraint('instrument_id', 'date', name='_instrument_date_uc'),)
 
 class BestSetupCandidate(db.Model):
