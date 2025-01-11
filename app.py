@@ -80,7 +80,7 @@ if not raw_database_url:
     logger.error("DATABASE_URL не установлен в переменных окружения.")
     raise ValueError("DATABASE_URL не установлен в переменных окружения.")
 
-# Парсинг и корректировка строки подключения
+# Парсинг и корректировка строки подключения к базе данных
 parsed_url = urlparse(raw_database_url)
 query_params = parse_qs(parsed_url.query)
 if 'sslmode' not in query_params:
@@ -123,7 +123,7 @@ s3_client = boto3.client(
     aws_secret_access_key=app.config['AWS_SECRET_ACCESS_KEY']
 )
 
-# Инициализация SQLAlchemy
+# Инициализация SQLAlchemy (без миграций)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
@@ -135,7 +135,9 @@ init_best_setup_voting_routes(app, db)
 def inject_datetime():
     return {'datetime': datetime}
 
+# =====================
 # Функции для работы с S3
+# =====================
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     try:
         s3_client.upload_fileobj(
@@ -170,8 +172,9 @@ def generate_s3_url(filename: str) -> str:
 def get_app_host():
     return app.config['APP_HOST']
 
-# --- Предопределённые данные (список инструментов + критерии) ---
-
+# =====================
+# Предопределённые данные
+# =====================
 def create_predefined_data():
     """
     Создаёт все предопределённые данные (категории инструментов, инструменты,
@@ -275,11 +278,11 @@ def create_predefined_data():
         {'name': 'SUSHI-USD', 'category': 'Криптовалюты'}
     ]
 
+    # Заполняем InstrumentCategory и Instrument
     for item in instruments:
         category_name = item['category']
         instrument_name = item['name']
 
-        # Ищем/создаём категорию
         cat = models.InstrumentCategory.query.filter_by(name=category_name).first()
         if not cat:
             cat = models.InstrumentCategory(name=category_name)
@@ -287,7 +290,6 @@ def create_predefined_data():
             db.session.flush()
             logger.info(f"Категория '{category_name}' добавлена.")
 
-        # Ищем/создаём инструмент
         instr = models.Instrument.query.filter_by(name=instrument_name).first()
         if not instr:
             instr = models.Instrument(name=instrument_name, category_id=cat.id)
@@ -558,6 +560,7 @@ def create_predefined_data():
         }
     }
 
+    # Заполняем CriterionCategory, CriterionSubcategory и Criterion
     for cat_name, subcats in categories_data.items():
         cat = models.CriterionCategory.query.filter_by(name=cat_name).first()
         if not cat:
@@ -578,11 +581,12 @@ def create_predefined_data():
                 logger.info(f"Подкатегория '{subcat_name}' добавлена в категорию '{cat_name}'.")
 
             for crit_name in criteria_list:
+                # ВАЖНО: теперь ищем не только по имени, но и по subcategory_id
                 crit = models.Criterion.query.filter_by(name=crit_name, subcategory_id=subcat.id).first()
                 if not crit:
                     crit = models.Criterion(name=crit_name, subcategory_id=subcat.id)
                     db.session.add(crit)
-                    logger.info(f"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.")
+                    logger.info(f\"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.\")
 
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
@@ -667,25 +671,24 @@ def initialize():
         # Если в переменных окружения RESET_DB=true — очищаем ВСЁ и пересоздаём
         if os.environ.get('RESET_DB', '').lower() == 'true':
             try:
-               
                 # 1) best_setup_vote -> best_setup_candidate
                 db.session.execute("DELETE FROM best_setup_vote")
                 db.session.execute("DELETE FROM best_setup_candidate")
 
-        # 2) poll_instrument -> instrument
-        #    user_prediction -> instrument, poll
-        #    а также сами poll'ы.
+                # 2) poll_instrument -> instrument
+                #    user_prediction -> instrument, poll
+                #    а также сами poll'ы.
                 db.session.execute("DELETE FROM user_prediction")
                 db.session.execute("DELETE FROM poll_instrument")
                 db.session.execute("DELETE FROM poll")
 
-        # 3) Удаляем trade, setup и их связи
+                # 3) Удаляем trade, setup и их связи
                 db.session.execute("DELETE FROM trade_criteria")
                 db.session.execute("DELETE FROM setup_criteria")
                 db.session.execute("DELETE FROM trade")
                 db.session.execute("DELETE FROM setup")
 
-        # 4) Теперь можно удалить критерии/инструменты и их категории
+                # 4) Теперь можно удалить критерии/инструменты и их категории
                 db.session.query(models.Criterion).delete()
                 db.session.query(models.CriterionSubcategory).delete()
                 db.session.query(models.CriterionCategory).delete()
@@ -698,7 +701,7 @@ def initialize():
                 db.session.rollback()
                 logger.error(f"Ошибка при очистке данных: {e}")
 
-            # 4) Заново создаём инструменты и критерии
+            # 5) Заново создаём инструменты и критерии
             try:
                 create_predefined_data()
                 logger.info("Предопределённые данные успешно обновлены.")
@@ -717,9 +720,8 @@ def initialize():
                 (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # Генерация уникального адреса кошелька
                 user.unique_wallet_address = "0x..."  # Ваша логика генерации
-                user.unique_private_key = "priv_key..."  # Ваша логика генерации
+                user.unique_private_key = "priv_key..."  # Ваша логика
                 logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
             db.session.commit()
             logger.info("Уникальные кошельки для существующих пользователей инициализированы.")
