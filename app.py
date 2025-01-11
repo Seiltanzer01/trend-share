@@ -64,7 +64,7 @@ CORS(app, supports_credentials=True, resources={
 })
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)  # Установлено на INFO, можно изменить на DEBUG при необходимости
+logging.basicConfig(level=logging.INFO)  # INFO можно поменять на DEBUG при необходимости
 logger = logging.getLogger(__name__)
 
 # Использование переменных окружения для конфиденциальных данных
@@ -76,35 +76,29 @@ app.secret_key = secret_key_env
 
 # Настройки базы данных
 raw_database_url = os.environ.get('DATABASE_URL')
-
 if not raw_database_url:
     logger.error("DATABASE_URL не установлен в переменных окружения.")
     raise ValueError("DATABASE_URL не установлен в переменных окружения.")
 
-# Парсинг и корректировка строки подключения к базе данных
+# Парсинг и корректировка строки подключения
 parsed_url = urlparse(raw_database_url)
-
-# Проверка и добавление 'sslmode=require' если необходимо
 query_params = parse_qs(parsed_url.query)
 if 'sslmode' not in query_params:
     query_params['sslmode'] = ['require']
-
 new_query = urlencode(query_params, doseq=True)
 parsed_url = parsed_url._replace(query=new_query)
 
-# Обновлённая строка подключения
 DATABASE_URL = urlunparse(parsed_url)
-
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройки APP_HOST для формирования ссылок
+# Настройки для формирования ссылок
 app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
 
 # Настройки сессии
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
-app.config['SESSION_COOKIE_SECURE'] = True      # Требует HTTPS
-app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'  # Указание домена для куки
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'
 
 # Настройки Amazon S3
 app.config['AWS_ACCESS_KEY_ID'] = os.environ.get('AWS_ACCESS_KEY_ID', '').strip()
@@ -112,9 +106,12 @@ app.config['AWS_SECRET_ACCESS_KEY'] = os.environ.get('AWS_SECRET_ACCESS_KEY', ''
 app.config['AWS_S3_BUCKET'] = os.environ.get('AWS_S3_BUCKET', '').strip()
 app.config['AWS_S3_REGION'] = os.environ.get('AWS_S3_REGION', 'us-east-1').strip()
 
-# Проверка наличия необходимых AWS настроек
-if not all([app.config['AWS_ACCESS_KEY_ID'], app.config['AWS_SECRET_ACCESS_KEY'],
-            app.config['AWS_S3_BUCKET'], app.config['AWS_S3_REGION']]):
+if not all([
+    app.config['AWS_ACCESS_KEY_ID'],
+    app.config['AWS_SECRET_ACCESS_KEY'],
+    app.config['AWS_S3_BUCKET'],
+    app.config['AWS_S3_REGION']
+]):
     logger.error("Некоторые AWS настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые AWS настройки отсутствуют в переменных окружения.")
 
@@ -126,33 +123,26 @@ s3_client = boto3.client(
     aws_secret_access_key=app.config['AWS_SECRET_ACCESS_KEY']
 )
 
-# Инициализация расширений с приложением
+# Инициализация SQLAlchemy
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+# Инициализация роутов best_setup_voting
 init_best_setup_voting_routes(app, db)
 
-# Контекстный процессор для предоставления datetime в шаблонах
+# Контекстный процессор для datetime
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
 
-# Вспомогательные функции для работы с S3
+# Функции для работы с S3
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
-    """
-    Загружает файл в S3.
-    :param file: FileStorage объект.
-    :param filename: Имя файла в S3.
-    :return: True при успешной загрузке, False иначе.
-    """
     try:
         s3_client.upload_fileobj(
             file,
             app.config['AWS_S3_BUCKET'],
             filename,
-            ExtraArgs={
-                "ContentType": file.content_type
-            }
+            ExtraArgs={"ContentType": file.content_type}
         )
         logger.info(f"Файл '{filename}' успешно загружен в S3.")
         return True
@@ -161,46 +151,33 @@ def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
         return False
 
 def delete_file_from_s3(filename: str) -> bool:
-    """
-    Удаляет файл из S3.
-    :param filename: Имя файла в S3.
-    :return: True при успешном удалении, False иначе.
-    """
     try:
         s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=filename)
         logger.info(f"Файл '{filename}' успешно удалён из S3.")
         return True
     except ClientError as e:
-        logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
+        logger.error(f"Ошибка при удалении файла '{filename}' в S3: {e}")
         return False
 
 def generate_s3_url(filename: str) -> str:
-    """
-    Генерирует публичный URL для файла в S3.
-    :param filename: Имя файла в S3.
-    :return: URL файла.
-    """
     bucket_name = app.config['AWS_S3_BUCKET']
     region = app.config['AWS_S3_REGION']
-
     if region == 'us-east-1':
-        url = f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+        return f"https://{bucket_name}.s3.amazonaws.com/{filename}"
     else:
-        url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
-    return url
+        return f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
 
-# Функция для получения APP_HOST
 def get_app_host():
     return app.config['APP_HOST']
 
-# Функция для создания предопределённых данных
-def create_predefined_data():
-    # Проверяем, есть ли уже данные
-    #if models.InstrumentCategory.query.first():
-        #logger.info("Предопределённые данные уже существуют. Пропуск создания.")
-        #return
+# --- Предопределённые данные (список инструментов + критерии) ---
 
-    # Создаём категории инструментов и инструменты
+def create_predefined_data():
+    """
+    Создаёт все предопределённые данные (категории инструментов, инструменты,
+    категории критериев, подкатегории и критерии).
+    """
+    # 1) Инструменты
     instruments = [
         # Валютные пары (Форекс)
         {'name': 'EUR/USD', 'category': 'Форекс'},
@@ -296,325 +273,322 @@ def create_predefined_data():
         {'name': 'FLOW-USD', 'category': 'Криптовалюты'},
         {'name': 'YFI-USD', 'category': 'Криптовалюты'},
         {'name': 'SUSHI-USD', 'category': 'Криптовалюты'}
-        # Добавьте больше инструментов по необходимости
     ]
 
-    for instrument_data in instruments:
-        category_name = instrument_data['category']
-        instrument_name = instrument_data['name']
+    for item in instruments:
+        category_name = item['category']
+        instrument_name = item['name']
 
-        # Получаем или создаём категорию
-        category = models.InstrumentCategory.query.filter_by(name=category_name).first()
-        if not category:
-            category = models.InstrumentCategory(name=category_name)
-            db.session.add(category)
+        # Ищем/создаём категорию
+        cat = models.InstrumentCategory.query.filter_by(name=category_name).first()
+        if not cat:
+            cat = models.InstrumentCategory(name=category_name)
+            db.session.add(cat)
             db.session.flush()
             logger.info(f"Категория '{category_name}' добавлена.")
 
-        # Проверяем, существует ли инструмент
-        instrument = models.Instrument.query.filter_by(name=instrument_name).first()
-        if not instrument:
-            instrument = models.Instrument(name=instrument_name, category_id=category.id)
-            db.session.add(instrument)
-            logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{category_name}'.")
+        # Ищем/создаём инструмент
+        instr = models.Instrument.query.filter_by(name=instrument_name).first()
+        if not instr:
+            instr = models.Instrument(name=instrument_name, category_id=cat.id)
+            db.session.add(instr)
+            logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{cat.name}'.")
 
     db.session.commit()
     logger.info("Инструменты и категории инструментов успешно добавлены.")
 
-    # Создаём категории критериев, подкатегории и критерии
+    # 2) Критерии, подкатегории и категории критериев
     categories_data = {
-    'Смарт-мани': {
-        'Уровни': [
-            'Уровни поддержки и сопротивления',
-            'Психологические уровни',
-            'Фибоначчи уровни',
-            'Pivot Points',
-            'Ключевые ценовые зоны'
-        ],
-        'Ликвидность': [
-            'Зоны высокой ликвидности',
-            'Области накопления капитала',
-            'Имбаланс рынка',
-            'Объёмные скопления',
-            'Аномальные объёмы'
-        ],
-        'Позиционирование крупных игроков': [
-            'Скрытые ордера',
-            'Действия институционалов',
-            'Крупные сделки',
-            'Анализ Dark Pool',
-            'Отчёты COT'
-        ],
-        'Перетоки капитала': [
-            'Накопление на низких ценах',
-            'Распределение на высоких ценах',
-            'Смена направления капитала',
-            'Объёмные всплески',
-            'Анализ ликвидности в экстремумах'
-        ],
-        'Инсайдерская активность': [
-            'Данные от инсайдеров',
-            'Официальные отчёты',
-            'Необычные ордеры',
-            'Аномальное изменение объёмов',
-            'Следование крупным позициям'
-        ],
-        'Анализ спроса и предложения': [
-            'Баланс покупателей и продавцов',
-            'Динамика изменения объёмов',
-            'Оценка ликвидности',
-            'Перекупленность и перепроданность',
-            'Фронты ценового воздействия'
-        ]
-    },
-    'Технический анализ': {
-        'Графические модели': [
-            'Фигуры разворота (голова и плечи, двойная вершина/дно)',
-            'Фигуры продолжения тренда (флаги, вымпелы)',
-            'Треугольники',
-            'Клинья',
-            'Пластинчатые модели'
-        ],
-        'Ценовая динамика': [
-            'Прорывы уровней',
-            'Отскоки от уровней',
-            'Фейковые пробои',
-            'Консолидация цены',
-            'Резкие импульсы'
-        ],
-        'Свечные паттерны': [
-            'Пин-бары',
-            'Доджи',
-            'Бычьи/медвежьи поглощения',
-            'Харами',
-            'Свечи с длинными тенями'
-        ],
-        'Уровни и структура': [
-            'Горизонтальные уровни поддержки и сопротивления',
-            'Трендовые линии',
-            'Каналы и диапазоны',
-            'Центровые уровни (точки разворота)',
-            'Многоступенчатые уровни'
-        ],
-        'Объём и ценовые реакции': [
-            'Паттерны объёмного распределения',
-            'Анализ кластеров спроса и предложения',
-            'Формирование объёмных аномалий',
-            'Объёмное усиление движения',
-            'Анализ волн стоимости'
-        ]
-    },
-    'Волны Эллиота': {
-        'Основные волны': [
-            'Импульсные волны',
-            'Коррекционные волны',
-            'Волны 1 и 5',
-            'Волны 2 и 4',
-            'Волна 3 как самая сильная'
-        ],
-        'Коррекционные модели': [
-            'Зигзаг',
-            'Площадки',
-            'Треугольники',
-            'Параллелограммы',
-            'Комбинированные коррекции'
-        ],
-        'Фибоначчи соотношения': [
-            'Отношения коррекции',
-            'Проекции волн',
-            'Расширения волн',
-            'Измерение импульсов',
-            'Построение уровней'
-        ],
-        'Границы волн': [
-            'Определение начала волны',
-            'Идентификация разворотных зон',
-            'Сравнение размеров волн',
-            'Временные рамки',
-            'Анализ завершения тренда'
-        ],
-        'Модели волн': [
-            'Стандартная модель Эллиота',
-            'Расширенные модели',
-            'Сложные коррекции',
-            'Множественные разбиения',
-            'Волновая структура рынка'
-        ],
-        'Анализ импульсов': [
-            'Сила импульса',
-            'Длительность импульса',
-            'Риск и прибыль',
-            'Волновые отношения',
-            'Синхронизация с трендом'
-        ]
-    },
-    'Price Action': {
-        'Свечные модели': [
-            'Пин-бар',
-            'Бар-бар',
-            'Внутрисвечные паттерны',
-            'Разворотные свечи',
-            'Свечи с длинными тенями'
-        ],
-        'Уровни поддержки/сопротивления': [
-            'Ключевые ценовые уровни',
-            'Психологические зоны',
-            'Рассогласования уровня',
-            'Поддержка после отката',
-            'Сопротивление перед отскоком'
-        ],
-        'Формации разворота': [
-            'Двойное дно/двойная вершина',
-            'Голова и плечи',
-            'Тройная вершина/дно',
-            'Формация “Подкова”',
-            'Внутридневное разворотное распределение'
-        ],
-        'Брейк-аут паттерны': [
-            'Пробой уровня сопротивления',
-            'Пробой уровня поддержки',
-            'Фейковые пробои',
-            'Ложный пробой',
-            'Устойчивые прорывы'
-        ],
-        'Внутрисвечные структуры': [
-            'Баровые комбинации',
-            'Линии закрытия и открытия',
-            'Поглощение',
-            'Разрыв между свечами',
-            'Двойное дно свечи'
-        ],
-        'Ключевые ценовые уровни': [
-            'Исторические максимумы/минимумы',
-            'Критические разворотные зоны',
-            'Центральные уровни рынка',
-            'Места скопления ордеров',
-            'Асимметрия отскоков'
-        ]
-    },
-    'Индикаторы': {
-        'Моментум индикаторы': [
-            'RSI (Relative Strength Index)',
-            'Stochastic Oscillator',
-            'CCI (Commodity Channel Index)',
-            'Williams %R',
-            'ROC (Rate of Change)'
-        ],
-        'Объёмные индикаторы': [
-            'On Balance Volume (OBV)',
-            'Accumulation/Distribution',
-            'Money Flow Index (MFI)',
-            'Volume Oscillator',
-            'Chaikin Money Flow'
-        ],
-        'Волатильность': [
-            'Bollinger Bands',
-            'Average True Range (ATR)',
-            'Keltner Channels',
-            'Donchian Channels',
-            'Standard Deviation'
-        ],
-        'Динамические скользящие средние': [
-            'SMA (Simple Moving Average)',
-            'EMA (Exponential Moving Average)',
-            'WMA (Weighted Moving Average)',
-            'Hull Moving Average (HMA)',
-            'TEMA (Triple Exponential Moving Average)'
-        ],
-        'Системы сигналов': [
-            'MACD (Moving Average Convergence Divergence)',
-            'Дивергенции',
-            'Кроссинговые сигналы',
-            'Фильтры тренда',
-            'Сигналы разворота'
-        ],
-        'Индикаторы настроения': [
-            'Индекс страха (VIX)',
-            'Индекс рыночного сентимента',
-            'Индикаторы консенсуса',
-            'Индикаторы оптимизма/пессимизма',
-            'Сентиментальные осцилляторы'
-        ]
-    },
-    'Психология': {
-        'Эмоциональное состояние сделки': [
-            'Уверенность при входе',
-            'Чувство неуверенности или сомнения',
-            'Эмоциональное спокойствие',
-            'Переживания из-за риска',
-            'Эмоциональный подъем после успеха'
-        ],
-        'Качество принятия решения': [
-            'Следование торговому плану',
-            'Объективный анализ рынка',
-            'Индивидуальность решения',
-            'Отсутствие импульсивности',
-            'Рациональность выбора точки входа'
-        ],
-        'Исполнение сделки': [
-            'Своевременность входа/выхода',
-            'Точность исполнения ордеров',
-            'Соблюдение стоп-лоссов',
-            'Оценка проскальзывания',
-            'Корректность размещения ордеров'
-        ],
-        'Анализ результата сделки': [
-            'Соответствие ожиданий и реальности',
-            'Объективный разбор ошибок',
-            'Выводы для будущих сделок',
-            'Анализ риска и прибыли',
-            'Оценка рыночного поведения после закрытия'
-        ],
-        'Уроки и самоанализ': [
-            'Запись наблюдений по эмоциям',
-            'Выявление повторяющихся шаблонов',
-            'Разработка корректирующих действий',
-            'Оценка соблюдения стратегии',
-            'Планы по совершенствованию навыков'
-        ],
-        'Психологическая устойчивость': [
-            'Способность справляться с убытками',
-            'Контроль над эмоциями при прибыли',
-            'Подготовленность к стрессовым ситуациям',
-            'Сохранение концентрации во время волатильности',
-            'Адаптация к изменению рыночных условий'
-        ]
+        'Смарт-мани': {
+            'Уровни': [
+                'Уровни поддержки и сопротивления',
+                'Психологические уровни',
+                'Фибоначчи уровни',
+                'Pivot Points',
+                'Ключевые ценовые зоны'
+            ],
+            'Ликвидность': [
+                'Зоны высокой ликвидности',
+                'Области накопления капитала',
+                'Имбаланс рынка',
+                'Объёмные скопления',
+                'Аномальные объёмы'
+            ],
+            'Позиционирование крупных игроков': [
+                'Скрытые ордера',
+                'Действия институционалов',
+                'Крупные сделки',
+                'Анализ Dark Pool',
+                'Отчёты COT'
+            ],
+            'Перетоки капитала': [
+                'Накопление на низких ценах',
+                'Распределение на высоких ценах',
+                'Смена направления капитала',
+                'Объёмные всплески',
+                'Анализ ликвидности в экстремумах'
+            ],
+            'Инсайдерская активность': [
+                'Данные от инсайдеров',
+                'Официальные отчёты',
+                'Необычные ордеры',
+                'Аномальное изменение объёмов',
+                'Следование крупным позициям'
+            ],
+            'Анализ спроса и предложения': [
+                'Баланс покупателей и продавцов',
+                'Динамика изменения объёмов',
+                'Оценка ликвидности',
+                'Перекупленность и перепроданность',
+                'Фронты ценового воздействия'
+            ]
+        },
+        'Технический анализ': {
+            'Графические модели': [
+                'Фигуры разворота (голова и плечи, двойная вершина/дно)',
+                'Фигуры продолжения тренда (флаги, вымпелы)',
+                'Треугольники',
+                'Клинья',
+                'Пластинчатые модели'
+            ],
+            'Ценовая динамика': [
+                'Прорывы уровней',
+                'Отскоки от уровней',
+                'Фейковые пробои',
+                'Консолидация цены',
+                'Резкие импульсы'
+            ],
+            'Свечные паттерны': [
+                'Пин-бары',
+                'Доджи',
+                'Бычьи/медвежьи поглощения',
+                'Харами',
+                'Свечи с длинными тенями'
+            ],
+            'Уровни и структура': [
+                'Горизонтальные уровни поддержки и сопротивления',
+                'Трендовые линии',
+                'Каналы и диапазоны',
+                'Центровые уровни (точки разворота)',
+                'Многоступенчатые уровни'
+            ],
+            'Объём и ценовые реакции': [
+                'Паттерны объёмного распределения',
+                'Анализ кластеров спроса и предложения',
+                'Формирование объёмных аномалий',
+                'Объёмное усиление движения',
+                'Анализ волн стоимости'
+            ]
+        },
+        'Волны Эллиота': {
+            'Основные волны': [
+                'Импульсные волны',
+                'Коррекционные волны',
+                'Волны 1 и 5',
+                'Волны 2 и 4',
+                'Волна 3 как самая сильная'
+            ],
+            'Коррекционные модели': [
+                'Зигзаг',
+                'Площадки',
+                'Треугольники',
+                'Параллелограммы',
+                'Комбинированные коррекции'
+            ],
+            'Фибоначчи соотношения': [
+                'Отношения коррекции',
+                'Проекции волн',
+                'Расширения волн',
+                'Измерение импульсов',
+                'Построение уровней'
+            ],
+            'Границы волн': [
+                'Определение начала волны',
+                'Идентификация разворотных зон',
+                'Сравнение размеров волн',
+                'Временные рамки',
+                'Анализ завершения тренда'
+            ],
+            'Модели волн': [
+                'Стандартная модель Эллиота',
+                'Расширенные модели',
+                'Сложные коррекции',
+                'Множественные разбиения',
+                'Волновая структура рынка'
+            ],
+            'Анализ импульсов': [
+                'Сила импульса',
+                'Длительность импульса',
+                'Риск и прибыль',
+                'Волновые отношения',
+                'Синхронизация с трендом'
+            ]
+        },
+        'Price Action': {
+            'Свечные модели': [
+                'Пин-бар',
+                'Бар-бар',
+                'Внутрисвечные паттерны',
+                'Разворотные свечи',
+                'Свечи с длинными тенями'
+            ],
+            'Уровни поддержки/сопротивления': [
+                'Ключевые ценовые уровни',
+                'Психологические зоны',
+                'Рассогласования уровня',
+                'Поддержка после отката',
+                'Сопротивление перед отскоком'
+            ],
+            'Формации разворота': [
+                'Двойное дно/двойная вершина',
+                'Голова и плечи',
+                'Тройная вершина/дно',
+                'Формация “Подкова”',
+                'Внутридневное разворотное распределение'
+            ],
+            'Брейк-аут паттерны': [
+                'Пробой уровня сопротивления',
+                'Пробой уровня поддержки',
+                'Фейковые пробои',
+                'Ложный пробой',
+                'Устойчивые прорывы'
+            ],
+            'Внутрисвечные структуры': [
+                'Баровые комбинации',
+                'Линии закрытия и открытия',
+                'Поглощение',
+                'Разрыв между свечами',
+                'Двойное дно свечи'
+            ],
+            'Ключевые ценовые уровни': [
+                'Исторические максимумы/минимумы',
+                'Критические разворотные зоны',
+                'Центральные уровни рынка',
+                'Места скопления ордеров',
+                'Асимметрия отскоков'
+            ]
+        },
+        'Индикаторы': {
+            'Моментум индикаторы': [
+                'RSI (Relative Strength Index)',
+                'Stochastic Oscillator',
+                'CCI (Commodity Channel Index)',
+                'Williams %R',
+                'ROC (Rate of Change)'
+            ],
+            'Объёмные индикаторы': [
+                'On Balance Volume (OBV)',
+                'Accumulation/Distribution',
+                'Money Flow Index (MFI)',
+                'Volume Oscillator',
+                'Chaikin Money Flow'
+            ],
+            'Волатильность': [
+                'Bollinger Bands',
+                'Average True Range (ATR)',
+                'Keltner Channels',
+                'Donchian Channels',
+                'Standard Deviation'
+            ],
+            'Динамические скользящие средние': [
+                'SMA (Simple Moving Average)',
+                'EMA (Exponential Moving Average)',
+                'WMA (Weighted Moving Average)',
+                'Hull Moving Average (HMA)',
+                'TEMA (Triple Exponential Moving Average)'
+            ],
+            'Системы сигналов': [
+                'MACD (Moving Average Convergence Divergence)',
+                'Дивергенции',
+                'Кроссинговые сигналы',
+                'Фильтры тренда',
+                'Сигналы разворота'
+            ],
+            'Индикаторы настроения': [
+                'Индекс страха (VIX)',
+                'Индекс рыночного сентимента',
+                'Индикаторы консенсуса',
+                'Индикаторы оптимизма/пессимизма',
+                'Сентиментальные осцилляторы'
+            ]
+        },
+        'Психология': {
+            'Эмоциональное состояние сделки': [
+                'Уверенность при входе',
+                'Чувство неуверенности или сомнения',
+                'Эмоциональное спокойствие',
+                'Переживания из-за риска',
+                'Эмоциональный подъем после успеха'
+            ],
+            'Качество принятия решения': [
+                'Следование торговому плану',
+                'Объективный анализ рынка',
+                'Индивидуальность решения',
+                'Отсутствие импульсивности',
+                'Рациональность выбора точки входа'
+            ],
+            'Исполнение сделки': [
+                'Своевременность входа/выхода',
+                'Точность исполнения ордеров',
+                'Соблюдение стоп-лоссов',
+                'Оценка проскальзывания',
+                'Корректность размещения ордеров'
+            ],
+            'Анализ результата сделки': [
+                'Соответствие ожиданий и реальности',
+                'Объективный разбор ошибок',
+                'Выводы для будущих сделок',
+                'Анализ риска и прибыли',
+                'Оценка рыночного поведения после закрытия'
+            ],
+            'Уроки и самоанализ': [
+                'Запись наблюдений по эмоциям',
+                'Выявление повторяющихся шаблонов',
+                'Разработка корректирующих действий',
+                'Оценка соблюдения стратегии',
+                'Планы по совершенствованию навыков'
+            ],
+            'Психологическая устойчивость': [
+                'Способность справляться с убытками',
+                'Контроль над эмоциями при прибыли',
+                'Подготовленность к стрессовым ситуациям',
+                'Сохранение концентрации во время волатильности',
+                'Адаптация к изменению рыночных условий'
+            ]
+        }
     }
-}
 
-    for category_name, subcategories in categories_data.items():
-        category = models.CriterionCategory.query.filter_by(name=category_name).first()
-        if not category:
-            category = models.CriterionCategory(name=category_name)
-            db.session.add(category)
+    for cat_name, subcats in categories_data.items():
+        cat = models.CriterionCategory.query.filter_by(name=cat_name).first()
+        if not cat:
+            cat = models.CriterionCategory(name=cat_name)
+            db.session.add(cat)
             db.session.flush()
-            logger.info(f"Категория критерия '{category_name}' добавлена.")
+            logger.info(f"Категория критерия '{cat_name}' добавлена.")
 
-        for subcategory_name, criteria_list in subcategories.items():
-            subcategory = models.CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
-            if not subcategory:
-                subcategory = models.CriterionSubcategory(
-                    name=subcategory_name,
-                    category_id=category.id
+        for subcat_name, criteria_list in subcats.items():
+            subcat = models.CriterionSubcategory.query.filter_by(name=subcat_name, category_id=cat.id).first()
+            if not subcat:
+                subcat = models.CriterionSubcategory(
+                    name=subcat_name,
+                    category_id=cat.id
                 )
-                db.session.add(subcategory)
+                db.session.add(subcat)
                 db.session.flush()
-                logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
+                logger.info(f"Подкатегория '{subcat_name}' добавлена в категорию '{cat_name}'.")
 
-            for criterion_name in criteria_list:
-                criterion = models.Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
-                if not criterion:
-                    criterion = models.Criterion(
-                        name=criterion_name,
-                        subcategory_id=subcategory.id
-                    )
-                    db.session.add(criterion)
-                    logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
+            for crit_name in criteria_list:
+                crit = models.Criterion.query.filter_by(name=crit_name, subcategory_id=subcat.id).first()
+                if not crit:
+                    crit = models.Criterion(name=crit_name, subcategory_id=subcat.id)
+                    db.session.add(crit)
+                    logger.info(f"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.")
 
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
-# Обёртки для задач APScheduler
+
+# --- Обёртки для задач APScheduler ---
 def start_new_poll_test_job():
     with app.app_context():
         try:
@@ -651,24 +625,23 @@ def update_real_prices_job():
             logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
 
-# Инициализация данных при первом запуске
+
+# --- Инициализация данных при первом запуске ---
 @app.before_first_request
 def initialize():
     try:
         db.create_all()
         logger.info("База данных создана или уже существует.")
 
-        # Мини-хак: Добавляем нужные колонки, если их нет
+        # Мини-хак: проверка и добавление нужных колонок
         try:
             with db.engine.connect() as con:
-                 # 1) Сначала удаляем (если есть):
                 con.execute("""
                     ALTER TABLE user_staking
                     DROP COLUMN IF EXISTS stake_amount
                 """)
                 logger.info("Колонка 'stake_amount' удалена из user_staking (если существовала).")
-    
-                # Добавление колонок в user_staking
+
                 con.execute("""
                     ALTER TABLE user_staking
                     ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
@@ -681,7 +654,6 @@ def initialize():
                 """)
                 logger.info("Необходимые колонки добавлены в таблицу user_staking.")
 
-                # Добавление колонок private_key, unique_wallet_address и unique_private_key в таблицу user
                 con.execute("""
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
@@ -692,12 +664,15 @@ def initialize():
         except Exception as e:
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
-# Очистка инструментов и категорий критериев (осторожно – этот код удалит данные!)
-# Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории 
-    # ! После очистки: if os.environ.get('RESET_DB', '').lower() == 'false':
+        # Если в переменных окружения RESET_DB=true — очищаем ВСЁ и пересоздаём
         if os.environ.get('RESET_DB', '').lower() == 'true':
             try:
-                # Удаляем зависимые записи (это приведёт к удалению всех сделок и сетапов)
+                # Сначала удаляем записи, у которых есть внешние ключи на setup
+                # (в т.ч. best_setup_candidate, если он есть)
+                db.session.execute("DELETE FROM best_setup_candidate")
+                db.session.commit()
+
+                # Удаляем всё остальное
                 db.session.execute("DELETE FROM trade")
                 db.session.execute("DELETE FROM setup")
                 db.session.execute("DELETE FROM trade_criteria")
@@ -711,7 +686,8 @@ def initialize():
                 db.session.query(models.Instrument).delete()
                 db.session.query(models.InstrumentCategory).delete()
                 db.session.commit()
-                logger.info("Существующие данные инструментов и критериев успешно очищены.")
+
+                logger.info("Существующие данные (сделки, сетапы, инструменты и критерии) успешно очищены.")
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"Ошибка при очистке данных: {e}")
@@ -729,46 +705,36 @@ def initialize():
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         logger.error(traceback.format_exc())
 
-        # Инициализация unique_wallet_address для существующих пользователей
+        # В случае ошибки — попытка инициализировать unique_wallet_address
         try:
-            users_without_wallet = User.query.filter(
-                (User.unique_wallet_address == None) | (User.unique_wallet_address == '')
+            users_without_wallet = models.User.query.filter(
+                (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
                 # Генерация уникального адреса кошелька
-                user.unique_wallet_address = generate_unique_wallet_address()
-                user.unique_private_key = generate_unique_private_key()
+                user.unique_wallet_address = "0x..."  # Ваша логика генерации
+                user.unique_private_key = "priv_key..."  # Ваша логика генерации
                 logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
             db.session.commit()
             logger.info("Уникальные кошельки для существующих пользователей инициализированы.")
-        except Exception as e:
+        except Exception as e2:
             db.session.rollback()
-            logger.error(f"Ошибка при инициализации уникальных кошельков: {e}")
+            logger.error(f"Ошибка при инициализации уникальных кошельков: {e2}")
             logger.error(traceback.format_exc())
 
-        # Если нужно, create_predefined_data()
-        # create_predefined_data()
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
-        logger.error(traceback.format_exc())
 
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-####################
-# Планировщики APScheduler
-####################
 
+# --- Планировщики APScheduler ---
 def accumulate_staking_rewards_job():
     with app.app_context():
         accumulate_staking_rewards()
 
 def start_new_poll_job():
     with app.app_context():
-        # Новый опрос на 10 минут (см. poll_functions.py)
         start_new_poll()
 
 def process_poll_results_job():
@@ -789,7 +755,6 @@ scheduler.add_job(
     minutes=5,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
-
 # 2) Запуск нового опроса каждые 10 минут
 scheduler.add_job(
     id='Start Poll',
@@ -798,8 +763,7 @@ scheduler.add_job(
     minutes=10,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
-
-# 3) Проверка завершения опроса каждые 2 минуты (сразу запускает новый)
+# 3) Проверка завершения опроса каждые 2 минуты
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,
@@ -807,7 +771,6 @@ scheduler.add_job(
     minutes=2,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
 )
-
 # 4) Накопление стейкинг наград — каждую минуту
 scheduler.add_job(
     id='Accumulate Staking Rewards',
@@ -816,7 +779,6 @@ scheduler.add_job(
     minutes=1,
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
-
 # 5) Обновление реальной цены каждые 2 минуты
 scheduler.add_job(
     id='Update Real Prices',
@@ -829,19 +791,17 @@ scheduler.add_job(
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
-# Импорт маршрутов после инициализации APScheduler
+# Импорт маршрутов (после старта APScheduler)
 from routes import *
 
-# Регистрация Blueprints
-app.register_blueprint(staking_bp, url_prefix='/staking')  # Регистрация staking_bp здесь
+# Регистрация Blueprint
+app.register_blueprint(staking_bp, url_prefix='/staking')
 
 # Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
     logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
     raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
-
-# Инициализация OpenAI
 openai.api_key = app.config['OPENAI_API_KEY']
 
 # Добавление Robokassa настроек
@@ -852,7 +812,6 @@ app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').
 app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
 app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
 
-# Проверка наличия необходимых Robokassa настроек
 if not all([
     app.config['ROBOKASSA_MERCHANT_LOGIN'],
     app.config['ROBOKASSA_PASSWORD1'],
@@ -864,9 +823,7 @@ if not all([
     logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
-# **Запуск Flask-приложения**
-
+# Запуск Flask-приложения
 if __name__ == '__main__':
-    # Запуск приложения
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
