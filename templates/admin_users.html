@@ -21,6 +21,18 @@
     <button type="submit" class="nes-btn is-error"><i class="fas fa-times"></i> Принудительно Завершить Текущее Голосование</button>
 </form>
 
+<!-- Кнопка для включения/отключения голосования -->
+<form action="{{ url_for('toggle_voting') }}" method="post" style="margin-bottom: 20px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="nes-btn is-warning">
+        {% if voting_config and voting_config.value == 'true' %}
+            Отключить Голосование
+        {% else %}
+            Включить Голосование
+        {% endif %}
+    </button>
+</form>
+
 <!-- Форма для изменения наградного пула (best_setup_reward_pool) -->
 <div class="nes-container" style="margin-bottom: 20px;">
   <form action="{{ url_for('admin_set_reward_pool') }}" method="post">
@@ -40,40 +52,39 @@
   </form>
 </div>
 
-<!-- Кнопка для включения/отключения голосования -->
-<form action="{{ url_for('toggle_voting') }}" method="post" style="margin-bottom: 20px;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit" class="nes-btn is-warning">
-        {% if voting_config and voting_config.value == 'true' %}
-            Отключить Голосование
-        {% else %}
-            Включить Голосование
-        {% endif %}
-    </button>
-</form>
-
+<!-- Таблица пользователей -->
 <table class="nes-table is-bordered is-striped">
     <thead>
         <tr>
             <th>ID</th>
-            <th>Имя пользователя</th>
+            <th>{% if lang == 'en' %}Username{% else %}Имя{% endif %}</th>
             <th>Telegram ID</th>
-            <th>Премиум</th>
-            <th>Действия</th>
+            <th>{% if lang == 'en' %}Premium{% else %}Премиум{% endif %}</th>
+            <th>{% if lang == 'en' %}Trades{% else %}Сделок{% endif %}</th>
+            <th>{% if lang == 'en' %}Setups{% else %}Сетапов{% endif %}</th>
+            <th>{% if lang == 'en' %}Registered{% else %}Регистрация{% endif %}</th>
+            <th>{% if lang == 'en' %}Actions{% else %}Действия{% endif %}</th>
         </tr>
     </thead>
     <tbody>
         {% for user in users %}
         <tr>
             <td>{{ user.id }}</td>
-            <td>{{ user.username or 'Не указан' }}</td>
+            <td>{{ user.username or (user.first_name ~ ' ' ~ user.last_name if user.first_name) or 'N/A' }}</td>
             <td>{{ user.telegram_id }}</td>
-            <td>{{ 'Да' if user.assistant_premium else 'Нет' }}</td>
+            <td>{{ 'Yes' if user.assistant_premium else 'No' }}</td>
+            <td>{{ user.trades_count }}</td>
+            <td>{{ user.setups_count }}</td>
+            <td>{{ user.registered_at.strftime('%Y-%m-%d') if user.registered_at else 'N/A' }}</td>
             <td>
-                <form action="{{ url_for('toggle_premium', user_id=user.id) }}" method="post">
+                <form action="{{ url_for('toggle_premium', user_id=user.id) }}" method="post" style="display:inline-block;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="nes-btn is-primary">
-                        {{ 'Отключить' if user.assistant_premium else 'Включить' }} премиум
+                      {% if user.assistant_premium %}
+                        {% if lang == 'en' %}Remove Premium{% else %}Отключить премиум{% endif %}
+                      {% else %}
+                        {% if lang == 'en' %}Grant Premium{% else %}Включить премиум{% endif %}
+                      {% endif %}
                     </button>
                 </form>
             </td>
@@ -81,4 +92,5 @@
         {% endfor %}
     </tbody>
 </table>
+
 {% endblock %}
