@@ -586,7 +586,7 @@ def create_predefined_data():
                 if not crit:
                     crit = models.Criterion(name=crit_name, subcategory_id=subcat.id)
                     db.session.add(crit)
-                    logger.info(f\"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.\")
+                    logger.info(f"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.")
 
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
