@@ -21,6 +21,24 @@
     <button type="submit" class="nes-btn is-error"><i class="fas fa-times"></i> Принудительно Завершить Текущее Голосование</button>
 </form>
 
+<!-- Форма для изменения наградного пула (best_setup_reward_pool) -->
+<div class="nes-container" style="margin-bottom: 20px;">
+  <form action="{{ url_for('admin_set_reward_pool') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="reward_pool">
+      {% if lang == 'en' %}
+        Reward Pool in UJO:
+      {% else %}
+        Размер наградного пула (UJO):
+      {% endif %}
+    </label>
+    <input type="number" step="0.0001" name="reward_pool" id="reward_pool" 
+           value="{{ reward_pool or 1.0 }}" min="0" class="nes-input" style="margin-right:1em;">
+    <button type="submit" class="nes-btn is-success">
+      {% if lang == 'en' %}Save{% else %}Сохранить{% endif %}
+    </button>
+  </form>
+</div>
 
 <!-- Кнопка для включения/отключения голосования -->
 <form action="{{ url_for('toggle_voting') }}" method="post" style="margin-bottom: 20px;">
