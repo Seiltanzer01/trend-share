@@ -694,7 +694,10 @@ def initialize():
 
 # Очистка инструментов и категорий критериев (осторожно – этот код удалит данные!)
 # Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории
+    if os.environ.get('RESET_DB', '').lower() == 'true
         try:
+            db.session.execute("DELETE FROM trade")
+            db.session.execute("DELETE FROM setup")
             db.session.execute("DELETE FROM trade_criteria")
             db.session.execute("DELETE FROM setup_criteria")
             db.session.commit()
