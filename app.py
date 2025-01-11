@@ -196,9 +196,9 @@ def get_app_host():
 # Функция для создания предопределённых данных
 def create_predefined_data():
     # Проверяем, есть ли уже данные
-    if models.InstrumentCategory.query.first():
-        logger.info("Предопределённые данные уже существуют. Пропуск создания.")
-        return
+    #if models.InstrumentCategory.query.first():
+        #logger.info("Предопределённые данные уже существуют. Пропуск создания.")
+        #return
 
     # Создаём категории инструментов и инструменты
     instruments = [
