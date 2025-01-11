@@ -696,6 +696,7 @@ def initialize():
 # Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории
         try:
             db.session.execute("DELETE FROM trade_criteria")
+            db.session.execute("DELETE FROM setup_criteria")
             db.session.commit()
             # Теперь очищаем таблицы критериев и категори
             db.session.query(models.Criterion).delete()
