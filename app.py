@@ -667,19 +667,22 @@ def initialize():
         # Если в переменных окружения RESET_DB=true — очищаем ВСЁ и пересоздаём
         if os.environ.get('RESET_DB', '').lower() == 'true':
             try:
-                # Сначала удаляем записи, у которых есть внешние ключи на setup
-                # (в т.ч. best_setup_candidate, если он есть)
+               
+                # 1) Удаляем связанные записи, чтобы не нарушить FK
+                #    (best_setup_vote ссылается на best_setup_candidate)
+                
+                db.session.execute("DELETE FROM best_setup_vote")
                 db.session.execute("DELETE FROM best_setup_candidate")
-                db.session.commit()
 
-                # Удаляем всё остальное
+
+                # 2) Удаляем сделки, сетапы и т.д.
                 db.session.execute("DELETE FROM trade")
                 db.session.execute("DELETE FROM setup")
                 db.session.execute("DELETE FROM trade_criteria")
                 db.session.execute("DELETE FROM setup_criteria")
                 db.session.commit()
 
-                # Теперь очищаем основные таблицы
+                # 3) Теперь очищаем основные таблицы
                 db.session.query(models.Criterion).delete()
                 db.session.query(models.CriterionSubcategory).delete()
                 db.session.query(models.CriterionCategory).delete()
@@ -687,12 +690,12 @@ def initialize():
                 db.session.query(models.InstrumentCategory).delete()
                 db.session.commit()
 
-                logger.info("Существующие данные (сделки, сетапы, инструменты и критерии) успешно очищены.")
+                logger.info("Существующие данные полностью очищены.")
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"Ошибка при очистке данных: {e}")
 
-            # Вызываем функцию создания предопределённых данных
+            # 4) Заново создаём инструменты и критерии
             try:
                 create_predefined_data()
                 logger.info("Предопределённые данные успешно обновлены.")
