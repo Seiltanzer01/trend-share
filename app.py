@@ -695,35 +695,34 @@ def initialize():
 # Очистка инструментов и категорий критериев (осторожно – этот код удалит данные!)
 # Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории 
     # ! После очистки: if os.environ.get('RESET_DB', '').lower() == 'false':
-    if os.environ.get('RESET_DB', '').lower() == 'true':  
-        try:
-            db.session.execute("DELETE FROM trade")
-            db.session.execute("DELETE FROM setup")
-            db.session.execute("DELETE FROM trade_criteria")
-            db.session.execute("DELETE FROM setup_criteria")
-            db.session.commit()
-            # Теперь очищаем таблицы критериев и категори
-            db.session.query(models.Criterion).delete()
-            db.session.query(models.CriterionSubcategory).delete()
-            db.session.query(models.CriterionCategory).delete()
-            db.session.query(models.Instrument).delete()
-            db.session.query(models.InstrumentCategory).delete()
-            db.session.commit()
-            logger.info("Существующие данные инструментов и критериев успешно очищены.")
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка при очистке данных: {e}")
+        if os.environ.get('RESET_DB', '').lower() == 'true':
+            try:
+                # Удаляем зависимые записи (это приведёт к удалению всех сделок и сетапов)
+                db.session.execute("DELETE FROM trade")
+                db.session.execute("DELETE FROM setup")
+                db.session.execute("DELETE FROM trade_criteria")
+                db.session.execute("DELETE FROM setup_criteria")
+                db.session.commit()
 
-        # --- Вызов функции создания предопределённых данных ---
-        try:
-            create_predefined_data()
-            logger.info("Предопределённые данные успешно обновлены.")
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка при создании предопределённых данных: {e}")
+                # Теперь очищаем основные таблицы
+                db.session.query(models.Criterion).delete()
+                db.session.query(models.CriterionSubcategory).delete()
+                db.session.query(models.CriterionCategory).delete()
+                db.session.query(models.Instrument).delete()
+                db.session.query(models.InstrumentCategory).delete()
+                db.session.commit()
+                logger.info("Существующие данные инструментов и критериев успешно очищены.")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Ошибка при очистке данных: {e}")
 
-        # Дополнительная логика, например, инициализация unique_wallet_address для пользователей,
-        # если требуется (код уже есть далее в функции)
+            # Вызываем функцию создания предопределённых данных
+            try:
+                create_predefined_data()
+                logger.info("Предопределённые данные успешно обновлены.")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Ошибка при создании предопределённых данных: {e}")
 
     except Exception as e:
         db.session.rollback()
