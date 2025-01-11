@@ -693,8 +693,9 @@ def initialize():
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
 # Очистка инструментов и категорий критериев (осторожно – этот код удалит данные!)
-# Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории
-    if os.environ.get('RESET_DB', '').lower() == 'true
+# Очистка данных: сначала удаляем связи, затем сами критерии и связанные категории 
+    # ! После очистки: if os.environ.get('RESET_DB', '').lower() == 'false':
+    if os.environ.get('RESET_DB', '').lower() == 'true':  
         try:
             db.session.execute("DELETE FROM trade")
             db.session.execute("DELETE FROM setup")
