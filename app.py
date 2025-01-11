@@ -692,6 +692,36 @@ def initialize():
         except Exception as e:
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
+# Очистка инструментов и категорий критериев (осторожно – этот код удалит данные!)
+        try:
+            # Очистка данных (порядок удаления может зависеть от связей в БД)
+            db.session.query(models.Criterion).delete()
+            db.session.query(models.CriterionSubcategory).delete()
+            db.session.query(models.CriterionCategory).delete()
+            db.session.query(models.Instrument).delete()
+            db.session.query(models.InstrumentCategory).delete()
+            db.session.commit()
+            logger.info("Существующие данные инструментов и критериев успешно очищены.")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка при очистке данных: {e}")
+
+        # --- Вызов функции создания предопределённых данных ---
+        try:
+            create_predefined_data()
+            logger.info("Предопределённые данные успешно обновлены.")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка при создании предопределённых данных: {e}")
+
+        # Дополнительная логика, например, инициализация unique_wallet_address для пользователей,
+        # если требуется (код уже есть далее в функции)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        logger.error(traceback.format_exc())
+
         # Инициализация unique_wallet_address для существующих пользователей
         try:
             users_without_wallet = User.query.filter(
