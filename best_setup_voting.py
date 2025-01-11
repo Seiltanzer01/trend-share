@@ -360,12 +360,15 @@ def vote_best_setup():
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     user_id = session['user_id']
-    existing_vote = BestSetupVote.query.filter_by(
-        voter_user_id=user_id,
-        candidate_id=candidate_id
+    
+    # Проверка, голосовал ли пользователь уже в этом голосовании
+    existing_vote = BestSetupVote.query.join(BestSetupCandidate).filter(
+        BestSetupVote.voter_user_id == user_id,
+        BestSetupCandidate.poll_id == poll.id
     ).first()
+    
     if existing_vote:
-        flash('Вы уже голосовали за этот сетап.', 'info')
+        flash('Вы уже голосовали в этом голосовании.', 'info')
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     vote = BestSetupVote(
