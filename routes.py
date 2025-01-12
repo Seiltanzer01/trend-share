@@ -958,7 +958,20 @@ def init():
 @admin_required
 def admin_users():
     users = User.query.all()
-    return render_template('admin_users.html', users=users)
+    
+    # Получаем настройку включения/выключения голосования (если она у вас уже есть)
+    voting_config = Config.query.filter_by(key='voting_enabled').first()
+    
+    # Получаем (или создаём) настройку размера призового пула
+    pool_config = Config.query.filter_by(key='best_setup_pool_size').first()
+    existing_pool_size = pool_config.value if pool_config else '0'
+
+    return render_template(
+        'admin_users.html',
+        users=users,
+        voting_config=voting_config,
+        existing_pool_size=existing_pool_size
+    )
 
 @app.route('/admin/toggle_voting', methods=['POST'])
 @admin_required
