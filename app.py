@@ -711,6 +711,11 @@ def initialize():
 
         # Если нужно, create_predefined_data()
         # create_predefined_data()
+        if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
+            create_predefined_data()
+            create_predefined_data()
+            logger.info("Предопределённые данные успешно обновлены.")
+            
 
     except Exception as e:
         db.session.rollback()
