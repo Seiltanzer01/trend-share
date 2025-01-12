@@ -91,7 +91,8 @@ def generate_unique_wallet_page():
     if 'user_id' not in session:
         flash('Пожалуйста, войдите.', 'warning')
         return redirect(url_for('login'))
-    return render_template('generate_unique_wallet.html')
+    # Вместо отрисовки несуществующего шаблона — перенаправляем на страницу депозита.
+    return redirect(url_for('staking_bp.deposit_page'))
 
 
 @staking_bp.route('/deposit', methods=['GET'])
