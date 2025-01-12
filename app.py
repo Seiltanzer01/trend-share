@@ -3,11 +3,11 @@
 import os
 import logging
 import traceback
-import atexit  # Добавляем импорт atexit
+import atexit  # Импорт atexit
 from best_setup_voting import init_best_setup_voting_routes, auto_finalize_best_setup_voting
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-from web3 import Web3  # Добавляем импорт Web3
+from web3 import Web3  # Импорт Web3
 import pytz
 import boto3
 from botocore.exceptions import ClientError
@@ -19,13 +19,9 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from routes_staking import staking_bp  # Убедитесь, что routes_staking.py существует и содержит staking_bp
-# Добавление OpenAI
 import openai
-
-# Добавление APScheduler для планирования задач
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# Импорт моделей и форм
 import models  # Убедитесь, что models.py импортирует db из extensions.py
 from poll_functions import start_new_poll, process_poll_results, update_real_prices_for_active_polls
 from staking_logic import accumulate_staking_rewards
@@ -35,16 +31,14 @@ ADMIN_TELEGRAM_IDS = [427032240]
 # Конфигурация APScheduler
 class ConfigScheduler:
     SCHEDULER_API_ENABLED = True
-    SCHEDULER_TIMEZONE = "UTC"  # Устанавливаем таймзону
+    SCHEDULER_TIMEZONE = "UTC"
 
-# Инициализация Flask-приложения
 app = Flask(__name__)
 app.config.from_object(ConfigScheduler())
 
-# Настройка CSRF защиты
+# CSRF защита
 csrf = CSRFProtect(app)
 
-# Контекстный процессор для предоставления CSRF токена в шаблонах
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
@@ -54,68 +48,49 @@ def info():
     return render_template('info.html')
 
 # Настройка CORS
-CORS(app, supports_credentials=True, resources={
-    r"/*": {
-        "origins": [
-            "https://trend-share.onrender.com",  # Ваш основной домен
-            "https://t.me"                      # Домен Telegram
-        ]
-    }
-})
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": ["https://trend-share.onrender.com", "https://t.me"]}})
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)  # INFO можно поменять на DEBUG при необходимости
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Использование переменных окружения для конфиденциальных данных
+# Переменные окружения
 secret_key_env = os.environ.get('SECRET_KEY', '').strip()
 if not secret_key_env:
     logger.error("SECRET_KEY не установлен в переменных окружения.")
     raise ValueError("SECRET_KEY не установлен в переменных окружения.")
 app.secret_key = secret_key_env
 
-# Настройки базы данных
 raw_database_url = os.environ.get('DATABASE_URL')
 if not raw_database_url:
     logger.error("DATABASE_URL не установлен в переменных окружения.")
     raise ValueError("DATABASE_URL не установлен в переменных окружения.")
 
-# Парсинг и корректировка строки подключения к базе данных
 parsed_url = urlparse(raw_database_url)
 query_params = parse_qs(parsed_url.query)
 if 'sslmode' not in query_params:
     query_params['sslmode'] = ['require']
 new_query = urlencode(query_params, doseq=True)
 parsed_url = parsed_url._replace(query=new_query)
-
 DATABASE_URL = urlunparse(parsed_url)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройки для формирования ссылок
 app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
-
-# Настройки сессии
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'
 
-# Настройки Amazon S3
 app.config['AWS_ACCESS_KEY_ID'] = os.environ.get('AWS_ACCESS_KEY_ID', '').strip()
 app.config['AWS_SECRET_ACCESS_KEY'] = os.environ.get('AWS_SECRET_ACCESS_KEY', '').strip()
 app.config['AWS_S3_BUCKET'] = os.environ.get('AWS_S3_BUCKET', '').strip()
 app.config['AWS_S3_REGION'] = os.environ.get('AWS_S3_REGION', 'us-east-1').strip()
 
-if not all([
-    app.config['AWS_ACCESS_KEY_ID'],
-    app.config['AWS_SECRET_ACCESS_KEY'],
-    app.config['AWS_S3_BUCKET'],
-    app.config['AWS_S3_REGION']
-]):
+if not all([app.config['AWS_ACCESS_KEY_ID'], app.config['AWS_SECRET_ACCESS_KEY'],
+            app.config['AWS_S3_BUCKET'], app.config['AWS_S3_REGION']]):
     logger.error("Некоторые AWS настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые AWS настройки отсутствуют в переменных окружения.")
 
-# Инициализация клиента S3
 s3_client = boto3.client(
     's3',
     region_name=app.config['AWS_S3_REGION'],
@@ -123,21 +98,16 @@ s3_client = boto3.client(
     aws_secret_access_key=app.config['AWS_SECRET_ACCESS_KEY']
 )
 
-# Инициализация SQLAlchemy (без миграций)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Инициализация роутов best_setup_voting
 init_best_setup_voting_routes(app, db)
 
-# Контекстный процессор для datetime
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
 
-# =====================
-# Функции для работы с S3
-# =====================
+# Функции работы с S3
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     try:
         s3_client.upload_fileobj(
@@ -172,14 +142,8 @@ def generate_s3_url(filename: str) -> str:
 def get_app_host():
     return app.config['APP_HOST']
 
-# =====================
 # Предопределённые данные
-# =====================
 def create_predefined_data():
-    """
-    Создаёт все предопределённые данные (категории инструментов, инструменты,
-    категории критериев, подкатегории и критерии).
-    """
     # 1) Инструменты
     instruments = [
         # Валютные пары (Форекс)
@@ -282,20 +246,17 @@ def create_predefined_data():
     for item in instruments:
         category_name = item['category']
         instrument_name = item['name']
-
         cat = models.InstrumentCategory.query.filter_by(name=category_name).first()
         if not cat:
             cat = models.InstrumentCategory(name=category_name)
             db.session.add(cat)
             db.session.flush()
             logger.info(f"Категория '{category_name}' добавлена.")
-
         instr = models.Instrument.query.filter_by(name=instrument_name).first()
         if not instr:
             instr = models.Instrument(name=instrument_name, category_id=cat.id)
             db.session.add(instr)
             logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{cat.name}'.")
-
     db.session.commit()
     logger.info("Инструменты и категории инструментов успешно добавлены.")
 
@@ -333,7 +294,7 @@ def create_predefined_data():
             'Инсайдерская активность': [
                 'Данные от инсайдеров',
                 'Официальные отчёты',
-                'Необычные ордеры',
+                'Необычные ордера',
                 'Аномальное изменение объёмов',
                 'Следование крупным позициям'
             ],
@@ -560,7 +521,6 @@ def create_predefined_data():
         }
     }
 
-    # Заполняем CriterionCategory, CriterionSubcategory и Criterion
     for cat_name, subcats in categories_data.items():
         cat = models.CriterionCategory.query.filter_by(name=cat_name).first()
         if not cat:
@@ -568,26 +528,19 @@ def create_predefined_data():
             db.session.add(cat)
             db.session.flush()
             logger.info(f"Категория критерия '{cat_name}' добавлена.")
-
         for subcat_name, criteria_list in subcats.items():
             subcat = models.CriterionSubcategory.query.filter_by(name=subcat_name, category_id=cat.id).first()
             if not subcat:
-                subcat = models.CriterionSubcategory(
-                    name=subcat_name,
-                    category_id=cat.id
-                )
+                subcat = models.CriterionSubcategory(name=subcat_name, category_id=cat.id)
                 db.session.add(subcat)
                 db.session.flush()
                 logger.info(f"Подкатегория '{subcat_name}' добавлена в категорию '{cat_name}'.")
-
             for crit_name in criteria_list:
-                # ВАЖНО: теперь ищем не только по имени, но и по subcategory_id
                 crit = models.Criterion.query.filter_by(name=crit_name, subcategory_id=subcat.id).first()
                 if not crit:
                     crit = models.Criterion(name=crit_name, subcategory_id=subcat.id)
                     db.session.add(crit)
                     logger.info(f"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.")
-
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
 
@@ -599,8 +552,10 @@ def start_new_poll_test_job():
             start_new_poll(test_mode=True)
             logger.info("Задача 'Start Test Poll' выполнена успешно.")
         except Exception as e:
+            db.session.rollback()  # откат транзакции
             logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
             logger.error(traceback.format_exc())
+            db.session.remove()
 
 def start_new_poll_job():
     with app.app_context():
@@ -608,8 +563,10 @@ def start_new_poll_job():
             start_new_poll()
             logger.info("Задача 'Start Poll' выполнена успешно.")
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
             logger.error(traceback.format_exc())
+            db.session.remove()
 
 def process_poll_results_job():
     with app.app_context():
@@ -617,8 +574,10 @@ def process_poll_results_job():
             process_poll_results()
             logger.info("Задача 'Process Poll Results' выполнена успешно.")
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
             logger.error(traceback.format_exc())
+            db.session.remove()
 
 def update_real_prices_job():
     with app.app_context():
@@ -626,8 +585,10 @@ def update_real_prices_job():
             update_real_prices_for_active_polls()
             logger.info("Задача 'Update Real Prices' выполнена успешно.")
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
+            db.session.remove()
 
 
 # --- Инициализация данных при первом запуске ---
@@ -637,15 +598,11 @@ def initialize():
         db.create_all()
         logger.info("База данных создана или уже существует.")
 
-        # Мини-хак: проверка и добавление нужных колонок
+        # Проверка и добавление нужных колонок
         try:
             with db.engine.connect() as con:
-                con.execute("""
-                    ALTER TABLE user_staking
-                    DROP COLUMN IF EXISTS stake_amount
-                """)
+                con.execute("""ALTER TABLE user_staking DROP COLUMN IF EXISTS stake_amount""")
                 logger.info("Колонка 'stake_amount' удалена из user_staking (если существовала).")
-
                 con.execute("""
                     ALTER TABLE user_staking
                     ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
@@ -657,7 +614,6 @@ def initialize():
                     ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP DEFAULT NOW()
                 """)
                 logger.info("Необходимые колонки добавлены в таблицу user_staking.")
-
                 con.execute("""
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
@@ -668,40 +624,34 @@ def initialize():
         except Exception as e:
             logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
 
-        # Если в переменных окружения RESET_DB=true — очищаем ВСЁ и пересоздаём
+        # Если RESET_DB=true — очищаем ВСЁ, включая связанные таблицы (чтобы не было ошибок FK)
         if os.environ.get('RESET_DB', '').lower() == 'true':
             try:
-                # 1) best_setup_vote -> best_setup_candidate
+                # 1) Очистка таблиц голосования (best_setup_vote, best_setup_candidate)
                 db.session.execute("DELETE FROM best_setup_vote")
                 db.session.execute("DELETE FROM best_setup_candidate")
-
-                # 2) poll_instrument -> instrument
-                #    user_prediction -> instrument, poll
-                #    а также сами poll'ы.
+                # 2) Очистка таблиц опросов (user_prediction, poll_instrument, poll)
                 db.session.execute("DELETE FROM user_prediction")
                 db.session.execute("DELETE FROM poll_instrument")
                 db.session.execute("DELETE FROM poll")
-
-                # 3) Удаляем trade, setup и их связи
+                # 3) Очистка сделок, сетапов и их связей
                 db.session.execute("DELETE FROM trade_criteria")
                 db.session.execute("DELETE FROM setup_criteria")
                 db.session.execute("DELETE FROM trade")
                 db.session.execute("DELETE FROM setup")
-
-                # 4) Теперь можно удалить критерии/инструменты и их категории
+                # 4) Очистка критериев и инструментов
                 db.session.query(models.Criterion).delete()
                 db.session.query(models.CriterionSubcategory).delete()
                 db.session.query(models.CriterionCategory).delete()
                 db.session.query(models.Instrument).delete()
                 db.session.query(models.InstrumentCategory).delete()
                 db.session.commit()
-
                 logger.info("Существующие данные полностью очищены.")
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"Ошибка при очистке данных: {e}")
 
-            # 5) Заново создаём инструменты и критерии
+            # Создаём предопределённые данные
             try:
                 create_predefined_data()
                 logger.info("Предопределённые данные успешно обновлены.")
@@ -713,15 +663,13 @@ def initialize():
         db.session.rollback()
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         logger.error(traceback.format_exc())
-
-        # В случае ошибки — попытка инициализировать unique_wallet_address
         try:
             users_without_wallet = models.User.query.filter(
                 (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                user.unique_wallet_address = "0x..."  # Ваша логика генерации
-                user.unique_private_key = "priv_key..."  # Ваша логика
+                user.unique_wallet_address = "0x..."  # Логика генерации адреса
+                user.unique_private_key = "priv_key..."  # Логика генерации ключа
                 logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
             db.session.commit()
             logger.info("Уникальные кошельки для существующих пользователей инициализированы.")
@@ -730,32 +678,49 @@ def initialize():
             logger.error(f"Ошибка при инициализации уникальных кошельков: {e2}")
             logger.error(traceback.format_exc())
 
-
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
-
 # --- Планировщики APScheduler ---
 def accumulate_staking_rewards_job():
     with app.app_context():
-        accumulate_staking_rewards()
+        try:
+            accumulate_staking_rewards()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка в accumulate_staking_rewards: {e}")
+            db.session.remove()
 
 def start_new_poll_job():
     with app.app_context():
-        start_new_poll()
+        try:
+            start_new_poll()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка в start_new_poll: {e}")
+            db.session.remove()
 
 def process_poll_results_job():
     with app.app_context():
-        process_poll_results()
+        try:
+            process_poll_results()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка в process_poll_results: {e}")
+            db.session.remove()
 
 def update_real_prices_job():
     with app.app_context():
-        update_real_prices_for_active_polls()
+        try:
+            update_real_prices_for_active_polls()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Ошибка в update_real_prices_for_active_polls: {e}")
+            db.session.remove()
 
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
-# 1) Автозавершение best_setup_voting каждые 5 минут
 scheduler.add_job(
     id='Auto Finalize Best Setup Voting',
     func=lambda: auto_finalize_best_setup_voting(),
@@ -763,7 +728,6 @@ scheduler.add_job(
     minutes=5,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
-# 2) Запуск нового опроса каждые 10 минут
 scheduler.add_job(
     id='Start Poll',
     func=start_new_poll_job,
@@ -771,7 +735,6 @@ scheduler.add_job(
     minutes=10,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
-# 3) Проверка завершения опроса каждые 2 минуты
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,
@@ -779,7 +742,6 @@ scheduler.add_job(
     minutes=2,
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
 )
-# 4) Накопление стейкинг наград — каждую минуту
 scheduler.add_job(
     id='Accumulate Staking Rewards',
     func=accumulate_staking_rewards_job,
@@ -787,7 +749,6 @@ scheduler.add_job(
     minutes=1,
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
-# 5) Обновление реальной цены каждые 2 минуты
 scheduler.add_job(
     id='Update Real Prices',
     func=update_real_prices_job,
@@ -799,20 +760,16 @@ scheduler.add_job(
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
-# Импорт маршрутов (после старта APScheduler)
 from routes import *
 
-# Регистрация Blueprint
 app.register_blueprint(staking_bp, url_prefix='/staking')
 
-# Добавление OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
     logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
     raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# Добавление Robokassa настроек
 app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
 app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
 app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
@@ -831,7 +788,6 @@ if not all([
     logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
-# Запуск Flask-приложения
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
