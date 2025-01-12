@@ -788,6 +788,11 @@ if not all([
     logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
 
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.session.remove()
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
