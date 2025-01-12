@@ -398,51 +398,112 @@ def set_wallet():
     return render_template('set_wallet.html', user=user)
 
 def auto_finalize_best_setup_voting():
+    from app import bot  # Импортируем бота, чтобы можно было отправить сообщение
+    
     poll = BestSetupPoll.query.filter_by(status='active').first()
     if not poll:
         return
     now = datetime.utcnow()
     if now >= poll.end_date:
+        # Собираем результаты
         candidates = BestSetupCandidate.query.all()
         results = []
         for c in candidates:
             vote_count = BestSetupVote.query.filter_by(candidate_id=c.id).count()
             results.append((c, vote_count))
 
+        # Сортируем по числу голосов (по убыванию)
         results.sort(key=lambda x: x[1], reverse=True)
+
+        # Берём топ-3
         winners = results[:3]
-
-        # Пример наград
-        rewards = [0.001, 0.0005, 0.0001]
-        for i, (candidate, votes) in enumerate(winners):
-            winner_user = User.query.get(candidate.user_id)
-            if winner_user and winner_user.wallet_address:
-                success = send_token_reward(winner_user.wallet_address, rewards[i])
-                if success:
-                    logger.info(f"Пользователь {winner_user.id} награждён {rewards[i]} токенами (место {i+1}).")
-                else:
-                    logger.error(f"Не удалось отправить токены пользователю {winner_user.id}.")
-
-        voter_reward = 0.00005  # Награда для голосующих
-        winner_candidate_ids = [w[0].id for w in winners]
+        
+        # Узнаём, какой пул нужно распределить
+        from models import Config, User  # на всякий случай импорт
+        pool_config = Config.query.filter_by(key='best_setup_pool_size').first()
+        pool_size = float(pool_config.value) if pool_config else 0.0
+        
+        # Распределение (70% победителям, 30% голосовавшим)
+        winners_part = pool_size * 0.70
+        voters_part  = pool_size * 0.30
+        
+        # Если меньше трёх, раздаём только тем, кто есть
+        # first_w, second_w, third_w = winners[0], winners[1], winners[2], 
+        # Но надо быть аккуратными: winners может быть меньше 3
+        first_place_amount  = winners_part * 0.35
+        second_place_amount = winners_part * 0.25
+        third_place_amount  = winners_part * 0.20
+        
+        def safe_get_winner(winners, index):
+            return winners[index] if index < len(winners) else None
+        
+        first_candidate = safe_get_winner(winners, 0)
+        second_candidate= safe_get_winner(winners, 1)
+        third_candidate = safe_get_winner(winners, 2)
+        
+        # Функция отправки награды + уведомления
+        def reward_user(user_obj, amount, reason=""):
+            if not user_obj or not user_obj.wallet_address:
+                logger.warning(f"Не удалось наградить user_id={user_obj.id if user_obj else '???'}: нет wallet_address.")
+                return
+            success = send_token_reward(user_obj.wallet_address, amount)
+            if success:
+                logger.info(f"{reason} Пользователь {user_obj.id} получил {amount} UJO.")
+                # Отправляем через телеграм
+                try:
+                    if user_obj.telegram_id:
+                        bot.send_message(
+                            chat_id=user_obj.telegram_id,
+                            text=f"Поздравляем! Вам начислено {amount:.4f} UJO {reason}"
+                        )
+                except Exception as e:
+                    logger.error(f"Ошибка при отправке уведомления TG: {e}")
+            else:
+                logger.error(f"Не удалось отправить {amount} UJO пользователю {user_obj.id}.")
+        
+        # Награждаем призёров
+        if first_candidate:
+            c, votes = first_candidate
+            winner_user = User.query.get(c.user_id)
+            reward_user(winner_user, first_place_amount, reason="за 1 место в голосовании!")
+        
+        if second_candidate:
+            c, votes = second_candidate
+            winner_user = User.query.get(c.user_id)
+            reward_user(winner_user, second_place_amount, reason="за 2 место в голосовании!")
+        
+        if third_candidate:
+            c, votes = third_candidate
+            winner_user = User.query.get(c.user_id)
+            reward_user(winner_user, third_place_amount, reason="за 3 место в голосовании!")
+        
+        # Награждаем голосовавших за победителей
+        winner_candidate_ids = []
+        for w in winners:
+            winner_candidate_ids.append(w[0].id)
+        
         winning_votes = BestSetupVote.query.filter(
             BestSetupVote.candidate_id.in_(winner_candidate_ids)
         ).all()
-        rewarded_voters = set()
-        for vote in winning_votes:
-            if vote.voter_user_id not in rewarded_voters:
-                rewarded_voters.add(vote.voter_user_id)
-                voter_user = User.query.get(vote.voter_user_id)
-                if voter_user and voter_user.wallet_address:
-                    success = send_token_reward(voter_user.wallet_address, voter_reward)
-                    if success:
-                        logger.info(f"Пользователь {voter_user.id} награждён {voter_reward} токенами за голос.")
-                    else:
-                        logger.error(f"Не удалось отправить токены пользователю {voter_user.id} (голосовавший).")
 
+        # Собираем уникальный список user_id, которые проголосовали за ЛЮБОГО из призёров
+        rewarded_voters_ids = set()
+        for vote in winning_votes:
+            rewarded_voters_ids.add(vote.voter_user_id)
+        
+        # Сколько таких?
+        total_voters = len(rewarded_voters_ids)
+        if total_voters > 0:
+            each_voter_reward = voters_part / total_voters
+            for voter_id in rewarded_voters_ids:
+                voter = User.query.get(voter_id)
+                reward_user(voter, each_voter_reward, reason="за верный голос в голосовании!")
+        
+        # Завершаем голосование, ставим статус completed
         poll.status = 'completed'
         db.session.commit()
-        logger.info("Голосование завершено автоматически.")
+        logger.info(f"Голосование ID {poll.id} завершено автоматически, пул={pool_size} UJO распределён.")
+        
 
 @best_setup_voting_bp.route('/force_finalize_best_setup_voting', methods=['POST'])
 @admin_required
