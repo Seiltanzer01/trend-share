@@ -86,13 +86,13 @@ def generate_unique_wallet_route():
         return jsonify({"error": "Internal server error."}), 500
 
 
-@staking_bp.route('/generate_unique_wallet_page', methods=['GET'])
-def generate_unique_wallet_page():
-    if 'user_id' not in session:
-        flash('Пожалуйста, войдите.', 'warning')
-        return redirect(url_for('login'))
+#@staking_bp.route('/generate_unique_wallet_page', methods=['GET'])
+#def generate_unique_wallet_page():
+ #   if 'user_id' not in session:
+  #      flash('Пожалуйста, войдите.', 'warning')
+   #     return redirect(url_for('login'))
     # Вместо отрисовки несуществующего шаблона — перенаправляем на страницу депозита.
-    return redirect(url_for('staking_bp.deposit_page'))
+    #return redirect(url_for('staking_bp.deposit_page'))
 
 
 @staking_bp.route('/deposit', methods=['GET'])
@@ -106,10 +106,8 @@ def deposit_page():
         flash('Нет пользователя', 'danger')
         return redirect(url_for('login'))
 
-    if not user.unique_wallet_address:
-        flash('Сначала сгенерируйте кошелёк.', 'warning')
-        return redirect(url_for('staking_bp.generate_unique_wallet_page'))
-
+    # Даже если у пользователя ещё нет уникального кошелька, возвращаем шаблон deposit.html
+    # (в шаблоне уже реализована логика: если unique_wallet_address отсутствует, появляется кнопка для генерации)
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
 
 
