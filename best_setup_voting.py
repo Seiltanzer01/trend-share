@@ -398,7 +398,7 @@ def set_wallet():
     return render_template('set_wallet.html', user=user)
 
 def auto_finalize_best_setup_voting():
-    from app import bot  # Импортируем бота, чтобы можно было отправить сообщение
+    from routes import bot  # Импортируем бота, чтобы можно было отправить сообщение
     
     poll = BestSetupPoll.query.filter_by(status='active').first()
     if not poll:
