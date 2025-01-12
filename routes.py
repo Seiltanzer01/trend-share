@@ -1010,6 +1010,27 @@ def toggle_premium(user_id):
         
     return redirect(url_for('admin_users'))
 
+@app.route('/admin/set_pool_size', methods=['POST'])
+@admin_required
+def set_pool_size():
+    pool_size = request.form.get('pool_size', '0').strip()
+    try:
+        # Проверим или создадим запись в таблице Config
+        config_record = Config.query.filter_by(key='best_setup_pool_size').first()
+        if not config_record:
+            config_record = Config(key='best_setup_pool_size', value='0')
+            db.session.add(config_record)
+        
+        config_record.value = pool_size
+        db.session.commit()
+        flash(f"Размер призового пула обновлён: {pool_size} UJO", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Ошибка при сохранении пула.', 'danger')
+        logger.error(f"Ошибка при set_pool_size: {e}", exc_info=True)
+    
+    return redirect(url_for('admin_users'))
+
 @app.route('/', methods=['GET'])
 def index():
     if 'user_id' in session:
