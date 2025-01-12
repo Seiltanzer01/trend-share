@@ -107,7 +107,7 @@ init_best_setup_voting_routes(app, db)
 def inject_datetime():
     return {'datetime': datetime}
 
-# Функции работы с S3
+# Функции для работы с S3
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     try:
         s3_client.upload_fileobj(
@@ -142,8 +142,17 @@ def generate_s3_url(filename: str) -> str:
 def get_app_host():
     return app.config['APP_HOST']
 
+# Добавляем обработчик для автоматического удаления сессии после запроса
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.session.remove()
+
 # Предопределённые данные
 def create_predefined_data():
+    """
+    Создаёт все предопределённые данные: категории инструментов, инструменты,
+    категории критериев, подкатегории и критерии.
+    """
     # 1) Инструменты
     instruments = [
         # Валютные пары (Форекс)
@@ -521,29 +530,32 @@ def create_predefined_data():
         }
     }
 
+    # Заполняем CriterionCategory, CriterionSubcategory и Criterion
     for cat_name, subcats in categories_data.items():
-        cat = models.CriterionCategory.query.filter_by(name=cat_name).first()
+        with db.session.no_autoflush:
+            cat = models.CriterionCategory.query.filter_by(name=cat_name).first()
         if not cat:
             cat = models.CriterionCategory(name=cat_name)
             db.session.add(cat)
             db.session.flush()
             logger.info(f"Категория критерия '{cat_name}' добавлена.")
         for subcat_name, criteria_list in subcats.items():
-            subcat = models.CriterionSubcategory.query.filter_by(name=subcat_name, category_id=cat.id).first()
+            with db.session.no_autoflush:
+                subcat = models.CriterionSubcategory.query.filter_by(name=subcat_name, category_id=cat.id).first()
             if not subcat:
                 subcat = models.CriterionSubcategory(name=subcat_name, category_id=cat.id)
                 db.session.add(subcat)
                 db.session.flush()
                 logger.info(f"Подкатегория '{subcat_name}' добавлена в категорию '{cat_name}'.")
             for crit_name in criteria_list:
-                crit = models.Criterion.query.filter_by(name=crit_name, subcategory_id=subcat.id).first()
+                with db.session.no_autoflush:
+                    crit = models.Criterion.query.filter_by(name=crit_name, subcategory_id=subcat.id).first()
                 if not crit:
                     crit = models.Criterion(name=crit_name, subcategory_id=subcat.id)
                     db.session.add(crit)
                     logger.info(f"Критерий '{crit_name}' добавлен в подкатегорию '{subcat_name}'.")
     db.session.commit()
     logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
-
 
 # --- Обёртки для задач APScheduler ---
 def start_new_poll_test_job():
@@ -552,7 +564,7 @@ def start_new_poll_test_job():
             start_new_poll(test_mode=True)
             logger.info("Задача 'Start Test Poll' выполнена успешно.")
         except Exception as e:
-            db.session.rollback()  # откат транзакции
+            db.session.rollback()
             logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
             logger.error(traceback.format_exc())
             db.session.remove()
@@ -588,135 +600,6 @@ def update_real_prices_job():
             db.session.rollback()
             logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
-            db.session.remove()
-
-
-# --- Инициализация данных при первом запуске ---
-@app.before_first_request
-def initialize():
-    try:
-        db.create_all()
-        logger.info("База данных создана или уже существует.")
-
-        # Проверка и добавление нужных колонок
-        try:
-            with db.engine.connect() as con:
-                con.execute("""ALTER TABLE user_staking DROP COLUMN IF EXISTS stake_amount""")
-                logger.info("Колонка 'stake_amount' удалена из user_staking (если существовала).")
-                con.execute("""
-                    ALTER TABLE user_staking
-                    ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
-                    ADD COLUMN IF NOT EXISTS staked_usd FLOAT,
-                    ADD COLUMN IF NOT EXISTS staked_amount FLOAT,
-                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
-                    ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMP,
-                    ADD COLUMN IF NOT EXISTS pending_rewards FLOAT DEFAULT 0.0,
-                    ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP DEFAULT NOW()
-                """)
-                logger.info("Необходимые колонки добавлены в таблицу user_staking.")
-                con.execute("""
-                    ALTER TABLE "user"
-                    ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
-                    ADD COLUMN IF NOT EXISTS unique_wallet_address VARCHAR(42) UNIQUE,
-                    ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
-                """)
-                logger.info("Колонки 'private_key', 'unique_wallet_address' и 'unique_private_key' добавлены в таблицу 'user'.")
-        except Exception as e:
-            logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
-
-        # Если RESET_DB=true — очищаем ВСЁ, включая связанные таблицы (чтобы не было ошибок FK)
-        if os.environ.get('RESET_DB', '').lower() == 'true':
-            try:
-                # 1) Очистка таблиц голосования (best_setup_vote, best_setup_candidate)
-                db.session.execute("DELETE FROM best_setup_vote")
-                db.session.execute("DELETE FROM best_setup_candidate")
-                # 2) Очистка таблиц опросов (user_prediction, poll_instrument, poll)
-                db.session.execute("DELETE FROM user_prediction")
-                db.session.execute("DELETE FROM poll_instrument")
-                db.session.execute("DELETE FROM poll")
-                # 3) Очистка сделок, сетапов и их связей
-                db.session.execute("DELETE FROM trade_criteria")
-                db.session.execute("DELETE FROM setup_criteria")
-                db.session.execute("DELETE FROM trade")
-                db.session.execute("DELETE FROM setup")
-                # 4) Очистка критериев и инструментов
-                db.session.query(models.Criterion).delete()
-                db.session.query(models.CriterionSubcategory).delete()
-                db.session.query(models.CriterionCategory).delete()
-                db.session.query(models.Instrument).delete()
-                db.session.query(models.InstrumentCategory).delete()
-                db.session.commit()
-                logger.info("Существующие данные полностью очищены.")
-            except Exception as e:
-                db.session.rollback()
-                logger.error(f"Ошибка при очистке данных: {e}")
-
-            # Создаём предопределённые данные
-            try:
-                create_predefined_data()
-                logger.info("Предопределённые данные успешно обновлены.")
-            except Exception as e:
-                db.session.rollback()
-                logger.error(f"Ошибка при создании предопределённых данных: {e}")
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
-        logger.error(traceback.format_exc())
-        try:
-            users_without_wallet = models.User.query.filter(
-                (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
-            ).all()
-            for user in users_without_wallet:
-                user.unique_wallet_address = "0x..."  # Логика генерации адреса
-                user.unique_private_key = "priv_key..."  # Логика генерации ключа
-                logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
-            db.session.commit()
-            logger.info("Уникальные кошельки для существующих пользователей инициализированы.")
-        except Exception as e2:
-            db.session.rollback()
-            logger.error(f"Ошибка при инициализации уникальных кошельков: {e2}")
-            logger.error(traceback.format_exc())
-
-@app.context_processor
-def inject_admin_ids():
-    return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
-
-# --- Планировщики APScheduler ---
-def accumulate_staking_rewards_job():
-    with app.app_context():
-        try:
-            accumulate_staking_rewards()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка в accumulate_staking_rewards: {e}")
-            db.session.remove()
-
-def start_new_poll_job():
-    with app.app_context():
-        try:
-            start_new_poll()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка в start_new_poll: {e}")
-            db.session.remove()
-
-def process_poll_results_job():
-    with app.app_context():
-        try:
-            process_poll_results()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка в process_poll_results: {e}")
-            db.session.remove()
-
-def update_real_prices_job():
-    with app.app_context():
-        try:
-            update_real_prices_for_active_polls()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Ошибка в update_real_prices_for_active_polls: {e}")
             db.session.remove()
 
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
@@ -787,11 +670,6 @@ if not all([
 ]):
     logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
     raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-
-@app.teardown_appcontext
-def shutdown_session(exception=None):
-    db.session.remove()
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
