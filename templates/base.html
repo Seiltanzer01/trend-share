@@ -105,7 +105,10 @@
                         <a href="{{ url_for('admin_users') }}" class="nav-button nes-btn"><i class="fas fa-users-cog"></i> Админ</a>
                     {% endif %}
                     
-                    <a href="{{ url_for('logout') }}" class="nav-button nes-btn"><i class="fas fa-sign-out-alt"></i> Выйти</a>
+                    <!-- Кнопка "Выйти": Если запущено в Telegram, закрывается веб-приложение, иначе переход на logout -->
+                    <a href="#" class="nav-button nes-btn" onclick="if(window.Telegram && window.Telegram.WebApp){ window.Telegram.WebApp.close(); } else { window.location.href='{{ url_for('logout') }}'; }">
+                        <i class="fas fa-sign-out-alt"></i> Выйти
+                    </a>
                 {% else %}
                     <a href="https://t.me/TrendShare_bot" class="nav-button nes-btn"><i class="fas fa-robot"></i> Перейти к боту</a>
                 {% endif %}
