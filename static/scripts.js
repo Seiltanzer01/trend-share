@@ -25,7 +25,6 @@ $(document).ready(function() {
     // Обработчик для кнопок раскрытия критериев
     $(document).on('click', '.collapse-button', function(){
         $(this).next('.category-content, .subcategory-content').slideToggle();
-        // Переключаем класс для вращения стрелки
         $(this).toggleClass('rotated');
     });
 
@@ -33,7 +32,6 @@ $(document).ready(function() {
     $(document).on('mouseenter', 'table tbody tr', function() {
         $(this).css('background-color', '#F0F8FF'); // AliceBlue
     });
-
     $(document).on('mouseleave', 'table tbody tr', function() {
         $(this).css('background-color', '');
     });
@@ -48,8 +46,6 @@ $(document).ready(function() {
     $(document).on('click', '.close', function() {
         $('#modal').fadeOut();
     });
-
-    // Закрытие модального окна при клике вне изображения
     $('#modal').on('click', function(event) {
         if (!$(event.target).is('#modal-img')) {
             $(this).fadeOut();
@@ -77,11 +73,11 @@ $(document).ready(function() {
         "info": false,
         "autoWidth": false,
         "columnDefs": [
-            { "orderable": false, "targets": [3,5] } // Скриншот и Действия не сортируются
+            { "orderable": false, "targets": [3,5] }
         ],
-        "deferRender": true, // Улучшает производительность при больших таблицах
-        "processing": true, // Показывает индикатор обработки
-        "serverSide": false // Можно переключить на true при необходимости
+        "deferRender": true,
+        "processing": true,
+        "serverSide": false
     });
 
     // Инициализация DataTables для таблицы Trade
@@ -96,11 +92,11 @@ $(document).ready(function() {
         "info": false,
         "autoWidth": false,
         "columnDefs": [
-            { "orderable": false, "targets": [1,12] } // Скриншот и Действия не сортируются
+            { "orderable": false, "targets": [1,12] }
         ],
-        "deferRender": true, // Улучшает производительность при больших таблицах
-        "processing": true, // Показывает индикатор обработки
-        "serverSide": false // Можно переключить на true при необходимости
+        "deferRender": true,
+        "processing": true,
+        "serverSide": false
     });
 
     // Инициализация iCheck для всех чекбоксов
@@ -109,17 +105,14 @@ $(document).ready(function() {
         increaseArea: '20%' // Увеличение области для удобства на мобильных
     });
 
-    // Оптимизация производительности через Lazy Loading изображений с использованием Lazysizes
-    // Добавление классов для Lazysizes
+    // Инициализация Lazysizes для изображений с классом clickable-image
     $('img.clickable-image').each(function(){
         $(this).addClass('lazyload');
     });
 
-    // **Обработчики для Ассистента "Дядя Джон"**
+    // ** Обработчики для Ассистента "Дядя Джон" **
 
-    // Массив для хранения истории чата
     let chatHistory = [];
-
     const assistantForm = document.getElementById('assistant-form');
     const chartForm = document.getElementById('chart-analysis-form');
     const chatHistoryDiv = document.getElementById('chat-history');
@@ -128,29 +121,23 @@ $(document).ready(function() {
     const analysisChartDiv = document.getElementById('analysis-chart');
     const clearChatButton = document.getElementById('clear-chat');
 
-    // Функция для обновления отображения истории чата
     function updateChatHistoryDisplay() {
-        chatHistoryDiv.innerHTML = ''; // Очистка текущего содержимого
-
+        chatHistoryDiv.innerHTML = '';
         chatHistory.forEach(message => {
             const msgDiv = document.createElement('div');
             msgDiv.className = message.role === 'user' ? 'nes-balloon from-right' : 'nes-balloon from-left is-dark';
-            // Если содержимое — объект, преобразуем его в строку
             const content = (typeof message.content === 'object') ? JSON.stringify(message.content, null, 2) : message.content;
             msgDiv.textContent = content;
             chatHistoryDiv.appendChild(msgDiv);
         });
-
-        // Прокрутка вниз
         chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
     }
 
-    // Функция для загрузки истории чата с сервера (если необходимо)
     async function loadChatHistory() {
         try {
             const response = await fetch('/get_chat_history');
             const data = await response.json();
-            console.log('Chat History:', data); // Для отладки
+            console.log('Chat History:', data);
             if (data.chat_history) {
                 chatHistory = data.chat_history;
                 updateChatHistoryDisplay();
@@ -160,26 +147,18 @@ $(document).ready(function() {
         }
     }
 
-    // Загрузка истории чата при загрузке страницы (если необходимо)
-    // loadChatHistory(); // Раскомментируйте, если есть такая необходимость
-
-    // Функция для получения CSRF-токена из window.config
     function getCSRFToken() {
         return window.config.CSRF_TOKEN;
     }
 
-    // Обработка отправки формы чата
     if (assistantForm) {
         assistantForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const question = assistantQuestionInput.value.trim();
             if (!question) return;
-
-            // Добавление сообщения пользователя в историю
             chatHistory.push({ role: 'user', content: question });
             updateChatHistoryDisplay();
 
-            // Отправка запроса на сервер
             try {
                 const response = await fetch('/assistant/chat', {
                     method: 'POST',
@@ -188,16 +167,13 @@ $(document).ready(function() {
                     },
                     body: JSON.stringify({ question: question })
                 });
-
                 const data = await response.json();
-                console.log('Chat Response:', data); // Для отладки
+                console.log('Chat Response:', data);
                 if (data.response) {
-                    // Добавление ответа ассистента в историю
                     const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
-                    // Обработка ошибок
                     const errorMsg = `Ошибка: ${data.error}`;
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
@@ -208,13 +184,10 @@ $(document).ready(function() {
                 chatHistory.push({ role: 'assistant', content: errorMsg });
                 updateChatHistoryDisplay();
             }
-
-            // Очистка поля ввода
             assistantQuestionInput.value = '';
         });
     }
 
-    // Обработка отправки формы анализа графика
     if (chartForm) {
         chartForm.addEventListener('submit', async function(e){
             e.preventDefault();
@@ -224,30 +197,21 @@ $(document).ready(function() {
                 alert('Пожалуйста, выберите изображение.');
                 return;
             }
-
-            // Отображение индикатора загрузки
             chartAnalysisResult.textContent = 'Идет анализ...';
             analysisChartDiv.innerHTML = '';
-
             const formData = new FormData();
             formData.append('image', file);
-
             try {
                 const response = await fetch('/assistant/analyze_chart', {
                     method: 'POST',
                     body: formData
                 });
-
                 const data = await response.json();
-                console.log('Chart Analysis Response:', data); // Для отладки
+                console.log('Chart Analysis Response:', data);
                 if (data.result && data.result.trend_prediction) {
-                    // Отображение прогноза тренда
                     chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
-                    // Если вы хотите отображать график, убедитесь, что бэкенд возвращает chart_url
-                    // В текущем случае этого нет, поэтому оставляем пустым
                     analysisChartDiv.innerHTML = '';
                 } else if (data.error) {
-                    // Обработка ошибок
                     const errorMsg = `Ошибка: ${data.error}`;
                     chartAnalysisResult.innerHTML = `<p class="nes-text is-error">${errorMsg}</p>`;
                     analysisChartDiv.innerHTML = '';
@@ -257,13 +221,10 @@ $(document).ready(function() {
                 chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
                 analysisChartDiv.innerHTML = '';
             }
-
-            // Очистка поля ввода файла
             imageInput.value = '';
         });
     }
 
-    // Обработка кнопки очистки чата
     if (clearChatButton) {
         clearChatButton.addEventListener('click', async function() {
             try {
@@ -285,10 +246,8 @@ $(document).ready(function() {
         });
     }
 
-    // **Новые функции для уникальных кошельков и стейкинга**
-    // Эти обработчики удалены, чтобы избежать дублирования после объединения шаблонов.
+    // ** Новые функции для уникальных кошельков и стейкинга **
 
-    // Функция для загрузки и отображения балансов
     async function loadBalances(){
         try{
             const response = await fetch('/staking/api/get_balances', {
@@ -315,10 +274,8 @@ $(document).ready(function() {
         }
     }
 
-    // Вызов загрузки балансов при загрузке страницы
     loadBalances();
 
-    // Обработчик формы обмена WETH на UJO
     $('#exchangeForm').on('submit', async function(e){
         e.preventDefault();
         const amountWETH = parseFloat($('#exchangeAmount').val());
@@ -326,7 +283,6 @@ $(document).ready(function() {
             alert('Пожалуйста, введите корректное количество WETH для обмена.');
             return;
         }
-
         try{
             const csrfToken = window.config.CSRF_TOKEN;
             const response = await fetch('/staking/exchange_weth_to_ujo', {
@@ -337,7 +293,6 @@ $(document).ready(function() {
                 },
                 body: JSON.stringify({ amount_weth: amountWETH })
             });
-
             const data = await response.json();
             if(data.status === 'success'){
                 alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
@@ -351,7 +306,6 @@ $(document).ready(function() {
         }
     });
 
-    // Обработчик формы подтверждения стейкинга
     $('#confirmStakeForm').on('submit', async function(e){
         e.preventDefault();
         const txHash = $('#tx_hash').val().trim();
@@ -359,13 +313,10 @@ $(document).ready(function() {
             alert('Пожалуйста, введите хэш транзакции.');
             return;
         }
-
-        // Простейшая валидация формата txHash
         if(!/^0x([A-Fa-f0-9]{64})$/.test(txHash)){
             alert('Некорректный формат хэша транзакции.');
             return;
         }
-
         try{
             const csrfToken = window.config.CSRF_TOKEN;
             const response = await fetch('/staking/confirm', {
@@ -376,7 +327,6 @@ $(document).ready(function() {
                 },
                 body: JSON.stringify({ txHash: txHash })
             });
-
             const data = await response.json();
             if(data.status === 'success'){
                 alert('Стейкинг успешно подтверждён!');
@@ -391,15 +341,12 @@ $(document).ready(function() {
         }
     });
 
-    // Обработчик кнопки "Stake" - чтобы показать инструкцию
     if(document.getElementById('stakeButton')){
         document.getElementById('stakeButton').addEventListener('click', function(){
-            // Инструкции для пользователя
             alert('Чтобы застейкать, отправьте 25$ (примерно) UJO на ваш уникальный кошелёк. После отправки подтвердите транзакцию, введя её хэш ниже.');
         });
     }
 
-    // Функция для загрузки и отображения стейков пользователя
     async function loadStaking() {
         try {
             const resp = await fetch('/staking/get_user_stakes')
@@ -424,20 +371,19 @@ $(document).ready(function() {
                   <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
                   <p>Pending Rewards: ${s.pending_rewards} UJO</p>
                   <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
-                </div>`
+                </div>`;
             }
-            $('#stakingArea').html(html)
-            $('#claimRewardsBtn').show()
-            $('#unstakeBtn').show()
+            $('#stakingArea').html(html);
+            $('#claimRewardsBtn').show();
+            $('#unstakeBtn').show();
         } catch (error) {
-            console.error('Ошибка при загрузке стейков:', error)
-            $('#stakingArea').html('<p>Произошла ошибка при загрузке стейков.</p>')
-            $('#claimRewardsBtn').hide()
-            $('#unstakeBtn').hide()
+            console.error('Ошибка при загрузке стейков:', error);
+            $('#stakingArea').html('<p>Произошла ошибка при загрузке стейков.</p>');
+            $('#claimRewardsBtn').hide();
+            $('#unstakeBtn').hide();
         }
     }
 
-    // Обработчик кнопки "Claim Rewards"
     $('#claimRewardsBtn').on('click', async function(){
         try {
             const csrfToken = window.config.CSRF_TOKEN;
@@ -447,20 +393,19 @@ $(document).ready(function() {
                     'X-CSRFToken': csrfToken,
                     'Content-Type': 'application/json'
                 }
-            })
-            const data = await response.json()
-            if(data.error) alert(data.error)
+            });
+            const data = await response.json();
+            if(data.error) alert(data.error);
             else {
-                alert(data.message)
-                loadStaking()
-                loadBalances()
+                alert(data.message);
+                loadStaking();
+                loadBalances();
             }
         } catch (error) {
-            alert('Произошла ошибка при клейме наград: ' + error)
+            alert('Произошла ошибка при клейме наград: ' + error);
         }
     });
 
-    // Обработчик кнопки "Unstake"
     $('#unstakeBtn').on('click', async function(){
         try {
             const csrfToken = window.config.CSRF_TOKEN;
@@ -470,24 +415,21 @@ $(document).ready(function() {
                     'X-CSRFToken': csrfToken,
                     'Content-Type': 'application/json'
                 }
-            })
-            const data = await response.json()
-            if(data.error) alert(data.error)
+            });
+            const data = await response.json();
+            if(data.error) alert(data.error);
             else {
-                alert(data.message)
-                loadStaking()
-                loadBalances()
+                alert(data.message);
+                loadStaking();
+                loadBalances();
             }
         } catch (error) {
-            alert('Произошла ошибка при unstake: ' + error)
+            alert('Произошла ошибка при unstake: ' + error);
         }
     });
 
-    // Инициализация подключения кошелька и загрузка стейкинговых данных
-    document.addEventListener('DOMContentLoaded', ()=> {
-        loadStaking()
+    // Инициализация загрузки стейкинга после загрузки страницы
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStaking();
     });
-
-    // Удалены все Thirdweb-интеграции, а также Telegram WebView интеграция
-
 });
