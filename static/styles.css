@@ -18,24 +18,21 @@
     --transition-speed: 0.2s;
 }
 
-/* Добавляем html, body стили чтобы не было скролла вверх/вниз при жестах */
-/* и чтобы фон сверху совпадал с шапкой в полноэкранном режиме */
-/* <-- добавлено блок html,body для фиксации фона и отключения отскока */
+/* Обнуление и базовые стили с Normalize.css уже подключён */
+/* Отключение нежелательного поведения скролла */
 html, body { 
     margin: 0;
     padding: 0;
-    background-color: var(--primary-color); /* <-- добавлено: фон совпадает с цветом header сверху */
-    overscroll-behavior: none; /* <-- добавлено: предотвращает отскок при скролле */
+    background-color: var(--primary-color);
+    overscroll-behavior: none;
     color: var(--dark-color);
     font-family: var(--font-family);
     box-sizing: border-box;
 }
 
-/* Оставляем body background для основной части, но сделаем плавный переход */
-/* <-- добавлено градиент через linear-gradient, чтобы не было резкого перепада */
+/* Фон со сглаженным переходом */
 body {
-    background: linear-gradient(var(--primary-color) 60px, #f0f8ff 0) no-repeat; /* <-- добавлено градиентный переход */
-    /* выше: до 60px сверху фон primary-color, ниже #f0f8ff как было */
+    background: linear-gradient(var(--primary-color) 60px, #f0f8ff 0) no-repeat;
 }
 
 /* Контейнер */
@@ -46,18 +43,15 @@ body {
 }
 
 /* Header */
-/* Опустим шапку чуть ниже, чтобы кнопки Telegram не перекрывали нашу навигацию */
-/* И добавим градиент к шапке, чтобы выглядело интереснее */
-/* <-- добавлено margin-top:60px; и background: linear-gradient(...) */
 header {
     background-color: var(--primary-color);
-    background: linear-gradient(to bottom, var(--primary-color), var(--dark-color)); /* <-- добавлено градиент для интересного вида */
+    background: linear-gradient(to bottom, var(--primary-color), var(--dark-color));
     color: white;
     padding: 20px 0;
     text-align: center;
     border-bottom: 4px solid var(--secondary-color);
     position: relative;
-    margin-top: 130px; /* <-- добавлено: опускаем шапку вниз */
+    margin-top: 130px;
 }
 
 header h1 {
@@ -454,109 +448,71 @@ span.criterion {
     animation: fadeIn 1.2s ease-in;
 }
 
-/* Адаптивность для мобильных устройств и iPhone */
-@media (max-width: 768px) {
+/* Мощная адаптивность под Telegram Mini App */
+/* Дополнительные медиазапросы для малых экранов (см. пример для устройств ниже 480px) */
+@media (max-width: 480px) {
+    header {
+        margin-top: 100px;
+        padding: 15px 0;
+    }
     header h1 {
-        font-size: 2em;
-        text-align: center;
+        font-size: 1.8em;
         text-shadow: 1px 1px var(--danger-color);
     }
-
     nav {
         flex-direction: column;
         align-items: center;
     }
-
     nav a {
-        margin: 8px 0;
+        margin: 6px 0;
         padding: var(--button-padding);
-        font-size: 1.2em;
-    }
-
-    nav a i {
-        margin-right: 10px;
-        font-size: 1.4em;
-    }
-
-    button, input[type="submit"], a.action-button, a.btn-add, a.btn-back, .collapse-button {
-        padding: var(--button-padding);
-        font-size: 1.2em;
-    }
-
-    input, select, textarea {
-        padding: var(--input-padding);
-        font-size: 1.2em;
-    }
-
-    table {
-        min-width: 800px; 
-    }
-
-    img.setup-mini {
-        width: 70px;
-        height: 70px;
-    }
-
-    img.clickable-image {
-        width: 150px;
-    }
-
-    .modal-content {
-        max-width: 95%;
-        max-height: 85%;
-    }
-
-    .criteria-item {
-        flex-direction: row;
-        align-items: center;
-        justify-content: flex-start;
-    }
-
-    .criteria-item label {
-        margin: 0;
-    }
-
-    span.criterion {
-        font-size: 1.1em;
-        padding: 8px 16px;
-    }
-
-    .setup-info {
-        display: flex;
-        align-items: center;
-    }
-
-    .setup-info img {
-        margin-right: 10px;
-    }
-
-    td .action-buttons {
-        display: flex;
-        gap: 10px;
+        font-size: 1em;
+        width: 90%;
         justify-content: center;
-        flex-wrap: wrap;
     }
-
-    a.action-button, button {
-        flex: 1 1 auto;
-        padding: 12px 20px;
+    nav a i {
+        margin-right: 6px;
+        font-size: 1.2em;
     }
-
-    a.action-button.view-button,
-    a.action-button.edit-button,
-    a.action-button.delete-button {
-        background-color: var(--primary-color) !important;
+    main {
+        padding: 15px;
+        border-width: 1px;
     }
-
-    a.action-button.view-button:hover,
-    a.action-button.edit-button:hover,
-    a.action-button.delete-button:hover {
-        background-color: var(--danger-color) !important;
+    table {
+        min-width: 300px;
+        font-size: 0.85em;
+    }
+    th, td {
+        padding: 8px;
+    }
+    input, select, textarea, button, .collapse-button {
+        font-size: 1em;
+        padding: 10px;
+    }
+    span.criterion {
+        font-size: 0.9em;
+        padding: 6px 10px;
     }
 }
 
-/* Дополнительные улучшения для ретро-стиля */
-header h1 {
-    font-family: 'Press Start 2P', cursive;
-    font-size: 2.5em;
+/* Дополнительная адаптация для календарей и предотвращения выхода текста за края экрана */
+.ui-datepicker {
+    font-size: 0.9em;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Изменения для чекбоксов и критериев - более ровное позиционирование */
+.icheckbox_square-blue, .iradio_square-blue {
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+span.criterion {
+    vertical-align: middle;
+}
+
+/* Дополнительный отступ для контейнеров, если содержимое слишком широкое */
+.container {
+    padding: 0 10px;
 }
