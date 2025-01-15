@@ -9,10 +9,17 @@
     {% if unique_wallet_address %}
         <p>Отправьте ETH, WETH или UJO на ваш уникальный кошелёк:</p>
         <div class="wallet-info">
-            <p><strong>Адрес кошелька:</strong> <span id="uniqueWalletAddress">{{ unique_wallet_address }}</span></p>
+            <p>
+                <strong>Адрес кошелька:</strong> 
+                <span id="uniqueWalletAddress" title="{{ unique_wallet_address }}">
+                    {{ unique_wallet_address[:6] }}...{{ unique_wallet_address[-4:] }}
+                </span>
+            </p>
             <!-- Добавление QR-кода для удобства -->
             <img src="https://api.qrserver.com/v1/create-qr-code/?data={{ unique_wallet_address }}&amp;size=200x200" alt="QR Code для кошелька">
-            <button class="nes-btn is-success" id="copyUniqueWalletBtn"><i class="fas fa-copy"></i> Копировать Адрес</button>
+            <button class="nes-btn is-success" id="copyUniqueWalletBtn">
+                <i class="fas fa-copy"></i> Копировать Адрес
+            </button>
         </div>
         
         <hr>
@@ -56,7 +63,9 @@
             </div>
         </div>
         
-        <button class="nes-btn is-primary" id="swapButton"><i class="fas fa-exchange-alt"></i> Обменять</button>
+        <button class="nes-btn is-primary" id="swapButton">
+            <i class="fas fa-exchange-alt"></i> Обменять
+        </button>
         
         <hr>
         <h3>Вывод Средств</h3>
@@ -75,11 +84,15 @@
                 <label for="withdrawAmount">Сумма для вывода:</label>
                 <input type="number" id="withdrawAmount" class="nes-input" placeholder="0.0" min="0" step="0.0001" required>
             </div>
-            <button class="nes-btn is-error" id="withdrawButton"><i class="fas fa-wallet"></i> Вывести Средства</button>
+            <button class="nes-btn is-error" id="withdrawButton">
+                <i class="fas fa-wallet"></i> Вывести Средства
+            </button>
         </div>
     {% else %}
         <p>Сгенерируйте уникальный кошелёк для депозита:</p>
-        <button class="nes-btn is-primary" id="generateUniqueWalletBtn"><i class="fas fa-wallet"></i> Сгенерировать Кошелёк</button>
+        <button class="nes-btn is-primary" id="generateUniqueWalletBtn">
+            <i class="fas fa-wallet"></i> Сгенерировать Кошелёк
+        </button>
     {% endif %}
 </div>
 
