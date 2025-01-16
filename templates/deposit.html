@@ -4,26 +4,25 @@
 
 {% block content %}
 <div class="nes-container with-title">
-    <p class="title">Депозит</p>
+    <p class="title">{% if language == 'ru' %}Депозит{% else %}Deposit{% endif %}</p>
     
     {% if unique_wallet_address %}
-        <p>Отправьте ETH, WETH или UJO на ваш уникальный кошелёк:</p>
+        <p>{% if language == 'ru' %}Отправьте ETH, WETH или UJO на ваш уникальный кошелёк:{% else %}Send ETH, WETH, or UJO to your unique wallet:{% endif %}</p>
         <div class="wallet-info">
             <p>
-                <strong>Адрес кошелька:</strong> 
+                <strong>{% if language == 'ru' %}Адрес кошелька:{% else %}Wallet Address:{% endif %}</strong> 
                 <span id="uniqueWalletAddress" title="{{ unique_wallet_address }}">
                     {{ unique_wallet_address[:6] }}...{{ unique_wallet_address[-4:] }}
                 </span>
             </p>
-            <!-- Добавление QR-кода для удобства -->
-            <img src="https://api.qrserver.com/v1/create-qr-code/?data={{ unique_wallet_address }}&amp;size=200x200" alt="QR Code для кошелька">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?data={{ unique_wallet_address }}&amp;size=200x200" alt="QR Code" >
             <button class="nes-btn is-success" id="copyUniqueWalletBtn">
-                <i class="fas fa-copy"></i> Копировать Адрес
+                <i class="fas fa-copy"></i> {% if language == 'ru' %}Копировать Адрес{% else %}Copy Address{% endif %}
             </button>
         </div>
         
         <hr>
-        <h3>Баланс Кошелька</h3>
+        <h3>{% if language == 'ru' %}Баланс Кошелька{% else %}Wallet Balance{% endif %}</h3>
         <ul>
             <li>ETH: <span id="ethBalance">Loading...</span></li>
             <li>WETH: <span id="wethBalance">Loading...</span></li>
@@ -31,11 +30,10 @@
         </ul>
         
         <hr>
-        <h3>Обмен Токенов</h3>
+        <h3>{% if language == 'ru' %}Обмен Токенов{% else %}Token Swap{% endif %}</h3>
         <div class="exchange-container">
-            <!-- Окно обмена -->
             <div class="exchange-window nes-container is-rounded">
-                <label for="fromToken">От:</label>
+                <label for="fromToken">{% if language == 'ru' %}От:{% else %}From:{% endif %}</label>
                 <div class="nes-select">
                     <select id="fromToken">
                         <option value="ETH">ETH</option>
@@ -43,7 +41,7 @@
                         <option value="UJO">UJO</option>
                     </select>
                 </div>
-                <input type="number" id="fromAmount" class="nes-input" placeholder="Количество" min="0" step="0.0001" required>
+                <input type="number" id="fromAmount" class="nes-input" placeholder="{% if language == 'ru' %}Количество{% else %}Amount{% endif %}" min="0" step="0.0001" required>
             </div>
             
             <div class="exchange-arrow">
@@ -51,7 +49,7 @@
             </div>
             
             <div class="exchange-window nes-container is-rounded">
-                <label for="toToken">В:</label>
+                <label for="toToken">{% if language == 'ru' %}В:{% else %}To:{% endif %}</label>
                 <div class="nes-select">
                     <select id="toToken">
                         <option value="WETH">WETH</option>
@@ -59,19 +57,19 @@
                         <option value="ETH">ETH</option>
                     </select>
                 </div>
-                <input type="text" id="toAmount" class="nes-input" placeholder="Количество" readonly>
+                <input type="text" id="toAmount" class="nes-input" placeholder="{% if language == 'ru' %}Количество{% else %}Amount{% endif %}" readonly>
             </div>
         </div>
         
         <button class="nes-btn is-primary" id="swapButton">
-            <i class="fas fa-exchange-alt"></i> Обменять
+            <i class="fas fa-exchange-alt"></i> {% if language == 'ru' %}Обменять{% else %}Swap{% endif %}
         </button>
         
         <hr>
-        <h3>Вывод Средств</h3>
+        <h3>{% if language == 'ru' %}Вывод Средств{% else %}Withdraw Funds{% endif %}</h3>
         <div class="withdraw-section">
             <div class="nes-field">
-                <label for="withdrawToken">Выберите монету для вывода:</label>
+                <label for="withdrawToken">{% if language == 'ru' %}Выберите монету для вывода:{% else %}Select a token to withdraw:{% endif %}</label>
                 <div class="nes-select">
                     <select id="withdrawToken">
                         <option value="ETH">ETH</option>
@@ -81,17 +79,17 @@
                 </div>
             </div>
             <div class="nes-field">
-                <label for="withdrawAmount">Сумма для вывода:</label>
+                <label for="withdrawAmount">{% if language == 'ru' %}Сумма для вывода:{% else %}Withdrawal Amount:{% endif %}</label>
                 <input type="number" id="withdrawAmount" class="nes-input" placeholder="0.0" min="0" step="0.0001" required>
             </div>
             <button class="nes-btn is-error" id="withdrawButton">
-                <i class="fas fa-wallet"></i> Вывести Средства
+                <i class="fas fa-wallet"></i> {% if language == 'ru' %}Вывести Средства{% else %}Withdraw{% endif %}
             </button>
         </div>
     {% else %}
-        <p>Сгенерируйте уникальный кошелёк для депозита:</p>
+        <p>{% if language == 'ru' %}Сгенерируйте уникальный кошелёк для депозита:{% else %}Generate your unique wallet for deposit:{% endif %}</p>
         <button class="nes-btn is-primary" id="generateUniqueWalletBtn">
-            <i class="fas fa-wallet"></i> Сгенерировать Кошелёк
+            <i class="fas fa-wallet"></i> {% if language == 'ru' %}Сгенерировать Кошелёк{% else %}Generate Wallet{% endif %}
         </button>
     {% endif %}
 </div>
@@ -112,14 +110,14 @@
 
                 const data = await response.json();
                 if (data.status === 'success') {
-                    alert('Уникальный кошелёк успешно сгенерирован! Ваш адрес: ' + data.unique_wallet_address);
+                    alert('{% if language == "ru" %}Уникальный кошелёк успешно сгенерирован! Ваш адрес: {% else %}Unique wallet generated successfully! Your address: {% endif %}' + data.unique_wallet_address);
                     window.location.reload();
                 } else {
-                    alert('Ошибка: ' + data.error);
+                    alert('Error: ' + data.error);
                 }
             } catch (error) {
                 console.error('Ошибка при генерации уникального кошелька:', error);
-                alert('Произошла ошибка при генерации уникального кошелька.');
+                alert('{% if language == "ru" %}Произошла ошибка при генерации уникального кошелька.{% else %}An error occurred while generating the unique wallet.{% endif %}');
             }
         });
     });
@@ -134,25 +132,25 @@
                 const walletAddress = "{{ unique_wallet_address }}";
                 if(walletAddress){
                     navigator.clipboard.writeText(walletAddress).then(function() {
-                        alert('Адрес кошелька скопирован в буфер обмена!');
+                        alert('{% if language == "ru" %}Адрес кошелька скопирован в буфер обмена!{% else %}Wallet address copied to clipboard!{% endif %}');
                     }, function(err) {
                         console.error('Ошибка при копировании: ', err);
-                        alert('Не удалось скопировать адрес кошелька.');
+                        alert('{% if language == "ru" %}Не удалось скопировать адрес кошелька.{% else %}Failed to copy wallet address.{% endif %}');
                     });
                 } else {
-                    alert('Адрес кошелька не найден.');
+                    alert('{% if language == "ru" %}Адрес кошелька не найден.{% else %}Wallet address not found.{% endif %}');
                 }
             });
 
-            // Инициализация балансов
+            // Функция загрузки балансов
             async function loadBalances(){
                 try{
-                    const response = await fetch('{{ url_for("staking_bp.get_balances_route") }}', {  // Корректный URL с префиксом Blueprint
+                    const response = await fetch('{{ url_for("staking_bp.get_balances_route") }}', {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        credentials: 'include'  // Включаем куки-сессии
+                        credentials: 'include'
                     });
                     const data = await response.json();
                     if(data.error){
@@ -173,7 +171,6 @@
                 }
             }
 
-            // Вызов загрузки балансов при загрузке страницы
             loadBalances();
 
             // Обработчик кнопки "Обменять"
@@ -183,13 +180,13 @@
                 const fromAmount = parseFloat(document.getElementById('fromAmount').value);
 
                 if(isNaN(fromAmount) || fromAmount <= 0){
-                    alert('Пожалуйста, введите корректное количество токенов для обмена.');
+                    alert('{% if language == "ru" %}Пожалуйста, введите корректное количество токенов для обмена.{% else %}Please enter a valid token amount to swap.{% endif %}');
                     return;
                 }
 
                 try{
                     const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('{{ url_for("staking_bp.exchange_tokens") }}', {  // Корректный URL с префиксом Blueprint
+                    const response = await fetch('{{ url_for("staking_bp.exchange_tokens") }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -204,15 +201,14 @@
 
                     const data = await response.json();
                     if(data.status === 'success'){
-                        alert('Обмен успешно выполнен!');
-                        // Обновляем балансы
+                        alert('{% if language == "ru" %}Обмен успешно выполнен!{% else %}Swap executed successfully!{% endif %}');
                         loadBalances();
                     } else{
-                        alert('Ошибка: ' + data.error);
+                        alert('Error: ' + data.error);
                     }
                 } catch(error){
                     console.error('Ошибка при обмене токенов:', error);
-                    alert('Произошла ошибка при обмене токенов.');
+                    alert('{% if language == "ru" %}Произошла ошибка при обмене токенов.{% else %}An error occurred while swapping tokens.{% endif %}');
                 }
             });
 
@@ -222,22 +218,22 @@
                 const withdrawAmount = parseFloat(document.getElementById('withdrawAmount').value);
 
                 if(!withdrawToken){
-                    alert('Пожалуйста, выберите монету для вывода.');
+                    alert('{% if language == "ru" %}Пожалуйста, выберите монету для вывода.{% else %}Please select a token to withdraw.{% endif %}');
                     return;
                 }
 
                 if(isNaN(withdrawAmount) || withdrawAmount <= 0){
-                    alert('Пожалуйста, введите корректную сумму для вывода.');
+                    alert('{% if language == "ru" %}Пожалуйста, введите корректную сумму для вывода.{% else %}Please enter a valid withdrawal amount.{% endif %}');
                     return;
                 }
 
-                if(!confirm(`Вы уверены, что хотите вывести ${withdrawAmount} ${withdrawToken}?`)){
+                if(!confirm(`{% if language == "ru" %}Вы уверены, что хотите вывести ${withdrawAmount} ${withdrawToken}?{% else %}Are you sure you want to withdraw ${withdrawAmount} ${withdrawToken}?{% endif %}`)){
                     return;
                 }
 
                 try{
                     const csrfToken = "{{ csrf_token }}";
-                    const response = await fetch('{{ url_for("staking_bp.withdraw_funds") }}', {  // Корректный URL с префиксом Blueprint
+                    const response = await fetch('{{ url_for("staking_bp.withdraw_funds") }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -247,19 +243,19 @@
                             token: withdrawToken,
                             amount: withdrawAmount
                         }),
-                        credentials: 'include'  // Включаем куки-сессии
+                        credentials: 'include'
                     });
 
                     const data = await response.json();
                     if(data.status === 'success'){
-                        alert('Средства успешно выведены на ваш кошелёк.');
+                        alert('{% if language == "ru" %}Средства успешно выведены на ваш кошелёк.{% else %}Funds withdrawn successfully to your wallet.{% endif %}');
                         loadBalances();
                     } else{
-                        alert('Ошибка: ' + data.error);
+                        alert('Error: ' + data.error);
                     }
                 } catch(error){
                     console.error('Ошибка при выводе средств:', error);
-                    alert('Произошла ошибка при выводе средств.');
+                    alert('{% if language == "ru" %}Произошла ошибка при выводе средств.{% else %}An error occurred during withdrawal.{% endif %}');
                 }
             });
         {% endif %}
