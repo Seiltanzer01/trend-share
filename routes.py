@@ -6,7 +6,7 @@ import os
 import logging
 import traceback
 import hashlib
-import matplotlib.pyplot as plt  # Импорт перенесён в начало
+import matplotlib.pyplot as plt  # Import moved to the top
 import io
 import base64
 from datetime import datetime, timedelta
@@ -22,7 +22,7 @@ from wtforms.validators import DataRequired, Optional
 
 from app import app, csrf, db, s3_client, logger, get_app_host, upload_file_to_s3, delete_file_from_s3, generate_s3_url, ADMIN_TELEGRAM_IDS
 from models import *
-from forms import TradeForm, SetupForm, SubmitPredictionForm  # Импорт обновлённых форм
+from forms import TradeForm, SetupForm, SubmitPredictionForm  # Import updated forms
 from telegram import (
     Bot, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 )
@@ -32,13 +32,13 @@ from teleapp_auth import get_secret_key, parse_webapp_data, validate_webapp_data
 from functools import wraps
 from best_setup_voting import send_token_reward as voting_send_token_reward
 
-# **Интеграция OpenAI**
+# **OpenAI Integration**
 import openai
 import yfinance as yf
 
 def generate_openai_response(messages):
     """
-    Получает ответ от OpenAI GPT-3.5-turbo с учётом истории сообщений.
+    Gets a response from OpenAI GPT-3.5-turbo based on message history.
     """
     try:
         logger.debug(f"Sending messages to OpenAI: {messages}")
@@ -46,7 +46,7 @@ def generate_openai_response(messages):
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=0.7,
-            max_tokens=1500,  # Увеличено для более подробных ответов
+            max_tokens=1500,  # Increased for more detailed responses
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
@@ -54,11 +54,11 @@ def generate_openai_response(messages):
         logger.debug(f"Received response from OpenAI: {response}")
         return response.choices[0].message['content'].strip()
     except Exception as e:
-        logger.error(f"Ошибка при обращении к OpenAI API: {e}")
+        logger.error(f"Error calling OpenAI API: {e}")
         logger.error(traceback.format_exc())
-        return "Произошла ошибка при обработке вашего запроса."
+        return "An error occurred while processing your request."
         
-# **Импорт дополнительных библиотек для обработки изображений и упрощённой нейросети**
+# **Import additional libraries for image processing and simplified neural network**
 import cv2
 import numpy as np
 import pandas as pd
@@ -66,40 +66,26 @@ import mplfinance as mpf
 import shutil
 from skimage.segmentation import clear_border
 
-# **Добавление PyTorch для нейросетевого анализа**
+# **Add PyTorch for neural network analysis**
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 
-# Импорт функций для голосования и диаграмм
-from poll_functions import start_new_poll, process_poll_results, get_real_price  # Импортируем get_real_price
+# Import functions for voting and charts
+from poll_functions import start_new_poll, process_poll_results, get_real_price  # Import get_real_price
 
-# **Инициализация OpenAI API**
+# **Initialize OpenAI API**
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+    logger.error("OPENAI_API_KEY is not set in environment variables.")
+    raise ValueError("OPENAI_API_KEY is not set in environment variables.")
 
 openai.api_key = app.config['OPENAI_API_KEY']
 
 ##################################################
-# Инициализация APScheduler
-##################################################
-# from apscheduler.schedulers.background import BackgroundScheduler
-# import atexit
-
-# Инициализация APScheduler с временной зоной UTC
-# scheduler = BackgroundScheduler(timezone=pytz.UTC)
-# scheduler.add_job(func=process_poll_results, trigger="interval", minutes=5, id='process_poll_results')
-# scheduler.start()
-
-# Остановка планировщика при завершении приложения
-# atexit.register(lambda: scheduler.shutdown())
-
-##################################################
-# Модель тренда (trend_model.pth)
+# Trend Model (trend_model.pth)
 ##################################################
 
 trend_model = None
@@ -133,19 +119,19 @@ def get_trend_model():
         model_path = 'trend_model.pth'
         if os.path.exists(model_path):
             trend_model = TrendCNN(num_classes=3)
-            # Установка map_location для обеспечения совместимости с разными устройствами
+            # Set map_location to ensure compatibility across devices
             trend_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
             trend_model.eval()
-            logger.info("Модель тренда загружена из 'trend_model.pth'.")
+            logger.info("Trend model loaded from 'trend_model.pth'.")
         else:
-            logger.warning("Файл 'trend_model.pth' не найден. Модель тренда не будет загружена.")
+            logger.warning("File 'trend_model.pth' not found. Trend model will not be loaded.")
             trend_model = None
     return trend_model
     
 
 def preprocess_for_trend(image_path):
     """
-    Предобработка изображения для модели тренда.
+    Preprocesses the image for trend model.
     """
     try:
         if not os.path.exists(image_path):
@@ -161,60 +147,60 @@ def preprocess_for_trend(image_path):
         img_tensor = transform(img).unsqueeze(0)
         return img_tensor
     except Exception as e:
-        logger.error(f"Ошибка при предобработке изображения для тренда: {e}")
+        logger.error(f"Error preprocessing image for trend: {e}")
         logger.error(traceback.format_exc())
         return None
 
 def predict_trend(image_path):
     """
-    Предсказывает направление тренда: uptrend, downtrend или sideways.
+    Predicts trend direction: uptrend, downtrend or sideways.
     """
     model = get_trend_model()
     if model is None:
-        return "Модель тренда не загружена."
+        return "Trend model not loaded."
 
     img_tensor = preprocess_for_trend(image_path)
     if img_tensor is None:
-        return "Не удалось обработать изображение для тренда."
+        return "Failed to process image for trend."
 
     with torch.no_grad():
         outputs = model(img_tensor)
         _, predicted = torch.max(outputs.data, 1)
     # 0: downtrend, 1: sideways, 2: uptrend
     classes = ["downtrend", "sideways", "uptrend"]
-    return f"Прогноз направления тренда: {classes[predicted.item()]}"
+    return f"Trend prediction: {classes[predicted.item()]}"
 
 ##################################################
-# Предобработка и анализ графика
+# Chart analysis and preprocessing
 ##################################################
 
 def analyze_chart(image_path):
     """
-    Анализирует изображение графика: предсказывает тренд (trend_model.pth).
-    Возвращает словарь с результатами анализа.
+    Analyzes the chart image: predicts trend (trend_model.pth).
+    Returns a dictionary with analysis results.
     """
     try:
-        # Прогноз тренда
+        # Trend prediction
         trend_prediction = predict_trend(image_path)
 
-        # Возвращаем результаты
+        # Return the results
         return {
             'trend_prediction': trend_prediction
         }
     except Exception as e:
-        logger.error(f"Ошибка при анализе графика: {e}")
+        logger.error(f"Error analyzing chart: {e}")
         logger.error(traceback.format_exc())
-        return {'error': 'Произошла ошибка при анализе графика.'}
+        return {'error': 'An error occurred while analyzing the chart.'}
 
 ##################################################
-# Восстановление авторизации и Telegram бота
-# Инициализация Telegram бота
+# Restore authorization and Telegram bot
+# Initialize Telegram bot
 ##################################################
 
 app.config['TELEGRAM_BOT_TOKEN'] = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
 TOKEN = app.config['TELEGRAM_BOT_TOKEN']
 if not TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN не установлен в переменных окружения.")
+    logger.error("TELEGRAM_BOT_TOKEN is not set in environment variables.")
     exit(1)
 
 bot = Bot(token=TOKEN)
@@ -224,13 +210,13 @@ dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Проверяем, авторизован ли пользователь
+        # Check if user is logged in
         if 'user_id' not in session or 'telegram_id' not in session:
-            flash('Пожалуйста, войдите в систему.', 'warning')
+            flash('Please log in.', 'warning')
             return redirect(url_for('login'))
-        # Проверяем, является ли пользователь администратором
+        # Check if the user is an admin
         if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
-            flash('Доступ запрещён.', 'danger')
+            flash('Access denied.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -239,18 +225,18 @@ def premium_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            flash('Пожалуйста, войдите в систему.', 'warning')
+            flash('Please log in.', 'warning')
             return redirect(url_for('login'))
         user = User.query.get(session['user_id'])
         if not user or not user.assistant_premium:
-            flash('Доступ запрещён. Пожалуйста, приобретите премиум-подписку.', 'danger')
+            flash('Access denied. Please purchase a premium subscription.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
 
 def start_command(update, context):
     user = update.effective_user
-    logger.info(f"Получена команда /start от пользователя {user.id} ({user.username})")
+    logger.info(f"Received /start command from user {user.id} ({user.username})")
     try:
         with app.app_context():
             user_record = User.query.filter_by(telegram_id=user.id).first()
@@ -264,15 +250,15 @@ def start_command(update, context):
                 )
                 db.session.add(user_record)
                 db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {user.id}.")
+                logger.info(f"New user created: Telegram ID {user.id}.")
 
-        message_text = f"Привет, {user.first_name}! Нажмите кнопку ниже, чтобы открыть приложение."
+        message_text = f"Hi, {user.first_name}! Click the button below to open the app."
         web_app_url = f"https://{get_app_host()}/webapp"
         keyboard = InlineKeyboardMarkup(
             [
                 [
                     InlineKeyboardButton(
-                        text="Открыть приложение",
+                        text="Open App",
                         web_app=WebAppInfo(url=web_app_url)
                     )
                 ]
@@ -284,36 +270,36 @@ def start_command(update, context):
             text=message_text,
             reply_markup=keyboard
         )
-        logger.info(f"Сообщение с Web App кнопкой отправлено пользователю {user.id} ({user.username}) на команду /start.")
+        logger.info(f"Web App button message sent to user {user.id} ({user.username}) for /start command.")
     except Exception as e:
-        logger.error(f"Ошибка при обработке команды /start: {e}")
+        logger.error(f"Error processing /start command: {e}")
         logger.error(traceback.format_exc())
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Произошла ошибка при обработке команды /start.")
+        context.bot.send_message(chat_id=update.effective_chat.id, text="An error occurred processing /start command.")
 
 def help_command(update, context):
     user = update.effective_user
-    logger.info(f"Получена команда /help от пользователя {user.id} ({user.username})")
+    logger.info(f"Received /help command from user {user.id} ({user.username})")
     help_text = (
-        "Доступные команды:\n"
-        "/start - Начать общение с ботом и открыть приложение\n"
-        "/help - Получить справку\n"
-        "/test - Тестовая команда для проверки работы бота\n"
+        "Available commands:\n"
+        "/start - Begin interaction with the bot and open the app\n"
+        "/help - Get help\n"
+        "/test - Test command to check bot functionality\n"
     )
     try:
         context.bot.send_message(chat_id=update.effective_chat.id, text=help_text)
-        logger.info(f"Ответ на /help отправлен пользователю {user.id} ({user.username}).")
+        logger.info(f"Help response sent to user {user.id} ({user.username}).")
     except Exception as e:
-        logger.error(f"Ошибка при отправке ответа на /help: {e}")
+        logger.error(f"Error sending /help response: {e}")
         logger.error(traceback.format_exc())
 
 def test_command(update, context):
     user = update.effective_user
-    logger.info(f"Получена команда /test от пользователя {user.id} ({user.username})")
+    logger.info(f"Received /test command from user {user.id} ({user.username})")
     try:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Команда /test работает корректно!')
-        logger.info(f"Ответ на /test отправлен пользователю {user.id} ({user.username}).")
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Command /test is working correctly!')
+        logger.info(f"Test response sent to user {user.id} ({user.username}).")
     except Exception as e:
-        logger.error(f"Ошибка при отправке ответа на /test: {e}")
+        logger.error(f"Error sending /test response: {e}")
         logger.error(traceback.format_exc())
 
 def button_click(update, context):
@@ -321,23 +307,23 @@ def button_click(update, context):
     query.answer()
     user = update.effective_user
     data = query.data
-    logger.info(f"Получено нажатие кнопки '{data}' от пользователя {user.id} ({user.username})")
+    logger.info(f"Button '{data}' clicked by user {user.id} ({user.username})")
 
     try:
-        query.edit_message_text(text="Используйте встроенную кнопку для взаимодействия с Web App.")
-        logger.info(f"Обработано нажатие кнопки '{data}' от пользователя {user.id} ({user.username}).")
+        query.edit_message_text(text="Please use the embedded button to interact with the Web App.")
+        logger.info(f"Button '{data}' click processed for user {user.id} ({user.username}).")
     except Exception as e:
-        logger.error(f"Ошибка при обработке нажатия кнопки: {e}")
+        logger.error(f"Error processing button click: {e}")
         logger.error(traceback.format_exc())
 
-# Добавление обработчиков команд в диспетчер
+# Add command handlers to dispatcher
 dispatcher.add_handler(CommandHandler('start', start_command))
 dispatcher.add_handler(CommandHandler('help', help_command))
 dispatcher.add_handler(CommandHandler('test', test_command))
 dispatcher.add_handler(CallbackQueryHandler(button_click))
 
 ##################################################
-# Маршруты для голосования и ассистента
+# Routes for voting and assistant
 ##################################################
 
 @app.route('/assistant/analyze_chart', methods=['POST'])
@@ -360,7 +346,7 @@ def assistant_analyze_chart():
 
     if image:
         try:
-            MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 МБ
+            MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
             image.seek(0, os.SEEK_END)
             file_size = image.tell()
             image.seek(0)
@@ -376,19 +362,18 @@ def assistant_analyze_chart():
             analysis_result = analyze_chart(temp_path)
             os.remove(temp_path)
 
-            # Проверяем, что вернула функция analyze_chart
+            # Check what analyze_chart returned
             if 'error' in analysis_result:
-                # Возвращаем ошибку
+                # Return error
                 return jsonify({'error': analysis_result['error']}), 400
             elif 'trend_prediction' in analysis_result:
-                # Возвращаем корректный результат
+                # Return correct result
                 return jsonify({'result': analysis_result}), 200
             else:
-                # На всякий случай, если нет ни error, ни trend_prediction
-                return jsonify({'error': 'Неизвестная ошибка при анализе графика.'}), 500
+                return jsonify({'error': 'Unknown error during chart analysis.'}), 500
 
         except Exception as e:
-            logger.error(f"Ошибка при обработке изображения: {e}")
+            logger.error(f"Error processing image: {e}")
             logger.error(traceback.format_exc())
             return jsonify({'error': 'Error processing the image.'}), 500
     else:
@@ -397,31 +382,31 @@ def assistant_analyze_chart():
 @app.route('/vote', methods=['GET', 'POST'])
 def vote():
     """
-    Маршрут для участия в голосовании. Бесплатная часть.
+    Route for participating in voting. (Free section)
     """
     if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для участия в голосовании.', 'warning')
+        flash('Please log in to participate in the vote.', 'warning')
         return redirect(url_for('login'))
 
     user_id = session['user_id']
     user = User.query.get(user_id)
     
-    # Проверка, включена ли функция голосования
+    # Check if voting is enabled
     voting_config = Config.query.filter_by(key='voting_enabled').first()
     if not voting_config or voting_config.value != 'true':
-        flash('Сейчас голосование отключено.', 'info')
+        flash('Voting is currently disabled.', 'info')
         return redirect(url_for('index'))
 
-    # Получение активного опроса с дополнительным фильтром по end_date
+    # Get active poll with additional filter for end_date
     active_poll = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).first()
     if not active_poll:
-        flash('Сейчас нет активного голосования.', 'info')
+        flash('No active voting at the moment.', 'info')
         return redirect(url_for('index'))
 
     form = SubmitPredictionForm()
 
     if request.method == 'POST':
-        # Получение инструментов опроса
+        # Get poll instruments
         poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
         instruments = [pi.instrument for pi in poll_instruments]
         form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
@@ -431,7 +416,7 @@ def vote():
                 selected_instrument_id = form.instrument.data
                 predicted_price = form.predicted_price.data
 
-                # Проверка, голосовал ли пользователь уже в этом опросе для выбранного инструмента
+                # Check if user has already voted for the selected instrument in this poll
                 existing_prediction = UserPrediction.query.filter_by(
                     user_id=user_id,
                     poll_id=active_poll.id,
@@ -439,42 +424,42 @@ def vote():
                 ).first()
 
                 if existing_prediction:
-                    flash('Вы уже голосовали для этого инструмента в этом опросе.', 'info')
+                    flash('You have already voted for this instrument in the current poll.', 'info')
                     return render_template('vote.html', form=None, active_poll=active_poll, existing_predictions=existing_predictions)
 
-                # **Добавленные проверки**
+                # **Added validations**
 
-                # 1. Ограничение по времени: предсказание должно быть отправлено за 1 день до закрытия опроса
+                # 1. Time constraint: the prediction must be submitted at least 2 minutes before poll ends
                 now = datetime.utcnow()
                 two_minutes_before_end = active_poll.end_date - timedelta(minutes=2)
                 if now > two_minutes_before_end:
-                    flash('Вы не можете отправлять предсказания менее чем за 2 минуты до закрытия голосования.', 'danger')
-                    logger.info(f"User {user_id} попытался голосовать слишком поздно для poll {active_poll.id}.")
+                    flash('Predictions cannot be submitted less than 2 minutes before the poll ends.', 'danger')
+                    logger.info(f"User {user_id} attempted to vote too late for poll {active_poll.id}.")
                     return redirect(url_for('vote'))
 
-                # 2. Ограничение по цене: предсказанная цена должна быть в пределах ±20% от текущей реальной цены
+                # 2. Price range: predicted price must be within ±20% of the current real price
                 instrument = Instrument.query.get(selected_instrument_id)
                 if not instrument:
-                    flash('Выбранный инструмент не существует.', 'danger')
-                    logger.error(f"Инструмент ID {selected_instrument_id} не найден.")
+                    flash('The selected instrument does not exist.', 'danger')
+                    logger.error(f"Instrument ID {selected_instrument_id} not found.")
                     return redirect(url_for('vote'))
 
                 real_price = get_real_price(instrument.name)
                 if real_price is None:
-                    flash('Не удалось получить текущую реальную цену для выбранного инструмента. Попробуйте позже.', 'danger')
-                    logger.error(f"Не удалось получить реальную цену для инструмента {instrument.name}.")
+                    flash('Failed to get the current real price for the selected instrument. Please try again later.', 'danger')
+                    logger.error(f"Failed to get real price for instrument {instrument.name}.")
                     return redirect(url_for('vote'))
 
                 lower_bound = 0.8 * real_price
                 upper_bound = 1.2 * real_price
                 if not (lower_bound <= predicted_price <= upper_bound):
-                    flash(f'Предсказанная цена должна быть в диапазоне от {lower_bound:.2f} до {upper_bound:.2f}.', 'danger')
-                    logger.info(f"Пользователь ID {user_id} отправил предсказание {predicted_price} вне допустимого диапазона для инструмента {instrument.name}. Реальная цена: {real_price}.")
+                    flash(f'The predicted price must be between {lower_bound:.2f} and {upper_bound:.2f}.', 'danger')
+                    logger.info(f"User ID {user_id} submitted prediction {predicted_price} outside the allowed range for instrument {instrument.name}. Real price: {real_price}.")
                     return redirect(url_for('vote'))
 
-                # **Конец добавленных проверок**
+                # **End of added validations**
 
-                # Создаём предсказание
+                # Create prediction
                 user_prediction = UserPrediction(
                     user_id=user_id,
                     poll_id=active_poll.id,
@@ -483,25 +468,25 @@ def vote():
                 )
                 db.session.add(user_prediction)
                 db.session.commit()
-                flash('Ваше предсказание успешно сохранено.', 'success')
-                logger.info(f"Пользователь ID {user_id} сделал предсказание для инструмента ID {selected_instrument_id} в опросе ID {active_poll.id}.")
+                flash('Your prediction has been saved successfully.', 'success')
+                logger.info(f"User ID {user_id} made a prediction for instrument ID {selected_instrument_id} in poll ID {active_poll.id}.")
 
                 return redirect(url_for('vote'))
             else:
-                flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+                flash('The form is not valid. Please check the entered data.', 'danger')
         except Exception as e:
             db.session.rollback()
-            flash('Произошла ошибка при сохранении вашего предсказания.', 'danger')
-            logger.error(f"Ошибка при сохранении предсказания пользователя ID {user_id}: {e}")
+            flash('An error occurred while saving your prediction.', 'danger')
+            logger.error(f"Error saving prediction for user ID {user_id}: {e}")
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
     else:
-        # Получение инструментов опроса для отображения формы
+        # Get poll instruments to display the form
         poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
         instruments = [pi.instrument for pi in poll_instruments]
         form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
 
-    # Получение всех предсказаний пользователя в активном опросе
+    # Get all predictions of the user in the active poll
     existing_predictions = UserPrediction.query.filter_by(
         user_id=user_id,
         poll_id=active_poll.id
@@ -527,19 +512,19 @@ def fetch_charts():
     charts = {}
 
     active_polls = Poll.query.filter_by(status='active').filter(Poll.end_date > datetime.utcnow()).all()
-    logger.debug(f"Найдено {len(active_polls)} активных опросов.")
+    logger.debug(f"Found {len(active_polls)} active polls.")
 
     for poll in active_polls:
-        logger.debug(f"Обработка опроса ID {poll.id}. Инструменты: {[pi.instrument.name for pi in poll.poll_instruments]}")
+        logger.debug(f"Processing poll ID {poll.id}. Instruments: {[pi.instrument.name for pi in poll.poll_instruments]}")
         for pi in poll.poll_instruments:
             instr = pi.instrument
             predictions = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instr.id).all()
-            logger.debug(f"[fetch_charts] {len(predictions)} предсказаний для {instr.name} (poll {poll.id}).")
+            logger.debug(f"[fetch_charts] {len(predictions)} predictions for {instr.name} (poll {poll.id}).")
 
             if not predictions:
                 continue
 
-            # Логируем, чтоб понять, есть ли 0.0
+            # Log to check if there is a 0.0 value
             for p in predictions:
                 logger.debug(f"UserPred: user={p.user_id}, predicted={p.predicted_price}, real={p.real_price}")
 
@@ -555,13 +540,13 @@ def fetch_charts():
 
             plt.figure(figsize=(10, 6))
             plt.hist(df['predicted_price'], bins=20, color='green', alpha=0.7)
-            plt.xlabel('Предсказанная Цена')
-            plt.ylabel('Количество Предсказаний')
-            plt.title(f'Распределение Предсказаний для {instr.name} (Poll {poll.id})')
+            plt.xlabel('Predicted Price')
+            plt.ylabel('Number of Predictions')
+            plt.title(f'Prediction Distribution for {instr.name} (Poll {poll.id})')
 
             if real_price is not None:
                 plt.axvline(float(real_price), color='red', linestyle='dashed', linewidth=2,
-                            label=f'Реальная цена: {real_price}')
+                            label=f'Real Price: {real_price}')
                 plt.legend()
 
             plt.tight_layout()
@@ -574,13 +559,13 @@ def fetch_charts():
 
             charts[f"Active - {instr.name} (Poll {poll.id})"] = image_base64
 
-    logger.debug(f"Всего диаграмм для отправки: {len(charts)}.")
+    logger.debug(f"Total charts to send: {len(charts)}.")
     return jsonify({'charts': charts})
 
 @app.route('/fetch_predictions', methods=['GET'])
 def fetch_predictions():
     """
-    API маршрут для получения обновлённых предсказаний пользователя в активном опросе.
+    API route to get updated predictions of the user in the active poll.
     """
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -605,33 +590,33 @@ def fetch_predictions():
     return jsonify({'predictions': predictions_data}), 200
     
 @app.route('/predictions_chart', methods=['GET'])
-@premium_required  # Добавлен декоратор для проверки премиум-доступа
+@premium_required  # Decorator added for premium access check
 def predictions_chart():
     """
-    Маршрут для просмотра диаграмм предсказаний. Премиум часть.
+    Route to view prediction charts. (Premium section)
     """
-    return render_template('predictions_chart.html')  # Убрана серверная обработка диаграмм
+    return render_template('predictions_chart.html')
 
 def generate_chart_base64(user_prediction):
     """
-    Генерирует диаграмму для существующего предсказания и возвращает её в формате base64.
+    Generates a chart for an existing prediction and returns it as base64.
     """
     try:
-        # Получение реальной цены и отклонения
+        # Get real price and deviation
         real_price = getattr(user_prediction, 'real_price', None)
         deviation = getattr(user_prediction, 'deviation', None)
 
         if real_price is None or deviation is None:
             return None
 
-        # Построение диаграммы
+        # Build chart
         plt.figure(figsize=(6, 4))
-        plt.bar(['Предсказанная цена', 'Реальная цена'], [user_prediction.predicted_price, real_price], color=['blue', 'green'])
-        plt.title('Сравнение Предсказанной и Реальной Цен')
-        plt.ylabel('Цена')
+        plt.bar(['Predicted Price', 'Real Price'], [user_prediction.predicted_price, real_price], color=['blue', 'green'])
+        plt.title('Comparison of Predicted and Real Prices')
+        plt.ylabel('Price')
         plt.tight_layout()
 
-        # Сохранение диаграммы в буфер и преобразование в base64
+        # Save chart to buffer and convert to base64
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
@@ -640,7 +625,7 @@ def generate_chart_base64(user_prediction):
 
         return image_base64
     except Exception as e:
-        logger.error(f"Ошибка при генерации диаграммы: {e}")
+        logger.error(f"Error generating chart: {e}")
         logger.error(traceback.format_exc())
         return None
 
@@ -648,7 +633,7 @@ def generate_chart_base64(user_prediction):
 @admin_required
 def vote_results():
     """
-    Маршрут для отображения результатов голосования в админ-панели.
+    Route to display voting results in the admin panel.
     """
     completed_polls = Poll.query.filter(Poll.status == 'completed').all()
     return render_template('vote_results.html', polls=completed_polls)
@@ -656,23 +641,23 @@ def vote_results():
 @app.route('/subscription', methods=['GET'])
 def subscription():
     if 'user_id' not in session:
-        flash('Сначала войдите.', 'warning')
+        flash('Please log in first.', 'warning')
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
     my_wallet = os.environ.get("MY_WALLET_ADDRESS", "")
     
-    # Получаем текущую цену токена
+    # Get the current token price
     token_price_usd = get_token_price_in_usd()
     if token_price_usd <= 0:
-        flash('Не удалось получить текущую цену токена. Попробуйте позже.', 'danger')
-        logger.error("Не удалось получить текущую цену токена UJO.")
-        token_price_usd = 1.0  # Установите значение по умолчанию или обработайте ошибку по-другому
+        flash('Failed to get the current token price. Please try again later.', 'danger')
+        logger.error("Failed to get the current token price for UJO.")
+        token_price_usd = 1.0  # Set a default value or handle error differently
     
-    # Получаем количество десятичных знаков токена
+    # Get the number of decimals for the token
     TOKEN_DECIMALS = int(os.environ.get("TOKEN_DECIMALS", 18))
     
-    # Получаем адрес контракта токена
+    # Get the token contract address
     TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
     
     return render_template(
@@ -687,7 +672,7 @@ def subscription():
 @app.route('/buy_assistant', methods=['GET'])
 def buy_assistant():
     if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для покупки подписки.', 'warning')
+        flash('Please log in to purchase a subscription.', 'warning')
         return redirect(url_for('login'))
 
     user_id = session['user_id']
@@ -702,7 +687,7 @@ def buy_assistant():
     robokassa_url = (
         f"https://auth.robokassa.ru/Merchant/Index.aspx?"
         f"MerchantLogin={merchant_login}&OutSum={out_sum}&InvoiceID={inv_id}&SignatureValue={signature}&"
-        f"Description=Покупка подписки на ассистента Дядя Джон&Culture=ru&Encoding=utf-8&"
+        f"Description=Purchase of Uncle John Assistant Subscription&Culture=ru&Encoding=utf-8&"
         f"ResultURL={app.config['ROBOKASSA_RESULT_URL']}&SuccessURL={app.config['ROBOKASSA_SUCCESS_URL']}&FailURL={app.config['ROBOKASSA_FAIL_URL']}"
     )
 
@@ -727,27 +712,27 @@ def robokassa_result():
             if user:
                 user.assistant_premium = True
                 db.session.commit()
-                logger.info(f"Пользователь ID {user_id} успешно оплатил подписку.")
+                logger.info(f"User ID {user_id} successfully paid for subscription.")
                 if user.id == session.get('user_id'):
                     session['assistant_premium'] = user.assistant_premium
-                    flash('Ваша подписка активирована.', 'success')
+                    flash('Your subscription has been activated.', 'success')
 
             return 'YES', 200
         except Exception as e:
-            logger.error(f"Ошибка при обработке inv_id: {e}")
+            logger.error(f"Error processing inv_id: {e}")
             return 'NO', 400
     else:
-        logger.warning("Неверная подпись Robokassa.")
+        logger.warning("Invalid Robokassa signature.")
         return 'NO', 400
 
 @app.route('/robokassa/success', methods=['GET'])
 def robokassa_success():
-    flash('Оплата успешно завершена. Спасибо за покупку!', 'success')
+    flash('Payment completed successfully. Thank you for your purchase!', 'success')
     return redirect(url_for('index'))
 
 @app.route('/robokassa/fail', methods=['GET'])
 def robokassa_fail():
-    flash('Оплата не была завершена. Пожалуйста, попробуйте снова.', 'danger')
+    flash('Payment was not completed. Please try again.', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/webhook', methods=['POST'])
@@ -764,10 +749,10 @@ def webhook():
 
             update = Update.de_json(request.get_json(force=True), bot)
             dispatcher.process_update(update)
-            logger.info(f"Получено обновление от Telegram: {update}")
+            logger.info(f"Received Telegram update: {update}")
             return 'OK', 200
         except Exception as e:
-            logger.error(f"Ошибка при обработке вебхука: {e}")
+            logger.error(f"Error processing webhook: {e}")
             logger.error(traceback.format_exc())
             return 'Internal Server Error', 500
     else:
@@ -779,15 +764,15 @@ def set_webhook_route():
     try:
         s = bot.set_webhook(webhook_url)
         if s:
-            logger.info(f"Webhook успешно установлен на {webhook_url}")
-            return f"Webhook успешно установлен на {webhook_url}", 200
+            logger.info(f"Webhook successfully set to {webhook_url}")
+            return f"Webhook successfully set to {webhook_url}", 200
         else:
-            logger.error(f"Не удалось установить webhook на {webhook_url}")
-            return f"Не удалось установить webhook", 500
+            logger.error(f"Failed to set webhook to {webhook_url}")
+            return f"Failed to set webhook", 500
     except Exception as e:
-        logger.error(f"Ошибка при установке вебхука: {e}")
+        logger.error(f"Error setting webhook: {e}")
         logger.error(traceback.format_exc())
-        return f"Не удалось установить webhook: {e}", 500
+        return f"Failed to set webhook: {e}", 500
 
 @app.route('/webapp', methods=['GET'])
 def webapp():
@@ -796,12 +781,12 @@ def webapp():
 @app.route('/assistant', methods=['GET'])
 def assistant_page():
     if 'user_id' not in session:
-        flash('Пожалуйста, войдите в систему для доступа к ассистенту.', 'warning')
+        flash('Please log in to access the assistant.', 'warning')
         return redirect(url_for('login'))
 
     user = User.query.get(session['user_id'])
     if not user.assistant_premium:
-        flash('Доступ к ассистенту доступен только по подписке.', 'danger')
+        flash('The assistant is available to premium users only.', 'danger')
         return redirect(url_for('index'))
 
     return render_template('assistant.html')
@@ -828,35 +813,35 @@ def assistant_chat():
 
         trades = Trade.query.filter_by(user_id=user_id).all()
         if not trades:
-            trade_data = "У вас пока нет сделок."
-            comments = "Нет комментариев к сделкам."
+            trade_data = "You currently have no trades."
+            comments = "No comments on trades."
         else:
             trade_data = "\n\n".join([
-                f"**Сделка ID {trade.id}:**\n"
-                f" - **Инструмент:** {trade.instrument.name}\n"
-                f" - **Направление:** {trade.direction}\n"
-                f" - **Цена входа:** {trade.entry_price}\n"
-                f" - **Цена выхода:** {trade.exit_price}\n"
-                f" - **Время открытия:** {trade.trade_open_time}\n"
-                f" - **Время закрытия:** {trade.trade_close_time}\n"
-                f" - **Прибыль/Убыток:** {trade.profit_loss} ({trade.profit_loss_percentage}%)\n"
-                f" - **Сетап:** {trade.setup.setup_name if trade.setup else 'Без сетапа'}\n"
-                f" - **Критерии:** {', '.join([criterion.name for criterion in trade.criteria]) if trade.criteria else 'Без критериев'}"
+                f"**Trade ID {trade.id}:**\n"
+                f" - **Instrument:** {trade.instrument.name}\n"
+                f" - **Direction:** {trade.direction}\n"
+                f" - **Entry Price:** {trade.entry_price}\n"
+                f" - **Exit Price:** {trade.exit_price}\n"
+                f" - **Open Time:** {trade.trade_open_time}\n"
+                f" - **Close Time:** {trade.trade_close_time}\n"
+                f" - **Profit/Loss:** {trade.profit_loss} ({trade.profit_loss_percentage}%)\n"
+                f" - **Setup:** {trade.setup.setup_name if trade.setup else 'No setup'}\n"
+                f" - **Criteria:** {', '.join([criterion.name for criterion in trade.criteria]) if trade.criteria else 'No criteria'}"
                 for trade in trades
             ])
             comments = "\n\n".join([
-                f"**Сделка ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
-            ]) if any(trade.comment for trade in trades) else "Нет комментариев к сделкам."
+                f"**Trade ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
+            ]) if any(trade.comment for trade in trades) else "No comments on trades."
 
         system_message = f"""
-Ты — дядя Джон, крутой спец, который помогает пользователю анализировать его торговые сделки, предлагает конкретные решения с конкретными расчетами для торговых ситуаций пользователя, считает статистику по сделкам и находит закономерности.
-Данные пользователя о сделках:
+You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trade statistics and finds patterns.
+User trade data:
 {trade_data}
 
-Комментарии к сделкам:
+Trade comments:
 {comments}
 
-Предоставь подробный анализ и рекомендации на основе этих данных, если пользователь попросит.
+Provide a detailed analysis and recommendations based on this data, if the user requests.
 """
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
@@ -892,8 +877,8 @@ def clear_chat_history():
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Вы успешно вышли из системы.', 'success')
-    logger.info("Пользователь вышел из системы.")
+    flash('You have successfully logged out.', 'success')
+    logger.info("User logged out.")
     return redirect(url_for('info'))
 
 @app.route('/health', methods=['GET'])
@@ -908,12 +893,12 @@ def debug_session():
 @csrf.exempt
 def init():
     if 'user_id' in session:
-        logger.info(f"Пользователь ID {session['user_id']} уже авторизован.")
+        logger.info(f"User ID {session['user_id']} is already logged in.")
         return jsonify({'status': 'success'}), 200
 
     data = request.get_json()
     init_data = data.get('initData')
-    logger.debug(f"Получен initData через AJAX: {init_data}")
+    logger.debug(f"Received initData via AJAX: {init_data}")
     if init_data:
         try:
             webapp_data = parse_webapp_data(init_data)
@@ -923,13 +908,13 @@ def init():
             logger.debug(f"Validation result: {is_valid}")
 
             if not is_valid:
-                logger.warning("Невалидные данные авторизации.")
+                logger.warning("Invalid authorization data.")
                 return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
 
-            # Получаем язык пользователя (если передаётся через Telegram)
-            # Если язык не передан, устанавливаем по умолчанию 'ru'
+            # Get user's language (if provided by Telegram)
+            # Default to 'ru' if not provided
             language_code = getattr(webapp_data.user, 'language_code', 'ru')
-            session['language'] = language_code  # Сохраняем язык в сессии
+            session['language'] = language_code  # Save language in session
 
             telegram_id = int(webapp_data.user.id)
             first_name = webapp_data.user.first_name
@@ -947,20 +932,20 @@ def init():
                 )
                 db.session.add(user)
                 db.session.commit()
-                logger.info(f"Новый пользователь создан: Telegram ID {telegram_id}.")
+                logger.info(f"New user created: Telegram ID {telegram_id}.")
 
             session['user_id'] = user.id
             session['telegram_id'] = user.telegram_id
             session['assistant_premium'] = user.assistant_premium
 
-            logger.info(f"Пользователь ID {user.id} авторизован через Telegram Web App.")
+            logger.info(f"User ID {user.id} logged in via Telegram Web App.")
             return jsonify({'status': 'success'}), 200
         except Exception as e:
-            logger.error(f"Ошибка при верификации initData: {e}")
+            logger.error(f"Error verifying initData: {e}")
             logger.error(traceback.format_exc())
             return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
     else:
-        logger.warning("initData отсутствует в AJAX-запросе.")
+        logger.warning("initData not provided in AJAX request.")
         return jsonify({'status': 'failure', 'message': 'Go to Telegram'}), 400
 
 @app.route('/admin/users')
@@ -968,10 +953,10 @@ def init():
 def admin_users():
     users = User.query.all()
     
-    # Получаем настройку включения/выключения голосования (если она у вас уже есть)
+    # Get voting configuration setting (if available)
     voting_config = Config.query.filter_by(key='voting_enabled').first()
     
-    # Получаем (или создаём) настройку размера призового пула
+    # Get (or create) prize pool size configuration
     pool_config = Config.query.filter_by(key='best_setup_pool_size').first()
     existing_pool_size = pool_config.value if pool_config else '0'
 
@@ -988,20 +973,20 @@ def toggle_voting():
     try:
         voting_config = Config.query.filter_by(key='voting_enabled').first()
         if not voting_config:
-            # Если конфигурация голосования не существует, создаём её
+            # If voting config does not exist, create it
             voting_config = Config(key='voting_enabled', value='false')
             db.session.add(voting_config)
         
-        # Переключаем значение голосования
+        # Toggle voting value
         voting_config.value = 'false' if voting_config.value == 'true' else 'true'
         db.session.commit()
         
-        flash(f"Голосование {'отключено' if voting_config.value == 'false' else 'включено'}.", 'success')
-        logger.info(f"Голосование {'отключено' if voting_config.value == 'false' else 'включено'} администратором.")
+        flash(f"Voting has been {'disabled' if voting_config.value == 'false' else 'enabled'}.", 'success')
+        logger.info(f"Voting {'disabled' if voting_config.value == 'false' else 'enabled'} by admin.")
     except Exception as e:
         db.session.rollback()
-        flash('Произошла ошибка при переключении голосования.', 'danger')
-        logger.error(f"Ошибка при переключении голосования: {e}")
+        flash('An error occurred while toggling voting.', 'danger')
+        logger.error(f"Error toggling voting: {e}")
         logger.error(traceback.format_exc())
     
     return redirect(url_for('admin_users'))
@@ -1012,10 +997,10 @@ def toggle_premium(user_id):
     user = User.query.get_or_404(user_id)
     user.assistant_premium = not user.assistant_premium
     db.session.commit()
-    flash(f"Премиум статус пользователя {user.username} обновлён.", 'success')
+    flash(f"Premium status for user {user.username} has been updated.", 'success')
     if user.id == session.get('user_id'):
         session['assistant_premium'] = user.assistant_premium
-        flash('Ваш премиум статус обновлён.', 'success')
+        flash('Your premium status has been updated.', 'success')
         
     return redirect(url_for('admin_users'))
 
@@ -1024,7 +1009,7 @@ def toggle_premium(user_id):
 def set_pool_size():
     pool_size = request.form.get('pool_size', '0').strip()
     try:
-        # Проверим или создадим запись в таблице Config
+        # Check or create record in Config table
         config_record = Config.query.filter_by(key='best_setup_pool_size').first()
         if not config_record:
             config_record = Config(key='best_setup_pool_size', value='0')
@@ -1032,11 +1017,11 @@ def set_pool_size():
         
         config_record.value = pool_size
         db.session.commit()
-        flash(f"Размер призового пула обновлён: {pool_size} UJO", 'success')
+        flash(f"Prize pool size updated: {pool_size} UJO", 'success')
     except Exception as e:
         db.session.rollback()
-        flash('Ошибка при сохранении пула.', 'danger')
-        logger.error(f"Ошибка при set_pool_size: {e}", exc_info=True)
+        flash('Error saving prize pool.', 'danger')
+        logger.error(f"Error in set_pool_size: {e}", exc_info=True)
     
     return redirect(url_for('admin_users'))
 
@@ -1064,20 +1049,20 @@ def index():
                 start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
                 trades_query = trades_query.filter(Trade.trade_open_time >= start_date_obj)
             except ValueError:
-                flash('Некорректный формат даты начала.', 'danger')
-                logger.error(f"Некорректный формат даты начала: {start_date}.")
+                flash('Invalid start date format.', 'danger')
+                logger.error(f"Invalid start date format: {start_date}.")
         if end_date:
             try:
                 end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
                 trades_query = trades_query.filter(Trade.trade_open_time <= end_date_obj)
             except ValueError:
-                flash('Некорректный формат даты окончания.', 'danger')
-                logger.error(f"Некорректный формат даты окончания: {end_date}.")
+                flash('Invalid end date format.', 'danger')
+                logger.error(f"Invalid end date format: {end_date}.")
         if selected_criteria:
             trades_query = trades_query.join(Trade.criteria).filter(Criterion.id.in_(selected_criteria)).distinct()
 
         trades = trades_query.order_by(Trade.trade_open_time.desc()).all()
-        logger.info(f"Получено {len(trades)} сделок для пользователя ID {user_id}.")
+        logger.info(f"Retrieved {len(trades)} trades for user ID {user_id}.")
 
         for trade in trades:
             if trade.screenshot:
@@ -1125,7 +1110,7 @@ def new_trade():
     user_id = session['user_id']
     form = TradeForm()
     setups = Setup.query.filter_by(user_id=user_id).all()
-    form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
+    form.setup_id.choices = [(0, 'Select setup')] + [(setup.id, setup.setup_name) for setup in setups]
     instruments = Instrument.query.all()
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
@@ -1160,7 +1145,7 @@ def new_trade():
                     if criterion:
                         trade.criteria.append(criterion)
                 except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                    logger.error(f"Invalid criterion ID: {criterion_id}")
 
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
@@ -1170,26 +1155,26 @@ def new_trade():
                 if upload_success:
                     trade.screenshot = unique_filename
                 else:
-                    flash('Ошибка при загрузке скриншота.', 'danger')
-                    logger.error("Не удалось загрузить скриншот в S3.")
+                    flash('Error uploading screenshot.', 'danger')
+                    logger.error("Failed to upload screenshot to S3.")
                     return redirect(url_for('new_trade'))
 
             db.session.add(trade)
             db.session.commit()
-            flash('Сделка успешно добавлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} добавлена пользователем ID {user_id}.")
+            flash('Trade added successfully.', 'success')
+            logger.info(f"Trade ID {trade.id} added by user ID {user_id}.")
             return redirect(url_for('index'))
         except Exception as e:
             db.session.rollback()
-            flash('Произошла ошибка при добавлении сделки.', 'danger')
-            logger.error(f"Ошибка при добавлении сделки: {e}")
+            flash('An error occurred while adding the trade.', 'danger')
+            logger.error(f"Error adding trade: {e}")
             logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
-            flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            flash('The form is not valid. Please check the entered data.', 'danger')
             for field, errors in form.errors.items():
                 for error in errors:
-                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
+                    flash(f"Error in field {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template(
@@ -1206,8 +1191,8 @@ def edit_trade(trade_id):
     user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
-        flash('У вас нет прав для редактирования этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался редактировать сделку ID {trade_id}, которая ему не принадлежит.")
+        flash('You do not have permission to edit this trade.', 'danger')
+        logger.warning(f"User ID {user_id} attempted to edit trade ID {trade_id} not belonging to them.")
         return redirect(url_for('index'))
 
     if trade.screenshot:
@@ -1223,7 +1208,7 @@ def edit_trade(trade_id):
 
     form = TradeForm(obj=trade)
     setups = Setup.query.filter_by(user_id=user_id).all()
-    form.setup_id.choices = [(0, 'Выберите сетап')] + [(setup.id, setup.setup_name) for setup in setups]
+    form.setup_id.choices = [(0, 'Select setup')] + [(setup.id, setup.setup_name) for setup in setups]
     instruments = Instrument.query.all()
     form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
     form.criteria.choices = [(criterion.id, criterion.name) for criterion in Criterion.query.all()]
@@ -1259,18 +1244,18 @@ def edit_trade(trade_id):
                     if criterion:
                         trade.criteria.append(criterion)
                 except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                    logger.error(f"Invalid criterion ID: {criterion_id}")
 
             if form.remove_image.data:
                 if trade.screenshot:
                     delete_success = delete_file_from_s3(trade.screenshot)
                     if delete_success:
                         trade.screenshot = None
-                        flash('Изображение удалено.', 'success')
-                        logger.info(f"Изображение сделки ID {trade_id} удалено пользователем ID {user_id}.")
+                        flash('Image deleted.', 'success')
+                        logger.info(f"Image for trade ID {trade_id} deleted by user ID {user_id}.")
                     else:
-                        flash('Ошибка при удалении изображения.', 'danger')
-                        logger.error(f"Не удалось удалить изображение сделки ID {trade_id} из S3.")
+                        flash('Error deleting image.', 'danger')
+                        logger.error(f"Failed to delete image for trade ID {trade_id} from S3.")
                         return redirect(url_for('edit_trade', trade_id=trade_id))
 
             screenshot_file = form.screenshot.data
@@ -1278,36 +1263,36 @@ def edit_trade(trade_id):
                 if trade.screenshot:
                     delete_success = delete_file_from_s3(trade.screenshot)
                     if not delete_success:
-                        flash('Ошибка при удалении старого изображения.', 'danger')
-                        logger.error(f"Не удалось удалить старое изображение сетапа ID {setup_id} из S3.")
+                        flash('Error deleting old image.', 'danger')
+                        logger.error(f"Failed to delete old image for setup ID {trade_id} from S3.")
                         return redirect(url_for('edit_trade', trade_id=trade_id))
                 filename = secure_filename(screenshot_file.filename)
                 unique_filename = f"trade_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
                     trade.screenshot = unique_filename
-                    flash('Изображение успешно обновлено.', 'success')
-                    logger.info(f"Изображение сделки ID {trade_id} обновлено пользователем ID {user_id}.")
+                    flash('Image updated successfully.', 'success')
+                    logger.info(f"Image for trade ID {trade_id} updated by user ID {user_id}.")
                 else:
-                    flash('Ошибка при загрузке нового изображения.', 'danger')
-                    logger.error(f"Не удалось загрузить новое изображение сделки ID {trade_id} в S3.")
+                    flash('Error uploading new image.', 'danger')
+                    logger.error(f"Failed to upload new image for trade ID {trade_id} to S3.")
                     return redirect(url_for('edit_trade', trade_id=trade_id))
 
             db.session.commit()
-            flash('Сделка успешно обновлена.', 'success')
-            logger.info(f"Сделка ID {trade.id} обновлена пользователем ID {user_id}.")
+            flash('Trade updated successfully.', 'success')
+            logger.info(f"Trade ID {trade.id} updated by user ID {user_id}.")
             return redirect(url_for('index'))
         except Exception as e:
             db.session.rollback()
-            flash('Произошла ошибка при обновлении сделки.', 'danger')
-            logger.error(f"Ошибка при обновлении сделки ID {trade_id}: {e}")
+            flash('An error occurred while updating the trade.', 'danger')
+            logger.error(f"Error updating trade ID {trade_id}: {e}")
             logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
-            flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            flash('The form is not valid. Please check the entered data.', 'danger')
             for field, errors in form.errors.items():
                 for error in errors:
-                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
+                    flash(f"Error in field {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_trade.html', form=form, criteria_categories=criteria_categories, trade=trade)
@@ -1320,23 +1305,23 @@ def delete_trade(trade_id):
     user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
-        flash('У вас нет прав для удаления этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался удалить сделку ID {trade_id}, которая ему не принадлежит.")
+        flash('You do not have permission to delete this trade.', 'danger')
+        logger.warning(f"User ID {user_id} attempted to delete trade ID {trade_id} not belonging to them.")
         return redirect(url_for('index'))
     try:
         if trade.screenshot:
             delete_success = delete_file_from_s3(trade.screenshot)
             if not delete_success:
-                flash('Ошибка при удалении скриншота.', 'danger')
-                logger.error("Не удалось удалить скриншот из S3.")
+                flash('Error deleting screenshot.', 'danger')
+                logger.error("Failed to delete screenshot from S3.")
         db.session.delete(trade)
         db.session.commit()
-        flash('Сделка успешно удалена.', 'success')
-        logger.info(f"Сделка ID {trade.id} удалена пользователем ID {user_id}.")
+        flash('Trade deleted successfully.', 'success')
+        logger.info(f"Trade ID {trade.id} deleted by user ID {user_id}.")
     except Exception as e:
         db.session.rollback()
-        flash('Произошла ошибка при удалении сделки.', 'danger')
-        logger.error(f"Ошибка при удалении сделки ID {trade_id}: {e}")
+        flash('An error occurred while deleting the trade.', 'danger')
+        logger.error(f"Error deleting trade ID {trade_id}: {e}")
     return redirect(url_for('index'))
 
 @app.route('/manage_setups')
@@ -1346,7 +1331,7 @@ def manage_setups():
 
     user_id = session['user_id']
     setups = Setup.query.filter_by(user_id=user_id).all()
-    logger.info(f"Пользователь ID {user_id} просматривает свои сетапы.")
+    logger.info(f"User ID {user_id} is viewing their setups.")
 
     for setup in setups:
         if setup.screenshot:
@@ -1382,7 +1367,7 @@ def add_setup():
                     if criterion:
                         setup.criteria.append(criterion)
                 except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                    logger.error(f"Invalid criterion ID: {criterion_id}")
 
             screenshot_file = form.screenshot.data
             if screenshot_file and isinstance(screenshot_file, FileStorage):
@@ -1392,26 +1377,26 @@ def add_setup():
                 if upload_success:
                     setup.screenshot = unique_filename
                 else:
-                    flash('Ошибка при загрузке скриншота.', 'danger')
-                    logger.error("Не удалось загрузить скриншот в S3.")
+                    flash('Error uploading screenshot.', 'danger')
+                    logger.error("Failed to upload screenshot to S3.")
                     return redirect(url_for('add_setup'))
 
             db.session.add(setup)
             db.session.commit()
-            flash('Сетап успешно добавлен.', 'success')
-            logger.info(f"Сетап ID {setup.id} добавлен пользователем ID {user_id}.")
+            flash('Setup added successfully.', 'success')
+            logger.info(f"Setup ID {setup.id} added by user ID {user_id}.")
             return redirect(url_for('manage_setups'))
         except Exception as e:
             db.session.rollback()
-            flash('Произошла ошибка при добавлении сетапа.', 'danger')
-            logger.error(f"Ошибка при добавлении сетапа: {e}")
+            flash('An error occurred while adding the setup.', 'danger')
+            logger.error(f"Error adding setup: {e}")
             logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
-            flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            flash('The form is not valid. Please check the entered data.', 'danger')
             for field, errors in form.errors.items():
                 for error in errors:
-                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
+                    flash(f"Error in field {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template('add_setup.html', form=form, criteria_categories=criteria_categories)
@@ -1424,8 +1409,8 @@ def edit_setup(setup_id):
     user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
-        flash('У вас нет прав для редактирования этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался редактировать сетап ID {setup_id}, который ему не принадлежит.")
+        flash('You do not have permission to edit this setup.', 'danger')
+        logger.warning(f"User ID {user_id} attempted to edit setup ID {setup_id} not belonging to them.")
         return redirect(url_for('manage_setups'))
 
     if setup.screenshot:
@@ -1452,18 +1437,18 @@ def edit_setup(setup_id):
                     if criterion:
                         setup.criteria.append(criterion)
                 except (ValueError, TypeError):
-                    logger.error(f"Некорректный ID критерия: {criterion_id}")
+                    logger.error(f"Invalid criterion ID: {criterion_id}")
 
             if form.remove_image.data:
                 if setup.screenshot:
                     delete_success = delete_file_from_s3(setup.screenshot)
                     if delete_success:
                         setup.screenshot = None
-                        flash('Изображение удалено.', 'success')
-                        logger.info(f"Изображение сетапа ID {setup_id} удалено пользователем ID {user_id}.")
+                        flash('Image deleted.', 'success')
+                        logger.info(f"Image for setup ID {setup_id} deleted by user ID {user_id}.")
                     else:
-                        flash('Ошибка при удалении изображения.', 'danger')
-                        logger.error(f"Не удалось удалить изображение сетапа ID {setup_id} из S3.")
+                        flash('Error deleting image.', 'danger')
+                        logger.error(f"Failed to delete image for setup ID {setup_id} from S3.")
                         return redirect(url_for('edit_setup', setup_id=setup_id))
 
             screenshot_file = form.screenshot.data
@@ -1471,36 +1456,36 @@ def edit_setup(setup_id):
                 if setup.screenshot:
                     delete_success = delete_file_from_s3(setup.screenshot)
                     if not delete_success:
-                        flash('Ошибка при удалении старого изображения.', 'danger')
-                        logger.error(f"Не удалось удалить старое изображение сетапа ID {setup_id} из S3.")
+                        flash('Error deleting old image.', 'danger')
+                        logger.error(f"Failed to delete old image for setup ID {setup_id} from S3.")
                         return redirect(url_for('edit_setup', setup_id=setup_id))
                 filename = secure_filename(screenshot_file.filename)
                 unique_filename = f"setup_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{filename}"
                 upload_success = upload_file_to_s3(screenshot_file, unique_filename)
                 if upload_success:
                     setup.screenshot = unique_filename
-                    flash('Изображение успешно обновлено.', 'success')
-                    logger.info(f"Изображение сетапа ID {setup_id} обновлено пользователем ID {user_id}.")
+                    flash('Image updated successfully.', 'success')
+                    logger.info(f"Image for setup ID {setup_id} updated by user ID {user_id}.")
                 else:
-                    flash('Ошибка при загрузке нового изображения.', 'danger')
-                    logger.error(f"Не удалось загрузить новое изображение сетапа ID {setup_id} в S3.")
+                    flash('Error uploading new image.', 'danger')
+                    logger.error(f"Failed to upload new image for setup ID {setup_id} to S3.")
                     return redirect(url_for('edit_setup', setup_id=setup_id))
 
             db.session.commit()
-            flash('Сетап успешно обновлён.', 'success')
-            logger.info(f"Сетап ID {setup.id} обновлён пользователем ID {user_id}.")
+            flash('Setup updated successfully.', 'success')
+            logger.info(f"Setup ID {setup.id} updated by user ID {user_id}.")
             return redirect(url_for('manage_setups'))
         except Exception as e:
             db.session.rollback()
-            flash('Произошла ошибка при обновлении сетапа.', 'danger')
-            logger.error(f"Ошибка при обновлении сетапа ID {setup_id}: {e}")
+            flash('An error occurred while updating the setup.', 'danger')
+            logger.error(f"Error updating setup ID {setup_id}: {e}")
             logger.error(traceback.format_exc())
     else:
         if request.method == 'POST':
-            flash('Форма не валидна. Проверьте введённые данные.', 'danger')
+            flash('The form is not valid. Please check the entered data.', 'danger')
             for field, errors in form.errors.items():
                 for error in errors:
-                    flash(f"Ошибка в поле {getattr(form, field).label.text}: {error}", 'danger')
+                    flash(f"Error in field {getattr(form, field).label.text}: {error}", 'danger')
 
     criteria_categories = CriterionCategory.query.all()
     return render_template('edit_setup.html', form=form, criteria_categories=criteria_categories, setup=setup)
@@ -1513,23 +1498,23 @@ def delete_setup(setup_id):
     user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
-        flash('У вас нет прав для удаления этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался удалить сетап ID {setup_id}, который ему не принадлежит.")
+        flash('You do not have permission to delete this setup.', 'danger')
+        logger.warning(f"User ID {user_id} attempted to delete setup ID {setup_id} not belonging to them.")
         return redirect(url_for('manage_setups'))
     try:
         if setup.screenshot:
             delete_success = delete_file_from_s3(setup.screenshot)
             if not delete_success:
-                flash('Ошибка при удалении скриншота.', 'danger')
-                logger.error("Не удалось удалить скриншот из S3.")
+                flash('Error deleting screenshot.', 'danger')
+                logger.error("Failed to delete screenshot from S3.")
         db.session.delete(setup)
         db.session.commit()
-        flash('Сетап успешно удалён.', 'success')
-        logger.info(f"Сетап ID {setup.id} удалён пользователем ID {user_id}.")
+        flash('Setup deleted successfully.', 'success')
+        logger.info(f"Setup ID {setup.id} deleted by user ID {user_id}.")
     except Exception as e:
         db.session.rollback()
-        flash('Произошла ошибка при удалении сетапа.', 'danger')
-        logger.error(f"Ошибка при удалении сетапа ID {setup_id}: {e}")
+        flash('An error occurred while deleting the setup.', 'danger')
+        logger.error(f"Error deleting setup ID {setup_id}: {e}")
     return redirect(url_for('manage_setups'))
 
 @app.route('/view_trade/<int:trade_id>')
@@ -1540,10 +1525,10 @@ def view_trade(trade_id):
     user_id = session['user_id']
     trade = Trade.query.get_or_404(trade_id)
     if trade.user_id != user_id:
-        flash('У вас нет прав для просмотра этой сделки.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сделку ID {trade_id}, которая ему не принадлежит.")
+        flash('You do not have permission to view this trade.', 'danger')
+        logger.warning(f"User ID {user_id} attempted to view trade ID {trade_id} not belonging to them.")
         return redirect(url_for('index'))
-    logger.info(f"Пользователь ID {user_id} просматривает сделку ID {trade_id}.")
+    logger.info(f"User ID {user_id} is viewing trade ID {trade_id}.")
 
     if trade.screenshot:
         trade.screenshot_url = generate_s3_url(trade.screenshot)
@@ -1566,10 +1551,10 @@ def view_setup(setup_id):
     user_id = session['user_id']
     setup = Setup.query.get_or_404(setup_id)
     if setup.user_id != user_id:
-        flash('У вас нет прав для просмотра этого сетапа.', 'danger')
-        logger.warning(f"Пользователь ID {user_id} попытался просмотреть сетап ID {setup_id}, который ему не принадлежит.")
+        flash('You do not have permission to view this setup.', 'danger')
+        logger.warning(f"User ID {user_id} attempted to view setup ID {setup_id} not belonging to them.")
         return redirect(url_for('manage_setups'))
-    logger.info(f"Пользователь ID {user_id} просматривает сетап ID {setup_id}.")
+    logger.info(f"User ID {user_id} is viewing setup ID {setup_id}.")
 
     if setup.screenshot:
         setup.screenshot_url = generate_s3_url(setup.screenshot)
@@ -1602,9 +1587,9 @@ def get_user_stakes():
 @app.route('/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards():
     """
-    Пользователь может клеймить раз в неделю.
-    При клейме отправляем pending_rewards. 
-    После отправки обнуляем pending_rewards, обновляем last_claim_at
+    User can claim once a week.
+    When claiming, send pending_rewards.
+    After sending, reset pending_rewards and update last_claim_at.
     """
     if 'user_id' not in session:
         return jsonify({'error':'Unauthorized'}),401
@@ -1614,14 +1599,14 @@ def claim_staking_rewards():
         return jsonify({'error':'User not found'}),404
     stakings = UserStaking.query.filter_by(user_id=user_id).all()
     if not stakings:
-        return jsonify({'error':'У вас нет стейка.'}),400
+        return jsonify({'error':'You have no staking.'}),400
 
     now = datetime.utcnow()
     totalRewards = 0.0
     updated_stakes = []
     for s in stakings:
         if s.staked_amount > 0:
-            # проверим, прошло ли 7 дней
+            # Check if 7 days have passed
             delta = now - s.last_claim_at
             if delta.total_seconds() >= 7 * 24 * 3600:
                 totalRewards += s.pending_rewards
@@ -1629,25 +1614,25 @@ def claim_staking_rewards():
                 s.last_claim_at = now
                 updated_stakes.append(s)
     if totalRewards <= 0:
-        return jsonify({'error':'Пока нечего клеймить, либо не прошла неделя.'}),400
+        return jsonify({'error':'Nothing to claim yet, or a week has not passed.'}),400
     
-    # Отправим пользователю
+    # Send tokens to user
     if not user.wallet_address:
         return jsonify({'error':'No wallet address'}),400
     
     success = send_token_reward(user.wallet_address, totalRewards)
     if success:
         db.session.commit()
-        return jsonify({'message': f'Claim {totalRewards:.4f} UJO успешно отправлен на {user.wallet_address}.'}),200
+        return jsonify({'message': f'Claim of {totalRewards:.4f} UJO successfully sent to {user.wallet_address}.'}),200
     else:
         db.session.rollback()
-        return jsonify({'error':'Ошибка транзакции.'}),400
+        return jsonify({'error':'Transaction error.'}),400
 
 @app.route('/unstake_staking', methods=['POST'])
 def unstake_staking():
     """
-    Выводим стейк, если прошёл срок (30 дней).
-    При выводе удерживаем 1% fee. 
+    Withdraw stake if the period (30 days) has passed.
+    A 1% fee is deducted.
     """
     if 'user_id' not in session:
         return jsonify({'error':'Unauthorized'}),401
@@ -1658,30 +1643,28 @@ def unstake_staking():
     
     stakings = UserStaking.query.filter_by(user_id=user_id).all()
     if not stakings:
-        return jsonify({'error':'У вас нет стейка'}),400
+        return jsonify({'error':'You have no staking'}),400
     
     now = datetime.utcnow()
     total_unstake = 0.0
     changed_stakes = []
     for st in stakings:
         if st.staked_amount > 0 and now >= st.unlocked_at:
-            # можно вывести
+            # Can withdraw
             total_unstake += st.staked_amount
             st.staked_amount = 0.0
             st.pending_rewards = 0.0
             changed_stakes.append(st)
     if total_unstake <= 0:
-        return jsonify({'error':'Нет доступных стейков (30 дней не прошло).'}),400
+        return jsonify({'error':'No stakes available (30 days have not passed).'}),400
     
-    # 1% fee
+    # Deduct 1% fee
     fee = total_unstake * 0.01
     withdraw_amount = total_unstake - fee
     success = send_token_reward(user.wallet_address, withdraw_amount)
     if success:
-        # стейки обнулены
-        # если у пользователя нет других активных стейков>0 -> assistant_premium=False
         db.session.commit()
-        # проверяем, остались ли у него стейки
+        # If no active stakes left, set assistant_premium to False
         active_left = UserStaking.query.filter(
             UserStaking.user_id == user_id,
             UserStaking.staked_amount > 0
@@ -1689,25 +1672,12 @@ def unstake_staking():
         if not active_left:
             user.assistant_premium = False
             db.session.commit()
-        return jsonify({'message': f'Unstake {withdraw_amount:.4f} UJO (вычет 1% fee={fee:.4f}).'}),200
+        return jsonify({'message': f'Unstaked {withdraw_amount:.4f} UJO (1% fee deducted = {fee:.4f}).'}),200
     else:
         db.session.rollback()
-        return jsonify({'error':'Ошибка транзакции при unstake'}),400
+        return jsonify({'error':'Transaction error during unstake'}),400
 
 ##################################################
-# Flask Route for Home Page (index) and Login
+# Flask Routes for Home Page and Login
 ##################################################
-# Убедитесь, что эти маршруты определены только один раз в файле.
-
-# Маршрут '/' уже определён выше, поэтому его повторное определение удалено.
-
-# Маршрут '/login' также уже определён выше, повторное определение удалено.
-
-# Если у вас были дополнительные маршруты для ассоциаций, убедитесь, что они не дублируются здесь.
-
-##################################################
-# **Запуск Flask-приложения**
-# Обычно Flask-приложение запускается из файла app.py,
-# но если необходимо, можно оставить этот блок
-
-# Этот блок уже удалён ранее
+# Routes '/' and '/login' are already defined above.
