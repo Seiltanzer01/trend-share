@@ -8,17 +8,17 @@
 
 {% block content %}
 <div class="container">
-    <h2>Детали Сетапа</h2>
+    <h2>{% if language == 'ru' %}Детали Сетапа{% else %}Setup Details{% endif %}</h2>
 
     <p><strong>ID:</strong> {{ setup.id }}</p>
-    <p><strong>Название:</strong> {{ setup.setup_name }}</p>
-    <p><strong>Описание:</strong><br>{{ setup.description or '-' }}</p>
-    <p><strong>Критерии:</strong>
+    <p><strong>{% if language == 'ru' %}Название:{% else %}Name:{% endif %}</strong> {{ setup.setup_name }}</p>
+    <p><strong>{% if language == 'ru' %}Описание:{% else %}Description:{% endif %}</strong><br>{{ setup.description or '-' }}</p>
+    <p><strong>{% if language == 'ru' %}Критерии:{% else %}Criteria:{% endif %}</strong>
         {% for criterion in setup.criteria %}
             <span class="criterion">{{ criterion.name }}</span>
         {% endfor %}
     </p>
-    <p><strong>Скриншот:</strong><br>
+    <p><strong>{% if language == 'ru' %}Скриншот:{% else %}Screenshot:{% endif %}</strong><br>
         {% if setup.screenshot_url %}
             <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image lazyload nes-pointer" style="max-width: 100%; height: auto;">
         {% else %}
@@ -26,9 +26,8 @@
         {% endif %}
     </p>
 
-    <a href="{{ url_for('manage_setups') }}" class="btn-back nes-btn custom-primary"><i class="fas fa-arrow-left"></i> Вернуться к списку сетапов</a>
+    <a href="{{ url_for('manage_setups') }}" class="btn-back nes-btn custom-primary"><i class="fas fa-arrow-left"></i> {% if language == 'ru' %}Вернуться к списку сетапов{% else %}Back to Setups List{% endif %}</a>
 
-    <!-- Модальное окно для отображения изображений -->
     <div id="modal" class="modal">
         <span class="close">&times;</span>
         <img class="modal-content" id="modal-img">
