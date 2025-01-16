@@ -1,12 +1,11 @@
 <!-- templates/webapp.html -->
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{% if language == 'ru' %}ru{% else %}en{% endif %}">
 <head>
     <meta charset="UTF-8">
-    <title>Telegram Web App</title>
+    <title>{% if language == 'ru' %}Telegram Web App{% else %}Telegram Web App{% endif %}</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Базовые стили для скрытия/показа различных секций */
         #loading {
             text-align: center;
             margin-top: 50px;
@@ -15,47 +14,36 @@
 </head>
 <body>
     <div id="loading">
-        <h1>Авторизация...</h1>
+        <h1>{% if language == 'ru' %}Авторизация...{% else %}Authorization...{% endif %}</h1>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
 
-        /**
-         * Функция для перенаправления на главную страницу приложения после авторизации
-         */
         function redirectToMainApp() {
-            // Вы можете использовать window.location.href для перенаправления
             window.location.href = '/';
         }
 
-        /**
-         * Функция для отображения ошибок
-         */
         function showError(message) {
-            document.getElementById('loading').innerHTML = `<h1>Ошибка: ${message}</h1>`;
+            document.getElementById('loading').innerHTML = `<h1>{% if language == 'ru' %}Ошибка: {% else %}Error: {% endif %}${message}</h1>`;
         }
 
-        // Проверяем, существует ли Telegram WebApp
         if (tg) {
             const initData = tg.initData || tg.initDataUnsafe || '';
-
             console.log('initData:', initData);
             if (initData === '') {
-                // Инициализация Web App
                 console.log('initData пустое, вызываем tg.ready()');
-                tg.ready(); // Уведомляем Telegram, что Web App готов
+                tg.ready();
             } else {
-                // Отправка initData на сервер через AJAX POST запрос
                 fetch('/init', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        initData: initData // Отправляем без Base64-кодирования
+                        initData: initData
                     }),
-                    credentials: 'include' // Включает куки в запрос
+                    credentials: 'include'
                 })
                 .then(response => {
                     console.log('Получен ответ от сервера:', response);
@@ -65,22 +53,20 @@
                     console.log('Данные от сервера:', data);
                     if(data.status === 'success') {
                         console.log('Авторизация успешна');
-                        // Автоматическое перенаправление на главную страницу
                         redirectToMainApp();
                     } else {
                         console.error('Ошибка авторизации:', data.message);
-                        showError(data.message || 'Неизвестная ошибка при авторизации.');
+                        showError(data.message || '{% if language == "ru" %}Неизвестная ошибка при авторизации.{% else %}Unknown authorization error.{% endif %}');
                     }
                 })
                 .catch(error => {
                     console.error('Ошибка при отправке initData:', error);
-                    showError('Произошла ошибка при авторизации.');
+                    showError('{% if language == "ru" %}Произошла ошибка при авторизации.{% else %}An error occurred during authorization.{% endif %}');
                 });
             }
         } else {
             console.log('Telegram WebApp не найден, не инициируем авторизацию.');
-            // Дополнительные действия, если необходимо
-            showError('Telegram WebApp не обнаружен. Пожалуйста, используйте Telegram для доступа к приложению.');
+            showError('{% if language == "ru" %}Telegram WebApp не обнаружен. Пожалуйста, используйте Telegram для доступа к приложению.{% else %}Telegram WebApp not found. Please use Telegram to access the application.{% endif %}');
         }
     </script>
 </body>
