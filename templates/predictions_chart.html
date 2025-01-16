@@ -3,18 +3,16 @@
 {% extends "base.html" %}
 
 {% block head_meta %}
-<!-- Мета-тег viewport отключён на главной странице -->
+<!-- Мета-тег viewport отключён на главной странице / Viewport meta disabled on main page -->
 {% endblock %}
 
 {% block content %}
-<h1>Диаграммы Предсказаний</h1>
+<h1>{% if language == 'ru' %}Диаграммы Предсказаний{% else %}Predictions Charts{% endif %}</h1>
 
-<!-- Контейнер для диаграмм -->
 <div id="charts-container">
-    <p>Загрузка диаграмм...</p>
+    <p>{% if language == 'ru' %}Загрузка диаграмм...{% else %}Loading charts...{% endif %}</p>
 </div>
 
-<!-- Добавляем стили для индикатора загрузки и диаграмм -->
 <style>
     .loader {
         border: 8px solid #f3f3f3;
@@ -41,14 +39,13 @@
     }
 </style>
 
-<!-- Скрипт для обновления диаграмм -->
 <script>
     function fetchCharts() {
         fetch("{{ url_for('fetch_charts') }}")
             .then(response => response.json())
             .then(data => {
                 const container = document.getElementById('charts-container');
-                container.innerHTML = '';  // Очистить контейнер перед загрузкой новых диаграмм
+                container.innerHTML = '';
 
                 if (data.error) {
                     console.error('Error:', data.error);
@@ -58,7 +55,7 @@
 
                 const charts = data.charts;
                 if (Object.keys(charts).length === 0) {
-                    container.innerHTML = '<p>Нет доступных диаграмм для отображения.</p>';
+                    container.innerHTML = '<p>{% if language == "ru" %}Нет доступных диаграмм для отображения.{% else %}No charts available to display.{% endif %}</p>';
                     return;
                 }
 
@@ -73,7 +70,7 @@
 
                     const img = document.createElement('img');
                     img.src = `data:image/png;base64,${image}`;
-                    img.alt = `Диаграмма предсказаний для ${instrument.split(' (')[0]}`;
+                    img.alt = `{% if language == 'ru' %}Диаграмма предсказаний для ${instrument.split(' (')[0]}{% else %}Predictions chart for ${instrument.split(' (')[0]}{% endif %}`;
                     img.classList.add('responsive-chart');
                     chartDiv.appendChild(img);
 
@@ -81,7 +78,7 @@
                     updateTime.classList.add('update-time');
                     const now = new Date();
                     const utcString = now.toISOString().slice(0, 19).replace('T', ' ');
-                    updateTime.textContent = `Последнее обновление: ${utcString} UTC`;
+                    updateTime.textContent = `{% if language == 'ru' %}Последнее обновление: ${utcString} UTC{% else %}Last updated: ${utcString} UTC{% endif %}`;
                     chartDiv.appendChild(updateTime);
 
                     container.appendChild(chartDiv);
@@ -90,14 +87,11 @@
             .catch(error => {
                 console.error('Error fetching charts:', error);
                 const container = document.getElementById('charts-container');
-                container.innerHTML = `<div class="nes-container is-rounded is-error"><p>Ошибка при загрузке диаграмм.</p></div>`;
+                container.innerHTML = `<div class="nes-container is-rounded is-error"><p>{% if language == 'ru' %}Ошибка при загрузке диаграмм.{% else %}Error loading charts.{% endif %}</p></div>`;
             });
     }
 
-    // Обновляем диаграммы каждые 30 секунд
     setInterval(fetchCharts, 30000);
-
-    // Вызовем функцию при загрузке страницы
     window.onload = fetchCharts;
 </script>
 {% endblock %}
