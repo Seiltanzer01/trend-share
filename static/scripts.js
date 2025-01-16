@@ -15,7 +15,7 @@ $(document).ready(function() {
     $('#toggle-filters').on('click', function(){
         $('#filters').slideToggle();
         const button = $(this);
-        // We'll switch the text to English
+        // Switch the text in English
         if (button.text().includes('Show')) {
             button.html('<i class="fas fa-filter"></i> Hide Filters');
         } else {
@@ -66,8 +66,7 @@ $(document).ready(function() {
     $('#setup-table').DataTable({
         responsive: true,
         language: {
-            // Keep in mind that we're still using the RU i18n file from DataTables, 
-            // you can replace it with an English version if you need the entire DataTables UI in English
+            // You can replace with an English i18n file if needed
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
         },
         "pageLength": 10,
@@ -87,7 +86,7 @@ $(document).ready(function() {
     $('#trade-table').DataTable({
         responsive: true,
         language: {
-            // Same note here about the RU i18n file
+            // You can replace with an English i18n file if needed
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
         },
         "pageLength": 10,
