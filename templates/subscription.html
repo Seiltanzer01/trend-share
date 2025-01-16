@@ -4,33 +4,30 @@
 
 {% block content %}
 <div class="nes-container with-title">
-  <p class="title">Стейкинг / Подписка</p>
+  <p class="title">{% if language == 'ru' %}Стейкинг / Подписка{% else %}Staking / Subscription{% endif %}</p>
   
   {% if not user.unique_wallet_address %}
-    <p>Сгенерируйте свой уникальный кошелёк для стейкинга:</p>
-    <button class="nes-btn is-primary" id="generateUniqueWalletBtn">Сгенерировать Кошелёк</button>
+    <p>{% if language == 'ru' %}Сгенерируйте свой уникальный кошелёк для стейкинга:{% else %}Generate your unique wallet for staking:{% endif %}</p>
+    <button class="nes-btn is-primary" id="generateUniqueWalletBtn">{% if language == 'ru' %}Сгенерировать Кошелёк{% else %}Generate Wallet{% endif %}</button>
   {% else %}
     <!-- Отображение кошелька и стейкинга -->
-    
     <hr>
-    <h3>Баланс UJO</h3>
+    <h3>{% if language == 'ru' %}Баланс UJO{% else %}UJO Balance{% endif %}</h3>
     <ul>
         <li>UJO: <span id="ujoBalance">Loading...</span></li>
     </ul>
     
     <hr>
-    <h3>Стейкинг</h3>
-    
-    <!-- Отображение требуемого количества UJO для стейкинга -->
-    <p>Для подписки необходимо отправить эквивалент 25$ в UJO:</p>
+    <h3>{% if language == 'ru' %}Стейкинг{% else %}Staking{% endif %}</h3>
+    <p>{% if language == 'ru' %}Для подписки необходимо отправить эквивалент 25$ в UJO:{% else %}To subscribe, send the equivalent of $25 in UJO:{% endif %}</p>
     <p><strong>25$ = <span id="requiredUJO">Loading...</span> UJO</strong></p>
     
-    <button class="nes-btn is-success" id="stakeButton">Застейкать (25$)</button>
+    <button class="nes-btn is-success" id="stakeButton">{% if language == 'ru' %}Застейкать (25$){% else %}Stake ($25){% endif %}</button>
     
     <div id="stakingArea" style="margin-top:1rem;"></div>
     
-    <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">Claim Rewards</button>
-    <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">Unstake</button>
+    <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">{% if language == 'ru' %}Claim Rewards{% else %}Claim Rewards{% endif %}</button>
+    <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">{% if language == 'ru' %}Unstake{% else %}Unstake{% endif %}</button>
   {% endif %}
 </div>
 
@@ -50,14 +47,14 @@
 
                 const data = await response.json();
                 if (data.status === 'success') {
-                    alert('Уникальный кошелёк успешно сгенерирован! Ваш адрес: ' + data.unique_wallet_address);
+                    alert('{% if language == "ru" %}Уникальный кошелёк успешно сгенерирован! Ваш адрес: {% else %}Unique wallet generated successfully! Your address: {% endif %}' + data.unique_wallet_address);
                     window.location.reload();
                 } else {
-                    alert('Ошибка: ' + data.error);
+                    alert('Error: ' + data.error);
                 }
             } catch (error) {
                 console.error('Ошибка при генерации уникального кошелька:', error);
-                alert('Произошла ошибка при генерации уникального кошелька.');
+                alert('{% if language == "ru" %}Произошла ошибка при генерации уникального кошелька.{% else %}An error occurred while generating the wallet.{% endif %}');
             }
         });
     });
@@ -67,7 +64,6 @@
 {% if user.unique_wallet_address %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Функция для получения цены токена и расчета требуемого UJO
         async function loadRequiredUJO(){
             try{
                 const response = await fetch('/staking/api/get_token_price', {
@@ -90,11 +86,9 @@
             }
         }
 
-        // Обновление требуемого UJO при загрузке страницы и раз в день
         loadRequiredUJO();
-        setInterval(loadRequiredUJO, 24*60*60*1000); // Обновление раз в день
+        setInterval(loadRequiredUJO, 24*60*60*1000);
 
-        // Инициализация баланса UJO
         async function loadBalances(){
             try{
                 const response = await fetch('/staking/api/get_balances', {
@@ -116,16 +110,13 @@
             }
         }
 
-        // Вызов загрузки баланса UJO при загрузке страницы
         loadBalances();
 
-        // Обработчик кнопки "Stake"
         document.getElementById('stakeButton').addEventListener('click', async () => {
             try {
                 const csrfToken = "{{ csrf_token }}";
-                const stakeAmountUSD = 25; // Фиксированная сумма в USD
+                const stakeAmountUSD = 25;
 
-                // Отправка стейкинга
                 const response = await fetch('/staking/api/stake_tokens', {
                     method: 'POST',
                     headers: {
@@ -139,20 +130,19 @@
 
                 const data = await response.json();
                 if(data.status === 'success'){
-                    alert('Стейкинг успешно выполнен!');
+                    alert('{% if language == "ru" %}Стейкинг успешно выполнен!{% else %}Stake executed successfully!{% endif %}');
                     loadStaking();
                     loadBalances();
                     loadRequiredUJO();
                 } else{
-                    alert('Ошибка: ' + data.error);
+                    alert('Error: ' + data.error);
                 }
             } catch(error){
                 console.error('Ошибка при стейкинге:', error);
-                alert('Произошла ошибка при стейкинге.');
+                alert('{% if language == "ru" %}Произошла ошибка при стейкинге.{% else %}An error occurred during staking.{% endif %}');
             }
         });
 
-        // Функция для загрузки и отображения стейков пользователя
         async function loadStaking() {
             try {
                 const resp = await fetch('/staking/api/get_user_stakes')
@@ -165,7 +155,7 @@
                 }
                 const stakes = data.stakes
                 if(!stakes.length) {
-                    document.getElementById('stakingArea').innerHTML = '<p>У вас нет стейкинга.</p>'
+                    document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}У вас нет стейкинга.{% else %}You do not have any stakes.{% endif %}</p>'
                     document.getElementById('claimRewardsBtn').style.display = 'none'
                     document.getElementById('unstakeBtn').style.display = 'none'
                     return
@@ -174,9 +164,9 @@
                 for(let s of stakes) {
                     html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
                       <p><b>TX Hash:</b> ${s.tx_hash}</p>
-                      <p>Staked: ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
-                      <p>Pending Rewards: ${s.pending_rewards} UJO</p>
-                      <p>Unlocked At: ${new Date(s.unlocked_at).toLocaleString()}</p>
+                      <p>{% if language == "ru" %}Staked:{% else %}Staked:{% endif %} ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
+                      <p>{% if language == "ru" %}Pending Rewards:{% else %}Pending Rewards:{% endif %} ${s.pending_rewards} UJO</p>
+                      <p>{% if language == "ru" %}Unlocked At:{% else %}Unlocked At:{% endif %} ${new Date(s.unlocked_at).toLocaleString()}</p>
                     </div>`
                 }
                 document.getElementById('stakingArea').innerHTML = html
@@ -184,16 +174,14 @@
                 document.getElementById('unstakeBtn').style.display = 'block'
             } catch (error) {
                 console.error('Ошибка при загрузке стейкингов:', error)
-                document.getElementById('stakingArea').innerHTML = '<p>Произошла ошибка при загрузке стейкингов.</p>'
+                document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}Произошла ошибка при загрузке стейкингов.{% else %}An error occurred while loading stakes.{% endif %}</p>'
                 document.getElementById('claimRewardsBtn').style.display = 'none'
                 document.getElementById('unstakeBtn').style.display = 'none'
             }
         }
 
-        // Вызов загрузки стейкинговых данных при загрузке страницы
         loadStaking();
 
-        // Обработчик кнопки "Claim Rewards"
         document.getElementById('claimRewardsBtn').addEventListener('click', async function(){
             try {
                 const csrfToken = "{{ csrf_token }}";
@@ -212,11 +200,10 @@
                     loadBalances()
                 }
             } catch (error) {
-                alert('Произошла ошибка при клейме наград: ' + error)
+                alert('{% if language == "ru" %}Произошла ошибка при клейме наград: {% else %}An error occurred while claiming rewards: {% endif %}' + error)
             }
         });
 
-        // Обработчик кнопки "Unstake"
         document.getElementById('unstakeBtn').addEventListener('click', async function(){
             try {
                 const csrfToken = "{{ csrf_token }}";
@@ -230,13 +217,13 @@
                 const data = await response.json()
                 if(data.error) alert(data.error)
                 else {
-                    alert('Unstake выполнен успешно!')
+                    alert('{% if language == "ru" %}Unstake выполнен успешно!{% else %}Unstake executed successfully!{% endif %}')
                     loadStaking()
                     loadBalances()
                     loadRequiredUJO()
                 }
             } catch (error) {
-                alert('Произошла ошибка при unstake: ' + error)
+                alert('{% if language == "ru" %}Произошла ошибка при unstake: {% else %}An error occurred during unstake: {% endif %}' + error)
             }
         });
     });
