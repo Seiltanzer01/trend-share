@@ -4,21 +4,25 @@
 
 {% block content %}
 <div class="container">
-    <h2></h2>
+    <h2>{% if language == 'ru' %}{% else %}{% endif %}</h2>
 
     <div class="content">
-        <h1>Авторизация</h1>
+        <h1>{% if language == 'ru' %}Авторизация{% else %}Login{% endif %}</h1>
         <div class="info">
-            Для доступа к приложению откройте его через Telegram Web App. Если вы открываете приложение вне Telegram, пожалуйста, воспользуйтесь ссылкой в боте.
+            {% if language == 'ru' %}
+                Для доступа к приложению откройте его через Telegram Web App. Если вы открываете приложение вне Telegram, пожалуйста, воспользуйтесь ссылкой в боте.
+            {% else %}
+                To access the application, open it through the Telegram Web App. If you are accessing the app outside Telegram, please use the link in the bot.
+            {% endif %}
         </div>
-        <a href="https://t.me/TrendShare_bot" class="btn-back nes-btn custom-primary"><i class="fas fa-arrow-left"></i> Открыть в Telegram</a>
+        <a href="https://t.me/TrendShare_bot" class="btn-back nes-btn custom-primary"><i class="fas fa-arrow-left"></i> {% if language == 'ru' %}Открыть в Telegram{% else %}Open in Telegram{% endif %}</a>
     </div>
 </div>
 
 <footer>
     <div class="footer-links">
-        <a href="{{ url_for('privacy_policy') }}" class="nes-btn">Публичная оферта</a>
-        <a href="{{ url_for('additional_info') }}" class="nes-btn">Доп. информация</a>
+        <a href="{{ url_for('privacy_policy') }}" class="nes-btn">{% if language == 'ru' %}Публичная оферта{% else %}Public Offer{% endif %}</a>
+        <a href="{{ url_for('additional_info') }}" class="nes-btn">{% if language == 'ru' %}Доп. информация{% else %}Additional Info{% endif %}</a>
     </div>
 </footer>
 
