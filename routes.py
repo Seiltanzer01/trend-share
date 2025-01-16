@@ -911,10 +911,13 @@ def init():
                 logger.warning("Invalid authorization data.")
                 return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
 
-            # Get user's language (if provided by Telegram)
-            # Default to 'ru' if not provided
-            language_code = getattr(webapp_data.user, 'language_code', 'ru')
-            session['language'] = language_code  # Save language in session
+            # Если бы мы хотели использовать язык из Telegram, было бы так:
+            # language_code = getattr(webapp_data.user, 'language_code', 'ru')
+            # session['language'] = language_code
+
+            # ---- НО для теста мы ЖЕСТКО ставим английский: ----
+            session['language'] = 'en'
+            # (Потом, если нужно, вы раскомментируете верхний блок и уберете эту строку.)
 
             telegram_id = int(webapp_data.user.id)
             first_name = webapp_data.user.first_name
