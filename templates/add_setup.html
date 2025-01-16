@@ -4,13 +4,13 @@
 
 {% block content %}
 <div class="container">
-    <h2>Добавить Сетап</h2>
+    <h2>{% if language == 'ru' %}Добавить Сетап{% else %}Add Setup{% endif %}</h2>
 
     <form method="POST" enctype="multipart/form-data">
         {{ form.hidden_tag() }}
 
         <div>
-            {{ form.setup_name.label }}
+            {{ form.setup_name.label }} 
             {{ form.setup_name(class="nes-input") }}
         </div>
 
@@ -26,14 +26,14 @@
 
         {% if setup and setup.screenshot_url %}
             <div>
-                <label>Текущее изображение:</label>
+                <label>{% if language == 'ru' %}Текущее изображение:{% else %}Current Image:{% endif %}</label>
                 <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image lazyload setup-mini nes-pointer"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
 
         <br>
-        <label>Критерии:</label>
+        <label>{% if language == 'ru' %}Критерии:{% else %}Criteria:{% endif %}</label>
         <div class="criteria-section">
             {% for category in criteria_categories %}
                 <div class="category">
