@@ -144,22 +144,18 @@ init_best_setup_voting_routes(app, db)
 def inject_datetime():
     return {'datetime': datetime}
 
-@app.template_filter('translate')
-def translate_filter(russian_text):
+def translate_python(russian_text):
     """
     Переводит строку, если session['language'] == 'en'.
-    Если язык другой (например, 'ru'), то возвращаем исходный текст.
+    Иначе возвращает исходную строку.
     """
-    # Если строки нет или она пустая, возвращаем как есть
     if not russian_text:
-        return russian_text
+        return russian_text  # пусто
 
-    current_lang = session.get('language', 'ru')  # Возьмём 'ru' как язык по умолчанию
+    current_lang = session.get('language', 'ru')
     if current_lang == 'en':
-        # Попробуем найти перевод в словаре
         return TRANSLATIONS_RU_TO_EN.get(russian_text, russian_text)
     else:
-        # Иначе не переводим
         return russian_text
 
 # Вспомогательные функции для работы с S3
