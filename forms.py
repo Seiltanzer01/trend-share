@@ -2,7 +2,7 @@
 
 from flask_wtf import FlaskForm
 from wtforms import (
-    StringField, SubmitField, SelectField, FloatField, 
+    StringField, SubmitField, SelectField, FloatField,
     TextAreaField, DateField, FileField, SelectMultipleField, BooleanField
 )
 from wtforms.validators import DataRequired, Optional, NumberRange
@@ -24,7 +24,7 @@ class TradeForm(FlaskForm):
     setup_id        = SelectField('setup_id', coerce=int, validators=[Optional()])
     criteria        = SelectMultipleField('criteria', coerce=int, validators=[Optional()])
     screenshot      = FileField(
-        'screenshot', 
+        'screenshot',
         validators=[
             Optional(),
             FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'images only')
@@ -36,19 +36,19 @@ class TradeForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Теперь можем «перевести» лейблы внутри request context
-        self.instrument.label        = translate_python('Инструмент')
-        self.direction.label         = translate_python('Направление')
-        self.entry_price.label       = translate_python('Цена входа')
-        self.exit_price.label        = translate_python('Цена выхода')
-        self.trade_open_time.label   = translate_python('Дата открытия')
-        self.trade_close_time.label  = translate_python('Дата закрытия')
-        self.comment.label           = translate_python('Комментарий')
-        self.setup_id.label          = translate_python('Сетап')
-        self.criteria.label          = translate_python('Критерии')
-        self.screenshot.label        = translate_python('Скриншот')
-        self.remove_image.label      = translate_python('Удалить текущее изображение')
-        self.submit.label            = translate_python('Сохранить')
+        # Вместо self.instrument.label = ... нужно self.instrument.label.text = ...
+        self.instrument.label.text        = translate_python('Инструмент')
+        self.direction.label.text         = translate_python('Направление')
+        self.entry_price.label.text       = translate_python('Цена входа')
+        self.exit_price.label.text        = translate_python('Цена выхода')
+        self.trade_open_time.label.text   = translate_python('Дата открытия')
+        self.trade_close_time.label.text  = translate_python('Дата закрытия')
+        self.comment.label.text           = translate_python('Комментарий')
+        self.setup_id.label.text          = translate_python('Сетап')
+        self.criteria.label.text          = translate_python('Критерии')
+        self.screenshot.label.text        = translate_python('Скриншот')
+        self.remove_image.label.text      = translate_python('Удалить текущее изображение')
+        self.submit.label.text            = translate_python('Сохранить')
 
         # Обновим валидаторы для поля screenshot, заменяя текст на перевод
         self.screenshot.validators = [
@@ -74,12 +74,12 @@ class SetupForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.setup_name.label       = translate_python('Название Сетапа')
-        self.description.label      = translate_python('Описание')
-        self.criteria.label         = translate_python('Критерии')
-        self.screenshot.label       = translate_python('Скриншот')
-        self.remove_image.label     = translate_python('Удалить текущее изображение')
-        self.submit.label           = translate_python('Сохранить')
+        self.setup_name.label.text   = translate_python('Название Сетапа')
+        self.description.label.text  = translate_python('Описание')
+        self.criteria.label.text     = translate_python('Критерии')
+        self.screenshot.label.text   = translate_python('Скриншот')
+        self.remove_image.label.text = translate_python('Удалить текущее изображение')
+        self.submit.label.text       = translate_python('Сохранить')
 
         # Аналогично меняем тексты валидаторов на переведённые
         self.screenshot.validators = [
@@ -96,6 +96,6 @@ class SubmitPredictionForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.instrument.label      = translate_python('Инструмент')
-        self.predicted_price.label = translate_python('Ожидаемая Цена')
-        self.submit.label          = translate_python('Отправить Предсказание')
+        self.instrument.label.text      = translate_python('Инструмент')
+        self.predicted_price.label.text = translate_python('Ожидаемая Цена')
+        self.submit.label.text          = translate_python('Отправить Предсказание')
