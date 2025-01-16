@@ -1094,11 +1094,10 @@ def index():
             categories=categories,
             criteria_categories=criteria_categories,
             selected_instrument_id=instrument_id,
-            selected_criteria=selected_criteria,
-            language=session.get('language', 'ru')  # передаём язык в шаблон
+            selected_criteria=selected_criteria
         )
     else:
-        return render_template('info.html', language='ru')
+        return render_template('info.html')
 
 @app.route('/login', methods=['GET'])
 def login():
