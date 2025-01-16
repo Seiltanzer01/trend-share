@@ -343,7 +343,7 @@ $(document).ready(function() {
 
     if(document.getElementById('stakeButton')){
         document.getElementById('stakeButton').addEventListener('click', function(){
-            alert('Чтобы застейкать, отправьте 25$ (примерно) UJO на ваш уникальный кошелёк. После отправки подтвердите транзакцию, введя её хэш ниже.');
+            alert('Чтобы застейкать, подготовтье 25$ в токенах UJO.');
         });
     }
 
