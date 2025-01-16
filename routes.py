@@ -922,6 +922,11 @@ def init():
                 logger.warning("Невалидные данные авторизации.")
                 return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
 
+            # Получаем язык пользователя (если передаётся через Telegram)
+            # Если язык не передан, устанавливаем по умолчанию 'ru'
+            language_code = getattr(webapp_data.user, 'language_code', 'ru')
+            session['language'] = language_code  # Сохраняем язык в сессии
+
             telegram_id = int(webapp_data.user.id)
             first_name = webapp_data.user.first_name
             last_name = webapp_data.user.last_name or ''
@@ -1089,10 +1094,11 @@ def index():
             categories=categories,
             criteria_categories=criteria_categories,
             selected_instrument_id=instrument_id,
-            selected_criteria=selected_criteria
+            selected_criteria=selected_criteria,
+            language=session.get('language', 'ru')  # передаём язык в шаблон
         )
     else:
-        return render_template('info.html')
+        return render_template('info.html', language='ru')
 
 @app.route('/login', methods=['GET'])
 def login():
