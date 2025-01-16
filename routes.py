@@ -1,4 +1,6 @@
 # routes.py
+
+from app import translate_python
 import pytz
 import os
 import logging
@@ -139,6 +141,7 @@ def get_trend_model():
             logger.warning("Файл 'trend_model.pth' не найден. Модель тренда не будет загружена.")
             trend_model = None
     return trend_model
+    
 
 def preprocess_for_trend(image_path):
     """
@@ -216,6 +219,7 @@ if not TOKEN:
 
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
+
 
 def admin_required(f):
     @wraps(f)
