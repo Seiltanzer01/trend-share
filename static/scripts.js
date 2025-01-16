@@ -1,34 +1,35 @@
 // static/scripts.js
 
 $(document).ready(function() {
-    console.log("scripts.js загружен"); // Отладочное сообщение
+    console.log("scripts.js loaded"); // Debug message
 
-    // Добавляем отладочное сообщение для проверки window.config
+    // Debug message to check window.config
     console.log("Window config:", window.config); 
 
-    // Инициализация FastClick для устранения задержки на мобильных устройствах
+    // Initialize FastClick to remove the 300ms delay on mobile devices
     if ('addEventListener' in document) {
         FastClick.attach(document.body);
     }
 
-    // Обработчик для кнопки "Показать/Скрыть Фильтры"
+    // Handler for "Show/Hide Filters" button
     $('#toggle-filters').on('click', function(){
         $('#filters').slideToggle();
         const button = $(this);
-        if (button.text().includes('Показать')) {
-            button.html('<i class="fas fa-filter"></i> Скрыть Фильтры');
+        // We'll switch the text to English
+        if (button.text().includes('Show')) {
+            button.html('<i class="fas fa-filter"></i> Hide Filters');
         } else {
-            button.html('<i class="fas fa-filter"></i> Показать Фильтры');
+            button.html('<i class="fas fa-filter"></i> Show Filters');
         }
     });
 
-    // Обработчик для кнопок раскрытия критериев
+    // Handler for collapsible criteria buttons
     $(document).on('click', '.collapse-button', function(){
         $(this).next('.category-content, .subcategory-content').slideToggle();
         $(this).toggleClass('rotated');
     });
 
-    // Анимация при наведении на строки таблиц
+    // Row hover animation in tables
     $(document).on('mouseenter', 'table tbody tr', function() {
         $(this).css('background-color', '#F0F8FF'); // AliceBlue
     });
@@ -36,13 +37,13 @@ $(document).ready(function() {
         $(this).css('background-color', '');
     });
 
-    // Открытие модального окна при клике на изображение
+    // Opening modal on image click
     $(document).on('click', '.clickable-image', function() {
         $('#modal').fadeIn();
         $('#modal-img').attr('src', $(this).attr('src'));
     });
 
-    // Закрытие модального окна
+    // Closing the modal
     $(document).on('click', '.close', function() {
         $('#modal').fadeOut();
     });
@@ -52,7 +53,7 @@ $(document).ready(function() {
         }
     });
 
-    // Инициализация datepickers с улучшенной производительностью
+    // Initializing datepickers with improved performance
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
         dateFormat: 'yy-mm-dd',
         changeMonth: true,
@@ -61,10 +62,12 @@ $(document).ready(function() {
         showButtonPanel: true
     });
 
-    // Инициализация DataTables для таблицы Setup
+    // Initializing DataTables for Setup Table
     $('#setup-table').DataTable({
         responsive: true,
         language: {
+            // Keep in mind that we're still using the RU i18n file from DataTables, 
+            // you can replace it with an English version if you need the entire DataTables UI in English
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
         },
         "pageLength": 10,
@@ -80,10 +83,11 @@ $(document).ready(function() {
         "serverSide": false
     });
 
-    // Инициализация DataTables для таблицы Trade
+    // Initializing DataTables for Trade Table
     $('#trade-table').DataTable({
         responsive: true,
         language: {
+            // Same note here about the RU i18n file
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
         },
         "pageLength": 10,
@@ -99,18 +103,18 @@ $(document).ready(function() {
         "serverSide": false
     });
 
-    // Инициализация iCheck для всех чекбоксов
+    // Initializing iCheck for all checkboxes
     $('input[type="checkbox"]').iCheck({
         checkboxClass: 'icheckbox_square-blue',
-        increaseArea: '20%' // Увеличение области для удобства на мобильных
+        increaseArea: '20%' // Increase area for convenience on mobile
     });
 
-    // Инициализация Lazysizes для изображений с классом clickable-image
+    // Initializing Lazysizes for images with class clickable-image
     $('img.clickable-image').each(function(){
         $(this).addClass('lazyload');
     });
 
-    // ** Обработчики для Ассистента "Дядя Джон" **
+    // ** Handlers for "Uncle John" Assistant **
 
     let chatHistory = [];
     const assistantForm = document.getElementById('assistant-form');
@@ -143,7 +147,7 @@ $(document).ready(function() {
                 updateChatHistoryDisplay();
             }
         } catch (error) {
-            console.error('Ошибка при загрузке истории чата:', error);
+            console.error('Error loading chat history:', error);
         }
     }
 
@@ -151,6 +155,7 @@ $(document).ready(function() {
         return window.config.CSRF_TOKEN;
     }
 
+    // Submit Handler for assistant question
     if (assistantForm) {
         assistantForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -170,17 +175,19 @@ $(document).ready(function() {
                 const data = await response.json();
                 console.log('Chat Response:', data);
                 if (data.response) {
-                    const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
+                    const assistantContent = (typeof data.response === 'object') 
+                        ? JSON.stringify(data.response, null, 2) 
+                        : data.response;
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
-                    const errorMsg = `Ошибка: ${data.error}`;
+                    const errorMsg = `Error: ${data.error}`;
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 }
             } catch (error) {
-                console.error('Ошибка при отправке запроса:', error);
-                const errorMsg = 'Произошла ошибка при отправке вашего запроса.';
+                console.error('Error sending request:', error);
+                const errorMsg = 'An error occurred while sending your request.';
                 chatHistory.push({ role: 'assistant', content: errorMsg });
                 updateChatHistoryDisplay();
             }
@@ -188,16 +195,17 @@ $(document).ready(function() {
         });
     }
 
+    // Handler for chart analysis form
     if (chartForm) {
         chartForm.addEventListener('submit', async function(e){
             e.preventDefault();
             const imageInput = document.getElementById('chart-image');
             const file = imageInput.files[0];
             if (!file) {
-                alert('Пожалуйста, выберите изображение.');
+                alert('Please select an image.');
                 return;
             }
-            chartAnalysisResult.textContent = 'Идет анализ...';
+            chartAnalysisResult.textContent = 'Analyzing...';
             analysisChartDiv.innerHTML = '';
             const formData = new FormData();
             formData.append('image', file);
@@ -212,19 +220,20 @@ $(document).ready(function() {
                     chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
                     analysisChartDiv.innerHTML = '';
                 } else if (data.error) {
-                    const errorMsg = `Ошибка: ${data.error}`;
+                    const errorMsg = `Error: ${data.error}`;
                     chartAnalysisResult.innerHTML = `<p class="nes-text is-error">${errorMsg}</p>`;
                     analysisChartDiv.innerHTML = '';
                 }
             } catch (error) {
-                console.error('Ошибка при анализе графика:', error);
-                chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
+                console.error('Error analyzing chart:', error);
+                chartAnalysisResult.innerHTML = '<p class="nes-text is-error">An error occurred while analyzing the chart.</p>';
                 analysisChartDiv.innerHTML = '';
             }
             imageInput.value = '';
         });
     }
 
+    // Handler for clearing the chat
     if (clearChatButton) {
         clearChatButton.addEventListener('click', async function() {
             try {
@@ -241,12 +250,12 @@ $(document).ready(function() {
                     updateChatHistoryDisplay();
                 }
             } catch (error) {
-                console.error('Ошибка при очистке чата:', error);
+                console.error('Error clearing chat:', error);
             }
         });
     }
 
-    // ** Новые функции для уникальных кошельков и стейкинга **
+    // ** New functions for unique wallets and staking **
 
     async function loadBalances(){
         try{
@@ -267,7 +276,7 @@ $(document).ready(function() {
                 $('#ujoBalance').text(data.balances.ujo.toFixed(4));
             }
         } catch(error){
-            console.error("Ошибка при загрузке балансов:", error);
+            console.error("Error loading balances:", error);
             $('#ethBalance').text('Error');
             $('#wethBalance').text('Error');
             $('#ujoBalance').text('Error');
@@ -276,11 +285,12 @@ $(document).ready(function() {
 
     loadBalances();
 
+    // Handler for exchange form
     $('#exchangeForm').on('submit', async function(e){
         e.preventDefault();
         const amountWETH = parseFloat($('#exchangeAmount').val());
         if(isNaN(amountWETH) || amountWETH <= 0){
-            alert('Пожалуйста, введите корректное количество WETH для обмена.');
+            alert('Please enter a valid amount of WETH to exchange.');
             return;
         }
         try{
@@ -295,26 +305,27 @@ $(document).ready(function() {
             });
             const data = await response.json();
             if(data.status === 'success'){
-                alert('Обмен успешно выполнен! Вы получили ' + data.ujo_received.toFixed(4) + ' UJO.');
+                alert('Exchange successful! You received ' + data.ujo_received.toFixed(4) + ' UJO.');
                 loadBalances();
             } else{
-                alert('Ошибка: ' + data.error);
+                alert('Error: ' + data.error);
             }
         } catch(error){
-            console.error("Ошибка при обмене:", error);
-            alert("Произошла ошибка при обмене.");
+            console.error("Error exchanging tokens:", error);
+            alert("An error occurred during the exchange.");
         }
     });
 
+    // Handler for confirm staking form
     $('#confirmStakeForm').on('submit', async function(e){
         e.preventDefault();
         const txHash = $('#tx_hash').val().trim();
         if(!txHash){
-            alert('Пожалуйста, введите хэш транзакции.');
+            alert('Please enter a transaction hash.');
             return;
         }
         if(!/^0x([A-Fa-f0-9]{64})$/.test(txHash)){
-            alert('Некорректный формат хэша транзакции.');
+            alert('Invalid transaction hash format.');
             return;
         }
         try{
@@ -329,42 +340,43 @@ $(document).ready(function() {
             });
             const data = await response.json();
             if(data.status === 'success'){
-                alert('Стейкинг успешно подтверждён!');
+                alert('Staking successfully confirmed!');
                 loadStaking();
                 loadBalances();
             } else{
-                alert('Ошибка: ' + data.error);
+                alert('Error: ' + data.error);
             }
         } catch(error){
-            console.error("Ошибка при подтверждении стейкинга:", error);
-            alert("Произошла ошибка при подтверждении стейкинга.");
+            console.error("Error confirming staking:", error);
+            alert("An error occurred while confirming staking.");
         }
     });
 
     if(document.getElementById('stakeButton')){
         document.getElementById('stakeButton').addEventListener('click', function(){
-            alert('Чтобы застейкать, подготовтье 25$ в токенах UJO.');
+            alert('To stake, please prepare $25 in UJO tokens.');
         });
     }
 
+    // Function to load user's stakings
     async function loadStaking() {
         try {
-            const resp = await fetch('/staking/get_user_stakes')
-            const data = await resp.json()
+            const resp = await fetch('/staking/get_user_stakes');
+            const data = await resp.json();
             if(data.error) {
-                $('#stakingArea').html('<p>'+data.error+'</p>')
-                $('#claimRewardsBtn').hide()
-                $('#unstakeBtn').hide()
-                return
+                $('#stakingArea').html('<p>'+data.error+'</p>');
+                $('#claimRewardsBtn').hide();
+                $('#unstakeBtn').hide();
+                return;
             }
-            const stakes = data.stakes
+            const stakes = data.stakes;
             if(!stakes.length) {
-                $('#stakingArea').html('<p>У вас нет стейкинга.</p>')
-                $('#claimRewardsBtn').hide()
-                $('#unstakeBtn').hide()
-                return
+                $('#stakingArea').html('<p>You have no staking.</p>');
+                $('#claimRewardsBtn').hide();
+                $('#unstakeBtn').hide();
+                return;
             }
-            let html=''
+            let html='';
             for(let s of stakes) {
                 html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
                   <p><b>TX Hash:</b> ${s.tx_hash}</p>
@@ -377,13 +389,14 @@ $(document).ready(function() {
             $('#claimRewardsBtn').show();
             $('#unstakeBtn').show();
         } catch (error) {
-            console.error('Ошибка при загрузке стейков:', error);
-            $('#stakingArea').html('<p>Произошла ошибка при загрузке стейков.</p>');
+            console.error('Error loading staking data:', error);
+            $('#stakingArea').html('<p>An error occurred while loading staking info.</p>');
             $('#claimRewardsBtn').hide();
             $('#unstakeBtn').hide();
         }
     }
 
+    // Handler for "Claim Rewards" button
     $('#claimRewardsBtn').on('click', async function(){
         try {
             const csrfToken = window.config.CSRF_TOKEN;
@@ -402,10 +415,11 @@ $(document).ready(function() {
                 loadBalances();
             }
         } catch (error) {
-            alert('Произошла ошибка при клейме наград: ' + error);
+            alert('An error occurred while claiming rewards: ' + error);
         }
     });
 
+    // Handler for "Unstake" button
     $('#unstakeBtn').on('click', async function(){
         try {
             const csrfToken = window.config.CSRF_TOKEN;
@@ -424,11 +438,11 @@ $(document).ready(function() {
                 loadBalances();
             }
         } catch (error) {
-            alert('Произошла ошибка при unstake: ' + error);
+            alert('An error occurred while unstaking: ' + error);
         }
     });
 
-    // Инициализация загрузки стейкинга после загрузки страницы
+    // Load staking data after the page is loaded
     document.addEventListener('DOMContentLoaded', () => {
         loadStaking();
     });
