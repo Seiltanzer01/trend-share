@@ -4,11 +4,11 @@ from translations import TRANSLATIONS_RU_TO_EN
 import os
 import logging
 import traceback
-import atexit  # Добавляем импорт atexit
+import atexit  # Added import atexit
 from best_setup_voting import init_best_setup_voting_routes, auto_finalize_best_setup_voting
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-from web3 import Web3  # Добавляем импорт Web3
+from web3 import Web3  # Added Web3 import
 import pytz
 import boto3
 from botocore.exceptions import ClientError
@@ -19,79 +19,79 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-from routes_staking import staking_bp  # Убедитесь, что routes_staking.py существует и содержит staking_bp
-# Добавление OpenAI
+from routes_staking import staking_bp  # Make sure routes_staking.py exists and contains staking_bp
+# Adding OpenAI
 import openai
 
-# Добавление APScheduler для планирования задач
+# Adding APScheduler for job scheduling
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# Импорт моделей и форм
-import models  # Убедитесь, что models.py импортирует db из extensions.py
+# Import models and forms
+import models  # Make sure models.py imports db from extensions.py
 from poll_functions import start_new_poll, process_poll_results, update_real_prices_for_active_polls
 from staking_logic import accumulate_staking_rewards
 
 ADMIN_TELEGRAM_IDS = [427032240]
 
-# Конфигурация APScheduler
+# APScheduler configuration
 class ConfigScheduler:
     SCHEDULER_API_ENABLED = True
-    SCHEDULER_TIMEZONE = "UTC"  # Устанавливаем таймзону
+    SCHEDULER_TIMEZONE = "UTC"  # Set timezone
 
-# Инициализация Flask-приложения
+# Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(ConfigScheduler())
 
-# Настройка CSRF защиты
+# Setup CSRF protection
 csrf = CSRFProtect(app)
 
-# Контекстный процессор для предоставления CSRF токена в шаблонах
+# Context processor to provide CSRF token in templates
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
 
 
-# Добавляем контекстный процессор для языка:
+# Add context processor for language:
 @app.context_processor
 def inject_language():
-    return {'language': 'en'}                       #return {'language': session.get('language', 'en')}
+    return {'language': 'en'}  # return {'language': session.get('language', 'en')}
 
 @app.route('/info')
 def info():
     return render_template('info.html')
 
-# Настройка CORS
+# Setup CORS
 CORS(app, supports_credentials=True, resources={
     r"/*": {
         "origins": [
-            "https://trend-share.onrender.com",  # Ваш основной домен
-            "https://t.me"                      # Домен Telegram
+            "https://trend-share.onrender.com",  # Your primary domain
+            "https://t.me"                      # Telegram domain
         ]
     }
 })
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)  # Установлено на INFO, можно изменить на DEBUG при необходимости
+# Setup logging
+logging.basicConfig(level=logging.INFO)  # Set to INFO; change to DEBUG if needed
 logger = logging.getLogger(__name__)
 
-# Использование переменных окружения для конфиденциальных данных
+# Use environment variables for sensitive data
 secret_key_env = os.environ.get('SECRET_KEY', '').strip()
 if not secret_key_env:
-    logger.error("SECRET_KEY не установлен в переменных окружения.")
-    raise ValueError("SECRET_KEY не установлен в переменных окружения.")
+    logger.error("SECRET_KEY is not set in environment variables.")
+    raise ValueError("SECRET_KEY is not set in environment variables.")
 app.secret_key = secret_key_env
 
-# Настройки базы данных
+# Database settings
 raw_database_url = os.environ.get('DATABASE_URL')
 
 if not raw_database_url:
-    logger.error("DATABASE_URL не установлен в переменных окружения.")
-    raise ValueError("DATABASE_URL не установлен в переменных окружения.")
+    logger.error("DATABASE_URL is not set in environment variables.")
+    raise ValueError("DATABASE_URL is not set in environment variables.")
 
-# Парсинг и корректировка строки подключения к базе данных
+# Parsing and adjusting the database connection string
 parsed_url = urlparse(raw_database_url)
 
-# Проверка и добавление 'sslmode=require' если необходимо
+# Check and add 'sslmode=require' if necessary
 query_params = parse_qs(parsed_url.query)
 if 'sslmode' not in query_params:
     query_params['sslmode'] = ['require']
@@ -99,33 +99,33 @@ if 'sslmode' not in query_params:
 new_query = urlencode(query_params, doseq=True)
 parsed_url = parsed_url._replace(query=new_query)
 
-# Обновлённая строка подключения
+# Updated connection string
 DATABASE_URL = urlunparse(parsed_url)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройки APP_HOST для формирования ссылок
+# App host settings for link formation
 app.config['APP_HOST'] = os.environ.get('APP_HOST', 'trend-share.onrender.com')
 
-# Настройки сессии
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Позволяет куки-сессиям работать в кросс-доменных запросах
-app.config['SESSION_COOKIE_SECURE'] = True      # Требует HTTPS
-app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'  # Указание домена для куки
+# Session settings
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-domain requests for session cookies
+app.config['SESSION_COOKIE_SECURE'] = True      # Require HTTPS
+app.config['SESSION_COOKIE_DOMAIN'] = 'trend-share.onrender.com'  # Domain for cookie
 
-# Настройки Amazon S3
+# Amazon S3 settings
 app.config['AWS_ACCESS_KEY_ID'] = os.environ.get('AWS_ACCESS_KEY_ID', '').strip()
 app.config['AWS_SECRET_ACCESS_KEY'] = os.environ.get('AWS_SECRET_ACCESS_KEY', '').strip()
 app.config['AWS_S3_BUCKET'] = os.environ.get('AWS_S3_BUCKET', '').strip()
 app.config['AWS_S3_REGION'] = os.environ.get('AWS_S3_REGION', 'us-east-1').strip()
 
-# Проверка наличия необходимых AWS настроек
+# Check for required AWS settings
 if not all([app.config['AWS_ACCESS_KEY_ID'], app.config['AWS_SECRET_ACCESS_KEY'],
             app.config['AWS_S3_BUCKET'], app.config['AWS_S3_REGION']]):
-    logger.error("Некоторые AWS настройки отсутствуют в переменных окружения.")
-    raise ValueError("Некоторые AWS настройки отсутствуют в переменных окружения.")
+    logger.error("Some AWS settings are missing from environment variables.")
+    raise ValueError("Some AWS settings are missing from environment variables.")
 
-# Инициализация клиента S3
+# Initialize S3 client
 s3_client = boto3.client(
     's3',
     region_name=app.config['AWS_S3_REGION'],
@@ -133,24 +133,24 @@ s3_client = boto3.client(
     aws_secret_access_key=app.config['AWS_SECRET_ACCESS_KEY']
 )
 
-# Инициализация расширений с приложением
+# Initialize extensions with app
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 init_best_setup_voting_routes(app, db)
 
-# Контекстный процессор для предоставления datetime в шаблонах
+# Context processor to provide datetime in templates
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
 
 def translate_python(russian_text):
     """
-    Переводит строку, если session['language'] == 'en'.
-    Иначе возвращает исходную строку.
+    Translates string if session['language'] == 'en'.
+    Otherwise returns the original string.
     """
     if not russian_text:
-        return russian_text  # пусто
+        return russian_text  # empty
 
     current_lang = session.get('language', 'ru')
     if current_lang == 'en':
@@ -158,13 +158,13 @@ def translate_python(russian_text):
     else:
         return russian_text
 
-# Вспомогательные функции для работы с S3
+# Helper functions for working with S3
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     """
-    Загружает файл в S3.
-    :param file: FileStorage объект.
-    :param filename: Имя файла в S3.
-    :return: True при успешной загрузке, False иначе.
+    Uploads a file to S3.
+    :param file: FileStorage object.
+    :param filename: File name in S3.
+    :return: True if upload is successful, False otherwise.
     """
     try:
         s3_client.upload_fileobj(
@@ -175,31 +175,31 @@ def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
                 "ContentType": file.content_type
             }
         )
-        logger.info(f"Файл '{filename}' успешно загружен в S3.")
+        logger.info(f"File '{filename}' was successfully uploaded to S3.")
         return True
     except ClientError as e:
-        logger.error(f"Ошибка при загрузке файла '{filename}' в S3: {e}")
+        logger.error(f"Error uploading file '{filename}' to S3: {e}")
         return False
 
 def delete_file_from_s3(filename: str) -> bool:
     """
-    Удаляет файл из S3.
-    :param filename: Имя файла в S3.
-    :return: True при успешном удалении, False иначе.
+    Deletes a file from S3.
+    :param filename: File name in S3.
+    :return: True if deletion is successful, False otherwise.
     """
     try:
         s3_client.delete_object(Bucket=app.config['AWS_S3_BUCKET'], Key=filename)
-        logger.info(f"Файл '{filename}' успешно удалён из S3.")
+        logger.info(f"File '{filename}' was successfully deleted from S3.")
         return True
     except ClientError as e:
-        logger.error(f"Ошибка при удалении файла '{filename}' из S3: {e}")
+        logger.error(f"Error deleting file '{filename}' from S3: {e}")
         return False
 
 def generate_s3_url(filename: str) -> str:
     """
-    Генерирует публичный URL для файла в S3.
-    :param filename: Имя файла в S3.
-    :return: URL файла.
+    Generates a public URL for the file in S3.
+    :param filename: File name in S3.
+    :return: File URL.
     """
     bucket_name = app.config['AWS_S3_BUCKET']
     region = app.config['AWS_S3_REGION']
@@ -210,20 +210,20 @@ def generate_s3_url(filename: str) -> str:
         url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{filename}"
     return url
 
-# Функция для получения APP_HOST
+# Function to get APP_HOST
 def get_app_host():
     return app.config['APP_HOST']
 
-# Функция для создания предопределённых данных
+# Function to create predefined data
 def create_predefined_data():
-    # Проверяем, есть ли уже данные
+    # Check if data already exists
     if models.InstrumentCategory.query.first():
-        logger.info("Предопределённые данные уже существуют. Пропуск создания.")
+        logger.info("Predefined data already exists. Skipping creation.")
         return
 
-    # Создаём категории инструментов и инструменты
+    # Create instrument categories and instruments
     instruments = [
-        # Валютные пары (Форекс)
+        # Currency pairs (Forex)
         {'name': 'EUR/USD', 'category': 'Форекс'},
         {'name': 'GBP/USD', 'category': 'Форекс'},
         {'name': 'USD/JPY', 'category': 'Форекс'},
@@ -234,7 +234,7 @@ def create_predefined_data():
         {'name': 'EUR/GBP', 'category': 'Форекс'},
         {'name': 'EUR/JPY', 'category': 'Форекс'},
         {'name': 'GBP/JPY', 'category': 'Форекс'},
-        # Индексы
+        # Indices
         {'name': 'S&P 500', 'category': 'Индексы'},
         {'name': 'Dow Jones', 'category': 'Индексы'},
         {'name': 'NASDAQ', 'category': 'Индексы'},
@@ -245,7 +245,7 @@ def create_predefined_data():
         {'name': 'Hang Seng', 'category': 'Индексы'},
         {'name': 'ASX 200', 'category': 'Индексы'},
         {'name': 'Euro Stoxx 50', 'category': 'Индексы'},
-        # Товары
+        # Commodities
         {'name': 'Gold', 'category': 'Товары'},
         {'name': 'Silver', 'category': 'Товары'},
         {'name': 'Crude Oil', 'category': 'Товары'},
@@ -256,7 +256,7 @@ def create_predefined_data():
         {'name': 'Soybean', 'category': 'Товары'},
         {'name': 'Coffee', 'category': 'Товары'},
         {'name': 'Sugar', 'category': 'Товары'},
-        # Криптовалюты
+        # Cryptocurrencies
         {'name': 'BTC-USD', 'category': 'Криптовалюты'},
         {'name': 'ETH-USD', 'category': 'Криптовалюты'},
         {'name': 'LTC-USD', 'category': 'Криптовалюты'},
@@ -317,32 +317,32 @@ def create_predefined_data():
         {'name': 'FLOW-USD', 'category': 'Криптовалюты'},
         {'name': 'YFI-USD', 'category': 'Криптовалюты'},
         {'name': 'SUSHI-USD', 'category': 'Криптовалюты'}
-        # Добавьте больше инструментов по необходимости
+        # Add more instruments if needed
     ]
 
     for instrument_data in instruments:
         category_name = instrument_data['category']
         instrument_name = instrument_data['name']
 
-        # Получаем или создаём категорию
+        # Get or create category
         category = models.InstrumentCategory.query.filter_by(name=category_name).first()
         if not category:
             category = models.InstrumentCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
-            logger.info(f"Категория '{category_name}' добавлена.")
+            logger.info(f"Category '{category_name}' added.")
 
-        # Проверяем, существует ли инструмент
+        # Check if instrument already exists
         instrument = models.Instrument.query.filter_by(name=instrument_name).first()
         if not instrument:
             instrument = models.Instrument(name=instrument_name, category_id=category.id)
             db.session.add(instrument)
-            logger.info(f"Инструмент '{instrument_name}' добавлен в категорию '{category_name}'.")
+            logger.info(f"Instrument '{instrument_name}' added to category '{category_name}'.")
 
     db.session.commit()
-    logger.info("Инструменты и категории инструментов успешно добавлены.")
+    logger.info("Instruments and instrument categories successfully added.")
 
-    # Создаём категории критериев для обоснования сделки
+    # Create criteria categories for trade justification
     categories_data = {
         'Смарт-мани': {
             'Имбалансы и дисбалансы': [
@@ -391,214 +391,214 @@ def create_predefined_data():
         'Технический анализ': {
             'Графические модели': [
                 'Фигуры разворота (Голова и плечи, двойная вершина/дно)',
-                'Формации продолжения (флаги, вымпелы, клинья)',
-                'Треугольники (симметричные, восходящие, нисходящие)',
-                'Консолидации и боковые движения',
-                'Композитный анализ фигур'
+                'Формации продолжения (flags, pennants, wedges)',
+                'Triangles (symmetrical, ascending, descending)',
+                'Consolidations and sideways movements',
+                'Composite pattern analysis'
             ],
             'Динамика ценового движения': [
-                'Разрывы уровней (gap analysis)',
-                'Анализ фейковых пробоев',
-                'Консолидация с импульсом',
-                'Резкие скачки и коррекции',
-                'Импульсные изменения цены'
+                'Break of levels (gap analysis)',
+                'Analysis of false breakouts',
+                'Consolidation with momentum',
+                'Sharp spikes and corrections',
+                'Impulsive price changes'
             ],
             'Свечные паттерны': [
-                'Разворотные модели (пин-бары, доджи)',
-                'Поглощения (бычьи/медвежьи)',
-                'Многофазное поведение свечей',
-                'Комбинированные свечные сигналы',
-                'Точки разворота по свечам'
+                'Reversal patterns (pin bars, doji)',
+                'Engulfing (bullish/bearish)',
+                'Multi-phase candle behavior',
+                'Combined candle signals',
+                'Candle reversal points'
             ],
             'Уровни и трендовые линии': [
-                'Горизонтальные уровни поддержки/сопротивления',
-                'Динамические трендовые линии',
-                'Каналы тренда',
-                'Зоны консолидации',
-                'Многоступенчатая структура уровней'
+                'Horizontal support/resistance levels',
+                'Dynamic trend lines',
+                'Trend channels',
+                'Consolidation zones',
+                'Multi-level structure'
             ],
             'Объёмно-ценовые взаимодействия': [
-                'Профиль объёма в зоне входа',
-                'Согласование объёма и цены',
-                'Объёмные аномалии при пробое',
-                'Кластеризация объёмных скачков',
-                'Объёмное подтверждение тренда'
+                'Volume profile at entry zone',
+                'Price and volume alignment',
+                'Volume anomalies at breakouts',
+                'Clustering of volume spikes',
+                'Volume confirmation of the trend'
             ]
         },
         'Волны Эллиота': {
             'Импульсные и коррекционные структуры': [
-                'Импульсные волны (1, 3, 5)',
-                'Коррекционные волны (2, 4)',
-                'Фрактальность волн',
-                'Начало и конец волны',
-                'Временные интервалы волн'
+                'Impulse waves (1, 3, 5)',
+                'Corrective waves (2, 4)',
+                'Wave fractality',
+                'Wave start and end',
+                'Time intervals of waves'
             ],
             'Коррекционные модели': [
-                'Модель "Зигзаг"',
-                'Площадки для разворота',
-                'Треугольное сжатие',
-                'Коррекционные параллелограммы',
-                'Смешанные коррекции'
+                'Zigzag model',
+                'Reversal zones',
+                'Triangular compression',
+                'Corrective parallelograms',
+                'Mixed corrections'
             ],
             'Фибоначчи в волновой теории': [
-                'Фибоначчи-откаты для входа',
-                'Соотношения волн по Фибоначчи',
-                'Расширения и ретрейсы',
-                'Фибоначчи уровни для SL/TP',
-                'Согласование с Фибоначчи'
+                'Fibonacci retracements for entry',
+                'Fibonacci wave ratios',
+                'Extensions and retracements',
+                'Fibonacci levels for SL/TP',
+                'Alignment with Fibonacci'
             ],
             'Границы и завершение волн': [
-                'Точки разворота волны',
-                'Соотношение длин волн',
-                'Зоны ослабления импульса',
-                'Временные параметры волн',
-                'Завершение импульса'
+                'Wave reversal points',
+                'Wave length ratios',
+                'Impulse weakening zones',
+                'Time parameters of waves',
+                'Impulse completion'
             ],
             'Модели и структуры волн': [
-                'Классическая модель Эллиота',
-                'Подмодели импульсных волн',
-                'Многофрактальные модели',
-                'Анализ на разных таймфреймах',
-                'Синхронизация с основным трендом'
+                'Classic Elliott model',
+                'Impulse wave submodels',
+                'Multifractal models',
+                'Analysis on various timeframes',
+                'Synchronization with main trend'
             ],
             'Интерпретация волновых соотношений': [
-                'Пропорции волн',
-                'Сравнение длительности и амплитуды',
-                'Корреляция с объёмом',
-                'Сравнение импульсных и коррекционных волн',
-                'Прогноз на основе волновой структуры'
+                'Wave proportions',
+                'Comparison of duration and amplitude',
+                'Correlation with volume',
+                'Comparison of impulse and corrective waves',
+                'Forecast based on wave structure'
             ]
         },
         'Price Action': {
             'Ключевые свечные модели': [
-                'Пин-бары как сигнал разворота',
-                'Свечные поглощения',
-                'Доджи для ожидания разворота',
-                'Модель "Харами"',
-                'Свечи с длинными тенями'
+                'Pin bars as reversal signals',
+                'Candle engulfing',
+                'Doji for waiting reversal',
+                'Harami pattern',
+                'Long shadow candles'
             ],
             'Динамика ценового поведения': [
-                'Формирование локальных экстремумов',
-                'Консолидация с мощным прорывом',
-                'Отказы от ключевых уровней',
-                'Фиксация откатов',
-                'Дивергенция цены и объёма'
+                'Formation of local extrema',
+                'Consolidation with breakout',
+                'Rejection of key levels',
+                'Recording pullbacks',
+                'Divergence of price and volume'
             ],
             'Структуры поддержки/сопротивления': [
-                'Устойчивые уровни поддержки/сопротивления',
-                'Реверсия цены от ключевых зон',
-                'Фиксированные и динамические барьеры',
-                'Реакция на исторические уровни',
-                'Пробой с откатом'
+                'Strong support/resistance levels',
+                'Price reversal from key zones',
+                'Fixed and dynamic barriers',
+                'Reaction to historical levels',
+                'Breakout with retest'
             ],
             'Брейк-аут и фальшивые пробои': [
-                'Истинные пробои уровней',
-                'Фильтрация ложных пробоев',
-                'Закрытие свечи у пробитого уровня',
-                'Контакт с уровнем перед пробоем',
-                'Откаты после пробоя'
+                'True level breakouts',
+                'Filtering false breakouts',
+                'Close candle at breakout level',
+                'Level contact before breakout',
+                'Pullbacks after breakout'
             ],
             'Интервальные и мультифрейм модели': [
-                'Внутридневная динамика',
-                'Согласование разных таймфреймов',
-                'Асимметрия на краткосрочных интервалах',
-                'Переход от локальных к глобальным трендам',
-                'Анализ событий открытия/закрытия сессий'
+                'Intraday dynamics',
+                'Alignment of different timeframes',
+                'Asymmetry on short intervals',
+                'Transition from local to global trends',
+                'Analysis of session open/close events'
             ],
             'Комплексный Price Action анализ': [
-                'Согласование уровней и свечей',
-                'Интеграция ценовых аномалий и объёма',
-                'Контекстный рыночный анализ',
-                'Мультифрейм проверка сигнала',
-                'Интеграция сигналов для оптимального входа'
+                'Alignment of levels and candles',
+                'Integration of price anomalies and volume',
+                'Contextual market analysis',
+                'Multi-timeframe signal verification',
+                'Integration of signals for optimal entry'
             ]
         },
         'Индикаторы': {
             'Осцилляторы моментума': [
-                'RSI для перекупленности/перепроданности',
-                'Stochastic для разворотов',
-                'CCI для измерения импульса',
-                'Williams %R для экстремумов',
-                'ROC для динамики цены'
+                'RSI for overbought/oversold',
+                'Stochastic for reversals',
+                'CCI for momentum measurement',
+                'Williams %R for extremes',
+                'ROC for price dynamics'
             ],
             'Объёмные индикаторы': [
-                'OBV для подтверждения тренда',
-                'Accumulation/Distribution для оценки покупки/продажи',
-                'MFI для денежного потока',
-                'Volume Oscillator для объёмных аномалий',
-                'CMF для давления покупателей/продавцов'
+                'OBV for trend confirmation',
+                'Accumulation/Distribution for buy/sell assessment',
+                'MFI for cash flow',
+                'Volume Oscillator for volume anomalies',
+                'CMF for buyer/seller pressure'
             ],
             'Индикаторы волатильности': [
-                'Bollinger Bands для зон перекупленности/перепроданности',
-                'ATR для стоп-лоссов',
-                'Keltner Channels для трендовых зон',
-                'Donchian Channels для экстремумов',
-                'Standard Deviation для изменчивости'
+                'Bollinger Bands for overbought/oversold zones',
+                'ATR for stop losses',
+                'Keltner Channels for trend zones',
+                'Donchian Channels for extremes',
+                'Standard Deviation for volatility'
             ],
             'Скользящие средние': [
-                'SMA для базового тренда',
-                'EMA для оперативного отслеживания',
-                'WMA для точного расчёта',
-                'HMA для сглаживания шума',
-                'TEMA для быстрого входа'
+                'SMA for base trend',
+                'EMA for real-time tracking',
+                'WMA for accurate calculation',
+                'HMA for noise smoothing',
+                'TEMA for quick entry'
             ],
             'Сигнальные системы': [
-                'MACD для смены тренда',
-                'Пересечение скользящих для входа',
-                'Дивергенция осцилляторов',
-                'Осцилляторы разворота в комбинации',
-                'Автоматические сигналы'
+                'MACD for trend changes',
+                'Moving Average cross for entry',
+                'Oscillator divergence',
+                'Reversal oscillators in combination',
+                'Automated signals'
             ],
             'Индикаторы настроения рынка': [
-                'VIX для неопределённости',
-                'Индекс оптимизма',
-                'Рыночный консенсус',
-                'Сентиментальные линии',
-                'Индикаторы общественного настроения'
+                'VIX for uncertainty',
+                'Optimism Index',
+                'Market consensus',
+                'Sentiment lines',
+                'Public sentiment indicators'
             ]
         },
         'Психология': {
             'Эмоциональное восприятие рынка': [
-                'Анализ страха как сигнала',
-                'Оценка жадности и разворота',
-                'Паника как возможность',
-                'Эйфория и коррективы',
-                'Нерешительность и риск'
+                'Fear analysis as a signal',
+                'Evaluation of greed and reversal',
+                'Panic as an opportunity',
+                'Euphoria and corrections',
+                'Indecision and risk'
             ],
             'Торговая дисциплина': [
-                'Строгое следование плану',
-                'Контроль риска и мани-менеджмент',
-                'Ведение торгового журнала',
-                'Самодисциплина',
-                'Стратегия управления позицией'
+                'Strict adherence to plan',
+                'Risk control and money management',
+                'Maintaining a trading journal',
+                'Self-discipline',
+                'Position management strategy'
             ],
             'Психология толпы': [
-                'Анализ FOMO',
-                'Отслеживание массовых эмоций',
-                'Эффект стадного мышления',
-                'Реакция рынка на новости',
-                'Контртренд под давлением толпы'
+                'FOMO analysis',
+                'Tracking mass emotions',
+                'Herd mentality effect',
+                'Market reaction to news',
+                'Counter-trend under crowd pressure'
             ],
             'Когнитивные искажения': [
-                'Осознание подтверждения ожиданий',
-                'Анализ переоценки возможностей',
-                'Контроль самоуверенности',
-                'Избежание ошибки выжившего',
-                'Внимание к упущенным рискам'
+                'Awareness of confirmation bias',
+                'Analysis of overestimation of abilities',
+                'Control of overconfidence',
+                'Avoiding survivorship bias',
+                'Attention to missed risks'
             ],
             'Самоанализ и адаптация': [
-                'Пересмотр входов для выявления ошибок',
-                'Анализ успешных и неудачных сделок',
-                'Корректировка стратегии',
-                'Оценка эмоционального состояния',
-                'Постоянное обучение'
+                'Review entries to identify mistakes',
+                'Analysis of successful and unsuccessful trades',
+                'Strategy adjustment',
+                'Evaluation of emotional state',
+                'Continuous learning'
             ],
             'Мотивация и целеполагание': [
-                'Ясные краткосрочные цели',
-                'Фокус на долгосрочной стратегии',
-                'Визуализация успеха',
-                'Позитивный настрой',
-                'Поиск возможностей для роста'
+                'Clear short-term goals',
+                'Focus on long-term strategy',
+                'Visualization of success',
+                'Positive mindset',
+                'Seeking growth opportunities'
             ]
         }
     }
@@ -610,7 +610,7 @@ def create_predefined_data():
             category = models.CriterionCategory(name=category_name)
             db.session.add(category)
             db.session.flush()
-            logger.info(f"Категория критерия '{category_name}' добавлена.")
+            logger.info(f"Criterion category '{category_name}' added.")
 
         for subcategory_name, criteria_list in subcategories.items():
             subcategory = models.CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
@@ -621,7 +621,7 @@ def create_predefined_data():
                 )
                 db.session.add(subcategory)
                 db.session.flush()
-                logger.info(f"Подкатегория '{subcategory_name}' добавлена в категорию '{category_name}'.")
+                logger.info(f"Subcategory '{subcategory_name}' added to category '{category_name}'.")
 
             for criterion_name in criteria_list:
                 criterion = models.Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
@@ -631,66 +631,66 @@ def create_predefined_data():
                         subcategory_id=subcategory.id
                     )
                     db.session.add(criterion)
-                    logger.info(f"Критерий '{criterion_name}' добавлен в подкатегорию '{subcategory_name}'.")
+                    logger.info(f"Criterion '{criterion_name}' added to subcategory '{subcategory_name}'.")
 
     db.session.commit()
-    logger.info("Критерии, подкатегории и категории критериев успешно добавлены.")
+    logger.info("Criteria, subcategories and criterion categories successfully added.")
 
-# Обёртки для задач APScheduler
+# Wrapper functions for APScheduler jobs
 def start_new_poll_test_job():
     with app.app_context():
         try:
             start_new_poll(test_mode=True)
-            logger.info("Задача 'Start Test Poll' выполнена успешно.")
+            logger.info("Job 'Start Test Poll' executed successfully.")
         except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Start Test Poll': {e}")
+            logger.error(f"Error executing job 'Start Test Poll': {e}")
             logger.error(traceback.format_exc())
 
 def start_new_poll_job():
     with app.app_context():
         try:
             start_new_poll()
-            logger.info("Задача 'Start Poll' выполнена успешно.")
+            logger.info("Job 'Start Poll' executed successfully.")
         except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Start Poll': {e}")
+            logger.error(f"Error executing job 'Start Poll': {e}")
             logger.error(traceback.format_exc())
 
 def process_poll_results_job():
     with app.app_context():
         try:
             process_poll_results()
-            logger.info("Задача 'Process Poll Results' выполнена успешно.")
+            logger.info("Job 'Process Poll Results' executed successfully.")
         except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Process Poll Results': {e}")
+            logger.error(f"Error executing job 'Process Poll Results': {e}")
             logger.error(traceback.format_exc())
 
 def update_real_prices_job():
     with app.app_context():
         try:
             update_real_prices_for_active_polls()
-            logger.info("Задача 'Update Real Prices' выполнена успешно.")
+            logger.info("Job 'Update Real Prices' executed successfully.")
         except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи 'Update Real Prices': {e}")
+            logger.error(f"Error executing job 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
 
-# Инициализация данных при первом запуске
+# Initialize data before the first request
 @app.before_first_request
 def initialize():
     try:
         db.create_all()
-        logger.info("База данных создана или уже существует.")
+        logger.info("Database created or already exists.")
 
-        # Мини-хак: Добавляем нужные колонки, если их нет
+        # Mini-hack: add missing columns if they do not exist
         try:
             with db.engine.connect() as con:
-                 # 1) Сначала удаляем (если есть):
+                # 1) First remove (if exists):
                 con.execute("""
                     ALTER TABLE user_staking
                     DROP COLUMN IF EXISTS stake_amount
                 """)
-                logger.info("Колонка 'stake_amount' удалена из user_staking (если существовала).")
+                logger.info("Column 'stake_amount' dropped from user_staking if it existed.")
     
-                # Добавление колонок в user_staking
+                # Add columns to user_staking
                 con.execute("""
                     ALTER TABLE user_staking
                     ADD COLUMN IF NOT EXISTS tx_hash VARCHAR(66),
@@ -701,47 +701,47 @@ def initialize():
                     ADD COLUMN IF NOT EXISTS pending_rewards FLOAT DEFAULT 0.0,
                     ADD COLUMN IF NOT EXISTS last_claim_at TIMESTAMP DEFAULT NOW()
                 """)
-                logger.info("Необходимые колонки добавлены в таблицу user_staking.")
+                logger.info("Required columns added to user_staking table.")
 
-                # Добавление колонок private_key, unique_wallet_address и unique_private_key в таблицу user
+                # Add columns private_key, unique_wallet_address and unique_private_key to user table
                 con.execute("""
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
                     ADD COLUMN IF NOT EXISTS unique_wallet_address VARCHAR(42) UNIQUE,
                     ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
                 """)
-                logger.info("Колонки 'private_key', 'unique_wallet_address' и 'unique_private_key' добавлены в таблицу 'user'.")
+                logger.info("Columns 'private_key', 'unique_wallet_address' and 'unique_private_key' added to 'user' table.")
         except Exception as e:
-            logger.error(f"Не удалось выполнить ALTER TABLE: {e}")
+            logger.error(f"ALTER TABLE execution failed: {e}")
 
-        # Инициализация unique_wallet_address для существующих пользователей
+        # Initialize unique_wallet_address for existing users
         try:
             users_without_wallet = User.query.filter(
                 (User.unique_wallet_address == None) | (User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # Генерация уникального адреса кошелька
+                # Generate a unique wallet address
                 user.unique_wallet_address = generate_unique_wallet_address()
                 user.unique_private_key = generate_unique_private_key()
-                logger.info(f"Уникальный кошелёк сгенерирован для пользователя ID {user.id}.")
+                logger.info(f"Unique wallet generated for user ID {user.id}.")
             db.session.commit()
-            logger.info("Уникальные кошельки для существующих пользователей инициализированы.")
+            logger.info("Unique wallets for existing users have been initialized.")
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Ошибка при инициализации уникальных кошельков: {e}")
+            logger.error(f"Error initializing unique wallets: {e}")
             logger.error(traceback.format_exc())
 
-        # Если нужно, create_predefined_data()
+        # If needed, create_predefined_data()
         # create_predefined_data()
         if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
             create_predefined_data()
             create_predefined_data()
-            logger.info("Предопределённые данные успешно обновлены.")
+            logger.info("Predefined data successfully updated.")
             
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        logger.error(f"Error initializing the database: {e}")
         logger.error(traceback.format_exc())
 
 @app.context_processor
@@ -749,7 +749,7 @@ def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
 
 ####################
-# Планировщики APScheduler
+# APScheduler jobs
 ####################
 
 def accumulate_staking_rewards_job():
@@ -758,7 +758,7 @@ def accumulate_staking_rewards_job():
 
 def start_new_poll_job():
     with app.app_context():
-        # Новый опрос на 10 минут (см. poll_functions.py)
+        # New poll for 10 minutes (see poll_functions.py)
         start_new_poll()
 
 def process_poll_results_job():
@@ -771,7 +771,7 @@ def update_real_prices_job():
 
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
-# 1) Автозавершение best_setup_voting каждые 5 минут
+# 1) Auto finalize best_setup_voting every 5 minutes
 scheduler.add_job(
     id='Auto Finalize Best Setup Voting',
     func=lambda: auto_finalize_best_setup_voting(),
@@ -780,7 +780,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# 2) Запуск нового опроса каждые 10 минут
+# 2) Start a new poll every 10 minutes
 scheduler.add_job(
     id='Start Poll',
     func=start_new_poll_job,
@@ -789,7 +789,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# 3) Проверка завершения опроса каждые 2 минуты (сразу запускает новый)
+# 3) Check poll results every 2 minutes (immediately starts a new one)
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,
@@ -798,7 +798,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
 )
 
-# 4) Накопление стейкинг наград — каждую минуту
+# 4) Accumulate staking rewards — every minute
 scheduler.add_job(
     id='Accumulate Staking Rewards',
     func=accumulate_staking_rewards_job,
@@ -807,7 +807,7 @@ scheduler.add_job(
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
 )
 
-# 5) Обновление реальной цены каждые 2 минуты
+# 5) Update real price every 2 minutes
 scheduler.add_job(
     id='Update Real Prices',
     func=update_real_prices_job,
@@ -819,22 +819,22 @@ scheduler.add_job(
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
-# Импорт маршрутов после инициализации APScheduler
+# Import routes after APScheduler initialization
 from routes import *
 
-# Регистрация Blueprints
-app.register_blueprint(staking_bp, url_prefix='/staking')  # Регистрация staking_bp здесь
+# Register Blueprints
+app.register_blueprint(staking_bp, url_prefix='/staking')  # Register staking_bp here
 
-# Добавление OpenAI API Key
+# Add OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
 if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY не установлен в переменных окружения.")
-    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения.")
+    logger.error("OPENAI_API_KEY is not set in environment variables.")
+    raise ValueError("OPENAI_API_KEY is not set in environment variables.")
 
-# Инициализация OpenAI
+# Initialize OpenAI
 openai.api_key = app.config['OPENAI_API_KEY']
 
-# Добавление Robokassa настроек
+# Add Robokassa settings
 app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
 app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
 app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
@@ -842,7 +842,7 @@ app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').
 app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
 app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
 
-# Проверка наличия необходимых Robokassa настроек
+# Check for required Robokassa settings
 if not all([
     app.config['ROBOKASSA_MERCHANT_LOGIN'],
     app.config['ROBOKASSA_PASSWORD1'],
@@ -851,12 +851,12 @@ if not all([
     app.config['ROBOKASSA_SUCCESS_URL'],
     app.config['ROBOKASSA_FAIL_URL']
 ]):
-    logger.error("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
-    raise ValueError("Некоторые Robokassa настройки отсутствуют в переменных окружения.")
+    logger.error("Some Robokassa settings are missing from environment variables.")
+    raise ValueError("Some Robokassa settings are missing from environment variables.")
 
-# **Запуск Flask-приложения**
+# **Run Flask app**
 
 if __name__ == '__main__':
-    # Запуск приложения
+    # Run the app
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
