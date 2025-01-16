@@ -4,44 +4,44 @@
 
 {% block content %}
 <div class="assistant-container">
-    <h2>Ассистент "Дядя Джон"</h2>
+    <h2>{% if language == 'ru' %}Ассистент "Дядя Джон"{% else %}Assistant "Uncle John"{% endif %}</h2>
     
     <div class="uncle-john-container">
-        <img src="{{ url_for('static', filename='images/uncle_john.png') }}" alt="Дядя Джон" class="uncle-john">
+        <img src="{{ url_for('static', filename='images/uncle_john.png') }}" alt="{% if language == 'ru' %}Дядя Джон{% else %}Uncle John{% endif %}" class="uncle-john">
     </div>
 
     <div class="assistant-chat">
         <div id="chat-history" class="chat-history nes-container is-rounded">
-            <!-- История сообщений будет загружаться здесь -->
+            <!-- История сообщений / Chat history -->
         </div>
 
         <form id="assistant-form" class="nes-container is-rounded">
             <div class="form-group">
-                <label for="assistant-question">Ваш вопрос:</label>
-                <input type="text" class="nes-input" id="assistant-question" required placeholder="Введите ваш вопрос...">
+                <label for="assistant-question">{% if language == 'ru' %}Ваш вопрос:{% else %}Your question:{% endif %}</label>
+                <input type="text" class="nes-input" id="assistant-question" required placeholder="{% if language == 'ru' %}Введите ваш вопрос...{% else %}Enter your question...{% endif %}">
             </div>
-            <button type="submit" class="nes-btn is-primary">Отправить</button>
+            <button type="submit" class="nes-btn is-primary">{% if language == 'ru' %}Отправить{% else %}Send{% endif %}</button>
         </form>
 
-        <button id="clear-chat" class="nes-btn is-error" style="margin-top: 10px;">Очистить чат</button>
+        <button id="clear-chat" class="nes-btn is-error" style="margin-top: 10px;">{% if language == 'ru' %}Очистить чат{% else %}Clear chat{% endif %}</button>
     </div>
     
     <hr>
 
     <div class="assistant-chart-analysis">
-        <h3>Анализ графика цены</h3>
+        <h3>{% if language == 'ru' %}Анализ графика цены{% else %}Price Chart Analysis{% endif %}</h3>
         <form id="chart-analysis-form" enctype="multipart/form-data" class="nes-container is-rounded">
             <div class="form-group">
-                <label for="chart-image">Загрузите изображение графика:</label>
+                <label for="chart-image">{% if language == 'ru' %}Загрузите изображение графика:{% else %}Upload chart image:{% endif %}</label>
                 <input type="file" class="nes-input" id="chart-image" name="image" accept="image/*" required>
             </div>
-            <button type="submit" class="nes-btn is-secondary">Анализировать график</button>
+            <button type="submit" class="nes-btn is-secondary">{% if language == 'ru' %}Анализировать график{% else %}Analyze Chart{% endif %}</button>
         </form>
         
         <div class="mt-3">
-            <h4>Результат анализа:</h4>
+            <h4>{% if language == 'ru' %}Результат анализа:{% else %}Analysis Result:{% endif %}</h4>
             <div id="chart-analysis-result" class="nes-container is-rounded" style="min-height: 100px; white-space: pre-wrap; word-break: break-word;">
-                <!-- Результаты анализа будут отображаться здесь -->
+                <!-- Результаты анализа / Analysis results -->
             </div>
             <div id="analysis-chart" class="mt-3"></div>
         </div>
@@ -108,17 +108,17 @@
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
-                    const errorMsg = `Ошибка: ${data.error}`;
+                    const errorMsg = `{% if language == 'ru' %}Ошибка: {% else %}Error: {% endif %}` + data.error;
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 } else {
-                    const errorMsg = 'Произошла неизвестная ошибка.';
+                    const errorMsg = '{% if language == "ru" %}Произошла неизвестная ошибка.{% else %}An unknown error occurred.{% endif %}';
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 }
             } catch (error) {
                 console.error('Ошибка при отправке запроса:', error);
-                const errorMsg = 'Произошла ошибка при отправке вашего запроса.';
+                const errorMsg = '{% if language == "ru" %}Произошла ошибка при отправке вашего запроса.{% else %}There was an error sending your request.{% endif %}';
                 chatHistory.push({ role: 'assistant', content: errorMsg });
                 updateChatHistoryDisplay();
             }
@@ -131,11 +131,11 @@
             const imageInput = document.getElementById('chart-image');
             const file = imageInput.files[0];
             if (!file) {
-                alert('Пожалуйста, выберите изображение.');
+                alert('{% if language == "ru" %}Пожалуйста, выберите изображение.{% else %}Please select an image.{% endif %}');
                 return;
             }
 
-            chartAnalysisResult.textContent = 'Идет анализ...';
+            chartAnalysisResult.textContent = '{% if language == "ru" %}Идет анализ...{% else %}Analyzing...{% endif %}';
             analysisChartDiv.innerHTML = '';
 
             const formData = new FormData();
@@ -151,20 +151,18 @@
                 console.log('Chart Analysis Response:', data);
 
                 if (data.result && data.result.trend_prediction) {
-                    // Отображаем результат trend_prediction в блоке с авто-переносом строк
                     chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
                     analysisChartDiv.innerHTML = '';
                 } else if (data.error) {
-                    // Отображение ошибки
-                    chartAnalysisResult.innerHTML = `<p class="nes-text is-error">Ошибка: ${data.error}</p>`;
+                    chartAnalysisResult.innerHTML = `<p class="nes-text is-error">{% if language == "ru" %}Ошибка: {% else %}Error: {% endif %}${data.error}</p>`;
                     analysisChartDiv.innerHTML = '';
                 } else {
-                    chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла неизвестная ошибка при анализе графика.</p>';
+                    chartAnalysisResult.innerHTML = '{% if language == "ru" %}<p class="nes-text is-error">Произошла неизвестная ошибка при анализе графика.</p>{% else %}<p class="nes-text is-error">An unknown error occurred analyzing the chart.</p>{% endif %}';
                     analysisChartDiv.innerHTML = '';
                 }
             } catch (error) {
                 console.error('Ошибка при анализе графика:', error);
-                chartAnalysisResult.innerHTML = '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>';
+                chartAnalysisResult.innerHTML = '{% if language == "ru" %}<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>{% else %}<p class="nes-text is-error">An error occurred analyzing the chart.</p>{% endif %}';
                 analysisChartDiv.innerHTML = '';
             }
 
@@ -232,7 +230,6 @@
         margin-bottom: 10px;
     }
 
-    /* Гарантируем, что блок с результатом анализа не будет прокручиваться горизонтально */
     #chart-analysis-result pre {
         white-space: pre-wrap;
         word-break: break-word;
