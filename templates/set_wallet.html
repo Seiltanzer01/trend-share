@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Установка адреса кошелька</h2>
-<p>Для получения токенов после голосования введите или измените свой адрес кошелька в сети Base (формат 0x... 42 символа).</p>
+<h2>{% if language == 'ru' %}Установка адреса кошелька{% else %}Set Wallet Address{% endif %}</h2>
+<p>{% if language == 'ru' %}Для получения токенов после голосования введите или измените свой адрес кошелька в сети Base (формат 0x... 42 символа).{% else %}To receive tokens after voting, enter or update your Base network wallet address (format 0x... 42 characters).{% endif %}</p>
 
 <form method="post" class="nes-container is-rounded" style="padding: 1em;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="nes-field">
-        <label for="wallet_address">Адрес кошелька:</label>
+        <label for="wallet_address">{% if language == 'ru' %}Адрес кошелька:{% else %}Wallet Address:{% endif %}</label>
         <input type="text" name="wallet_address" id="wallet_address" class="nes-input" placeholder="0x..." value="{{ user.wallet_address if user.wallet_address else '' }}">
     </div>
     <br>
-    <button type="submit" class="nes-btn is-primary"><i class="fas fa-save"></i> Сохранить</button>
+    <button type="submit" class="nes-btn is-primary"><i class="fas fa-save"></i> {% if language == 'ru' %}Сохранить{% else %}Save{% endif %}</button>
 </form>
 {% endblock %}
