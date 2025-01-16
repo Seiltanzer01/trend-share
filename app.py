@@ -49,6 +49,11 @@ csrf = CSRFProtect(app)
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
 
+# Добавляем контекстный процессор для языка:
+@app.context_processor
+def inject_language():
+    return {'language': session.get('language', 'ru')}
+
 @app.route('/info')
 def info():
     return render_template('info.html')
