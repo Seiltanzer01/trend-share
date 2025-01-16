@@ -1,5 +1,6 @@
 # app.py
 
+from translations import TRANSLATIONS_RU_TO_EN
 import os
 import logging
 import traceback
@@ -48,6 +49,7 @@ csrf = CSRFProtect(app)
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': generate_csrf()}
+
 
 # Добавляем контекстный процессор для языка:
 @app.context_processor
@@ -141,6 +143,24 @@ init_best_setup_voting_routes(app, db)
 @app.context_processor
 def inject_datetime():
     return {'datetime': datetime}
+
+@app.template_filter('translate')
+def translate_filter(russian_text):
+    """
+    Переводит строку, если session['language'] == 'en'.
+    Если язык другой (например, 'ru'), то возвращаем исходный текст.
+    """
+    # Если строки нет или она пустая, возвращаем как есть
+    if not russian_text:
+        return russian_text
+
+    current_lang = session.get('language', 'ru')  # Возьмём 'ru' как язык по умолчанию
+    if current_lang == 'en':
+        # Попробуем найти перевод в словаре
+        return TRANSLATIONS_RU_TO_EN.get(russian_text, russian_text)
+    else:
+        # Иначе не переводим
+        return russian_text
 
 # Вспомогательные функции для работы с S3
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
