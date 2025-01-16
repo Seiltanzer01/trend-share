@@ -1,53 +1,53 @@
 <!-- templates/base.html -->
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{% if language == 'ru' %}ru{% else %}en{% endif %}">
 <head>
     {% block head_meta %}
-    <!-- Мета-тег viewport отключён на главной странице -->
+    <!-- Мета-тег viewport отключён на главной странице / Viewport meta for main page -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     {% endblock head_meta %}
     
     <meta charset="UTF-8">
-    <title>Trend Share</title>
+    <title>{% if language == 'ru' %}Trend Share{% else %}Trend Share{% endif %}</title>
     
-    <!-- Normalize.css для согласованного отображения -->
+    <!-- Normalize.css для согласованного отображения / Normalize.css for consistent display -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha512-oHDEc8XedJ0SwbRZHUU3eP4cEujwu3h5ZAfJz9uu7NQxoaiq+Tgex3iEX69g5b5SJY9fK+o6TQj0N3ry8+4bZw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
-    <!-- Подключение внешнего CSS-файла -->
+    <!-- Внешний CSS файл / External CSS file -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     
-    <!-- Подключение Google Fonts -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     
-    <!-- Подключение NES.css для ретро-стиля -->
+    <!-- NES.css для ретро-стиля / NES.css for retro style -->
     <link rel="stylesheet" href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css">
     
-    <!-- Подключение Font Awesome для иконок -->
+    <!-- Font Awesome для иконок / Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-papEcV+C8Dcl7N3lGggDg9AzQW1XkYcF3M6AKVnX25i7tFFzx0O1I7NOKzFvFJObN+fqkY4nK8NwId/PAf3j1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
-    <!-- Подключение iCheck CSS -->
+    <!-- iCheck CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/iCheck/1.0.2/skins/square/blue.css">
     
-    <!-- Подключение jQuery через CDN -->
+    <!-- jQuery через CDN -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
-    <!-- Подключение FastClick JS -->
+    <!-- FastClick JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fastclick/1.0.6/fastclick.min.js"></script>
     
-    <!-- Подключение jQuery UI для Datepicker -->
+    <!-- jQuery UI для Datepicker -->
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.0/themes/base/jquery-ui.css">
     <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
     
-    <!-- Подключение DataTables CSS и JS -->
+    <!-- DataTables CSS и JS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.4.1/css/responsive.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.4.1/js/dataTables.responsive.min.js"></script>
     
-    <!-- Подключение iCheck JS -->
+    <!-- iCheck JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/iCheck/1.0.2/icheck.min.js"></script>
     
-    <!-- Подключение Lazysizes JS -->
+    <!-- Lazysizes JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js" async></script>
     
     <!-- Встроенные стили для управления прокруткой -->
@@ -86,31 +86,31 @@
             <h1>Trend Share</h1>
             <nav>
                 {% if 'user_id' in session %}
-                    <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> Главная</a>
-                    <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> Добавить Сделку</a>
-                    <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> Управление Сетапами</a>
-                    <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> Голосование</a>
-                    <a href="{{ url_for('subscription') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> Подписка</a>
-                    <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Кошелек</a>
-                    <a href="{{ url_for('staking_bp.deposit_page') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> Депозит</a>
+                    <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> {% if language == 'ru' %}Главная{% else %}Home{% endif %}</a>
+                    <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> {% if language == 'ru' %}Добавить Сделку{% else %}Add Trade{% endif %}</a>
+                    <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> {% if language == 'ru' %}Управление Сетапами{% else %}Manage Setups{% endif %}</a>
+                    <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> {% if language == 'ru' %}Голосование{% else %}Voting{% endif %}</a>
+                    <a href="{{ url_for('subscription') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> {% if language == 'ru' %}Подписка{% else %}Subscription{% endif %}</a>
+                    <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> {% if language == 'ru' %}Кошелек{% else %}Wallet{% endif %}</a>
+                    <a href="{{ url_for('staking_bp.deposit_page') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> {% if language == 'ru' %}Депозит{% else %}Deposit{% endif %}</a>
                     {% if not session.get('assistant_premium') %}
-                        <!-- Дополнительные кнопки для не-премиум -->
+                        <!-- Дополнительные кнопки для не-премиум / Additional buttons for non-premium -->
                     {% else %}
-                        <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> Дядя Джон</a>
-                        <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> Диаграммы</a>
-                        <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> Лучший Сетап</a>
+                        <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> {% if language == 'ru' %}Дядя Джон{% else %}Uncle John{% endif %}</a>
+                        <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> {% if language == 'ru' %}Диаграммы{% else %}Charts{% endif %}</a>
+                        <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> {% if language == 'ru' %}Лучший Сетап{% else %}Best Setup{% endif %}</a>
                     {% endif %}
                     
                     {% if session.get('telegram_id') in ADMIN_TELEGRAM_IDS %}
-                        <a href="{{ url_for('admin_users') }}" class="nav-button nes-btn"><i class="fas fa-users-cog"></i> Админ</a>
+                        <a href="{{ url_for('admin_users') }}" class="nav-button nes-btn"><i class="fas fa-users-cog"></i> {% if language == 'ru' %}Админ{% else %}Admin{% endif %}</a>
                     {% endif %}
                     
                     <!-- Кнопка "Выйти": Если запущено в Telegram, закрывается веб-приложение, иначе переход на logout -->
                     <a href="#" class="nav-button nes-btn" onclick="if(window.Telegram && window.Telegram.WebApp){ window.Telegram.WebApp.close(); } else { window.location.href='{{ url_for('logout') }}'; }">
-                        <i class="fas fa-sign-out-alt"></i> Выйти
+                        <i class="fas fa-sign-out-alt"></i> {% if language == 'ru' %}Выйти{% else %}Logout{% endif %}
                     </a>
                 {% else %}
-                    <a href="https://t.me/TrendShare_bot" class="nav-button nes-btn"><i class="fas fa-robot"></i> Перейти к боту</a>
+                    <a href="https://t.me/TrendShare_bot" class="nav-button nes-btn"><i class="fas fa-robot"></i> {% if language == 'ru' %}Перейти к боту{% else %}Go to Bot{% endif %}</a>
                 {% endif %}
             </nav>
         </header>
