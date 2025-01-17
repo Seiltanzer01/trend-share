@@ -1,49 +1,60 @@
+<!-- templates/best_setup_candidates.html -->
 {% extends "base.html" %}
 
 {% block content %}
 <h2>{% if language == 'ru' %}Голосование за Лучший Сетап{% else %}Vote for Best Setup{% endif %}</h2>
-<p>{% if language == 'ru' %}Ниже представлены лучшие сетапы. Авторы анонимны. Посмотрите на описание, критерии и статистику, затем проголосуйте за один.{% else %}Below are the best setups. The authors are anonymous. Review the description, criteria and statistics before voting.{% endif %}</p>
+<p>{% if language == 'ru' %}
+        Ниже представлены лучшие сетапы. Авторы анонимны. Посмотрите на описание, критерии и статистику, затем проголосуйте за один.
+    {% else %}
+        Below are the best setups. The authors are anonymous. Review the description, criteria and statistics before voting.
+    {% endif %}</p>
 
 <form action="{{ url_for('best_setup_voting.vote_best_setup') }}" method="post" class="nes-container is-rounded" style="padding: 1.5em;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="nes-field">
-        <label><i class="fas fa-vote-yea"></i> {% if language == 'ru' %}Выберите один сетап для голосования:{% else %}Choose one setup to vote for:{% endif %}</label>
+        <label><i class="fas fa-vote-yea"></i> {% if language == 'ru' %}
+            Выберите один сетап для голосования:
+        {% else %}
+            Choose one setup to vote for:
+        {% endif %}</label>
     </div>
 
     <div class="setups-container" style="display: flex; flex-wrap: wrap; gap: 1em; justify-content: center;">
         {% for c in candidates %}
         <label class="nes-container is-rounded with-title setup-card" style="width: 300px; position: relative; cursor: pointer;">
             <input type="radio" name="candidate_id" value="{{ c.id }}" class="nes-radio" style="transform: scale(1.5); margin-right: 10px;">
-            <span class="title">{% if language == 'ru' %}Сетап №{{ loop.index }}{% else %}Setup #{{ loop.index }}{% endif %}</span>
+            <span class="title">{% if language == 'ru' %}{{ translate_python('Сетап №') }}{{ loop.index }}{% else %}Setup #{{ loop.index }}{% endif %}</span>
             
             {% if c.screenshot_url %}
                 <div style="text-align: center; margin-bottom: 1em;">
-                    <img src="{{ c.screenshot_url }}" alt="{% if language == 'ru' %}Сетап{% else %}Setup{% endif %}" class="screenshot lazyload" style="max-width: 100%; cursor: zoom-in;" data-src="{{ c.screenshot_url }}">
+                    <img src="{{ c.screenshot_url }}" alt="{{ translate_python('Сетап') }}" class="screenshot lazyload" style="max-width: 100%; cursor: zoom-in;" data-src="{{ c.screenshot_url }}">
                 </div>
             {% endif %}
 
             <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
-                <p><strong>{% if language == 'ru' %}Автор:{% else %}Author:{% endif %}</strong> {% if language == 'ru' %}Анонимный трейдер{% else %}Anonymous Trader{% endif %}</p>
-                <p><strong>{% if language == 'ru' %}Название:{% else %}Name:{% endif %}</strong> {{ c.setup_name }}</p>
-                <p><strong>{% if language == 'ru' %}Описание:{% else %}Description:{% endif %}</strong> {{ c.description if c.description else ( 'Нет описания' if language == 'ru' else 'No description' ) }}</p>
+                <p><strong>{% if language == 'ru' %}{{ translate_python('Автор') }}:{% else %}Author:{% endif %}</strong> {% if language == 'ru' %}Анонимный трейдер{% else %}Anonymous Trader{% endif %}</p>
+                <p><strong>{% if language == 'ru' %}{{ translate_python('Название') }}:{% else %}Name:{% endif %}</strong> {{ translate_python(c.setup_name) }}</p>
+                <p><strong>{% if language == 'ru' %}{{ translate_python('Описание') }}:{% else %}Description:{% endif %}</strong> 
+                    {{ c.description if c.description else ( translate_python('Нет описания') if language == 'ru' else 'No description' ) }}
+                </p>
             </div>
 
             <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
-                <strong>{% if language == 'ru' %}Критерии:{% else %}Criteria:{% endif %}</strong>
+                <strong>{% if language == 'ru' %}{{ translate_python('Критерии') }}:{% else %}Criteria:{% endif %}</strong>
                 {% if c.criteria %}
                     <ul class="nes-list is-disc">
                         {% for crit in c.criteria %}
-                        <li>{{ crit }}</li>
+                        <li>{{ translate_python(crit) }}</li>
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p>{% if language == 'ru' %}Нет критериев{% else %}No criteria{% endif %}</p>
+                    <p>{{ translate_python('Нет критериев') }}</p>
                 {% endif %}
             </div>
 
             <div class="nes-container is-rounded" style="background: #fff; color: #000;">
-                <p><strong>{% if language == 'ru' %}Количество сделок:{% else %}Total Trades:{% endif %}</strong> {{ c.total_trades }}</p>
-                <p><strong>{% if language == 'ru' %}Win Rate:{% else %}Win Rate:{% endif %}</strong> {{ c.win_rate }}%</p>
+                <p><strong>{% if language == 'ru' %}{{ translate_python('Количество сделок') }}:{% else %}Total Trades:{% endif %}</strong> {{ c.total_trades }}</p>
+                <p><strong>{% if language == 'ru' %}{{ translate_python('Win Rate') }}:{% else %}Win Rate:{% endif %}</strong> {{ c.win_rate }}%</p>
             </div>
         </label>
         {% endfor %}
@@ -51,13 +62,13 @@
 
     <br>
     <div style="text-align: center;">
-        <button type="submit" class="nes-btn is-success"><i class="fas fa-check"></i> {% if language == 'ru' %}Проголосовать{% else %}Vote{% endif %}</button>
+        <button type="submit" class="nes-btn is-success"><i class="fas fa-check"></i> {% if language == 'ru' %}{{ translate_python('Проголосовать') }}{% else %}Vote{% endif %}</button>
     </div>
 </form>
 
 <div id="modal" class="modal" style="display:none;">
     <span class="close">&times;</span>
-    <img class="modal-content" id="modal-img" alt="{% if language == 'ru' %}Full view{% else %}Full view{% endif %}">
+    <img class="modal-content" id="modal-img" alt="{{ translate_python('Full view') }}">
 </div>
 
 <script>
@@ -66,7 +77,7 @@ $(document).ready(function(){
     $('form').on('submit', function(e) {
         if (!$('input[name="candidate_id"]:checked').val()) {
             e.preventDefault();
-            alert('{% if language == "ru" %}Пожалуйста, выберите сетап для голосования.{% else %}Please select a setup to vote for.{% endif %}');
+            alert('{% if language == "ru" %}{{ translate_python("Пожалуйста, выберите сетап для голосования.") }}{% else %}Please select a setup to vote for.{% endif %}');
         }
     });
 
