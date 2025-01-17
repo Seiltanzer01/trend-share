@@ -157,6 +157,14 @@ def translate_python(russian_text: str):
     else:
         return russian_text
 
+@app.context_processor
+def utility_processor():
+    """
+    Возвращаем функцию translate_python в контекст шаблонов,
+    чтобы её можно было вызывать прямо в Jinja2.
+    """
+    return dict(translate_python=translate_python)
+
 # Helper functions for working with S3
 def upload_file_to_s3(file: FileStorage, filename: str) -> bool:
     """
