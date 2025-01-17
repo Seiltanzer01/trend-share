@@ -134,4 +134,6 @@ TRANSLATIONS_RU_TO_EN = {
     "Когнитивные искажения": "Cognitive Biases",
     "Самоанализ и адаптация": "Self-Analysis and Adaptation",
     "Мотивация и целеполагание": "Motivation and Goal Setting",
+
+    "Вы уверены, что хотите удалить этот сетап?": "Are you sure you want to delete this setup?",
 }
