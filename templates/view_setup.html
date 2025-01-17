@@ -1,5 +1,4 @@
 <!-- templates/view_setup.html -->
-
 {% extends "base.html" %}
 
 {% block head_meta %}
@@ -11,11 +10,11 @@
     <h2>{% if language == 'ru' %}Детали Сетапа{% else %}Setup Details{% endif %}</h2>
 
     <p><strong>ID:</strong> {{ setup.id }}</p>
-    <p><strong>{% if language == 'ru' %}Название:{% else %}Name:{% endif %}</strong> {{ setup.setup_name }}</p>
+    <p><strong>{% if language == 'ru' %}Название:{% else %}Name:{% endif %}</strong> {{ translate_python(setup.setup_name) }}</p>
     <p><strong>{% if language == 'ru' %}Описание:{% else %}Description:{% endif %}</strong><br>{{ setup.description or '-' }}</p>
     <p><strong>{% if language == 'ru' %}Критерии:{% else %}Criteria:{% endif %}</strong>
         {% for criterion in setup.criteria %}
-            <span class="criterion">{{ criterion.name }}</span>
+            <span class="criterion">{{ translate_python(criterion.name) }}</span>
         {% endfor %}
     </p>
     <p><strong>{% if language == 'ru' %}Скриншот:{% else %}Screenshot:{% endif %}</strong><br>
@@ -30,7 +29,7 @@
 
     <div id="modal" class="modal">
         <span class="close">&times;</span>
-        <img class="modal-content" id="modal-img">
+        <img class="modal-content" id="modal-img" alt="{{ translate_python('Full view') }}">
     </div>
 </div>
 {% endblock %}
