@@ -144,14 +144,13 @@ init_best_setup_voting_routes(app, db)
 def inject_datetime():
     return {'datetime': datetime}
 
-def translate_python(russian_text):
+def translate_python(russian_text: str):
     """
-    Translates string if session['language'] == 'en'.
-    Otherwise returns the original string.
+    If session['language'] == 'en', translates from RU to EN (if exists in dictionary).
+    Otherwise returns the original RU text.
     """
     if not russian_text:
-        return russian_text  # empty
-
+        return russian_text
     current_lang = session.get('language', 'ru')
     if current_lang == 'en':
         return TRANSLATIONS_RU_TO_EN.get(russian_text, russian_text)
@@ -214,16 +213,23 @@ def generate_s3_url(filename: str) -> str:
 def get_app_host():
     return app.config['APP_HOST']
 
+# -------------------------------------------------------------------------
+# Полный список instruments / categories_data, но храним их в БД по-русски.
+# При отображении вызываем translate_python(...) при необходимости.
+# -------------------------------------------------------------------------
+
 # Function to create predefined data
 def create_predefined_data():
-    # Check if data already exists
+    """
+    Сохраняем оригинальные (русские) категории и критерии в БД.
+    При отображении переводим через translate_python(...)
+    """
     if models.InstrumentCategory.query.first():
         logger.info("Predefined data already exists. Skipping creation.")
         return
 
-    # Create instrument categories and instruments
     instruments = [
-        # Currency pairs (Forex)
+        # Валютные пары (Форекс)
         {'name': 'EUR/USD', 'category': 'Форекс'},
         {'name': 'GBP/USD', 'category': 'Форекс'},
         {'name': 'USD/JPY', 'category': 'Форекс'},
@@ -234,7 +240,7 @@ def create_predefined_data():
         {'name': 'EUR/GBP', 'category': 'Форекс'},
         {'name': 'EUR/JPY', 'category': 'Форекс'},
         {'name': 'GBP/JPY', 'category': 'Форекс'},
-        # Indices
+        # Индексы
         {'name': 'S&P 500', 'category': 'Индексы'},
         {'name': 'Dow Jones', 'category': 'Индексы'},
         {'name': 'NASDAQ', 'category': 'Индексы'},
@@ -245,7 +251,7 @@ def create_predefined_data():
         {'name': 'Hang Seng', 'category': 'Индексы'},
         {'name': 'ASX 200', 'category': 'Индексы'},
         {'name': 'Euro Stoxx 50', 'category': 'Индексы'},
-        # Commodities
+        # Товары
         {'name': 'Gold', 'category': 'Товары'},
         {'name': 'Silver', 'category': 'Товары'},
         {'name': 'Crude Oil', 'category': 'Товары'},
@@ -256,7 +262,7 @@ def create_predefined_data():
         {'name': 'Soybean', 'category': 'Товары'},
         {'name': 'Coffee', 'category': 'Товары'},
         {'name': 'Sugar', 'category': 'Товары'},
-        # Cryptocurrencies
+        # Криптовалюты
         {'name': 'BTC-USD', 'category': 'Криптовалюты'},
         {'name': 'ETH-USD', 'category': 'Криптовалюты'},
         {'name': 'LTC-USD', 'category': 'Криптовалюты'},
@@ -317,32 +323,31 @@ def create_predefined_data():
         {'name': 'FLOW-USD', 'category': 'Криптовалюты'},
         {'name': 'YFI-USD', 'category': 'Криптовалюты'},
         {'name': 'SUSHI-USD', 'category': 'Криптовалюты'}
-        # Add more instruments if needed
     ]
 
     for instrument_data in instruments:
-        category_name = instrument_data['category']
+        category_name_ru = instrument_data['category']
         instrument_name = instrument_data['name']
 
-        # Get or create category
-        category = models.InstrumentCategory.query.filter_by(name=category_name).first()
+        # Пишем в БД русское название категории (category_name_ru)
+        category = models.InstrumentCategory.query.filter_by(name=category_name_ru).first()
         if not category:
-            category = models.InstrumentCategory(name=category_name)
+            category = models.InstrumentCategory(name=category_name_ru)
             db.session.add(category)
             db.session.flush()
-            logger.info(f"Category '{category_name}' added.")
+            logger.info(f"Category '{category_name_ru}' added to DB (RU).")
 
-        # Check if instrument already exists
+        # Инструмент пишем как есть (например "EUR/USD")
         instrument = models.Instrument.query.filter_by(name=instrument_name).first()
         if not instrument:
             instrument = models.Instrument(name=instrument_name, category_id=category.id)
             db.session.add(instrument)
-            logger.info(f"Instrument '{instrument_name}' added to category '{category_name}'.")
+            logger.info(f"Instrument '{instrument_name}' added to '{category_name_ru}' category.")
 
     db.session.commit()
-    logger.info("Instruments and instrument categories successfully added.")
+    logger.info("Instruments and (RU) categories successfully added to DB.")
 
-    # Create criteria categories for trade justification
+    # Ниже аналогично сохраняем критерии на русском.
     categories_data = {
         'Смарт-мани': {
             'Имбалансы и дисбалансы': [
@@ -603,39 +608,43 @@ def create_predefined_data():
         }
     }
 
-
-    for category_name, subcategories in categories_data.items():
-        category = models.CriterionCategory.query.filter_by(name=category_name).first()
-        if not category:
-            category = models.CriterionCategory(name=category_name)
-            db.session.add(category)
+    for category_name_ru, subcategories in categories_data.items():
+        cat_record = models.CriterionCategory.query.filter_by(name=category_name_ru).first()
+        if not cat_record:
+            cat_record = models.CriterionCategory(name=category_name_ru)
+            db.session.add(cat_record)
             db.session.flush()
-            logger.info(f"Criterion category '{category_name}' added.")
+            logger.info(f"Criterion category '{category_name_ru}' (ru) added to DB.")
 
-        for subcategory_name, criteria_list in subcategories.items():
-            subcategory = models.CriterionSubcategory.query.filter_by(name=subcategory_name, category_id=category.id).first()
-            if not subcategory:
-                subcategory = models.CriterionSubcategory(
-                    name=subcategory_name,
-                    category_id=category.id
+        for subcategory_name_ru, criteria_list in subcategories.items():
+            subcat_record = models.CriterionSubcategory.query.filter_by(
+                name=subcategory_name_ru, category_id=cat_record.id
+            ).first()
+            if not subcat_record:
+                subcat_record = models.CriterionSubcategory(
+                    name=subcategory_name_ru,
+                    category_id=cat_record.id
                 )
-                db.session.add(subcategory)
+                db.session.add(subcat_record)
                 db.session.flush()
-                logger.info(f"Subcategory '{subcategory_name}' added to category '{category_name}'.")
+                logger.info(f"Subcategory '{subcategory_name_ru}' (ru) added to '{category_name_ru}'.")
 
-            for criterion_name in criteria_list:
-                criterion = models.Criterion.query.filter_by(name=criterion_name, subcategory_id=subcategory.id).first()
-                if not criterion:
-                    criterion = models.Criterion(
-                        name=criterion_name,
-                        subcategory_id=subcategory.id
+            for criterion_name_en in criteria_list:
+                # Здесь сами критерии у нас на английском:
+                existing_crit = models.Criterion.query.filter_by(
+                    name=criterion_name_en, subcategory_id=subcat_record.id
+                ).first()
+                if not existing_crit:
+                    new_crit = models.Criterion(
+                        name=criterion_name_en,
+                        subcategory_id=subcat_record.id
                     )
-                    db.session.add(criterion)
-                    logger.info(f"Criterion '{criterion_name}' added to subcategory '{subcategory_name}'.")
+                    db.session.add(new_crit)
+                    logger.info(f"Criterion '{criterion_name_en}' added to subcategory '{subcategory_name_ru}'.")
 
     db.session.commit()
-    logger.info("Criteria, subcategories and criterion categories successfully added.")
-
+    logger.info("All categories, subcategories and criteria (RU stored) successfully added.")
+    
 # Wrapper functions for APScheduler jobs
 def start_new_poll_test_job():
     with app.app_context():
