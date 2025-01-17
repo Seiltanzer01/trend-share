@@ -11,69 +11,6 @@ $(document).ready(function() {
         FastClick.attach(document.body);
     }
 
-    /* === Добавляем код локализации для DataTables === */
-    const englishLocalization = {
-        "sEmptyTable":     "No data available in table",
-        "sInfo":           "Showing _START_ to _END_ of _TOTAL_ entries",
-        "sInfoEmpty":      "Showing 0 to 0 of 0 entries",
-        "sInfoFiltered":   "(filtered from _MAX_ total entries)",
-        "sLengthMenu":     "Show _MENU_ entries",
-        "sLoadingRecords": "Loading...",
-        "sProcessing":     "Processing...",
-        "sSearch":         "Search:",
-        "sZeroRecords":    "No matching records found",
-        "oPaginate": {
-            "sFirst":    "First",
-            "sLast":     "Last",
-            "sNext":     "Next",
-            "sPrevious": "Previous"
-        },
-        "oAria": {
-            "sSortAscending":  ": activate to sort column ascending",
-            "sSortDescending": ": activate to sort column descending"
-        }
-    };
-
-    const russianLocalization = {
-        "sEmptyTable":     "Нет данных в таблице",
-        "sInfo":           "Показано с _START_ по _END_ из _TOTAL_ записей",
-        "sInfoEmpty":      "Показано с 0 по 0 из 0 записей",
-        "sInfoFiltered":   "(отфильтровано из _MAX_ записей)",
-        "sLengthMenu":     "Показать _MENU_ записей",
-        "sLoadingRecords": "Загрузка...",
-        "sProcessing":     "Обработка...",
-        "sSearch":         "Поиск:",
-        "sZeroRecords":    "Записей не найдено",
-        "oPaginate": {
-            "sFirst":    "Первая",
-            "sLast":     "Последняя",
-            "sNext":     "Следующая",
-            "sPrevious": "Предыдущая"
-        },
-        "oAria": {
-            "sSortAscending":  ": активировать для сортировки по возрастанию",
-            "sSortDescending": ": активировать для сортировки по убыванию"
-        }
-    };
-
-    // Выбираем нужный объект локализации в зависимости от языка
-    const localization = (window.language && window.language.toLowerCase() === 'ru')
-                           ? russianLocalization
-                           : englishLocalization;
-    /* === Конец блока локализации === */
-
-    // Handler for "Show/Hide Filters" button
-    $('#toggle-filters').on('click', function(){
-        $('#filters').slideToggle();
-        const button = $(this);
-        // Switch the text in English
-        if (button.text().includes('Show')) {
-            button.html('<i class="fas fa-filter"></i> Hide Filters');
-        } else {
-            button.html('<i class="fas fa-filter"></i> Show Filters');
-        }
-    });
-
     // Handler for "Show/Hide Filters" button
     $('#toggle-filters').on('click', function(){
         $('#filters').slideToggle();
@@ -130,7 +67,7 @@ $(document).ready(function() {
         responsive: true,
         language: {
             // You can replace with an English i18n file if needed
-            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
+            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/en-GB.json"
         },
         "pageLength": 10,
         "lengthChange": false,
@@ -150,7 +87,7 @@ $(document).ready(function() {
         responsive: true,
         language: {
             // You can replace with an English i18n file if needed
-            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
+            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/en-GB.json"
         },
         "pageLength": 10,
         "lengthChange": false,
