@@ -1,5 +1,4 @@
 <!-- templates/add_setup.html -->
-
 {% extends "base.html" %}
 
 {% block content %}
@@ -26,33 +25,33 @@
 
         {% if setup and setup.screenshot_url %}
             <div>
-                <label>{% if language == 'ru' %}Текущее изображение:{% else %}Current Image:{% endif %}</label>
+                <label>{{ translate_python('Текущее изображение:') }}</label>
                 <img src="{{ setup.screenshot_url }}" alt="Setup Screenshot" class="clickable-image lazyload setup-mini nes-pointer"><br>
                 {{ form.remove_image() }} {{ form.remove_image.label }}
             </div>
         {% endif %}
 
         <br>
-        <label>{% if language == 'ru' %}Критерии:{% else %}Criteria:{% endif %}</label>
+        <label>{{ translate_python('Критерии:') }}</label>
         <div class="criteria-section">
             {% for category in criteria_categories %}
                 <div class="category">
                     <button type="button" class="collapse-button nes-btn custom-warning">
-                        {{ category.name }}
+                        {{ translate_python(category.name) }}
                         <span class="toggle-arrow">▶</span>
                     </button>
                     <div class="category-content">
                         {% for subcategory in category.subcategories %}
                             <div class="subcategory">
                                 <button type="button" class="collapse-button nes-btn custom-warning">
-                                    {{ subcategory.name }}
+                                    {{ translate_python(subcategory.name) }}
                                     <span class="toggle-arrow">▶</span>
                                 </button>
                                 <div class="subcategory-content">
                                     {% for criterion in subcategory.criteria %}
                                         <div class="criteria-item">
                                             <label>
-                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}"> {{ criterion.name }}
+                                                <input type="checkbox" name="criteria" value="{{ criterion.id }}"> {{ translate_python(criterion.name) }}
                                             </label>
                                         </div>
                                     {% endfor %}
