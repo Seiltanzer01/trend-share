@@ -73,4 +73,65 @@ TRANSLATIONS_RU_TO_EN = {
     "Сейчас нет активного голосования.": "There is currently no active voting.",
 
     # И так далее — добавляйте все русские фразы, которые видит пользователь
+
+    # Переводы категорий инструментов
+    "Форекс": "Forex",
+    "Индексы": "Indexes",
+    "Товары": "Commodities",
+    "Криптовалюты": "Cryptocurrencies",
+
+    # Переводы категорий критериев
+    "Смарт-мани": "Smart Money",
+    "Технический анализ": "Technical Analysis",
+    "Волны Эллиота": "Elliott Waves",
+    "Price Action": "Price Action",
+    "Индикаторы": "Indicators",
+    "Психология": "Psychology",
+
+    # Подкатегории для Смарт-мани
+    "Имбалансы и дисбалансы": "Imbalances and Disequilibria",
+    "Ликвидность и зоны концентрации": "Liquidity and Concentration Zones",
+    "Ордер-блоки": "Order Blocks",
+    "Анализ ордер-флоу": "Order Flow Analysis",
+    "Уровни структурной ликвидности": "Structural Liquidity Levels",
+    "Инструменты Smart Money": "Smart Money Tools",
+
+    # Подкатегории для Технический анализ
+    "Графические модели": "Chart Patterns",
+    "Динамика ценового движения": "Price Movement Dynamics",
+    "Свечные паттерны": "Candle Patterns",
+    "Уровни и трендовые линии": "Levels and Trend Lines",
+    "Объёмно-ценовые взаимодействия": "Volume-Price Interactions",
+
+    # Подкатегории для Волны Эллиота
+    "Импульсные и коррекционные структуры": "Impulse and Corrective Structures",
+    "Коррекционные модели": "Corrective Models",
+    "Фибоначчи в волновой теории": "Fibonacci in Wave Theory",
+    "Границы и завершение волн": "Wave Boundaries and Completion",
+    "Модели и структуры волн": "Wave Models and Structures",
+    "Интерпретация волновых соотношений": "Interpretation of Wave Ratios",
+
+    # Подкатегории для Price Action
+    "Ключевые свечные модели": "Key Candle Models",
+    "Динамика ценового поведения": "Price Behavior Dynamics",
+    "Структуры поддержки/сопротивления": "Support/Resistance Structures",
+    "Брейк-аут и фальшивые пробои": "Breakouts and False Breakouts",
+    "Интервальные и мультифрейм модели": "Interval and Multi-timeframe Models",
+    "Комплексный Price Action анализ": "Comprehensive Price Action Analysis",
+
+    # Подкатегории для Индикаторы
+    "Осцилляторы моментума": "Momentum Oscillators",
+    "Объёмные индикаторы": "Volume Indicators",
+    "Индикаторы волатильности": "Volatility Indicators",
+    "Скользящие средние": "Moving Averages",
+    "Сигнальные системы": "Signal Systems",
+    "Индикаторы настроения рынка": "Market Sentiment Indicators",
+
+    # Подкатегории для Психология
+    "Эмоциональное восприятие рынка": "Emotional Market Perception",
+    "Торговая дисциплина": "Trading Discipline",
+    "Психология толпы": "Crowd Psychology",
+    "Когнитивные искажения": "Cognitive Biases",
+    "Самоанализ и адаптация": "Self-Analysis and Adaptation",
+    "Мотивация и целеполагание": "Motivation and Goal Setting",
 }
