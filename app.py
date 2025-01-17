@@ -391,214 +391,214 @@ def create_predefined_data():
         'Технический анализ': {
             'Графические модели': [
                 'Фигуры разворота (Голова и плечи, двойная вершина/дно)',
-                'Формации продолжения (flags, pennants, wedges)',
-                'Triangles (symmetrical, ascending, descending)',
-                'Consolidations and sideways movements',
-                'Composite pattern analysis'
+                'Формации продолжения (флаги, вымпелы, клинья)',
+                'Треугольники (симметричные, восходящие, нисходящие)',
+                'Консолидации и боковые движения',
+                'Композитный анализ фигур'
             ],
             'Динамика ценового движения': [
-                'Break of levels (gap analysis)',
-                'Analysis of false breakouts',
-                'Consolidation with momentum',
-                'Sharp spikes and corrections',
-                'Impulsive price changes'
+                'Разрывы уровней (gap analysis)',
+                'Анализ фейковых пробоев',
+                'Консолидация с импульсом',
+                'Резкие скачки и коррекции',
+                'Импульсные изменения цены'
             ],
             'Свечные паттерны': [
-                'Reversal patterns (pin bars, doji)',
-                'Engulfing (bullish/bearish)',
-                'Multi-phase candle behavior',
-                'Combined candle signals',
-                'Candle reversal points'
+                'Разворотные модели (пин-бары, доджи)',
+                'Поглощения (бычьи/медвежьи)',
+                'Многофазное поведение свечей',
+                'Комбинированные свечные сигналы',
+                'Точки разворота по свечам'
             ],
             'Уровни и трендовые линии': [
-                'Horizontal support/resistance levels',
-                'Dynamic trend lines',
-                'Trend channels',
-                'Consolidation zones',
-                'Multi-level structure'
+                'Горизонтальные уровни поддержки/сопротивления',
+                'Динамические трендовые линии',
+                'Каналы тренда',
+                'Зоны консолидации',
+                'Многоступенчатая структура уровней'
             ],
             'Объёмно-ценовые взаимодействия': [
-                'Volume profile at entry zone',
-                'Price and volume alignment',
-                'Volume anomalies at breakouts',
-                'Clustering of volume spikes',
-                'Volume confirmation of the trend'
+                'Профиль объёма в зоне входа',
+                'Согласование объёма и цены',
+                'Объёмные аномалии при пробое',
+                'Кластеризация объёмных скачков',
+                'Объёмное подтверждение тренда'
             ]
         },
         'Волны Эллиота': {
             'Импульсные и коррекционные структуры': [
-                'Impulse waves (1, 3, 5)',
-                'Corrective waves (2, 4)',
-                'Wave fractality',
-                'Wave start and end',
-                'Time intervals of waves'
+                'Импульсные волны (1, 3, 5)',
+                'Коррекционные волны (2, 4)',
+                'Фрактальность волн',
+                'Начало и конец волны',
+                'Временные интервалы волн'
             ],
             'Коррекционные модели': [
-                'Zigzag model',
-                'Reversal zones',
-                'Triangular compression',
-                'Corrective parallelograms',
-                'Mixed corrections'
+                'Модель "Зигзаг"',
+                'Площадки для разворота',
+                'Треугольное сжатие',
+                'Коррекционные параллелограммы',
+                'Смешанные коррекции'
             ],
             'Фибоначчи в волновой теории': [
-                'Fibonacci retracements for entry',
-                'Fibonacci wave ratios',
-                'Extensions and retracements',
-                'Fibonacci levels for SL/TP',
-                'Alignment with Fibonacci'
+                'Фибоначчи-откаты для входа',
+                'Соотношения волн по Фибоначчи',
+                'Расширения и ретрейсы',
+                'Фибоначчи уровни для SL/TP',
+                'Согласование с Фибоначчи'
             ],
             'Границы и завершение волн': [
-                'Wave reversal points',
-                'Wave length ratios',
-                'Impulse weakening zones',
-                'Time parameters of waves',
-                'Impulse completion'
+                'Точки разворота волны',
+                'Соотношение длин волн',
+                'Зоны ослабления импульса',
+                'Временные параметры волн',
+                'Завершение импульса'
             ],
             'Модели и структуры волн': [
-                'Classic Elliott model',
-                'Impulse wave submodels',
-                'Multifractal models',
-                'Analysis on various timeframes',
-                'Synchronization with main trend'
+                'Классическая модель Эллиота',
+                'Подмодели импульсных волн',
+                'Многофрактальные модели',
+                'Анализ на разных таймфреймах',
+                'Синхронизация с основным трендом'
             ],
             'Интерпретация волновых соотношений': [
-                'Wave proportions',
-                'Comparison of duration and amplitude',
-                'Correlation with volume',
-                'Comparison of impulse and corrective waves',
-                'Forecast based on wave structure'
+                'Пропорции волн',
+                'Сравнение длительности и амплитуды',
+                'Корреляция с объёмом',
+                'Сравнение импульсных и коррекционных волн',
+                'Прогноз на основе волновой структуры'
             ]
         },
         'Price Action': {
             'Ключевые свечные модели': [
-                'Pin bars as reversal signals',
-                'Candle engulfing',
-                'Doji for waiting reversal',
-                'Harami pattern',
-                'Long shadow candles'
+                'Пин-бары как сигнал разворота',
+                'Свечные поглощения',
+                'Доджи для ожидания разворота',
+                'Модель "Харами"',
+                'Свечи с длинными тенями'
             ],
             'Динамика ценового поведения': [
-                'Formation of local extrema',
-                'Consolidation with breakout',
-                'Rejection of key levels',
-                'Recording pullbacks',
-                'Divergence of price and volume'
+                'Формирование локальных экстремумов',
+                'Консолидация с мощным прорывом',
+                'Отказы от ключевых уровней',
+                'Фиксация откатов',
+                'Дивергенция цены и объёма'
             ],
             'Структуры поддержки/сопротивления': [
-                'Strong support/resistance levels',
-                'Price reversal from key zones',
-                'Fixed and dynamic barriers',
-                'Reaction to historical levels',
-                'Breakout with retest'
+                'Устойчивые уровни поддержки/сопротивления',
+                'Реверсия цены от ключевых зон',
+                'Фиксированные и динамические барьеры',
+                'Реакция на исторические уровни',
+                'Пробой с откатом'
             ],
             'Брейк-аут и фальшивые пробои': [
-                'True level breakouts',
-                'Filtering false breakouts',
-                'Close candle at breakout level',
-                'Level contact before breakout',
-                'Pullbacks after breakout'
+                'Истинные пробои уровней',
+                'Фильтрация ложных пробоев',
+                'Закрытие свечи у пробитого уровня',
+                'Контакт с уровнем перед пробоем',
+                'Откаты после пробоя'
             ],
             'Интервальные и мультифрейм модели': [
-                'Intraday dynamics',
-                'Alignment of different timeframes',
-                'Asymmetry on short intervals',
-                'Transition from local to global trends',
-                'Analysis of session open/close events'
+                'Внутридневная динамика',
+                'Согласование разных таймфреймов',
+                'Асимметрия на краткосрочных интервалах',
+                'Переход от локальных к глобальным трендам',
+                'Анализ событий открытия/закрытия сессий'
             ],
             'Комплексный Price Action анализ': [
-                'Alignment of levels and candles',
-                'Integration of price anomalies and volume',
-                'Contextual market analysis',
-                'Multi-timeframe signal verification',
-                'Integration of signals for optimal entry'
+                'Согласование уровней и свечей',
+                'Интеграция ценовых аномалий и объёма',
+                'Контекстный рыночный анализ',
+                'Мультифрейм проверка сигнала',
+                'Интеграция сигналов для оптимального входа'
             ]
         },
         'Индикаторы': {
             'Осцилляторы моментума': [
-                'RSI for overbought/oversold',
-                'Stochastic for reversals',
-                'CCI for momentum measurement',
-                'Williams %R for extremes',
-                'ROC for price dynamics'
+                'RSI для перекупленности/перепроданности',
+                'Stochastic для разворотов',
+                'CCI для измерения импульса',
+                'Williams %R для экстремумов',
+                'ROC для динамики цены'
             ],
             'Объёмные индикаторы': [
-                'OBV for trend confirmation',
-                'Accumulation/Distribution for buy/sell assessment',
-                'MFI for cash flow',
-                'Volume Oscillator for volume anomalies',
-                'CMF for buyer/seller pressure'
+                'OBV для подтверждения тренда',
+                'Accumulation/Distribution для оценки покупки/продажи',
+                'MFI для денежного потока',
+                'Volume Oscillator для объёмных аномалий',
+                'CMF для давления покупателей/продавцов'
             ],
             'Индикаторы волатильности': [
-                'Bollinger Bands for overbought/oversold zones',
-                'ATR for stop losses',
-                'Keltner Channels for trend zones',
-                'Donchian Channels for extremes',
-                'Standard Deviation for volatility'
+                'Bollinger Bands для зон перекупленности/перепроданности',
+                'ATR для стоп-лоссов',
+                'Keltner Channels для трендовых зон',
+                'Donchian Channels для экстремумов',
+                'Standard Deviation для изменчивости'
             ],
             'Скользящие средние': [
-                'SMA for base trend',
-                'EMA for real-time tracking',
-                'WMA for accurate calculation',
-                'HMA for noise smoothing',
-                'TEMA for quick entry'
+                'SMA для базового тренда',
+                'EMA для оперативного отслеживания',
+                'WMA для точного расчёта',
+                'HMA для сглаживания шума',
+                'TEMA для быстрого входа'
             ],
             'Сигнальные системы': [
-                'MACD for trend changes',
-                'Moving Average cross for entry',
-                'Oscillator divergence',
-                'Reversal oscillators in combination',
-                'Automated signals'
+                'MACD для смены тренда',
+                'Пересечение скользящих для входа',
+                'Дивергенция осцилляторов',
+                'Осцилляторы разворота в комбинации',
+                'Автоматические сигналы'
             ],
             'Индикаторы настроения рынка': [
-                'VIX for uncertainty',
-                'Optimism Index',
-                'Market consensus',
-                'Sentiment lines',
-                'Public sentiment indicators'
+                'VIX для неопределённости',
+                'Индекс оптимизма',
+                'Рыночный консенсус',
+                'Сентиментальные линии',
+                'Индикаторы общественного настроения'
             ]
         },
         'Психология': {
             'Эмоциональное восприятие рынка': [
-                'Fear analysis as a signal',
-                'Evaluation of greed and reversal',
-                'Panic as an opportunity',
-                'Euphoria and corrections',
-                'Indecision and risk'
+                'Анализ страха как сигнала',
+                'Оценка жадности и разворота',
+                'Паника как возможность',
+                'Эйфория и коррективы',
+                'Нерешительность и риск'
             ],
             'Торговая дисциплина': [
-                'Strict adherence to plan',
-                'Risk control and money management',
-                'Maintaining a trading journal',
-                'Self-discipline',
-                'Position management strategy'
+                'Строгое следование плану',
+                'Контроль риска и мани-менеджмент',
+                'Ведение торгового журнала',
+                'Самодисциплина',
+                'Стратегия управления позицией'
             ],
             'Психология толпы': [
-                'FOMO analysis',
-                'Tracking mass emotions',
-                'Herd mentality effect',
-                'Market reaction to news',
-                'Counter-trend under crowd pressure'
+                'Анализ FOMO',
+                'Отслеживание массовых эмоций',
+                'Эффект стадного мышления',
+                'Реакция рынка на новости',
+                'Контртренд под давлением толпы'
             ],
             'Когнитивные искажения': [
-                'Awareness of confirmation bias',
-                'Analysis of overestimation of abilities',
-                'Control of overconfidence',
-                'Avoiding survivorship bias',
-                'Attention to missed risks'
+                'Осознание подтверждения ожиданий',
+                'Анализ переоценки возможностей',
+                'Контроль самоуверенности',
+                'Избежание ошибки выжившего',
+                'Внимание к упущенным рискам'
             ],
             'Самоанализ и адаптация': [
-                'Review entries to identify mistakes',
-                'Analysis of successful and unsuccessful trades',
-                'Strategy adjustment',
-                'Evaluation of emotional state',
-                'Continuous learning'
+                'Пересмотр входов для выявления ошибок',
+                'Анализ успешных и неудачных сделок',
+                'Корректировка стратегии',
+                'Оценка эмоционального состояния',
+                'Постоянное обучение'
             ],
             'Мотивация и целеполагание': [
-                'Clear short-term goals',
-                'Focus on long-term strategy',
-                'Visualization of success',
-                'Positive mindset',
-                'Seeking growth opportunities'
+                'Ясные краткосрочные цели',
+                'Фокус на долгосрочной стратегии',
+                'Визуализация успеха',
+                'Позитивный настрой',
+                'Поиск возможностей для роста'
             ]
         }
     }
