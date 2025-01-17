@@ -1,5 +1,4 @@
 <!-- templates/view_trade.html -->
-
 {% extends "base.html" %}
 
 {% block head_meta %}
@@ -17,15 +16,15 @@
     <p><strong>{% if language == 'ru' %}Цена выхода:{% else %}Exit Price:{% endif %}</strong> {{ trade.exit_price or '-' }}</p>
     <p><strong>{% if language == 'ru' %}Дата открытия:{% else %}Open Date:{% endif %}</strong> {{ trade.trade_open_time.strftime('%Y-%m-%d') }}</p>
     <p><strong>{% if language == 'ru' %}Дата закрытия:{% else %}Close Date:{% endif %}</strong> {{ trade.trade_close_time.strftime('%Y-%m-%d') if trade.trade_close_time else '-' }}</p>
-    <p><strong>{% if language == 'ru' %}Прибыль/Убыток:{% else %}P/L:{% endif %}</strong> {{ "%.2f".format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</p>
-    <p><strong>{% if language == 'ru' %}% Прибыли/Убытка:{% else %}P/L %:{% endif %}</strong> {% if trade.profit_loss_percentage is not none %}{{ "%.2f%%".format(trade.profit_loss_percentage) }}{% else %}-{% endif %}</p>
+    <p><strong>{% if language == 'ru' %}Прибыль/Убыток:{% else %}P/L:{% endif %}</strong> {{ "%.2f"|format(trade.profit_loss) if trade.profit_loss is not none else '-' }}</p>
+    <p><strong>{% if language == 'ru' %}% Прибыль/Убыток:{% else %}P/L %:{% endif %}</strong> {% if trade.profit_loss_percentage is not none %}{{ "%.2f%%"|format(trade.profit_loss_percentage) }}{% else %}-{% endif %}</p>
     <p><strong>{% if language == 'ru' %}Сетап:{% else %}Setup:{% endif %}</strong>
         {% if trade.setup %}
             <div class="setup-info">
                 {% if trade.setup.screenshot_url %}
                     <img src="{{ trade.setup.screenshot_url }}" alt="Setup Screenshot" class="setup-mini clickable-image lazyload nes-pointer">
                 {% endif %}
-                {{ trade.setup.setup_name }}
+                {{ translate_python(trade.setup.setup_name) }}
             </div>
         {% else %}
             -
@@ -34,7 +33,7 @@
     <p><strong>{% if language == 'ru' %}Комментарий:{% else %}Comment:{% endif %}</strong><br>{{ trade.comment or '-' }}</p>
     <p><strong>{% if language == 'ru' %}Критерии:{% else %}Criteria:{% endif %}</strong>
         {% for criterion in trade.criteria %}
-            <span class="criterion">{{ criterion.name }}</span>
+            <span class="criterion">{{ translate_python(criterion.name) }}</span>
         {% endfor %}
     </p>
     <p><strong>{% if language == 'ru' %}Скриншот:{% else %}Screenshot:{% endif %}</strong><br>
