@@ -94,16 +94,19 @@
                     <a href="{{ url_for('index') }}" class="nav-button nes-btn"><i class="fas fa-home"></i> {% if language == 'ru' %}Главная{% else %}Home{% endif %}</a>
                     <a href="{{ url_for('new_trade') }}" class="nav-button nes-btn"><i class="fas fa-plus-circle"></i> {% if language == 'ru' %}Добавить Сделку{% else %}Add Trade{% endif %}</a>
                     <a href="{{ url_for('manage_setups') }}" class="nav-button nes-btn"><i class="fas fa-cogs"></i> {% if language == 'ru' %}Управление Сетапами{% else %}Manage Setups{% endif %}</a>
+
+                    {% if not session.get('assistant_premium') %}
+                        <!-- Дополнительные кнопки для не-премиум / Additional buttons for non-premium -->
+                    {% else %}
+                        <!-- на время free версии -->
                     <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> {% if language == 'ru' %}Голосование{% else %}Voting{% endif %}</a>
                     <a href="{{ url_for('subscription') }}" class="nav-button nes-btn"><i class="fas fa-credit-card"></i> {% if language == 'ru' %}Подписка{% else %}Subscription{% endif %}</a>
                     <a href="{{ url_for('best_setup_voting.set_wallet') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> {% if language == 'ru' %}Кошелек{% else %}Wallet{% endif %}</a>
                     <a href="{{ url_for('staking_bp.deposit_page') }}" class="nav-button nes-btn"><i class="fas fa-wallet"></i> {% if language == 'ru' %}Депозит{% else %}Deposit{% endif %}</a>
-                    {% if not session.get('assistant_premium') %}
-                        <!-- Дополнительные кнопки для не-премиум / Additional buttons for non-premium -->
-                    {% else %}
-                        <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> {% if language == 'ru' %}Дядя Джон{% else %}Uncle John{% endif %}</a>
-                        <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> {% if language == 'ru' %}Диаграммы{% else %}Charts{% endif %}</a>
-                        <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> {% if language == 'ru' %}Лучший Сетап{% else %}Best Setup{% endif %}</a>
+                        <!-- на время free версии -->
+                    <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> {% if language == 'ru' %}Дядя Джон{% else %}Uncle John{% endif %}</a>
+                    <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> {% if language == 'ru' %}Диаграммы{% else %}Charts{% endif %}</a>
+                    <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> {% if language == 'ru' %}Лучший Сетап{% else %}Best Setup{% endif %}</a>
                     {% endif %}
                     
                     {% if session.get('telegram_id') in ADMIN_TELEGRAM_IDS %}
