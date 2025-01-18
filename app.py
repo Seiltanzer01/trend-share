@@ -54,8 +54,8 @@ def inject_csrf_token():
 # Add context processor for language:
 @app.context_processor
 def inject_language():
-    return {'language': session.get('language', 'en')}
-    #return {'language': 'en'}  если жестко en
+    #return {'language': session.get('language', 'en')} #чтобы от сессии
+    return {'language': 'en'}  #если жестко en
 
 @app.route('/info')
 def info():
