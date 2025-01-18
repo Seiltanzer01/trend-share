@@ -913,11 +913,11 @@ def init():
 
             # Если бы мы хотели использовать язык из Telegram, было бы так:
             
-            #language_code = getattr(webapp_data.user, 'language_code', 'en')
-            #session['language'] = language_code
+            language_code = getattr(webapp_data.user, 'language_code', 'en')
+            session['language'] = language_code
 
             #НО для теста мы ЖЕСТКО ставим английский:
-            session['language'] = 'en'
+            #session['language'] = 'en'
             
             # (Потом, если нужно, вы раскомментируете верхний блок и уберете эту строку.
 
