@@ -912,11 +912,12 @@ def init():
                 return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
 
             # Если бы мы хотели использовать язык из Telegram, было бы так:
-            # language_code = getattr(webapp_data.user, 'language_code', 'ru')
-            # session['language'] = language_code
+            
+            language_code = getattr(webapp_data.user, 'language_code', 'en')
+            session['language'] = language_code
 
             # ---- НО для теста мы ЖЕСТКО ставим английский: ----
-            session['language'] = 'en'
+            #session['language'] = 'en'
             # (Потом, если нужно, вы раскомментируете верхний блок и уберете эту строку.)
 
             telegram_id = int(webapp_data.user.id)
