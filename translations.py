@@ -282,5 +282,5 @@ TRANSLATIONS_RU_TO_EN = {
     "Позитивный настрой": "Positive Attitude",
     "Поиск возможностей для роста": "Seeking Growth Opportunities",
     "Вы уверены, что хотите удалить эту сделку?": "Are you sure you want to delete this transaction?",
-    "Критерии:": "criteria:",
+    "Критерии:": "Criteria:",
 }
