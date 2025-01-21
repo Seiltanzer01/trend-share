@@ -46,7 +46,7 @@ def generate_openai_response(messages):
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=0.7,
-            max_tokens=1500,  # Increased for more detailed responses
+            max_tokens=750,  # Increased for more detailed responses
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
