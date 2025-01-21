@@ -1,5 +1,3 @@
-<!-- templates/assistant.html -->
-
 {% extends "base.html" %}
 
 {% block content %}
@@ -18,12 +16,23 @@
         <form id="assistant-form" class="nes-container is-rounded">
             <div class="form-group">
                 <label for="assistant-question">{% if language == 'ru' %}Ваш вопрос:{% else %}Your question:{% endif %}</label>
-                <input type="text" class="nes-input" id="assistant-question" required placeholder="{% if language == 'ru' %}Введите ваш вопрос...{% else %}Enter your question...{% endif %}">
+                <!-- Заменили input на многострочный textarea -->
+                <textarea
+                    id="assistant-question"
+                    class="nes-textarea"
+                    rows="2"
+                    placeholder="{% if language == 'ru' %}Введите ваш вопрос...{% else %}Enter your question...{% endif %}"
+                    required
+                ></textarea>
             </div>
-            <button type="submit" class="nes-btn is-primary">{% if language == 'ru' %}Отправить{% else %}Send{% endif %}</button>
+            <button type="submit" class="nes-btn is-primary">
+                {% if language == 'ru' %}Отправить{% else %}Send{% endif %}
+            </button>
         </form>
 
-        <button id="clear-chat" class="nes-btn is-error" style="margin-top: 10px;">{% if language == 'ru' %}Очистить чат{% else %}Clear chat{% endif %}</button>
+        <button id="clear-chat" class="nes-btn is-error" style="margin-top: 10px;">
+            {% if language == 'ru' %}Очистить чат{% else %}Clear chat{% endif %}
+        </button>
     </div>
     
     <hr>
@@ -35,7 +44,9 @@
                 <label for="chart-image">{% if language == 'ru' %}Загрузите изображение графика:{% else %}Upload chart image:{% endif %}</label>
                 <input type="file" class="nes-input" id="chart-image" name="image" accept="image/*" required>
             </div>
-            <button type="submit" class="nes-btn is-secondary">{% if language == 'ru' %}Анализировать график{% else %}Analyze Chart{% endif %}</button>
+            <button type="submit" class="nes-btn is-secondary">
+                {% if language == 'ru' %}Анализировать график{% else %}Analyze Chart{% endif %}
+            </button>
         </form>
         
         <div class="mt-3">
@@ -64,11 +75,19 @@
             chatHistoryDiv.innerHTML = '';
             chatHistory.forEach(message => {
                 const msgDiv = document.createElement('div');
-                msgDiv.className = message.role === 'user' ? 'nes-balloon from-right' : 'nes-balloon from-left is-dark';
-                const content = (typeof message.content === 'object') ? JSON.stringify(message.content, null, 2) : message.content;
+                // Выделяем стили для сообщений от пользователя и ассистента
+                msgDiv.className = message.role === 'user'
+                    ? 'nes-balloon from-right'
+                    : 'nes-balloon from-left is-dark';
+
+                const content = (typeof message.content === 'object')
+                    ? JSON.stringify(message.content, null, 2)
+                    : message.content;
+
                 msgDiv.textContent = content;
                 chatHistoryDiv.appendChild(msgDiv);
             });
+            // Прокручиваем чат вниз
             chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
         }
 
@@ -76,7 +95,6 @@
             try {
                 const response = await fetch('/get_chat_history');
                 const data = await response.json();
-                console.log('Chat History:', data);
                 if (data.chat_history) {
                     chatHistory = data.chat_history;
                     updateChatHistoryDisplay();
@@ -86,11 +104,16 @@
             }
         }
 
+        // Подгрузим историю чата при загрузке страницы
+        loadChatHistory();
+
+        // Отправка вопроса в ассистент
         assistantForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const question = assistantQuestionInput.value.trim();
             if (!question) return;
 
+            // Добавляем сообщение пользователя сразу в интерфейс
             chatHistory.push({ role: 'user', content: question });
             updateChatHistoryDisplay();
 
@@ -102,40 +125,53 @@
                 });
 
                 const data = await response.json();
-                console.log('Chat Response:', data);
                 if (data.response) {
-                    const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
+                    const assistantContent =
+                        (typeof data.response === 'object')
+                            ? JSON.stringify(data.response, null, 2)
+                            : data.response;
+
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
-                    const errorMsg = `{% if language == 'ru' %}Ошибка: {% else %}Error: {% endif %}` + data.error;
+                    const errorMsg = (language === 'ru' ? 'Ошибка: ' : 'Error: ') + data.error;
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 } else {
-                    const errorMsg = '{% if language == "ru" %}Произошла неизвестная ошибка.{% else %}An unknown error occurred.{% endif %}';
+                    const errorMsg = (language === 'ru'
+                        ? 'Произошла неизвестная ошибка.'
+                        : 'An unknown error occurred.');
                     chatHistory.push({ role: 'assistant', content: errorMsg });
                     updateChatHistoryDisplay();
                 }
             } catch (error) {
                 console.error('Ошибка при отправке запроса:', error);
-                const errorMsg = '{% if language == "ru" %}Произошла ошибка при отправке вашего запроса.{% else %}There was an error sending your request.{% endif %}';
+                const errorMsg = (language === 'ru'
+                    ? 'Произошла ошибка при отправке вашего запроса.'
+                    : 'There was an error sending your request.');
                 chatHistory.push({ role: 'assistant', content: errorMsg });
                 updateChatHistoryDisplay();
             }
 
+            // Очищаем поле после отправки
             assistantQuestionInput.value = '';
         });
 
+        // Обработка формы для анализа графика
         chartForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const imageInput = document.getElementById('chart-image');
             const file = imageInput.files[0];
             if (!file) {
-                alert('{% if language == "ru" %}Пожалуйста, выберите изображение.{% else %}Please select an image.{% endif %}');
+                alert(language === 'ru'
+                    ? 'Пожалуйста, выберите изображение.'
+                    : 'Please select an image.');
                 return;
             }
 
-            chartAnalysisResult.textContent = '{% if language == "ru" %}Идет анализ...{% else %}Analyzing...{% endif %}';
+            chartAnalysisResult.textContent = language === 'ru'
+                ? 'Идет анализ...'
+                : 'Analyzing...';
             analysisChartDiv.innerHTML = '';
 
             const formData = new FormData();
@@ -148,27 +184,36 @@
                 });
 
                 const data = await response.json();
-                console.log('Chart Analysis Response:', data);
-
                 if (data.result && data.result.trend_prediction) {
-                    chartAnalysisResult.innerHTML = `<pre>${data.result.trend_prediction}</pre>`;
+                    chartAnalysisResult.innerHTML =
+                        `<pre>${data.result.trend_prediction}</pre>`;
                     analysisChartDiv.innerHTML = '';
                 } else if (data.error) {
-                    chartAnalysisResult.innerHTML = `<p class="nes-text is-error">{% if language == "ru" %}Ошибка: {% else %}Error: {% endif %}${data.error}</p>`;
+                    chartAnalysisResult.innerHTML =
+                        `<p class="nes-text is-error">` +
+                        (language === 'ru' ? 'Ошибка: ' : 'Error: ') +
+                        `${data.error}</p>`;
                     analysisChartDiv.innerHTML = '';
                 } else {
-                    chartAnalysisResult.innerHTML = '{% if language == "ru" %}<p class="nes-text is-error">Произошла неизвестная ошибка при анализе графика.</p>{% else %}<p class="nes-text is-error">An unknown error occurred analyzing the chart.</p>{% endif %}';
+                    chartAnalysisResult.innerHTML =
+                        language === 'ru'
+                            ? '<p class="nes-text is-error">Произошла неизвестная ошибка при анализе графика.</p>'
+                            : '<p class="nes-text is-error">An unknown error occurred analyzing the chart.</p>';
                     analysisChartDiv.innerHTML = '';
                 }
             } catch (error) {
                 console.error('Ошибка при анализе графика:', error);
-                chartAnalysisResult.innerHTML = '{% if language == "ru" %}<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>{% else %}<p class="nes-text is-error">An error occurred analyzing the chart.</p>{% endif %}';
+                chartAnalysisResult.innerHTML =
+                    language === 'ru'
+                        ? '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>'
+                        : '<p class="nes-text is-error">An error occurred analyzing the chart.</p>';
                 analysisChartDiv.innerHTML = '';
             }
 
             imageInput.value = '';
         });
 
+        // Кнопка очистки чата
         clearChatButton.addEventListener('click', async function() {
             try {
                 const response = await fetch('/clear_chat_history', { method: 'POST' });
@@ -204,9 +249,11 @@
         100% { transform: translateY(0px); }
     }
 
+    /* Контейнер для чата */
     .chat-history {
         max-height: 400px;
         overflow-y: auto;
+        overflow-x: hidden; /* Убираем горизонтальную прокрутку */
         padding: 10px;
         background-color: #f9f9f9;
         border: 1px solid #ddd;
@@ -214,10 +261,21 @@
         margin-bottom: 15px;
     }
 
+    /* Чтобы длинный текст не вылезал за границы пузыра */
+    .nes-balloon {
+        max-width: 80%; /* например, чтобы пузырь не занимал всю ширину */
+        white-space: pre-wrap; 
+        word-wrap: break-word;
+    }
+
     .assistant-container {
         display: flex;
         flex-direction: column;
         align-items: center;
+        /* Можно ограничить максимальную ширину, чтобы не «гуляло» по горизонтали */
+        max-width: 700px;
+        margin: 0 auto; 
+        width: 100%;
     }
 
     .assistant-chat, .assistant-chart-analysis {
@@ -229,6 +287,19 @@
     .form-group {
         margin-bottom: 10px;
     }
+
+    /* Стили для textarea */
+    #assistant-question {
+        resize: vertical; /* Пользователь сможет растягивать поле по вертикали */
+        min-height: 50px;
+        width: 100%;
+    }
+
+    /* Пример: если хотите отключить resize совсем:
+       #assistant-question {
+           resize: none;
+       }
+    */
 
     #chart-analysis-result pre {
         white-space: pre-wrap;
