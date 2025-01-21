@@ -32,7 +32,7 @@ html, body {
 
 /* Фон со сглаженным переходом */
 body {
-    background: linear-gradient(var(--primary-color) 60px, #f0f8ff 0) no-repeat;
+    background: linear-gradient(var(--primary-color) 130px, #f0f8ff 0) no-repeat;
 }
 
 /* Контейнер */
