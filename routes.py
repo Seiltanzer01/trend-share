@@ -46,7 +46,7 @@ def generate_openai_response(messages):
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=0.7,
-            max_tokens=750,  # Increased for more detailed responses
+            max_tokens=1500,  # Increased for more detailed responses
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
@@ -834,14 +834,14 @@ def assistant_chat():
             ]) if any(trade.comment for trade in trades) else "No comments on trades."
 
         system_message = f"""
-You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trading statistics and finds patterns. But you don't write long messages unless the user asks.
+You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trading statistics and finds patterns.
 User trade data:
 {trade_data}
 
 Trade comments:
 {comments}
 
-Provide detailed analysis and recommendations based on this data only if the user requests, otherwise keep it short.
+Provide detailed analysis and recommendations based on this data only if the user requests, propose specific strategies with calculations and figures. Don't write too long messages.
 """
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
