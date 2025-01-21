@@ -834,14 +834,14 @@ def assistant_chat():
             ]) if any(trade.comment for trade in trades) else "No comments on trades."
 
         system_message = f"""
-You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trade statistics and finds patterns.
+You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trading statistics and finds patterns. But you don't write long messages unless the user asks.
 User trade data:
 {trade_data}
 
 Trade comments:
 {comments}
 
-Provide a detailed analysis and recommendations based on this data, if the user requests.
+Provide detailed analysis and recommendations based on this data only if the user requests, otherwise keep it short.
 """
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
