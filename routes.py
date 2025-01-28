@@ -11,7 +11,6 @@ import io
 import base64
 from datetime import datetime, timedelta
 
-
 from flask import (
     render_template, redirect, url_for, flash, request,
     session, jsonify
@@ -38,41 +37,24 @@ import openai
 import yfinance as yf
 
 def generate_openai_response(messages):
-    import json
-    import requests
-
+    """
+    Gets a response from OpenAI GPT-3.5-turbo based on message history.
+    """
     try:
-        stream = False  # Если нужно стримить ответ, поставьте True
-        url = "https://proxy.tune.app/chat/completions"
-        headers = {
-            "Authorization": "sk-tune-1bhsazcI99hOOVS7DA0KDBsjdXpBDSyLPUB",
-            "Content-Type": "application/json",
-        }
-        data = {
-            "temperature": 0.8,
-            "messages": messages,       # <-- Вместо статичных, подставляем ваш список сообщений
-            "model": "openai/o1",
-            "stream": stream,
-            "frequency_penalty": 0,
-            "max_tokens": 900
-        }
-
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()  # выбросит ошибку, если статус не 2xx
-
-        if stream:
-            # Если захотите стримить, нужно обрабатывать iter_lines().
-            # Для простоты в этом примере возвращаем просто полный текст,
-            # поэтому stream=False и парсим response.json().
-            pass
-
-        result_json = response.json()
-        # Предполагается OpenAI-совместимый формат {"choices":[{"message":{"content":...}}]}
-        return result_json["choices"][0]["message"]["content"]
-
+        logger.debug(f"Sending messages to OpenAI: {messages}")
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=900,  # Increased for more detailed responses
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0
+        )
+        logger.debug(f"Received response from OpenAI: {response}")
+        return response.choices[0].message['content'].strip()
     except Exception as e:
-        # Логируем ошибку и возвращаем дефолтный текст
-        logger.error(f"Error calling tune API: {e}")
+        logger.error(f"Error calling OpenAI API: {e}")
         logger.error(traceback.format_exc())
         return "An error occurred while processing your request."
         
