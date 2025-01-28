@@ -5,7 +5,6 @@ import pytz
 import os
 import logging
 import traceback
-import requests
 import hashlib
 import matplotlib.pyplot as plt  # Import moved to the top
 import io
@@ -39,37 +38,40 @@ import openai
 import yfinance as yf
 
 def generate_openai_response(messages):
-    """
-    Вызывает прокси по адресу https://proxy.tune.app/chat/completions
-    c моделью openai/o1 вместо прямого вызова openai.ChatCompletion.create.
-    """
-    try:
-        logger.debug(f"Sending messages to tune proxy: {messages}")
+    import json
+    import requests
 
+    try:
+        stream = False  # Если нужно стримить ответ, поставьте True
         url = "https://proxy.tune.app/chat/completions"
         headers = {
             "Authorization": "sk-tune-1bhsazcI99hOOVS7DA0KDBsjdXpBDSyLPUB",
             "Content-Type": "application/json",
         }
-        payload = {
+        data = {
+            "temperature": 0.8,
+            "messages": messages,       # <-- Вместо статичных, подставляем ваш список сообщений
             "model": "openai/o1",
-            "messages": messages,
-            "temperature": 0.7,
-            "max_completion_token": 900,
+            "stream": stream,
             "frequency_penalty": 0,
-            "stream": False
+            "max_tokens": 900
         }
 
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
-        response.raise_for_status()  # выбрасывает ошибку, если код не 2xx
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()  # выбросит ошибку, если статус не 2xx
 
-        result = response.json()
-        logger.debug(f"Received response from tune proxy: {result}")
+        if stream:
+            # Если захотите стримить, нужно обрабатывать iter_lines().
+            # Для простоты в этом примере возвращаем просто полный текст,
+            # поэтому stream=False и парсим response.json().
+            pass
 
-        # Предполагается, что возвращается OpenAI-совместимый JSON
-        return result["choices"][0]["message"]["content"].strip()
+        result_json = response.json()
+        # Предполагается OpenAI-совместимый формат {"choices":[{"message":{"content":...}}]}
+        return result_json["choices"][0]["message"]["content"]
 
     except Exception as e:
+        # Логируем ошибку и возвращаем дефолтный текст
         logger.error(f"Error calling tune API: {e}")
         logger.error(traceback.format_exc())
         return "An error occurred while processing your request."
