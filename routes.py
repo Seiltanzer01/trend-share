@@ -5,11 +5,13 @@ import pytz
 import os
 import logging
 import traceback
+import requests
 import hashlib
 import matplotlib.pyplot as plt  # Import moved to the top
 import io
 import base64
 from datetime import datetime, timedelta
+
 
 from flask import (
     render_template, redirect, url_for, flash, request,
