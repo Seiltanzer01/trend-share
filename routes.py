@@ -38,23 +38,37 @@ import yfinance as yf
 
 def generate_openai_response(messages):
     """
-    Gets a response from OpenAI GPT-3.5-turbo based on message history.
+    Вызывает прокси по адресу https://proxy.tune.app/chat/completions
+    c моделью openai/o1 вместо прямого вызова openai.ChatCompletion.create.
     """
     try:
-        logger.debug(f"Sending messages to OpenAI: {messages}")
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=900,  # Increased for more detailed responses
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
-        )
-        logger.debug(f"Received response from OpenAI: {response}")
-        return response.choices[0].message['content'].strip()
+        logger.debug(f"Sending messages to tune proxy: {messages}")
+
+        url = "https://proxy.tune.app/chat/completions"
+        headers = {
+            "Authorization": "sk-tune-1bhsazcI99hOOVS7DA0KDBsjdXpBDSyLPUB",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": "openai/o1",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_completion_token": 900,
+            "frequency_penalty": 0,
+            "stream": False
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()  # выбрасывает ошибку, если код не 2xx
+
+        result = response.json()
+        logger.debug(f"Received response from tune proxy: {result}")
+
+        # Предполагается, что возвращается OpenAI-совместимый JSON
+        return result["choices"][0]["message"]["content"].strip()
+
     except Exception as e:
-        logger.error(f"Error calling OpenAI API: {e}")
+        logger.error(f"Error calling tune API: {e}")
         logger.error(traceback.format_exc())
         return "An error occurred while processing your request."
         
