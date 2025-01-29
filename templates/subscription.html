@@ -1,14 +1,18 @@
 <!-- templates/subscription.html -->
-
 {% extends "base.html" %}
 
 {% block content %}
+<!-- 1) Добавляем метатег с CSRF-токеном -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
 <div class="nes-container with-title">
   <p class="title">{% if language == 'ru' %}Стейкинг / Подписка{% else %}Staking / Subscription{% endif %}</p>
   
   {% if not user.unique_wallet_address %}
     <p>{% if language == 'ru' %}Сгенерируйте свой уникальный кошелёк для стейкинга:{% else %}Generate your unique wallet for staking:{% endif %}</p>
-    <button class="nes-btn is-primary" id="generateUniqueWalletBtn">{% if language == 'ru' %}Сгенерировать Кошелёк{% else %}Generate Wallet{% endif %}</button>
+    <button class="nes-btn is-primary" id="generateUniqueWalletBtn">
+      {% if language == 'ru' %}Сгенерировать Кошелёк{% else %}Generate Wallet{% endif %}
+    </button>
   {% else %}
     <!-- Отображение кошелька и стейкинга -->
     <hr>
@@ -22,211 +26,218 @@
     <p>{% if language == 'ru' %}Для подписки необходимо отправить эквивалент 25$ в UJO:{% else %}To subscribe, send the equivalent of $25 in UJO:{% endif %}</p>
     <p><strong>25$ = <span id="requiredUJO">Loading...</span> UJO</strong></p>
     
-    <button class="nes-btn is-success" id="stakeButton">{% if language == 'ru' %}Застейкать (25$){% else %}Stake ($25){% endif %}</button>
+    <button class="nes-btn is-success" id="stakeButton">
+      {% if language == 'ru' %}Застейкать (25$){% else %}Stake ($25){% endif %}
+    </button>
     
     <div id="stakingArea" style="margin-top:1rem;"></div>
     
-    <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">{% if language == 'ru' %}Claim Rewards{% else %}Claim Rewards{% endif %}</button>
-    <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">{% if language == 'ru' %}Unstake{% else %}Unstake{% endif %}</button>
+    <button class="nes-btn is-warning" id="claimRewardsBtn" style="display:none;">
+      {% if language == 'ru' %}Claim Rewards{% else %}Claim Rewards{% endif %}
+    </button>
+    <button class="nes-btn is-error" id="unstakeBtn" style="display:none;">
+      {% if language == 'ru' %}Unstake{% else %}Unstake{% endif %}
+    </button>
   {% endif %}
 </div>
 
 {% if not user.unique_wallet_address %}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
-            try {
-                const csrfToken = "{{ csrf_token }}";
-                const response = await fetch('{{ url_for("staking_bp.generate_unique_wallet_route") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    }
-                });
-
-                const data = await response.json();
-                if (data.status === 'success') {
-                    alert('{% if language == "ru" %}Уникальный кошелёк успешно сгенерирован! Ваш адрес: {% else %}Unique wallet generated successfully! Your address: {% endif %}' + data.unique_wallet_address);
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.error);
+document.addEventListener('DOMContentLoaded', () => {
+    // 2) Считываем токен из метатега
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
+        try {
+            const response = await fetch('{{ url_for("staking_bp.generate_unique_wallet_route") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken  // <-- Передаём токен
                 }
-            } catch (error) {
-                console.error('Ошибка при генерации уникального кошелька:', error);
-                alert('{% if language == "ru" %}Произошла ошибка при генерации уникального кошелька.{% else %}An error occurred while generating the wallet.{% endif %}');
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                alert(
+                  '{% if language == "ru" %}Уникальный кошелёк успешно сгенерирован! Ваш адрес: {% else %}Unique wallet generated successfully! Your address: {% endif %}'
+                  + data.unique_wallet_address
+                );
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
             }
-        });
+        } catch (error) {
+            console.error('Ошибка при генерации уникального кошелька:', error);
+            alert('{% if language == "ru" %}Произошла ошибка при генерации уникального кошелька.{% else %}An error occurred while generating the wallet.{% endif %}');
+        }
     });
+});
 </script>
 {% endif %}
 
 {% if user.unique_wallet_address %}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        async function loadRequiredUJO(){
-            try{
-                const response = await fetch('/staking/api/get_token_price', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                const data = await response.json();
-                if(data.price_usd){
-                    const requiredUJO = (25 / data.price_usd).toFixed(4);
-                    document.getElementById('requiredUJO').textContent = requiredUJO;
-                } else{
-                    document.getElementById('requiredUJO').textContent = 'Error';
-                    console.error('Ошибка при получении цены токена:', data.error);
-                }
-            } catch(error){
-                console.error("Ошибка при загрузке цены токена:", error);
+document.addEventListener('DOMContentLoaded', () => {
+    // 2) Снова считываем токен из метатега (или можно вынести это выше, чтобы было один раз)
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    async function loadRequiredUJO(){
+        try {
+            const response = await fetch('/staking/api/get_token_price', {
+                method: 'GET',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await response.json();
+            if(data.price_usd){
+                const requiredUJO = (25 / data.price_usd).toFixed(4);
+                document.getElementById('requiredUJO').textContent = requiredUJO;
+            } else {
                 document.getElementById('requiredUJO').textContent = 'Error';
+                console.error('Ошибка при получении цены токена:', data.error);
             }
+        } catch(error){
+            console.error("Ошибка при загрузке цены токена:", error);
+            document.getElementById('requiredUJO').textContent = 'Error';
         }
+    }
 
-        loadRequiredUJO();
-        setInterval(loadRequiredUJO, 24*60*60*1000);
+    loadRequiredUJO();
+    // обновлять раз в сутки
+    setInterval(loadRequiredUJO, 24 * 60 * 60 * 1000);
 
-        async function loadBalances(){
-            try{
-                const response = await fetch('/staking/api/get_balances', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                const data = await response.json();
-                if(data.error){
-                    document.getElementById('ujoBalance').textContent = 'Error';
-                    console.error('Ошибка при получении баланса UJO:', data.error);
-                } else{
-                    document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
-                }
-            } catch(error){
-                console.error("Ошибка при загрузке баланса UJO:", error);
+    async function loadBalances(){
+        try {
+            const response = await fetch('/staking/api/get_balances', {
+                method: 'GET',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await response.json();
+            if(data.error){
                 document.getElementById('ujoBalance').textContent = 'Error';
+                console.error('Ошибка при получении баланса UJO:', data.error);
+            } else {
+                document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
             }
+        } catch(error){
+            console.error("Ошибка при загрузке баланса UJO:", error);
+            document.getElementById('ujoBalance').textContent = 'Error';
         }
+    }
 
-        loadBalances();
+    loadBalances();
 
-        document.getElementById('stakeButton').addEventListener('click', async () => {
-            try {
-                const csrfToken = "{{ csrf_token }}";
-                const stakeAmountUSD = 25;
-
-                const response = await fetch('/staking/api/stake_tokens', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({
-                        amount_usd: stakeAmountUSD
-                    })
-                });
-
-                const data = await response.json();
-                if(data.status === 'success'){
-                    alert('{% if language == "ru" %}Стейкинг успешно выполнен!{% else %}Stake executed successfully!{% endif %}');
-                    loadStaking();
-                    loadBalances();
-                    loadRequiredUJO();
-                } else{
-                    alert('Error: ' + data.error);
-                }
-            } catch(error){
-                console.error('Ошибка при стейкинге:', error);
-                alert('{% if language == "ru" %}Произошла ошибка при стейкинге.{% else %}An error occurred during staking.{% endif %}');
+    // STAKE
+    document.getElementById('stakeButton').addEventListener('click', async () => {
+        try {
+            const stakeAmountUSD = 25;
+            const response = await fetch('/staking/api/stake_tokens', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken // <-- Передаём токен
+                },
+                body: JSON.stringify({ amount_usd: stakeAmountUSD })
+            });
+            const data = await response.json();
+            if(data.status === 'success'){
+                alert('{% if language == "ru" %}Стейкинг успешно выполнен!{% else %}Stake executed successfully!{% endif %}');
+                loadStaking();
+                loadBalances();
+                loadRequiredUJO();
+            } else{
+                alert('Error: ' + data.error);
             }
-        });
-
-        async function loadStaking() {
-            try {
-                const resp = await fetch('/staking/api/get_user_stakes')
-                const data = await resp.json()
-                if(data.error) {
-                    document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>'
-                    document.getElementById('claimRewardsBtn').style.display = 'none'
-                    document.getElementById('unstakeBtn').style.display = 'none'
-                    return
-                }
-                const stakes = data.stakes
-                if(!stakes.length) {
-                    document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}У вас нет стейкинга.{% else %}You do not have any stakes.{% endif %}</p>'
-                    document.getElementById('claimRewardsBtn').style.display = 'none'
-                    document.getElementById('unstakeBtn').style.display = 'none'
-                    return
-                }
-                let html=''
-                for(let s of stakes) {
-                    html += `<div class="nes-container is-rounded" style="margin-bottom:1rem;">
-                      <p><b>TX Hash:</b> ${s.tx_hash}</p>
-                      <p>{% if language == "ru" %}Staked:{% else %}Staked:{% endif %} ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
-                      <p>{% if language == "ru" %}Pending Rewards:{% else %}Pending Rewards:{% endif %} ${s.pending_rewards} UJO</p>
-                      <p>{% if language == "ru" %}Unlocked At:{% else %}Unlocked At:{% endif %} ${new Date(s.unlocked_at).toLocaleString()}</p>
-                    </div>`
-                }
-                document.getElementById('stakingArea').innerHTML = html
-                document.getElementById('claimRewardsBtn').style.display = 'block'
-                document.getElementById('unstakeBtn').style.display = 'block'
-            } catch (error) {
-                console.error('Ошибка при загрузке стейкингов:', error)
-                document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}Произошла ошибка при загрузке стейкингов.{% else %}An error occurred while loading stakes.{% endif %}</p>'
-                document.getElementById('claimRewardsBtn').style.display = 'none'
-                document.getElementById('unstakeBtn').style.display = 'none'
-            }
+        } catch(error){
+            console.error('Ошибка при стейкинге:', error);
+            alert('{% if language == "ru" %}Произошла ошибка при стейкинге.{% else %}An error occurred during staking.{% endif %}');
         }
-
-        loadStaking();
-
-        document.getElementById('claimRewardsBtn').addEventListener('click', async function(){
-            try {
-                const csrfToken = "{{ csrf_token }}";
-                const response = await fetch('/staking/api/claim_staking_rewards',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
-                })
-                const data = await response.json()
-                if(data.error) alert(data.error)
-                else {
-                    alert(data.message)
-                    loadStaking()
-                    loadBalances()
-                }
-            } catch (error) {
-                alert('{% if language == "ru" %}Произошла ошибка при клейме наград: {% else %}An error occurred while claiming rewards: {% endif %}' + error)
-            }
-        });
-
-        document.getElementById('unstakeBtn').addEventListener('click', async function(){
-            try {
-                const csrfToken = "{{ csrf_token }}";
-                const response = await fetch('/staking/api/unstake',{
-                    method:'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
-                })
-                const data = await response.json()
-                if(data.error) alert(data.error)
-                else {
-                    alert('{% if language == "ru" %}Unstake выполнен успешно!{% else %}Unstake executed successfully!{% endif %}')
-                    loadStaking()
-                    loadBalances()
-                    loadRequiredUJO()
-                }
-            } catch (error) {
-                alert('{% if language == "ru" %}Произошла ошибка при unstake: {% else %}An error occurred during unstake: {% endif %}' + error)
-            }
-        });
     });
+
+    async function loadStaking() {
+        try {
+            const resp = await fetch('/staking/api/get_user_stakes');
+            const data = await resp.json();
+            if(data.error) {
+                document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>';
+                document.getElementById('claimRewardsBtn').style.display = 'none';
+                document.getElementById('unstakeBtn').style.display = 'none';
+                return;
+            }
+            const stakes = data.stakes;
+            if(!stakes.length) {
+                document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}У вас нет стейкинга.{% else %}You do not have any stakes.{% endif %}</p>';
+                document.getElementById('claimRewardsBtn').style.display = 'none';
+                document.getElementById('unstakeBtn').style.display = 'none';
+                return;
+            }
+            let html = '';
+            for(let s of stakes) {
+                html += `
+                <div class="nes-container is-rounded" style="margin-bottom:1rem;">
+                  <p><b>TX Hash:</b> ${s.tx_hash}</p>
+                  <p>{% if language == "ru" %}Staked:{% else %}Staked:{% endif %} ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
+                  <p>{% if language == "ru" %}Pending Rewards:{% else %}Pending Rewards:{% endif %} ${s.pending_rewards} UJO</p>
+                  <p>{% if language == "ru" %}Unlocked At:{% else %}Unlocked At:{% endif %} ${new Date(s.unlocked_at).toLocaleString()}</p>
+                </div>`;
+            }
+            document.getElementById('stakingArea').innerHTML = html;
+            document.getElementById('claimRewardsBtn').style.display = 'block';
+            document.getElementById('unstakeBtn').style.display = 'block';
+        } catch (error) {
+            console.error('Ошибка при загрузке стейкингов:', error);
+            document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}Произошла ошибка при загрузке стейкингов.{% else %}An error occurred while loading stakes.{% endif %}</p>';
+            document.getElementById('claimRewardsBtn').style.display = 'none';
+            document.getElementById('unstakeBtn').style.display = 'none';
+        }
+    }
+
+    loadStaking();
+
+    // CLAIM
+    document.getElementById('claimRewardsBtn').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/staking/api/claim_staking_rewards', {
+                method:'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken, // <-- Токен
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if(data.error) alert(data.error);
+            else {
+                alert(data.message);
+                loadStaking();
+                loadBalances();
+            }
+        } catch (error) {
+            alert('{% if language == "ru" %}Произошла ошибка при клейме наград: {% else %}An error occurred while claiming rewards: {% endif %}' + error);
+        }
+    });
+
+    // UNSTAKE
+    document.getElementById('unstakeBtn').addEventListener('click', async function(){
+        try {
+            const response = await fetch('/staking/api/unstake', {
+                method:'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken, // <-- Токен
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if(data.error) alert(data.error);
+            else {
+                alert('{% if language == "ru" %}Unstake выполнен успешно!{% else %}Unstake executed successfully!{% endif %}');
+                loadStaking();
+                loadBalances();
+                loadRequiredUJO();
+            }
+        } catch (error) {
+            alert('{% if language == "ru" %}Произошла ошибка при unstake: {% else %}An error occurred during unstake: {% endif %}' + error);
+        }
+    });
+});
 </script>
 {% endif %}
 {% endblock %}
