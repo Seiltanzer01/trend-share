@@ -50,19 +50,30 @@
     <!-- Navigation Bar -->
     <nav class="navbar nes-container is-rounded is-dark">
         <div class="container">
+            <!-- Логотип -->
             <a href="#" class="nes-btn is-primary logo">
                 <img src="{{ url_for('static', filename='info/images/logo.png') }}" alt="Uncle John DAO" class="logo-img">
             </a>
+
+            <!-- Кнопка для мобильного меню (гамбургер) -->
+            <div class="hamburger">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+
+            <!-- Ссылки навигации -->
             <ul class="nav-links">
                 <li><a href="#hero" class="nes-btn is-link">Home</a></li>
                 <li><a href="#about" class="nes-btn is-link">About Us</a></li>
                 <li><a href="#tokenomics" class="nes-btn is-link">Tokenomics</a></li>
                 <li><a href="#roadmap" class="nes-btn is-link">Roadmap</a></li>
-                <!-- Удалена ссылка на Features -->
                 <li><a href="#chart" class="nes-btn is-link">Chart</a></li>
                 <li><a href="#game" class="nes-btn is-link">Mini-Game</a></li>
                 <li><a href="#subscription" class="nes-btn is-link">Subscription</a></li>
             </ul>
+
+            <!-- Кнопка Telegram Bot -->
             <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning telegram-btn">Telegram Bot 🚀</a>
         </div>
     </nav>
@@ -124,7 +135,7 @@
         </div>
     </section>
 
-    <!-- Chart Section (ранее Analytics) -->
+    <!-- Chart Section -->
     <section id="chart" class="chart-section">
         <div class="container" data-aos="fade-up">
             <h2 class="nes-text is-error">Chart (UJO is soon...)</h2>
@@ -135,8 +146,8 @@
     <!-- Mini-Game Section -->
     <section id="game" class="game-section">
         <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error"><!-- Mini-Game Section (Mini-Game) --></h2>
-            <p class="nes-text is-primary"><!-- Mini-Game Section (Play our retro-style mini-game and earn UJO tokens!) --></p>
+            <h2 class="nes-text is-error"></h2>
+            <p class="nes-text is-primary"></p>
             <div style="position: relative;">
                 <canvas id="gameCanvas" width="600" height="400" class="nes-container is-rounded is-dark"></canvas>
                 <button class="nes-btn is-primary mobile-shoot-btn" id="mobile-shoot">Shoot</button>
@@ -145,25 +156,25 @@
         </div>
     </section>
 
-<!-- Subscription Section -->
-<section id="subscription" class="subscription-section">
-    <div class="container">
-        <h2 class="nes-text is-error"><!--Subscription-->Pre-release</h2>
-        <p><!--Get premium access to exclusive DAO features.-->Get ready to earn UJO$ by starting a journal right now</p>
-        <div class="subscription-options">
-            <div class="subscription-card nes-container is-rounded is-dark">
-                <h3 class="nes-text is-success">Beta of Basic</h3>
-                <p><!--Access to basic DAO features for FREE-->Start right now to get an advantage for earning in the premium version soon</p>
-                <button class="nes-btn is-success" id="basic-subscription">Go to Bot</button>
-            </div>
-            <div class="subscription-card nes-container is-rounded is-dark">
-                <h3 class="nes-text is-success">Premium</h3>
-                <p><!--Stake $20 UJO tokens with a 30-day lockup to unlock premium DAO features-->Earn with your trade journal soon</p>
-                <button class="nes-btn is-success" id="premium-subscription"><!--Stake $20 UJO(Go to Bot) -->Сlosed alpha testing in progress...</button>
+    <!-- Subscription Section -->
+    <section id="subscription" class="subscription-section">
+        <div class="container">
+            <h2 class="nes-text is-error">Pre-release</h2>
+            <p>Get ready to earn UJO$ by starting a journal right now</p>
+            <div class="subscription-options">
+                <div class="subscription-card nes-container is-rounded is-dark">
+                    <h3 class="nes-text is-success">Beta of Basic</h3>
+                    <p>Start right now to get an advantage for earning in the premium version soon</p>
+                    <button class="nes-btn is-success" id="basic-subscription">Go to Bot</button>
+                </div>
+                <div class="subscription-card nes-container is-rounded is-dark">
+                    <h3 class="nes-text is-success">Premium</h3>
+                    <p>Earn with your trade journal soon</p>
+                    <button class="nes-btn is-success" id="premium-subscription">Closed alpha testing...</button>
+                </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
     <!-- Footer Section -->
     <footer class="footer-section">
@@ -186,10 +197,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
-    <script src="https://s3.tradingview.com/tv.js"></script> <!-- Добавлен скрипт TradingView -->
+    <script src="https://s3.tradingview.com/tv.js"></script>
 
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='info/js/info.js') }}"></script>
-    
 </body>
 </html>
