@@ -1,5 +1,6 @@
 # routes.py
 
+import json
 from app import translate_python
 import pytz
 import os
@@ -841,7 +842,23 @@ User trade data:
 Trade comments:
 {comments}
 
-Provide detailed analysis and recommendations based on this data only if the user requests, propose specific strategies with calculations and figures. Don't write too long messages.
+IMPORTANT RULES:
+1) Each trade requires the following fields: 
+   - instrument (string, e.g. 'EUR/USD', 'BTC-USD') 
+   - direction (enum: 'Buy' or 'Sell') 
+   - entry_price (number) 
+   - open_time (string in ISO, e.g. '2025-01-01 10:00:00')
+   The fields exit_price and close_time are optional (nullable). 
+   The field comment is optional. 
+2) You can create up to 5 trades in a single request. If user wants more, politely refuse. 
+3) The function also has a parameter confirm: if confirm=false, it means the user is just describing trades but hasn't confirmed them yet. You must respond with a short summary of the trades and ask the user if they want to confirm them. 
+4) If confirm=true, you must actually finalize the trades in the database. 
+5) If the user tries to finalize trades that are missing required fields or contain invalid data, you should politely refuse or ask for corrections. 
+6) Always produce short and concise responses. 
+7) Only call create_trades if the user explicitly wants to add trades. Otherwise, just answer normally. 
+8) If user says "Yes, confirm" or "go ahead", you can call create_trades with confirm=true using the same trades. 
+9) Output JSON for the function exactly as required if calling it. 
+10) Provide detailed analysis and recommendations based on this data only if the user requests, propose specific strategies with calculations and figures. Don't write too long messages.
 """
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
@@ -1681,6 +1698,272 @@ def unstake_staking():
     else:
         db.session.rollback()
         return jsonify({'error':'Transaction error during unstake'}),400
+
+############################
+# 1) Функция, которая реально создает сделки в БД
+############################
+def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_time,
+                            exit_price=None, close_time=None, comment=None):
+    """
+    Пример внутренней функции, сохраняющей ОДНУ сделку в БД.
+    Проверяем, что инструмент есть в таблице Instrument.
+    """
+    instrument_record = Instrument.query.filter_by(name=instrument).first()
+    if not instrument_record:
+        raise ValueError(f"Instrument '{instrument}' not found in DB.")
+
+    if direction not in ["Buy", "Sell"]:
+        raise ValueError(f"Direction must be 'Buy' or 'Sell', got '{direction}'.")
+
+    if entry_price <= 0:
+        raise ValueError(f"Entry price must be > 0, got {entry_price}.")
+
+    # Пробуем парсить время (если оно строка "2025-01-01 10:00:00")
+    try:
+        open_dt = datetime.strptime(open_time, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        raise ValueError(f"Invalid open_time format: '{open_time}'. Use 'YYYY-MM-DD HH:MM:SS'.")
+
+    # Аналогично exit_price и close_time проверяем при необходимости
+    trade = Trade(
+        user_id=user_id,
+        instrument_id=instrument_record.id,
+        direction=direction,
+        entry_price=entry_price,
+        trade_open_time=open_dt,
+        exit_price=exit_price if exit_price else None
+    )
+    if close_time:
+        try:
+            close_dt = datetime.strptime(close_time, "%Y-%m-%d %H:%M:%S")
+            trade.trade_close_time = close_dt
+        except Exception:
+            raise ValueError(f"Invalid close_time format: '{close_time}'.")
+
+    if comment:
+        trade.comment = comment
+
+    # Рассчитываем profit_loss, если exit_price есть
+    if trade.exit_price:
+        sign = 1 if trade.direction == 'Buy' else -1
+        trade.profit_loss = (trade.exit_price - trade.entry_price) * sign
+        trade.profit_loss_percentage = (trade.profit_loss / trade.entry_price) * 100
+    else:
+        trade.profit_loss = None
+        trade.profit_loss_percentage = None
+
+    db.session.add(trade)
+    # В вашем коде можно сразу .commit() или делать это в конце сразу для всех.
+
+    return trade
+
+
+############################
+# 2) Настраиваем функцию "create_trades" для OpenAI
+############################
+FUNCTIONS = [
+    {
+        "name": "create_trades",
+        "description": "Create up to 5 new trades in the user's journal. If confirm=false, just ask user for confirmation. If confirm=true, finalize in DB.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trades": {
+                    "type": "array",
+                    "description": "Array of trades to create.",
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "instrument": {
+                                "type": "string",
+                                "description": "e.g. 'EUR/USD', 'BTC-USD', must exist in DB"
+                            },
+                            "direction": {
+                                "type": "string",
+                                "enum": ["Buy", "Sell"],
+                                "description": "Buy or Sell"
+                            },
+                            "entry_price": {
+                                "type": "number",
+                                "description": "Entry price > 0"
+                            },
+                            "open_time": {
+                                "type": "string",
+                                "description": "Time the trade was opened, format 'YYYY-MM-DD HH:MM:SS'"
+                            },
+                            "exit_price": {
+                                "type": "number",
+                                "description": "Optional exit price",
+                                "nullable": True
+                            },
+                            "close_time": {
+                                "type": "string",
+                                "description": "Optional close time, same format",
+                                "nullable": True
+                            },
+                            "comment": {
+                                "type": "string",
+                                "description": "Optional comment"
+                            }
+                        },
+                        "required": ["instrument", "direction", "entry_price", "open_time"]
+                    }
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Whether to actually finalize trades in the DB (true) or just propose them (false)."
+                }
+            },
+            "required": ["trades", "confirm"]
+        }
+    }
+]
+
+
+############################
+# 3) Модифицируем assistant_chat, чтобы обрабатывать function calls
+############################
+
+@app.route('/assistant/chat', methods=['POST'])
+@csrf.exempt
+def assistant_chat():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.assistant_premium:
+        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
+
+    data = request.get_json()
+    user_question = data.get('question')
+    if not user_question:
+        return jsonify({'error': 'No question provided'}), 400
+
+    # Инициализируем chat_history, если нужно:
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+        # Подставим расширенный system-промпт (см. SYSTEM_PROMPT выше)
+        system_message = SYSTEM_PROMPT.strip()
+        session['chat_history'].append({'role': 'system', 'content': system_message})
+
+    # Добавляем сообщение пользователя
+    session['chat_history'].append({'role': 'user', 'content': user_question})
+
+    try:
+        # Делаем запрос к OpenAI, указывая functions и function_call="auto"
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo-0613", 
+            messages=session['chat_history'],
+            functions=FUNCTIONS, 
+            function_call="auto",
+            temperature=0.7,
+            max_tokens=900
+        )
+        assistant_message = response["choices"][0]["message"]
+
+        # Проверяем, не вызвал ли ассистент какую-нибудь функцию
+        if assistant_message.get("function_call"):
+            fn_name = assistant_message["function_call"]["name"]
+            fn_args_json = assistant_message["function_call"]["arguments"]
+            try:
+                fn_args = json.loads(fn_args_json)
+            except:
+                fn_args = {}
+
+            if fn_name == "create_trades":
+                return handle_create_trades(user_id, fn_args)
+            else:
+                # неизвестная функция
+                text = f"Error: unknown function call '{fn_name}'."
+                session['chat_history'].append({'role': 'assistant', 'content': text})
+                return jsonify({'response': text}), 200
+        else:
+            # Обычный "текстовый" ответ
+            assistant_text = assistant_message["content"]
+            # Сохраняем в историю
+            session['chat_history'].append({'role': 'assistant', 'content': assistant_text})
+            # Ограничиваем историю
+            if len(session['chat_history']) > 20:
+                session['chat_history'] = session['chat_history'][-20:]
+            return jsonify({'response': assistant_text}), 200
+
+    except Exception as e:
+        logger.error(f"OpenAI API error: {e}", exc_info=True)
+        error_msg = "Sorry, an error occurred with the AI server."
+        session['chat_history'].append({'role': 'assistant', 'content': error_msg})
+        return jsonify({'response': error_msg}), 200
+
+
+############################
+# 4) Функция-обработчик вызова create_trades
+############################
+def handle_create_trades(user_id, fn_args):
+    """
+    Логика, когда ChatGPT вызвал функцию create_trades(...).
+    У нас есть:
+      fn_args['trades'] - список
+      fn_args['confirm'] - bool
+    """
+    trades = fn_args.get("trades", [])
+    confirm = fn_args.get("confirm", False)
+
+    # Быстрая валидация на стороне сервера: trades не пуст и <= 5
+    if not trades:
+        msg = "No trades provided."
+        session['chat_history'].append({'role': 'assistant', 'content': msg})
+        return jsonify({'response': msg}), 200
+
+    if len(trades) > 5:
+        msg = "You are trying to create more than 5 trades in one request, which is not allowed."
+        session['chat_history'].append({'role': 'assistant', 'content': msg})
+        return jsonify({'response': msg}), 200
+
+    if not confirm:
+        # Если confirm=false — просто кратко отвечаем пользователю, просим подтвердить
+        summary_lines = []
+        for i, t in enumerate(trades, start=1):
+            line = (f"Trade #{i}: {t.get('instrument')} {t.get('direction')} at {t.get('entry_price')} "
+                    f"(open: {t.get('open_time')})")
+            summary_lines.append(line)
+        summary_text = "\n".join(summary_lines)
+        answer = (
+            f"I've noted these trades (NOT YET CREATED):\n\n"
+            f"{summary_text}\n\n"
+            "Please say 'confirm' or 'yes' to finalize, or 'no' to cancel."
+        )
+        session['chat_history'].append({'role': 'assistant', 'content': answer})
+        return jsonify({"response": answer}), 200
+    else:
+        # confirm=true => пробуем создать
+        created_ids = []
+        try:
+            for t in trades:
+                # пытаемся создать в БД
+                new_trade = _create_new_trade_in_db(
+                    user_id=user_id,
+                    instrument=t["instrument"],
+                    direction=t["direction"],
+                    entry_price=t["entry_price"],
+                    open_time=t["open_time"],
+                    exit_price=t.get("exit_price"),
+                    close_time=t.get("close_time"),
+                    comment=t.get("comment")
+                )
+                db.session.flush()  # чтобы у new_trade появился ID
+                created_ids.append(new_trade.id)
+            # Все ок, теперь commit
+            db.session.commit()
+            text = f"Successfully created trades with IDs: {created_ids}"
+            session['chat_history'].append({'role': 'assistant', 'content': text})
+            return jsonify({"response": text}), 200
+
+        except Exception as e:
+            db.session.rollback()
+            error_text = f"Error creating trades: {str(e)}"
+            session['chat_history'].append({'role': 'assistant', 'content': error_text})
+            return jsonify({"response": error_text}), 200
 
 ##################################################
 # Flask Routes for Home Page and Login
