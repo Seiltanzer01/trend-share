@@ -792,6 +792,69 @@ def assistant_page():
 
     return render_template('assistant.html')
 
+############################
+# 2) Настраиваем функцию "create_trades" для OpenAI
+############################
+FUNCTIONS = [
+    {
+        "name": "create_trades",
+        "description": "Create up to 5 new trades in the user's journal. If confirm=false, just ask user for confirmation. If confirm=true, finalize in DB.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trades": {
+                    "type": "array",
+                    "description": "Array of trades to create.",
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "instrument": {
+                                "type": "string",
+                                "description": "e.g. 'EUR/USD', 'BTC-USD', must exist in DB"
+                            },
+                            "direction": {
+                                "type": "string",
+                                "enum": ["Buy", "Sell"],
+                                "description": "Buy or Sell"
+                            },
+                            "entry_price": {
+                                "type": "number",
+                                "description": "Entry price > 0"
+                            },
+                            "open_time": {
+                                "type": "string",
+                                "description": "Time the trade was opened, format 'YYYY-MM-DD HH:MM:SS'"
+                            },
+                            "exit_price": {
+                                "type": "number",
+                                "description": "Optional exit price",
+                                "nullable": True
+                            },
+                            "close_time": {
+                                "type": "string",
+                                "description": "Optional close time, same format",
+                                "nullable": True
+                            },
+                            "comment": {
+                                "type": "string",
+                                "description": "Optional comment"
+                            }
+                        },
+                        "required": ["instrument", "direction", "entry_price", "open_time"]
+                    }
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Whether to actually finalize trades in the DB (true) or just propose them (false)."
+                }
+            },
+            "required": ["trades", "confirm"]
+        }
+    }
+]
+
+
 @app.route('/assistant/chat', methods=['POST'])
 @csrf.exempt
 def assistant_chat():
@@ -809,6 +872,7 @@ def assistant_chat():
     if not user_question:
         return jsonify({'error': 'No question provided'}), 400
 
+    # Инициализация chat_history (как и раньше)
     if 'chat_history' not in session:
         session['chat_history'] = []
 
@@ -831,9 +895,11 @@ def assistant_chat():
                 for trade in trades
             ])
             comments = "\n\n".join([
-                f"**Trade ID {trade.id}:** {trade.comment}" for trade in trades if trade.comment
+                f"**Trade ID {trade.id}:** {trade.comment}" 
+                for trade in trades if trade.comment
             ]) if any(trade.comment for trade in trades) else "No comments on trades."
 
+        # Расширяем system_message, добавляя правила для Function Calling
         system_message = f"""
 You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trading statistics and finds patterns.
 User trade data:
@@ -863,15 +929,73 @@ IMPORTANT RULES:
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
 
+    # Добавляем сообщение пользователя в историю (как и было)
     session['chat_history'].append({'role': 'user', 'content': user_question})
-    assistant_response = generate_openai_response(session['chat_history'])
-    session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
 
+    #
+    # --- Ниже идёт новый вызов ChatCompletion с function calling ---
+    #
+
+    try:
+        # Вместо старого generate_openai_response(...) делаем прямой запрос
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo-0613",
+            messages=session['chat_history'],
+            functions=FUNCTIONS,  # <-- Массив функций, объявленный в конце routes.py
+            function_call="auto",
+            temperature=0.7,
+            max_tokens=900,
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0
+        )
+        assistant_message = response["choices"][0]["message"]
+
+        # Если ассистент решил вызвать функцию:
+        if assistant_message.get("function_call"):
+            fn_name = assistant_message["function_call"]["name"]
+            fn_args_json = assistant_message["function_call"]["arguments"]
+            try:
+                fn_args = json.loads(fn_args_json)
+            except:
+                fn_args = {}
+
+            if fn_name == "create_trades":
+                # вызываем логику handle_create_trades из конца routes.py
+                assistant_response_new = handle_create_trades(user_id, fn_args)
+                # handle_create_trades возвращает jsonify(...) — поэтому чуть ниже вернёмся
+                return assistant_response_new
+            else:
+                # неизвестная функция
+                error_text = f"Error: unknown function call '{fn_name}'."
+                session['chat_history'].append({'role': 'assistant', 'content': error_text})
+                return jsonify({'response': error_text}), 200
+        else:
+            # Обычный текст (не function call)
+            assistant_response_new = assistant_message["content"]
+            session['chat_history'].append({'role': 'assistant', 'content': assistant_response_new})
+
+    except Exception as e:
+        logger.error(f"OpenAI API error: {e}", exc_info=True)
+        assistant_response_new = "Sorry, an error occurred with the AI server."
+        session['chat_history'].append({'role': 'assistant', 'content': assistant_response_new})
+
+    # Ограничиваем длину истории (как и было)
     MAX_CHAT_HISTORY = 20
     if len(session['chat_history']) > MAX_CHAT_HISTORY:
         session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
 
-    return jsonify({'response': assistant_response}), 200
+    #
+    # --- СТАРЫЙ КОД, который мы не удаляем, а просто комментируем ---
+    #
+    # assistant_response = generate_openai_response(session['chat_history'])
+    # session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
+    #
+    # return jsonify({'response': assistant_response}), 200
+
+    # Возвращаем обновлённый ответ
+    return jsonify({'response': assistant_response_new}), 200
+
 
 @app.route('/get_chat_history', methods=['GET'])
 def get_chat_history():
@@ -1758,142 +1882,11 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     return trade
 
 
-############################
-# 2) Настраиваем функцию "create_trades" для OpenAI
-############################
-FUNCTIONS = [
-    {
-        "name": "create_trades",
-        "description": "Create up to 5 new trades in the user's journal. If confirm=false, just ask user for confirmation. If confirm=true, finalize in DB.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "trades": {
-                    "type": "array",
-                    "description": "Array of trades to create.",
-                    "maxItems": 5,
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "instrument": {
-                                "type": "string",
-                                "description": "e.g. 'EUR/USD', 'BTC-USD', must exist in DB"
-                            },
-                            "direction": {
-                                "type": "string",
-                                "enum": ["Buy", "Sell"],
-                                "description": "Buy or Sell"
-                            },
-                            "entry_price": {
-                                "type": "number",
-                                "description": "Entry price > 0"
-                            },
-                            "open_time": {
-                                "type": "string",
-                                "description": "Time the trade was opened, format 'YYYY-MM-DD HH:MM:SS'"
-                            },
-                            "exit_price": {
-                                "type": "number",
-                                "description": "Optional exit price",
-                                "nullable": True
-                            },
-                            "close_time": {
-                                "type": "string",
-                                "description": "Optional close time, same format",
-                                "nullable": True
-                            },
-                            "comment": {
-                                "type": "string",
-                                "description": "Optional comment"
-                            }
-                        },
-                        "required": ["instrument", "direction", "entry_price", "open_time"]
-                    }
-                },
-                "confirm": {
-                    "type": "boolean",
-                    "description": "Whether to actually finalize trades in the DB (true) or just propose them (false)."
-                }
-            },
-            "required": ["trades", "confirm"]
-        }
-    }
-]
 
 
 ############################
 # 3) Модифицируем assistant_chat, чтобы обрабатывать function calls
 ############################
-
-@app.route('/assistant/chat', methods=['POST'])
-@csrf.exempt
-def assistant_chat():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    user_id = session['user_id']
-    user = User.query.get(user_id)
-    if not user or not user.assistant_premium:
-        return jsonify({'error': 'Access denied. Please purchase a subscription.'}), 403
-
-    data = request.get_json()
-    user_question = data.get('question')
-    if not user_question:
-        return jsonify({'error': 'No question provided'}), 400
-
-    # Инициализируем chat_history, если нужно:
-    if 'chat_history' not in session:
-        session['chat_history'] = []
-        # Подставим расширенный system-промпт (см. SYSTEM_PROMPT выше)
-        system_message = SYSTEM_PROMPT.strip()
-        session['chat_history'].append({'role': 'system', 'content': system_message})
-
-    # Добавляем сообщение пользователя
-    session['chat_history'].append({'role': 'user', 'content': user_question})
-
-    try:
-        # Делаем запрос к OpenAI, указывая functions и function_call="auto"
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-0613", 
-            messages=session['chat_history'],
-            functions=FUNCTIONS, 
-            function_call="auto",
-            temperature=0.7,
-            max_tokens=900
-        )
-        assistant_message = response["choices"][0]["message"]
-
-        # Проверяем, не вызвал ли ассистент какую-нибудь функцию
-        if assistant_message.get("function_call"):
-            fn_name = assistant_message["function_call"]["name"]
-            fn_args_json = assistant_message["function_call"]["arguments"]
-            try:
-                fn_args = json.loads(fn_args_json)
-            except:
-                fn_args = {}
-
-            if fn_name == "create_trades":
-                return handle_create_trades(user_id, fn_args)
-            else:
-                # неизвестная функция
-                text = f"Error: unknown function call '{fn_name}'."
-                session['chat_history'].append({'role': 'assistant', 'content': text})
-                return jsonify({'response': text}), 200
-        else:
-            # Обычный "текстовый" ответ
-            assistant_text = assistant_message["content"]
-            # Сохраняем в историю
-            session['chat_history'].append({'role': 'assistant', 'content': assistant_text})
-            # Ограничиваем историю
-            if len(session['chat_history']) > 20:
-                session['chat_history'] = session['chat_history'][-20:]
-            return jsonify({'response': assistant_text}), 200
-
-    except Exception as e:
-        logger.error(f"OpenAI API error: {e}", exc_info=True)
-        error_msg = "Sorry, an error occurred with the AI server."
-        session['chat_history'].append({'role': 'assistant', 'content': error_msg})
-        return jsonify({'response': error_msg}), 200
 
 
 ############################
