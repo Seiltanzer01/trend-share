@@ -925,6 +925,7 @@ IMPORTANT RULES:
 8) If user says "Yes, confirm" or "go ahead", you can call create_trades with confirm=true using the same trades. 
 9) Output JSON for the function exactly as required if calling it. 
 10) Provide detailed analysis and recommendations based on this data only if the user requests, propose specific strategies with calculations and figures. Don't write too long messages.
+11) The user may use alternative names for instruments, such as "euro" instead of "EUR/USD".Please match these alternative names with their standard notations in the database.
 """
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
