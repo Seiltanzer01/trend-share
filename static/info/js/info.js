@@ -18,15 +18,15 @@ particlesJS("particles-js", {
             "stroke": {
                 "width": 0,
                 "color": "#000000"
-            },
+            }
         },
         "opacity": {
             "value": 0.7,
-            "random": true,
+            "random": true
         },
         "size": {
             "value": 4,
-            "random": true,
+            "random": true
         },
         "line_linked": {
             "enable": true,
@@ -41,7 +41,7 @@ particlesJS("particles-js", {
             "direction": "none",
             "random": false,
             "straight": false,
-            "out_mode": "out",
+            "out_mode": "out"
         }
     },
     "interactivity": {
@@ -54,7 +54,7 @@ particlesJS("particles-js", {
             "onclick": {
                 "enable": true,
                 "mode": "push"
-            },
+            }
         },
         "modes": {
             "grab": {
@@ -65,7 +65,7 @@ particlesJS("particles-js", {
             },
             "push": {
                 "particles_nb": 5
-            },
+            }
         }
     },
     "retina_detect": true
@@ -80,9 +80,9 @@ AOS.init({
 /* Initialize TradingView Chart */
 function initTradingViewChart() {
     new TradingView.widget({
-        "width": "100%", // Соответствует CSS
-        "height": 400,   // Изменено с 250px на 400px
-        "symbol": "BINANCE:BTCUSDT", // Замените на нужный символ
+        "width": "100%", 
+        "height": 400,  
+        "symbol": "BINANCE:BTCUSDT", 
         "interval": "D",
         "timezone": "Etc/UTC",
         "theme": "dark",
@@ -100,9 +100,14 @@ initTradingViewChart();
 /* Initialize Three.js for 3D Elements */
 function initThreeJS() {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 400, 0.1, 1000); // Соответствует CSS
+    const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / 400,
+        0.1,
+        1000
+    );
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, 400); // Соответствует CSS
+    renderer.setSize(window.innerWidth, 400);
     document.getElementById('threejs-scene').appendChild(renderer.domElement);
 
     // Create Torus Knot
@@ -142,9 +147,9 @@ function initThreeJS() {
 
     // Handle Window Resize
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / 400; // Соответствует CSS
+        camera.aspect = window.innerWidth / 400;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, 400); // Соответствует CSS
+        renderer.setSize(window.innerWidth, 400);
     });
 }
 
@@ -156,7 +161,7 @@ var rocketAnimation = lottie.loadAnimation({
     renderer: 'svg',
     loop: true,
     autoplay: true,
-    path: '/static/info/animations/rocket.json' // Убедитесь, что путь корректен
+    path: '/static/info/animations/rocket.json'
 });
 
 /* GSAP Animations */
@@ -269,7 +274,6 @@ function detectCollision() {
                 enemies.splice(eIndex, 1);
                 bullets.splice(bIndex, 1);
                 score += 10;
-                // Удалены уведомления о попадании
             }
         });
     });
@@ -348,8 +352,8 @@ document.addEventListener('keydown', (e) => {
         player.dx = player.speed;
     } else if (e.code === 'ArrowLeft') {
         player.dx = -player.speed;
-    } else if (e.code === 'ArrowUp') { // ОСТАВИТЬ 'ArrowUp'
-        e.preventDefault(); // Предотвращение прокрутки страницы
+    } else if (e.code === 'ArrowUp') {
+        e.preventDefault();
         shootBullet();
     }
 });
@@ -408,7 +412,7 @@ document.getElementById('basic-subscription').addEventListener('click', () => {
         confirmButtonText: 'Go to Bot.'
     }).then((result) => {
         if (result.isConfirmed) {
-            window.location.href = "https://t.me/TrendShare_bot"; // Redirect to your Telegram bot or payment gateway
+            window.location.href = "https://t.me/TrendShare_bot";
         }
     });
 });
@@ -422,32 +426,13 @@ document.getElementById('premium-subscription').addEventListener('click', () => 
         confirmButtonText: 'Proceed to stake'
     }).then((result) => {
         if (result.isConfirmed) {
-            window.location.href = "https://t.me/TrendShare_bot"; // Redirect to your Telegram bot or payment gateway
+            window.location.href = "https://t.me/TrendShare_bot";
         }
     });
 });
-
-/* DAO Button Interaction */
-/* Если в вашем HTML есть кнопка с id 'interactive-btn', раскомментируйте и используйте следующий код */
-/*
-document.getElementById('interactive-btn').addEventListener('click', () => {
-    Swal.fire({
-        title: 'Join the DAO',
-        text: 'Become a part of the decentralized governance and vote on proposals.',
-        icon: 'info',
-        showCancelButton: true,
-        confirmButtonText: 'Join DAO',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            window.location.href = "https://t.me/TrendShare_bot"; // Redirect to your Telegram bot or DAO platform
-        }
-    });
-});
-*/
 
 /* Initialize Background Music */
-const backgroundMusic = new Audio('/static/info/audio/background-music.mp3'); // Убедитесь, что путь корректен
+const backgroundMusic = new Audio('/static/info/audio/background-music.mp3');
 backgroundMusic.loop = true;
 backgroundMusic.volume = 0.5;
 
@@ -499,7 +484,6 @@ document.addEventListener('keydown', (e) => {
             cancelButtonText: 'Close'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Handle reward redemption, e.g., redirect to Telegram bot
                 window.location.href = "https://t.me/TrendShare_bot";
             }
         });
@@ -509,7 +493,6 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-/* Interactive Elements Animations */
 const buttons = document.querySelectorAll('.nes-btn');
 buttons.forEach(button => {
     button.addEventListener('mouseenter', () => {
@@ -518,4 +501,12 @@ buttons.forEach(button => {
     button.addEventListener('mouseleave', () => {
         gsap.to(button, { scale: 1, duration: 0.3, ease: "power2.out" });
     });
+});
+
+/* -- Мобильное меню (гамбургер) -- */
+const hamburger = document.querySelector('.hamburger');
+const navLinks = document.querySelector('.nav-links');
+
+hamburger.addEventListener('click', () => {
+    navLinks.classList.toggle('open');
 });
