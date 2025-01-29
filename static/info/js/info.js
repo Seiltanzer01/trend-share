@@ -80,9 +80,9 @@ AOS.init({
 /* Initialize TradingView Chart */
 function initTradingViewChart() {
     new TradingView.widget({
-        "width": "100%", 
-        "height": 400,  
-        "symbol": "BINANCE:BTCUSDT", 
+        "width": "100%",
+        "height": 400,
+        "symbol": "BINANCE:BTCUSDT",
         "interval": "D",
         "timezone": "Etc/UTC",
         "theme": "dark",
@@ -94,7 +94,6 @@ function initTradingViewChart() {
         "container_id": "tradingview_chart"
     });
 }
-
 initTradingViewChart();
 
 /* Initialize Three.js for 3D Elements */
@@ -142,7 +141,6 @@ function initThreeJS() {
         cube.rotation.y += 0.02;
         renderer.render(scene, camera);
     }
-
     animate();
 
     // Handle Window Resize
@@ -152,7 +150,6 @@ function initThreeJS() {
         renderer.setSize(window.innerWidth, 400);
     });
 }
-
 initThreeJS();
 
 /* Initialize Lottie Animation */
@@ -195,13 +192,11 @@ const bulletSpeed = 7;
 const enemySpawnInterval = 1000; // Spawn enemy every 1 second
 let score = 0;
 
-// Draw Player
 function drawPlayer() {
     ctxGame.fillStyle = '#f39c12';
     ctxGame.fillRect(player.x, player.y, player.width, player.height);
 }
 
-// Draw Bullets
 function drawBullets() {
     ctxGame.fillStyle = '#2ecc71';
     bullets.forEach(bullet => {
@@ -209,7 +204,6 @@ function drawBullets() {
     });
 }
 
-// Draw Enemies
 function drawEnemies() {
     ctxGame.fillStyle = '#e74c3c';
     enemies.forEach(enemy => {
@@ -217,17 +211,14 @@ function drawEnemies() {
     });
 }
 
-// Draw Score
 function drawScore() {
     ctxGame.fillStyle = '#ffffff';
     ctxGame.font = '20px Press Start 2P';
     ctxGame.fillText(`Score: ${score}`, 10, 30);
 }
 
-// Move Player
 function movePlayer() {
     player.x += player.dx;
-
     // Boundary Detection
     if (player.x < 0) {
         player.x = 0;
@@ -237,30 +228,24 @@ function movePlayer() {
     }
 }
 
-// Move Bullets
 function moveBullets() {
     bullets.forEach((bullet, index) => {
         bullet.y -= bulletSpeed;
-        // Remove bullets that go off-screen
         if (bullet.y + bullet.height < 0) {
             bullets.splice(index, 1);
         }
     });
 }
 
-// Move Enemies
 function moveEnemies() {
     enemies.forEach((enemy, index) => {
         enemy.y += enemySpeed;
-        // Remove enemies that go off-screen
         if (enemy.y > gameCanvas.height) {
             enemies.splice(index, 1);
-            // Optionally, decrement score or handle life
         }
     });
 }
 
-// Collision Detection
 function detectCollision() {
     enemies.forEach((enemy, eIndex) => {
         bullets.forEach((bullet, bIndex) => {
@@ -279,7 +264,6 @@ function detectCollision() {
     });
 }
 
-// Spawn Enemies
 function spawnEnemies() {
     const enemyWidth = 40;
     const enemyHeight = 40;
@@ -288,7 +272,6 @@ function spawnEnemies() {
     enemies.push({ x: enemyX, y: enemyY, width: enemyWidth, height: enemyHeight });
 }
 
-// Draw Game Elements
 function draw() {
     ctxGame.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
     drawPlayer();
@@ -297,7 +280,6 @@ function draw() {
     drawScore();
 }
 
-// Update Game
 function update() {
     movePlayer();
     moveBullets();
@@ -306,7 +288,6 @@ function update() {
     draw();
 }
 
-// Start Game
 function startGame() {
     if (gameRunning) return;
     gameRunning = true;
@@ -322,7 +303,6 @@ function startGame() {
     });
 }
 
-// Stop Game
 function stopGame() {
     clearInterval(gameInterval);
     gameRunning = false;
@@ -337,7 +317,6 @@ function stopGame() {
     });
 }
 
-// Shoot Bullet
 function shootBullet() {
     const bulletWidth = 5;
     const bulletHeight = 10;
@@ -400,8 +379,6 @@ document.getElementById('mobile-shoot').addEventListener('click', () => {
 document.getElementById('start-game').addEventListener('click', () => {
     startGame();
 });
-
-/* Interactive Buttons */
 
 /* Basic Subscription Button */
 document.getElementById('basic-subscription').addEventListener('click', () => {
