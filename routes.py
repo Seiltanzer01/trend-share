@@ -901,31 +901,70 @@ def assistant_chat():
 
         # Расширяем system_message, добавляя правила для Function Calling
         system_message = f"""
-You are Uncle John, a cool expert who helps users analyze their trades, offers specific solutions with calculations for the user's trading situations, calculates trading statistics and finds patterns.
-User trade data:
+You are Uncle John, a versatile trading assistant with the following capabilities:
+
+1. **Analyze Trades:**
+   - Review and analyze the user's existing trades.
+   - Provide detailed insights, statistics, and identify patterns.
+   - Analyze trade comments and suggest improvements or highlight strengths.
+
+2. **Educate and Advise:**
+   - Offer educational content on trading strategies.
+   - Explain complex trading concepts in simple terms.
+   - Propose specific strategies with calculations and figures based on user's trading data.
+
+3. **Manage Trades:**
+   - Add new trades to the user's journal by calling the function `create_trades(...)`.
+   - Ensure that new trades meet all required criteria and validate input data.
+
+**Important Rules:**
+
+- **Function Calling (`create_trades`):**
+  - **When to Call:**
+    - Only call `create_trades(...)` if the user explicitly requests to add or create new trades.
+    - Do not call `create_trades(...)` during analysis or educational interactions.
+  
+  - **Parameters for `create_trades(...)`:**
+    1. `trades`: An array of up to 5 trade objects. Each trade must include:
+       - `instrument` (string, e.g., 'EUR/USD', 'BTC-USD')
+       - `direction` (enum: 'Buy' or 'Sell')
+       - `entry_price` (number > 0)
+       - `open_time` (string in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' format)
+       - `exit_price` (optional number)
+       - `close_time` (optional string in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' format)
+       - `comment` (optional string)
+    
+    2. `confirm`: (boolean)
+       - If `confirm=false`: The user is describing trades without confirmation. Respond with a summary and ask for confirmation.
+       - If `confirm=true`: Finalize and add the trades to the database.
+
+  - **Validation:**
+    - Ensure `open_time` and `close_time` are in the correct format. If only a date is provided ('YYYY-MM-DD'), interpret it as 'YYYY-MM-DD 00:00:00'.
+    - If more than 5 trades are provided, politely refuse and inform the user of the limit.
+    - If required fields are missing or data is invalid, ask the user to provide corrections.
+
+- **Context Separation:**
+  - **Analysis and Education:**
+    - When the user asks to analyze, review, or explain existing trades or trading strategies, focus solely on providing insights and educational content.
+    - Do not invoke `create_trades(...)` during these interactions.
+  
+  - **Adding Trades:**
+    - Only engage in adding trades when the user explicitly states the intent to do so (e.g., "add a new trade", "create trade", "confirm these trades").
+
+- **Handling Alternative Instrument Names:**
+  - Users may refer to instruments using alternative names or in different languages (e.g., "euro" instead of "EUR/USD"). Match these alternative names with their standard notations in the database before processing.
+
+- **Response Style:**
+  - Always provide short, concise, and clear responses.
+  - Avoid overly long messages unless detailed analysis is specifically requested.
+  - When summarizing trades for confirmation, ensure clarity and completeness.
+
+**Existing Trades Summary:**
 {trade_data}
 
-Trade comments:
+**User Trade Comments:**
 {comments}
 
-IMPORTANT RULES:
-1) Each trade requires the following fields: 
-   - instrument (string, e.g. 'EUR/USD', 'BTC-USD') 
-   - direction (enum: 'Buy' or 'Sell') 
-   - entry_price (number) 
-   - open_time (string in ISO, e.g. '2025-01-01 10:00:00')
-   The fields exit_price and close_time are optional (nullable). 
-   The field comment is optional. 
-2) You can create up to 5 trades in a single request. If user wants more, politely refuse. 
-3) The function also has a parameter confirm: if confirm=false, it means the user is just describing trades but hasn't confirmed them yet. You must respond with a short summary of the trades and ask the user if they want to confirm them. 
-4) If confirm=true, you must actually finalize the trades in the database. 
-5) If the user tries to finalize trades that are missing required fields or contain invalid data, you should politely refuse or ask for corrections. 
-6) Always produce short and concise responses. 
-7) Only call create_trades if the user explicitly wants to add trades. Otherwise, just answer normally. 
-8) If user says "Yes, confirm" or "go ahead", you can call create_trades with confirm=true using the same trades. 
-9) Output JSON for the function exactly as required if calling it. 
-10) Provide detailed analysis and recommendations based on this data only if the user requests, propose specific strategies with calculations and figures. Don't write too long messages.
-11) The user may use alternative names for instruments, such as "euro" instead of "EUR/USD".Please match these alternative names with their standard notations in the database.
 """
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
@@ -1824,6 +1863,27 @@ def unstake_staking():
         db.session.rollback()
         return jsonify({'error':'Transaction error during unstake'}),400
 
+def parse_date_time(dt_str: str) -> datetime:
+    """
+    Парсит строку даты/времени. Поддерживает форматы:
+      1) 'YYYY-MM-DD HH:MM:SS'
+      2) 'YYYY-MM-DD' (тогда автоматически добавляется '00:00:00')
+    При неудаче выбрасывает ValueError.
+    """
+    dt_str = dt_str.strip()
+    # Сначала пробуем "YYYY-MM-DD HH:MM:SS"
+    try:
+        return datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        # Пробуем "YYYY-MM-DD"
+        try:
+            d = datetime.strptime(dt_str, "%Y-%m-%d")
+            return d  # дата с 00:00:00
+        except ValueError:
+            raise ValueError(
+                f"Invalid date/time format: '{dt_str}'. Use 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'."
+            )
+
 ############################
 # 1) Функция, которая реально создает сделки в БД
 ############################
@@ -1832,7 +1892,9 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     """
     Пример внутренней функции, сохраняющей ОДНУ сделку в БД.
     Проверяем, что инструмент есть в таблице Instrument.
+    Разрешаем open_time/close_time в формате 'YYYY-MM-DD' или 'YYYY-MM-DD HH:MM:SS'.
     """
+    # Проверяем инструмент
     instrument_record = Instrument.query.filter_by(name=instrument).first()
     if not instrument_record:
         raise ValueError(f"Instrument '{instrument}' not found in DB.")
@@ -1843,13 +1905,15 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     if entry_price <= 0:
         raise ValueError(f"Entry price must be > 0, got {entry_price}.")
 
-    # Пробуем парсить время (если оно строка "2025-01-01 10:00:00")
-    try:
-        open_dt = datetime.strptime(open_time, "%Y-%m-%d %H:%M:%S")
-    except Exception:
-        raise ValueError(f"Invalid open_time format: '{open_time}'. Use 'YYYY-MM-DD HH:MM:SS'.")
+    # Парсим open_time (может быть 'YYYY-MM-DD' или 'YYYY-MM-DD HH:MM:SS')
+    open_dt = parse_date_time(open_time)
 
-    # Аналогично exit_price и close_time проверяем при необходимости
+    # Аналогично парсим close_time, если есть
+    close_dt = None
+    if close_time:
+        close_dt = parse_date_time(close_time)
+
+    # Создаём объект Trade
     trade = Trade(
         user_id=user_id,
         instrument_id=instrument_record.id,
@@ -1858,17 +1922,14 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
         trade_open_time=open_dt,
         exit_price=exit_price if exit_price else None
     )
-    if close_time:
-        try:
-            close_dt = datetime.strptime(close_time, "%Y-%m-%d %H:%M:%S")
-            trade.trade_close_time = close_dt
-        except Exception:
-            raise ValueError(f"Invalid close_time format: '{close_time}'.")
+
+    if close_dt:
+        trade.trade_close_time = close_dt
 
     if comment:
         trade.comment = comment
 
-    # Рассчитываем profit_loss, если exit_price есть
+    # Если задан exit_price, считаем profit_loss
     if trade.exit_price:
         sign = 1 if trade.direction == 'Buy' else -1
         trade.profit_loss = (trade.exit_price - trade.entry_price) * sign
@@ -1878,7 +1939,7 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
         trade.profit_loss_percentage = None
 
     db.session.add(trade)
-    # В вашем коде можно сразу .commit() или делать это в конце сразу для всех.
+    # commit делается в handle_create_trades или в другом месте
 
     return trade
 
