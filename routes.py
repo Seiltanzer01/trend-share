@@ -1901,9 +1901,9 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
 
 def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
     try:
-        instrument_obj = _find_instrument_by_substring(instrument_str)
+        instrument_obj = _find_instrument_by_similarity(instrument_str, threshold=65)
     except ValueError:
-        return False  # Или обработайте ошибку соответствующим образом
+        return False
 
     try:
         open_dt = parse_date_time(open_time_str)
