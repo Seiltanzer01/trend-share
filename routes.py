@@ -1952,6 +1952,41 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
 
 
 ############################
+# Функция проверки дубликата
+############################
+
+def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
+    """
+    Проверяем, есть ли уже сделка с тем же user_id, инструментом, direction,
+    entry_price и временем открытия. Если да — возвращаем True.
+    """
+    # Сначала найдём instrument_id
+    instrument_obj = Instrument.query.filter_by(name=instrument_str).first()
+    if not instrument_obj:
+        # Если инструмента вообще нет, пусть выше код выбросит ошибку —
+        # здесь просто возвращаем False (не считаем дубликатом)
+        return False
+
+    # Парсим дату/время (может быть 'YYYY-MM-DD' или 'YYYY-MM-DD HH:MM:SS')
+    try:
+        open_dt = parse_date_time(open_time_str)
+    except ValueError:
+        # Если формат неверный, пусть это будет обработано выше
+        return False
+
+    # Теперь проверяем, есть ли сделка с такими ключевыми полями
+    existing_trade = Trade.query.filter(
+        Trade.user_id == user_id,
+        Trade.instrument_id == instrument_obj.id,
+        Trade.direction == direction_str,
+        Trade.entry_price == entry_price_val,
+        Trade.trade_open_time == open_dt
+    ).first()
+
+    return existing_trade is not None
+
+
+############################
 # 4) Функция-обработчик вызова create_trades
 ############################
 def handle_create_trades(user_id, fn_args):
@@ -1993,24 +2028,51 @@ def handle_create_trades(user_id, fn_args):
     else:
         # confirm=true => пробуем создать
         created_ids = []
+        duplicates_skipped = 0
         try:
             for t in trades:
-                # пытаемся создать в БД
+                instrument_str = t["instrument"]
+                direction_str = t["direction"]
+                entry_price_val = t["entry_price"]
+                open_time_str = t["open_time"]
+                exit_price_val = t.get("exit_price")
+                close_time_str = t.get("close_time")
+                comment_str = t.get("comment")
+
+                # Перед созданием проверяем, нет ли точной копии сделки
+                if check_duplicate_trade(
+                    user_id,
+                    instrument_str,
+                    direction_str,
+                    entry_price_val,
+                    open_time_str
+                ):
+                    duplicates_skipped += 1
+                    continue
+
                 new_trade = _create_new_trade_in_db(
                     user_id=user_id,
-                    instrument=t["instrument"],
-                    direction=t["direction"],
-                    entry_price=t["entry_price"],
-                    open_time=t["open_time"],
-                    exit_price=t.get("exit_price"),
-                    close_time=t.get("close_time"),
-                    comment=t.get("comment")
+                    instrument=instrument_str,
+                    direction=direction_str,
+                    entry_price=entry_price_val,
+                    open_time=open_time_str,
+                    exit_price=exit_price_val,
+                    close_time=close_time_str,
+                    comment=comment_str
                 )
                 db.session.flush()  # чтобы у new_trade появился ID
                 created_ids.append(new_trade.id)
-            # Все ок, теперь commit
+
             db.session.commit()
-            text = f"Successfully created trades with IDs: {created_ids}"
+            if created_ids:
+                text = f"Successfully created trades with IDs: {created_ids}"
+                if duplicates_skipped > 0:
+                    text += f" (skipped {duplicates_skipped} duplicates)."
+            else:
+                if duplicates_skipped > 0:
+                    text = "All provided trades were duplicates; no new trades created."
+                else:
+                    text = "No trades created for unknown reasons."
             session['chat_history'].append({'role': 'assistant', 'content': text})
             return jsonify({"response": text}), 200
 
@@ -2019,7 +2081,6 @@ def handle_create_trades(user_id, fn_args):
             error_text = f"Error creating trades: {str(e)}"
             session['chat_history'].append({'role': 'assistant', 'content': error_text})
             return jsonify({"response": error_text}), 200
-
 ##################################################
 # Flask Routes for Home Page and Login
 ##################################################
