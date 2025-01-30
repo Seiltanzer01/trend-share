@@ -414,15 +414,15 @@ span.criterion {
 .modal-content {
     margin: auto;
     display: block;
-    max-width: 90vw; /* Используем viewport units для адаптивности */
-    max-height: 90vh;
+    max-width: 90vw;   /* Ширина до 90% экрана */
+    max-height: 90vh;  /* Высота до 90% экрана */
     width: auto;
     height: auto;
     border: 4px solid var(--secondary-color);
     border-radius: 10px;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
     transition: transform 0.3s ease;
-    object-fit: contain; /* Обеспечиваем сохранение пропорций изображения */
+    /* Убираем object-fit: contain; чтобы оно не сжималось слишком сильно */
 }
 
 .modal-content:hover {
