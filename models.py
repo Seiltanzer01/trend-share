@@ -180,7 +180,10 @@ class BestSetupPoll(db.Model):
     status = db.Column(db.String(20), default='active')  # active, completed
     candidates = db.relationship('BestSetupCandidate', back_populates='poll', lazy=True)
     real_prices = db.Column(db.JSON, nullable=True)
-    predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)
+
+    ### ИЗМЕНЕНИЕ: убираем проблемную связь, т.к. у UserPrediction -> poll_id = poll.id, а не best_setup_poll.id
+    # predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)
+    ### /ИЗМЕНЕНИЕ
 
 class BestSetupCandidate(db.Model):
     __tablename__ = 'best_setup_candidate'
