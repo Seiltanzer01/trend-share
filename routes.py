@@ -1883,9 +1883,10 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     return trade
 
 def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
-    instrument_obj = Instrument.query.filter_by(name=instrument_str).first()
-    if not instrument_obj:
-        return False
+    try:
+        instrument_obj = _find_instrument_by_substring(instrument_str)
+    except ValueError:
+        return False  # Или обработайте ошибку соответствующим образом
 
     try:
         open_dt = parse_date_time(open_time_str)
