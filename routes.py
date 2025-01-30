@@ -1792,10 +1792,18 @@ def unstake_staking():
 
 
 def parse_date_time(dt_str: str) -> datetime:
+    """
+    Парсит строку даты/времени. Поддерживает форматы:
+      1) 'YYYY-MM-DD HH:MM:SS'
+      2) 'YYYY-MM-DD' (тогда автоматически добавляется '00:00:00')
+    При неудаче выбрасывает ValueError.
+    """
     dt_str = dt_str.strip()
+    # Сначала пробуем "YYYY-MM-DD HH:MM:SS"
     try:
         return datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
+        # Пробуем "YYYY-MM-DD"
         try:
             d = datetime.strptime(dt_str, "%Y-%m-%d")
             return d
@@ -1804,12 +1812,37 @@ def parse_date_time(dt_str: str) -> datetime:
                 f"Invalid date/time format: '{dt_str}'. Use 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'."
             )
 
+def _find_instrument_by_substring(user_input: str) -> Instrument:
+    """
+    Ищет инструмент в БД по подстроке (case-insensitive).
+    Если находит ровно один инструмент, возвращает его.
+    Если нет совпадений или несколько совпадений — бросает ValueError.
+    """
+    user_input_lower = user_input.lower().strip()
+    all_instruments = Instrument.query.all()
+
+    matches = []
+    for instr in all_instruments:
+        if user_input_lower in instr.name.lower():
+            matches.append(instr)
+
+    if len(matches) == 1:
+        return matches[0]
+    elif len(matches) > 1:
+        conflict_names = ", ".join(i.name for i in matches)
+        raise ValueError(f"Ambiguous instrument '{user_input}'. Matches: {conflict_names}")
+    else:
+        raise ValueError(f"Instrument '{user_input}' not found in DB.")
+        
+
 def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_time,
                             exit_price=None, close_time=None, comment=None):
-    instrument_record = Instrument.query.filter_by(name=instrument).first()
-    if not instrument_record:
-        # <--- Чтобы не падать с ошибкой, можно выбрасывать ValueError (как в коде сейчас)
-        raise ValueError(f"Instrument '{instrument}' not found in DB.")
+    """
+    Пример внутренней функции, сохраняющей ОДНУ сделку в БД,
+    теперь с «поиском» инструмента по подстроке (case-insensitive).
+    """
+    # Вместо строгого filter_by(name=instrument), делаем простой partial match
+    instrument_record = _find_instrument_by_substring(instrument)
 
     if direction not in ["Buy", "Sell"]:
         raise ValueError(f"Direction must be 'Buy' or 'Sell', got '{direction}'.")
@@ -1818,7 +1851,6 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
         raise ValueError(f"Entry price must be > 0, got {entry_price}.")
 
     open_dt = parse_date_time(open_time)
-
     close_dt = None
     if close_time:
         close_dt = parse_date_time(close_time)
@@ -1838,6 +1870,7 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     if comment:
         trade.comment = comment
 
+    # Если задан exit_price, считаем profit_loss
     if trade.exit_price:
         sign = 1 if trade.direction == 'Buy' else -1
         trade.profit_loss = (trade.exit_price - trade.entry_price) * sign
