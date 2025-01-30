@@ -54,8 +54,8 @@ def inject_csrf_token():
 # Add context processor for language:
 @app.context_processor
 def inject_language():
-    return {'language': session.get('language', 'en')}  # чтобы от сессии
-    # return {'language': 'en'}  # если жестко en
+    return {'language': session.get('language', 'en')} #чтобы от сессии
+    #return {'language': 'en'}  #если жестко en
 
 @app.route('/info')
 def info():
@@ -653,8 +653,8 @@ def create_predefined_data():
 
     db.session.commit()
     logger.info("All categories, subcategories and criteria (RU stored) successfully added.")
-
-
+    
+# Wrapper functions for APScheduler jobs
 def start_new_poll_test_job():
     with app.app_context():
         try:
@@ -691,81 +691,13 @@ def update_real_prices_job():
             logger.error(f"Error executing job 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
 
-# ----------------------------------------------------------------------------
-# ВАЖНО: Переносим функцию accumulate_staking_rewards_job ВЫШЕ создания job'ов
-# ----------------------------------------------------------------------------
-def accumulate_staking_rewards_job():
-    """
-    Обёртка для периодического вызова accumulate_staking_rewards().
-    """
-    with app.app_context():
-        accumulate_staking_rewards()
-
-# ----------------------------------------------------------------------------
-# Создаём и запускаем планировщик (теперь функция выше уже определена)
-# ----------------------------------------------------------------------------
-scheduler = BackgroundScheduler(timezone=pytz.UTC)
-
-# 1) Auto finalize best_setup_voting every 5 minutes
-scheduler.add_job(
-    id='Auto Finalize Best Setup Voting',
-    func=lambda: auto_finalize_best_setup_voting(),
-    trigger='interval',
-    minutes=5,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
-)
-
-# 2) Start a new poll every 10 minutes
-scheduler.add_job(
-    id='Start Poll',
-    func=start_new_poll_job,
-    trigger='interval',
-    minutes=10,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
-)
-
-# 3) Check poll results every 2 minutes
-scheduler.add_job(
-    id='Process Poll Results',
-    func=process_poll_results_job,
-    trigger='interval',
-    minutes=2,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
-)
-
-# 4) Accumulate staking rewards — every minute
-scheduler.add_job(
-    id='Accumulate Staking Rewards',
-    func=accumulate_staking_rewards_job,  # <-- теперь функция уже объявлена выше
-    trigger='interval',
-    minutes=1,
-    next_run_time=datetime.utcnow() + timedelta(seconds=20)
-)
-
-# 5) Update real price every 2 minutes
-scheduler.add_job(
-    id='Update Real Prices',
-    func=update_real_prices_job,
-    trigger='interval',
-    minutes=2,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
-)
-
-scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
-
-# -------------------------------------------------------------------------
-# Убираем дублирующийся блок APScheduler (раньше он повторялся в конце).
-# -------------------------------------------------------------------------
-
-# Теперь идёт блок инициализации, чтобы добавить недостающие столбцы
+# Initialize data before the first request
 @app.before_first_request
 def initialize():
     try:
         db.create_all()
         logger.info("Database created or already exists.")
 
-        # Mini-hack: add missing columns if they do not exist
         try:
             with db.engine.connect() as con:
                 # 1) First remove (if exists):
@@ -796,40 +728,37 @@ def initialize():
                     ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
                 """)
                 logger.info("Columns 'private_key', 'unique_wallet_address' and 'unique_private_key' added to 'user' table.")
-
-                # 2) Add poll_id column to best_setup_candidate if not exists (Mini-hack)
+                
+                ### ИЗМЕНЕНИЕ: Добавляем poll_id в таблицу best_setup_candidate ###
                 con.execute("""
                     ALTER TABLE best_setup_candidate
                     ADD COLUMN IF NOT EXISTS poll_id INTEGER
                 """)
-                logger.info("Column 'poll_id' added to best_setup_candidate table if it did not exist.")
-
-                # 3) Попытка добавить внешний ключ (если его нет)
-                try:
-                    con.execute("""
-                        ALTER TABLE best_setup_candidate
-                        ADD CONSTRAINT best_setup_candidate_poll_id_fkey
-                        FOREIGN KEY (poll_id) REFERENCES best_setup_poll(id)
-                    """)
-                    logger.info("Foreign key constraint 'best_setup_candidate_poll_id_fkey' added to best_setup_candidate table if it did not exist.")
-                except Exception as ex:
-                    logger.warning(f"Could not add foreign key constraint best_setup_candidate_poll_id_fkey (maybe it already exists?): {ex}")
-
+                logger.info("Column 'poll_id' added to best_setup_candidate if it didn't exist.")
+                ### /ИЗМЕНЕНИЕ ###
+                
         except Exception as e:
             logger.error(f"ALTER TABLE execution failed: {e}")
 
-        # Инициализация уникальных кошельков (при желании)
+        # Инициализация unique_wallet_address для пользователей
         try:
             users_without_wallet = models.User.query.filter(
                 (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # Удаляем генерацию, т.к. она не нужна
-                user.unique_wallet_address = None
-                user.unique_private_key = None
-                logger.info(f"Unique wallet cleared for user ID {user.id}.")
+                # ### ИЗМЕНЕНИЕ: убираем вызовы несуществующих функций generate_unique_wallet_address() и generate_unique_private_key()
+                #
+                # user.unique_wallet_address = generate_unique_wallet_address()
+                # user.unique_private_key = generate_unique_private_key()
+                # logger.info(f"Unique wallet generated for user ID {user.id}.")
+                #
+                # Вместо этого просто оставим pass или присвоим пустые значения, чтобы не было ошибки
+                user.unique_wallet_address = ""
+                user.unique_private_key = ""
+                #
+                ### /ИЗМЕНЕНИЕ ###
             db.session.commit()
-            logger.info("Unique wallets for existing users have been initialized.")
+            logger.info("Unique wallets for existing users have been initialized (now set to empty).")
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error initializing unique wallets: {e}")
@@ -839,7 +768,9 @@ def initialize():
         # create_predefined_data()
         if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
             create_predefined_data()
+            create_predefined_data()
             logger.info("Predefined data successfully updated.")
+            
 
     except Exception as e:
         db.session.rollback()
@@ -849,6 +780,77 @@ def initialize():
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
+
+####################
+# APScheduler jobs
+####################
+
+def accumulate_staking_rewards_job():
+    with app.app_context():
+        accumulate_staking_rewards()
+
+def start_new_poll_job():
+    with app.app_context():
+        # New poll for 10 minutes (see poll_functions.py)
+        start_new_poll()
+
+def process_poll_results_job():
+    with app.app_context():
+        process_poll_results()
+
+def update_real_prices_job():
+    with app.app_context():
+        update_real_prices_for_active_polls()
+
+scheduler = BackgroundScheduler(timezone=pytz.UTC)
+
+# 1) Auto finalize best_setup_voting every 5 minutes
+scheduler.add_job(
+    id='Auto Finalize Best Setup Voting',
+    func=lambda: auto_finalize_best_setup_voting(),
+    trigger='interval',
+    minutes=5,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
+)
+
+# 2) Start a new poll every 10 minutes
+scheduler.add_job(
+    id='Start Poll',
+    func=start_new_poll_job,
+    trigger='interval',
+    minutes=10,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
+)
+
+# 3) Check poll results every 2 minutes (immediately starts a new one)
+scheduler.add_job(
+    id='Process Poll Results',
+    func=process_poll_results_job,
+    trigger='interval',
+    minutes=2,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
+)
+
+# 4) Accumulate staking rewards — every minute
+scheduler.add_job(
+    id='Accumulate Staking Rewards',
+    func=accumulate_staking_rewards_job,
+    trigger='interval',
+    minutes=1,
+    next_run_time=datetime.utcnow() + timedelta(seconds=20)
+)
+
+# 5) Update real price every 2 minutes
+scheduler.add_job(
+    id='Update Real Prices',
+    func=update_real_prices_job,
+    trigger='interval',
+    minutes=2,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
+)
+
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown())
 
 # Import routes after APScheduler initialization
 from routes import *
@@ -886,6 +888,7 @@ if not all([
     raise ValueError("Some Robokassa settings are missing from environment variables.")
 
 # **Run Flask app**
+
 if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 5000))
