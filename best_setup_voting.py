@@ -277,6 +277,7 @@ def start_best_setup_contest():
             candidate = BestSetupCandidate(
                 user_id=c['user_id'],
                 setup_id=c['setup_id'],
+                poll_id=poll.id,  # Устанавливаем poll_id
                 total_trades=c['total_trades'],
                 win_rate=c['win_rate']
             )
@@ -300,7 +301,7 @@ def best_setup_candidates():
         flash("Сейчас нет активного голосования.", "info")
         return redirect(url_for('index'))
 
-    candidates = BestSetupCandidate.query.order_by(
+    candidates = BestSetupCandidate.query.filter_by(poll_id=poll.id).order_by(
         BestSetupCandidate.win_rate.desc(),
         BestSetupCandidate.total_trades.desc()
     ).all()
@@ -354,7 +355,7 @@ def vote_best_setup():
         logger.error(f"Некорректный идентификатор кандидата: {candidate_id}")
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
-    candidate = BestSetupCandidate.query.get(candidate_id)
+    candidate = BestSetupCandidate.query.filter_by(id=candidate_id, poll_id=poll.id).first()
     if not candidate:
         flash('Неверный кандидат.', 'danger')
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
@@ -406,7 +407,7 @@ def auto_finalize_best_setup_voting():
     now = datetime.utcnow()
     if now >= poll.end_date:
         # Собираем результаты
-        candidates = BestSetupCandidate.query.all()
+        candidates = BestSetupCandidate.query.filter_by(poll_id=poll.id).all()
         results = []
         for c in candidates:
             vote_count = BestSetupVote.query.filter_by(candidate_id=c.id).count()
@@ -460,7 +461,7 @@ def auto_finalize_best_setup_voting():
                     logger.error(f"Ошибка при отправке уведомления TG: {e}")
             else:
                 logger.error(f"Не удалось отправить {amount} UJO пользователю {user_obj.id}.")
-        
+
         # Награждаем призёров
         if first_candidate:
             c, votes = first_candidate
@@ -503,11 +504,10 @@ def auto_finalize_best_setup_voting():
         poll.status = 'completed'
         db.session.commit()
         logger.info(f"Голосование ID {poll.id} завершено автоматически, пул={pool_size} UJO распределён.")
-        
 
 @best_setup_voting_bp.route('/force_finalize_best_setup_voting', methods=['POST'])
 @admin_required
-def force_finalize_best_setup():
+def force_finalize_best_setup_voting():
     """Принудительно завершаем текущее голосование для тестирования."""
     poll = BestSetupPoll.query.filter_by(status='active').first()
     if not poll:
@@ -523,3 +523,4 @@ def force_finalize_best_setup():
 
 def init_best_setup_voting_routes(app, db_instance):
     app.register_blueprint(best_setup_voting_bp)
+
