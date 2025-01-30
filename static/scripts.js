@@ -38,7 +38,8 @@ $(document).ready(function() {
     });
 
     // Opening modal on image click
-    $(document).on('click', '.clickable-image', function() {
+    $(document).on('click', '.clickable-image', function(event) {
+        event.preventDefault(); // Предотвращаем стандартное поведение ссылки, если изображение обернуто в <a>
         $('#modal').fadeIn();
         $('#modal-img').attr('src', $(this).attr('src'));
     });
