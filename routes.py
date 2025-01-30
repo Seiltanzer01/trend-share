@@ -365,10 +365,8 @@ def assistant_analyze_chart():
 
             # Check what analyze_chart returned
             if 'error' in analysis_result:
-                # Return error
                 return jsonify({'error': analysis_result['error']}), 400
             elif 'trend_prediction' in analysis_result:
-                # Return correct result
                 return jsonify({'result': analysis_result}), 200
             else:
                 return jsonify({'error': 'Unknown error during chart analysis.'}), 500
@@ -430,7 +428,6 @@ def vote():
 
                 # **Added validations**
 
-                # 1. Time constraint: the prediction must be submitted at least 2 minutes before poll ends
                 now = datetime.utcnow()
                 two_minutes_before_end = active_poll.end_date - timedelta(minutes=2)
                 if now > two_minutes_before_end:
@@ -438,7 +435,6 @@ def vote():
                     logger.info(f"User {user_id} attempted to vote too late for poll {active_poll.id}.")
                     return redirect(url_for('vote'))
 
-                # 2. Price range: predicted price must be within ±20% of the current real price
                 instrument = Instrument.query.get(selected_instrument_id)
                 if not instrument:
                     flash('The selected instrument does not exist.', 'danger')
@@ -457,8 +453,6 @@ def vote():
                     flash(f'The predicted price must be between {lower_bound:.2f} and {upper_bound:.2f}.', 'danger')
                     logger.info(f"User ID {user_id} submitted prediction {predicted_price} outside the allowed range for instrument {instrument.name}. Real price: {real_price}.")
                     return redirect(url_for('vote'))
-
-                # **End of added validations**
 
                 # Create prediction
                 user_prediction = UserPrediction(
@@ -482,12 +476,10 @@ def vote():
             logger.error(traceback.format_exc())
             return redirect(url_for('vote'))
     else:
-        # Get poll instruments to display the form
         poll_instruments = PollInstrument.query.filter_by(poll_id=active_poll.id).all()
         instruments = [pi.instrument for pi in poll_instruments]
         form.instrument.choices = [(instrument.id, instrument.name) for instrument in instruments]
 
-    # Get all predictions of the user in the active poll
     existing_predictions = UserPrediction.query.filter_by(
         user_id=user_id,
         poll_id=active_poll.id
@@ -565,9 +557,6 @@ def fetch_charts():
 
 @app.route('/fetch_predictions', methods=['GET'])
 def fetch_predictions():
-    """
-    API route to get updated predictions of the user in the active poll.
-    """
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -591,33 +580,24 @@ def fetch_predictions():
     return jsonify({'predictions': predictions_data}), 200
     
 @app.route('/predictions_chart', methods=['GET'])
-@premium_required  # Decorator added for premium access check
+@premium_required
 def predictions_chart():
-    """
-    Route to view prediction charts. (Premium section)
-    """
     return render_template('predictions_chart.html')
 
 def generate_chart_base64(user_prediction):
-    """
-    Generates a chart for an existing prediction and returns it as base64.
-    """
     try:
-        # Get real price and deviation
         real_price = getattr(user_prediction, 'real_price', None)
         deviation = getattr(user_prediction, 'deviation', None)
 
         if real_price is None or deviation is None:
             return None
 
-        # Build chart
         plt.figure(figsize=(6, 4))
         plt.bar(['Predicted Price', 'Real Price'], [user_prediction.predicted_price, real_price], color=['blue', 'green'])
         plt.title('Comparison of Predicted and Real Prices')
         plt.ylabel('Price')
         plt.tight_layout()
 
-        # Save chart to buffer and convert to base64
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
@@ -633,9 +613,6 @@ def generate_chart_base64(user_prediction):
 @app.route('/vote_results', methods=['GET'])
 @admin_required
 def vote_results():
-    """
-    Route to display voting results in the admin panel.
-    """
     completed_polls = Poll.query.filter(Poll.status == 'completed').all()
     return render_template('vote_results.html', polls=completed_polls)
 
@@ -648,17 +625,13 @@ def subscription():
     user = User.query.get(session['user_id'])
     my_wallet = os.environ.get("MY_WALLET_ADDRESS", "")
     
-    # Get the current token price
     token_price_usd = get_token_price_in_usd()
     if token_price_usd <= 0:
         flash('Failed to get the current token price. Please try again later.', 'danger')
         logger.error("Failed to get the current token price for UJO.")
-        token_price_usd = 1.0  # Set a default value or handle error differently
+        token_price_usd = 1.0
     
-    # Get the number of decimals for the token
     TOKEN_DECIMALS = int(os.environ.get("TOKEN_DECIMALS", 18))
-    
-    # Get the token contract address
     TOKEN_CONTRACT_ADDRESS = os.environ.get("TOKEN_CONTRACT_ADDRESS", "0xYOUR_UJO_CONTRACT_ADDRESS")
     
     return render_template(
@@ -931,7 +904,7 @@ You are Uncle John, a versatile trading assistant with the following capabilitie
        - `entry_price` (number > 0)
        - `open_time` (string in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' format)
        - `exit_price` (optional number)
-       - `close_time` (optional string in 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' format)
+       - `close_time` (optional string)
        - `comment` (optional string)
     
     2. `confirm`: (boolean)
@@ -945,19 +918,19 @@ You are Uncle John, a versatile trading assistant with the following capabilitie
 
 - **Context Separation:**
   - **Analysis and Education:**
-    - When the user asks to analyze, review, or explain existing trades or trading strategies, focus solely on providing insights and educational content.
-    - Do not invoke `create_trades(...)` during these interactions.
+    - When the user asks to analyze, review, or explain existing trades or trading strategies, focus on providing insights and analysis in normal text (no function call).
   
   - **Adding Trades:**
     - Only engage in adding trades when the user explicitly states the intent to do so (e.g., "add a new trade", "create trade", "confirm these trades").
 
 - **Handling Alternative Instrument Names:**
-  - Users may refer to instruments using alternative names or in different languages (e.g., "euro" instead of "EUR/USD"). Match these alternative names with their standard notations in the database before processing.
+  - Users may refer to instruments using alternative names or in different languages (e.g., "euro" -> "EUR/USD"). If needed, map synonyms to existing instrument names in the DB.
 
 - **Response Style:**
-  - Always provide short, concise, and clear responses.
-  - Avoid overly long messages unless detailed analysis is specifically requested.
-  - When summarizing trades for confirmation, ensure clarity and completeness.
+  - Always keep messages short and clear.
+  - If user says "confirm" or "yes" to finalize trades, finalize them with `confirm=true`.
+  - If user is only analyzing or discussing, do not call `create_trades`.
+  - If finalizing trades, you may end the conversation.
 
 **Existing Trades Summary:**
 {trade_data}
@@ -969,19 +942,14 @@ You are Uncle John, a versatile trading assistant with the following capabilitie
         logger.debug(f"System message for OpenAI: {system_message}")
         session['chat_history'].append({'role': 'system', 'content': system_message})
 
-    # Добавляем сообщение пользователя в историю (как и было)
+    # Добавляем сообщение пользователя
     session['chat_history'].append({'role': 'user', 'content': user_question})
 
-    #
-    # --- Ниже идёт новый вызов ChatCompletion с function calling ---
-    #
-
     try:
-        # Вместо старого generate_openai_response(...) делаем прямой запрос
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=session['chat_history'],
-            functions=FUNCTIONS,  # <-- Массив функций, объявленный в конце routes.py
+            functions=FUNCTIONS,
             function_call="auto",
             temperature=0.7,
             max_tokens=900,
@@ -1001,17 +969,13 @@ You are Uncle John, a versatile trading assistant with the following capabilitie
                 fn_args = {}
 
             if fn_name == "create_trades":
-                # вызываем логику handle_create_trades из конца routes.py
                 assistant_response_new = handle_create_trades(user_id, fn_args)
-                # handle_create_trades возвращает jsonify(...) — поэтому чуть ниже вернёмся
                 return assistant_response_new
             else:
-                # неизвестная функция
                 error_text = f"Error: unknown function call '{fn_name}'."
                 session['chat_history'].append({'role': 'assistant', 'content': error_text})
                 return jsonify({'response': error_text}), 200
         else:
-            # Обычный текст (не function call)
             assistant_response_new = assistant_message["content"]
             session['chat_history'].append({'role': 'assistant', 'content': assistant_response_new})
 
@@ -1020,20 +984,11 @@ You are Uncle John, a versatile trading assistant with the following capabilitie
         assistant_response_new = "Sorry, an error occurred with the AI server."
         session['chat_history'].append({'role': 'assistant', 'content': assistant_response_new})
 
-    # Ограничиваем длину истории (как и было)
+    # Ограничиваем длину истории
     MAX_CHAT_HISTORY = 20
     if len(session['chat_history']) > MAX_CHAT_HISTORY:
         session['chat_history'] = session['chat_history'][-MAX_CHAT_HISTORY:]
 
-    #
-    # --- СТАРЫЙ КОД, который мы не удаляем, а просто комментируем ---
-    #
-    # assistant_response = generate_openai_response(session['chat_history'])
-    # session['chat_history'].append({'role': 'assistant', 'content': assistant_response})
-    #
-    # return jsonify({'response': assistant_response}), 200
-
-    # Возвращаем обновлённый ответ
     return jsonify({'response': assistant_response_new}), 200
 
 
@@ -1043,6 +998,7 @@ def get_chat_history():
         return jsonify({'error': 'Unauthorized'}), 401
 
     chat_history = session.get('chat_history', [])
+    # Системные сообщения скрываем
     display_history = [msg for msg in chat_history if msg['role'] != 'system']
     return jsonify({'chat_history': display_history}), 200
 
@@ -1092,15 +1048,8 @@ def init():
                 logger.warning("Invalid authorization data.")
                 return jsonify({'status': 'failure', 'message': 'Invalid initData'}), 400
 
-            # Если бы мы хотели использовать язык из Telegram, было бы так:
-            
             language_code = getattr(webapp_data.user, 'language_code', 'en')
             session['language'] = language_code
-
-            #НО для теста мы ЖЕСТКО ставим английский:
-            #session['language'] = 'en'
-            
-            # (Потом, если нужно, вы раскомментируете верхний блок и уберете эту строку.
 
             telegram_id = int(webapp_data.user.id)
             first_name = webapp_data.user.first_name
@@ -1138,11 +1087,7 @@ def init():
 @admin_required
 def admin_users():
     users = User.query.all()
-    
-    # Get voting configuration setting (if available)
     voting_config = Config.query.filter_by(key='voting_enabled').first()
-    
-    # Get (or create) prize pool size configuration
     pool_config = Config.query.filter_by(key='best_setup_pool_size').first()
     existing_pool_size = pool_config.value if pool_config else '0'
 
@@ -1159,11 +1104,9 @@ def toggle_voting():
     try:
         voting_config = Config.query.filter_by(key='voting_enabled').first()
         if not voting_config:
-            # If voting config does not exist, create it
             voting_config = Config(key='voting_enabled', value='false')
             db.session.add(voting_config)
         
-        # Toggle voting value
         voting_config.value = 'false' if voting_config.value == 'true' else 'true'
         db.session.commit()
         
@@ -1195,7 +1138,6 @@ def toggle_premium(user_id):
 def set_pool_size():
     pool_size = request.form.get('pool_size', '0').strip()
     try:
-        # Check or create record in Config table
         config_record = Config.query.filter_by(key='best_setup_pool_size').first()
         if not config_record:
             config_record = Config(key='best_setup_pool_size', value='0')
@@ -1256,11 +1198,10 @@ def index():
             else:
                 trade.screenshot_url = None
 
-        for trade in trades:
-            if trade.setup:
-                if trade.setup.screenshot:
-                    trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
-                else:
+            if trade.setup and trade.setup.screenshot:
+                trade.setup.screenshot_url = generate_s3_url(trade.setup.screenshot)
+            else:
+                if trade.setup:
                     trade.setup.screenshot_url = None
 
         return render_template(
@@ -1772,11 +1713,6 @@ def get_user_stakes():
 
 @app.route('/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards():
-    """
-    User can claim once a week.
-    When claiming, send pending_rewards.
-    After sending, reset pending_rewards and update last_claim_at.
-    """
     if 'user_id' not in session:
         return jsonify({'error':'Unauthorized'}),401
     user_id = session['user_id']
@@ -1792,7 +1728,6 @@ def claim_staking_rewards():
     updated_stakes = []
     for s in stakings:
         if s.staked_amount > 0:
-            # Check if 7 days have passed
             delta = now - s.last_claim_at
             if delta.total_seconds() >= 7 * 24 * 3600:
                 totalRewards += s.pending_rewards
@@ -1802,11 +1737,10 @@ def claim_staking_rewards():
     if totalRewards <= 0:
         return jsonify({'error':'Nothing to claim yet, or a week has not passed.'}),400
     
-    # Send tokens to user
     if not user.wallet_address:
         return jsonify({'error':'No wallet address'}),400
     
-    success = send_token_reward(user.wallet_address, totalRewards)
+    success = voting_send_token_reward(user.wallet_address, totalRewards)
     if success:
         db.session.commit()
         return jsonify({'message': f'Claim of {totalRewards:.4f} UJO successfully sent to {user.wallet_address}.'}),200
@@ -1816,10 +1750,6 @@ def claim_staking_rewards():
 
 @app.route('/unstake_staking', methods=['POST'])
 def unstake_staking():
-    """
-    Withdraw stake if the period (30 days) has passed.
-    A 1% fee is deducted.
-    """
     if 'user_id' not in session:
         return jsonify({'error':'Unauthorized'}),401
     user_id = session['user_id']
@@ -1836,7 +1766,6 @@ def unstake_staking():
     changed_stakes = []
     for st in stakings:
         if st.staked_amount > 0 and now >= st.unlocked_at:
-            # Can withdraw
             total_unstake += st.staked_amount
             st.staked_amount = 0.0
             st.pending_rewards = 0.0
@@ -1844,13 +1773,11 @@ def unstake_staking():
     if total_unstake <= 0:
         return jsonify({'error':'No stakes available (30 days have not passed).'}),400
     
-    # Deduct 1% fee
     fee = total_unstake * 0.01
     withdraw_amount = total_unstake - fee
-    success = send_token_reward(user.wallet_address, withdraw_amount)
+    success = voting_send_token_reward(user.wallet_address, withdraw_amount)
     if success:
         db.session.commit()
-        # If no active stakes left, set assistant_premium to False
         active_left = UserStaking.query.filter(
             UserStaking.user_id == user_id,
             UserStaking.staked_amount > 0
@@ -1863,40 +1790,25 @@ def unstake_staking():
         db.session.rollback()
         return jsonify({'error':'Transaction error during unstake'}),400
 
+
 def parse_date_time(dt_str: str) -> datetime:
-    """
-    Парсит строку даты/времени. Поддерживает форматы:
-      1) 'YYYY-MM-DD HH:MM:SS'
-      2) 'YYYY-MM-DD' (тогда автоматически добавляется '00:00:00')
-    При неудаче выбрасывает ValueError.
-    """
     dt_str = dt_str.strip()
-    # Сначала пробуем "YYYY-MM-DD HH:MM:SS"
     try:
         return datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
-        # Пробуем "YYYY-MM-DD"
         try:
             d = datetime.strptime(dt_str, "%Y-%m-%d")
-            return d  # дата с 00:00:00
+            return d
         except ValueError:
             raise ValueError(
                 f"Invalid date/time format: '{dt_str}'. Use 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'."
             )
 
-############################
-# 1) Функция, которая реально создает сделки в БД
-############################
 def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_time,
                             exit_price=None, close_time=None, comment=None):
-    """
-    Пример внутренней функции, сохраняющей ОДНУ сделку в БД.
-    Проверяем, что инструмент есть в таблице Instrument.
-    Разрешаем open_time/close_time в формате 'YYYY-MM-DD' или 'YYYY-MM-DD HH:MM:SS'.
-    """
-    # Проверяем инструмент
     instrument_record = Instrument.query.filter_by(name=instrument).first()
     if not instrument_record:
+        # <--- Чтобы не падать с ошибкой, можно выбрасывать ValueError (как в коде сейчас)
         raise ValueError(f"Instrument '{instrument}' not found in DB.")
 
     if direction not in ["Buy", "Sell"]:
@@ -1905,15 +1817,12 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     if entry_price <= 0:
         raise ValueError(f"Entry price must be > 0, got {entry_price}.")
 
-    # Парсим open_time (может быть 'YYYY-MM-DD' или 'YYYY-MM-DD HH:MM:SS')
     open_dt = parse_date_time(open_time)
 
-    # Аналогично парсим close_time, если есть
     close_dt = None
     if close_time:
         close_dt = parse_date_time(close_time)
 
-    # Создаём объект Trade
     trade = Trade(
         user_id=user_id,
         instrument_id=instrument_record.id,
@@ -1929,7 +1838,6 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     if comment:
         trade.comment = comment
 
-    # Если задан exit_price, считаем profit_loss
     if trade.exit_price:
         sign = 1 if trade.direction == 'Buy' else -1
         trade.profit_loss = (trade.exit_price - trade.entry_price) * sign
@@ -1939,42 +1847,18 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
         trade.profit_loss_percentage = None
 
     db.session.add(trade)
-    # commit делается в handle_create_trades или в другом месте
-
     return trade
 
-
-
-
-############################
-# 3) Модифицируем assistant_chat, чтобы обрабатывать function calls
-############################
-
-
-############################
-# Функция проверки дубликата
-############################
-
 def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
-    """
-    Проверяем, есть ли уже сделка с тем же user_id, инструментом, direction,
-    entry_price и временем открытия. Если да — возвращаем True.
-    """
-    # Сначала найдём instrument_id
     instrument_obj = Instrument.query.filter_by(name=instrument_str).first()
     if not instrument_obj:
-        # Если инструмента вообще нет, пусть выше код выбросит ошибку —
-        # здесь просто возвращаем False (не считаем дубликатом)
         return False
 
-    # Парсим дату/время (может быть 'YYYY-MM-DD' или 'YYYY-MM-DD HH:MM:SS')
     try:
         open_dt = parse_date_time(open_time_str)
     except ValueError:
-        # Если формат неверный, пусть это будет обработано выше
         return False
 
-    # Теперь проверяем, есть ли сделка с такими ключевыми полями
     existing_trade = Trade.query.filter(
         Trade.user_id == user_id,
         Trade.instrument_id == instrument_obj.id,
@@ -1985,21 +1869,10 @@ def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_va
 
     return existing_trade is not None
 
-
-############################
-# 4) Функция-обработчик вызова create_trades
-############################
 def handle_create_trades(user_id, fn_args):
-    """
-    Логика, когда ChatGPT вызвал функцию create_trades(...).
-    У нас есть:
-      fn_args['trades'] - список
-      fn_args['confirm'] - bool
-    """
     trades = fn_args.get("trades", [])
     confirm = fn_args.get("confirm", False)
 
-    # Быстрая валидация на стороне сервера: trades не пуст и <= 5
     if not trades:
         msg = "No trades provided."
         session['chat_history'].append({'role': 'assistant', 'content': msg})
@@ -2011,7 +1884,6 @@ def handle_create_trades(user_id, fn_args):
         return jsonify({'response': msg}), 200
 
     if not confirm:
-        # Если confirm=false — просто кратко отвечаем пользователю, просим подтвердить
         summary_lines = []
         for i, t in enumerate(trades, start=1):
             line = (f"Trade #{i}: {t.get('instrument')} {t.get('direction')} at {t.get('entry_price')} "
@@ -2026,7 +1898,6 @@ def handle_create_trades(user_id, fn_args):
         session['chat_history'].append({'role': 'assistant', 'content': answer})
         return jsonify({"response": answer}), 200
     else:
-        # confirm=true => пробуем создать
         created_ids = []
         duplicates_skipped = 0
         try:
@@ -2039,7 +1910,6 @@ def handle_create_trades(user_id, fn_args):
                 close_time_str = t.get("close_time")
                 comment_str = t.get("comment")
 
-                # Перед созданием проверяем, нет ли точной копии сделки
                 if check_duplicate_trade(
                     user_id,
                     instrument_str,
@@ -2060,10 +1930,14 @@ def handle_create_trades(user_id, fn_args):
                     close_time=close_time_str,
                     comment=comment_str
                 )
-                db.session.flush()  # чтобы у new_trade появился ID
+                db.session.flush()
                 created_ids.append(new_trade.id)
 
             db.session.commit()
+
+            # После добавления сделок — очищаем историю, чтобы диалог закончился
+            session.pop('chat_history', None)
+
             if created_ids:
                 text = f"Successfully created trades with IDs: {created_ids}"
                 if duplicates_skipped > 0:
@@ -2073,7 +1947,7 @@ def handle_create_trades(user_id, fn_args):
                     text = "All provided trades were duplicates; no new trades created."
                 else:
                     text = "No trades created for unknown reasons."
-            session['chat_history'].append({'role': 'assistant', 'content': text})
+
             return jsonify({"response": text}), 200
 
         except Exception as e:
@@ -2081,7 +1955,3 @@ def handle_create_trades(user_id, fn_args):
             error_text = f"Error creating trades: {str(e)}"
             session['chat_history'].append({'role': 'assistant', 'content': error_text})
             return jsonify({"response": error_text}), 200
-##################################################
-# Flask Routes for Home Page and Login
-##################################################
-# Routes '/' and '/login' are already defined above.
