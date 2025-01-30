@@ -54,8 +54,8 @@ def inject_csrf_token():
 # Add context processor for language:
 @app.context_processor
 def inject_language():
-    return {'language': session.get('language', 'en')} #чтобы от сессии
-    #return {'language': 'en'}  #если жестко en
+    return {'language': session.get('language', 'en')}  # чтобы от сессии
+    # return {'language': 'en'}  # если жестко en
 
 @app.route('/info')
 def info():
@@ -653,7 +653,8 @@ def create_predefined_data():
 
     db.session.commit()
     logger.info("All categories, subcategories and criteria (RU stored) successfully added.")
-    
+
+
 # Wrapper functions for APScheduler jobs
 def start_new_poll_test_job():
     with app.app_context():
@@ -691,7 +692,102 @@ def update_real_prices_job():
             logger.error(f"Error executing job 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
 
-# Initialize data before the first request
+scheduler = BackgroundScheduler(timezone=pytz.UTC)
+
+# 1) Auto finalize best_setup_voting every 5 minutes
+scheduler.add_job(
+    id='Auto Finalize Best Setup Voting',
+    func=lambda: auto_finalize_best_setup_voting(),
+    trigger='interval',
+    minutes=5,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
+)
+
+# 2) Start a new poll every 10 minutes
+scheduler.add_job(
+    id='Start Poll',
+    func=start_new_poll_job,
+    trigger='interval',
+    minutes=10,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
+)
+
+# 3) Check poll results every 2 minutes (immediately starts a new one)
+scheduler.add_job(
+    id='Process Poll Results',
+    func=process_poll_results_job,
+    trigger='interval',
+    minutes=2,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
+)
+
+# 4) Accumulate staking rewards — every minute
+scheduler.add_job(
+    id='Accumulate Staking Rewards',
+    func=accumulate_staking_rewards_job,
+    trigger='interval',
+    minutes=1,
+    next_run_time=datetime.utcnow() + timedelta(seconds=20)
+)
+
+# 5) Update real price every 2 minutes
+scheduler.add_job(
+    id='Update Real Prices',
+    func=update_real_prices_job,
+    trigger='interval',
+    minutes=2,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
+)
+
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown())
+
+# Import routes after APScheduler initialization
+from routes import *
+
+# Register Blueprints
+app.register_blueprint(staking_bp, url_prefix='/staking')  # Register staking_bp here
+
+# Add OpenAI API Key
+app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
+if not app.config['OPENAI_API_KEY']:
+    logger.error("OPENAI_API_KEY is not set in environment variables.")
+    raise ValueError("OPENAI_API_KEY is not set in environment variables.")
+
+# Initialize OpenAI
+openai.api_key = app.config['OPENAI_API_KEY']
+
+# Add Robokassa settings
+app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
+app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
+app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
+app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
+app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
+app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
+
+# Check for required Robokassa settings
+if not all([
+    app.config['ROBOKASSA_MERCHANT_LOGIN'],
+    app.config['ROBOKASSA_PASSWORD1'],
+    app.config['ROBOKASSA_PASSWORD2'],
+    app.config['ROBOKASSA_RESULT_URL'],
+    app.config['ROBOKASSA_SUCCESS_URL'],
+    app.config['ROBOKASSA_FAIL_URL']
+]):
+    logger.error("Some Robokassa settings are missing from environment variables.")
+    raise ValueError("Some Robokassa settings are missing from environment variables.")
+
+# **Run Flask app**
+
+if __name__ == '__main__':
+    # Run the app
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
+
+# -------------------------------------------------------------------------
+# Обновления в функции инициализации для добавления poll_id в best_setup_candidate
+# -------------------------------------------------------------------------
+
 @app.before_first_request
 def initialize():
     try:
@@ -707,7 +803,7 @@ def initialize():
                     DROP COLUMN IF EXISTS stake_amount
                 """)
                 logger.info("Column 'stake_amount' dropped from user_staking if it existed.")
-    
+
                 # Add columns to user_staking
                 con.execute("""
                     ALTER TABLE user_staking
@@ -729,19 +825,34 @@ def initialize():
                     ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
                 """)
                 logger.info("Columns 'private_key', 'unique_wallet_address' and 'unique_private_key' added to 'user' table.")
+
+                # Добавляем poll_id в best_setup_candidate
+                con.execute("""
+                    ALTER TABLE best_setup_candidate
+                    ADD COLUMN IF NOT EXISTS poll_id INTEGER REFERENCES best_setup_poll(id)
+                """)
+                logger.info("Column 'poll_id' added to best_setup_candidate table.")
+
+                # Устанавливаем poll_id как nullable=True для существующих записей
+                con.execute("""
+                    ALTER TABLE best_setup_candidate
+                    ALTER COLUMN poll_id DROP NOT NULL
+                """)
+                logger.info("Column 'poll_id' set to nullable=True in best_setup_candidate table.")
+
         except Exception as e:
             logger.error(f"ALTER TABLE execution failed: {e}")
 
         # Initialize unique_wallet_address for existing users
         try:
-            users_without_wallet = User.query.filter(
-                (User.unique_wallet_address == None) | (User.unique_wallet_address == '')
+            users_without_wallet = models.User.query.filter(
+                (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # Generate a unique wallet address
-                user.unique_wallet_address = generate_unique_wallet_address()
-                user.unique_private_key = generate_unique_private_key()
-                logger.info(f"Unique wallet generated for user ID {user.id}.")
+                # Удалены вызовы функций generate_unique_wallet_address() и generate_unique_private_key()
+                user.unique_wallet_address = None
+                user.unique_private_key = None
+                logger.info(f"Unique wallet cleared for user ID {user.id}.")
             db.session.commit()
             logger.info("Unique wallets for existing users have been initialized.")
         except Exception as e:
@@ -753,9 +864,7 @@ def initialize():
         # create_predefined_data()
         if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
             create_predefined_data()
-            create_predefined_data()
             logger.info("Predefined data successfully updated.")
-            
 
     except Exception as e:
         db.session.rollback()
