@@ -1986,7 +1986,7 @@ def handle_create_trades(user_id, fn_args):
                     close_time=close_time_str,
                     comment=comment_str
                 )
-                db.session.flush()с
+                db.session.flush()
                 created_ids.append(new_trade.id)
 
             db.session.commit()
@@ -2003,10 +2003,17 @@ def handle_create_trades(user_id, fn_args):
                     text = "All provided trades were duplicates; no new trades created."
                 else:
                     text = "No trades created for unknown reasons."
-# Дополнительная фраза (по желанию):
-text += "\n\nConversation ended. Chat history cleared."
+
+            # Дополнительная фраза (по желанию):
+            text += "\n\nConversation ended. Chat history cleared."
 
             return jsonify({"response": text}), 200
+
+        except Exception as e:
+            db.session.rollback()
+            error_text = f"Error creating trades: {str(e)}"
+            session['chat_history'].append({'role': 'assistant', 'content': error_text})
+            return jsonify({"response": error_text}), 200
 
         except Exception as e:
             db.session.rollback()
