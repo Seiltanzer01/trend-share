@@ -410,15 +410,20 @@ span.criterion {
     to { opacity: 1; }
 }
 
-/* Увеличиваем изображение в модальном окне, чтобы лучше рассмотреть на телефоне */
+/* Увеличенное изображение в модальном окне */
 .modal-content {
     margin: auto;
     display: block;
-    max-width: 100%;
-    max-height: 100%;
+    max-width: 90%; /* Увеличено с 100% до 90% для лучшего отображения */
+    max-height: 90%; /* Увеличено с 100% до 90% для лучшего отображения */
     border: 4px solid var(--secondary-color);
     border-radius: 10px;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease;
+}
+
+.modal-content:hover {
+    transform: scale(1.02); /* Добавлен эффект легкого увеличения при наведении */
 }
 
 .close {
@@ -493,6 +498,12 @@ span.criterion {
     span.criterion {
         font-size: 0.9em;
         padding: 6px 10px;
+    }
+
+    /* Увеличение размера модального изображения на малых экранах */
+    .modal-content {
+        max-width: 95%;
+        max-height: 80%;
     }
 }
 
