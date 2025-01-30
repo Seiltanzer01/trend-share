@@ -13,6 +13,7 @@ from models import (
     db
 )
 from flask import current_app
+from best_setup_voting import send_token_reward as voting_send_token_reward
 
 # Маппинг инструментов к тикерам yfinance
 YFINANCE_TICKERS = {
@@ -146,8 +147,9 @@ def start_new_poll():
 
 def process_poll_results():
     """
-    Завершаем опросы, если end_date <= сейчас, и выбираем победителя.
-    После этого можно сразу вызвать start_new_poll(), если хотим без пауз.
+    Завершаем опросы, если end_date <= сейчас, и выбираем по одному победителю для каждого инструмента (min deviation).
+    Награда: UJO-токены (25% от пула best_setup_pool_size).
+    После завершения запускаем start_new_poll().
     """
     try:
         now = datetime.utcnow()
@@ -170,29 +172,69 @@ def process_poll_results():
             poll.status = 'completed'
             db.session.commit()
 
-            # выберем победителя
-            all_winners = []
+            ### ИЗМЕНЕНИЯ: теперь определяем победителя(ей) для каждого инструмента по min deviation,
+            ### но выбираем ровно одного случайно (если несколько с одинаковым отклонением).
+            ### Вместо premium даём UJO-токены (25% от best_setup_pool_size).
+
+            # 1) Считаем пул для угадывания (25% от best_setup_pool_size)
+            pool_config = Config.query.filter_by(key='best_setup_pool_size').first()
+            if pool_config:
+                total_best_setup_pool = float(pool_config.value)
+            else:
+                total_best_setup_pool = 0.0
+
+            guessing_pool = total_best_setup_pool * 0.25  # четверть пула идёт на угадывание
+
+            instrument_winners = []
             for pi in poll.poll_instruments:
                 instr = pi.instrument
                 preds = UserPrediction.query.filter_by(poll_id=poll.id, instrument_id=instr.id).all()
                 valid = [p for p in preds if p.deviation is not None]
                 if not valid:
                     continue
-                min_dev = min(abs(p.deviation) for p in valid)
-                winners_for_instr = [p.user for p in valid if abs(p.deviation) == min_dev]
-                all_winners.extend(winners_for_instr)
 
-            if all_winners:
-                import random
-                winner = random.choice(all_winners)
-                if not winner.assistant_premium:
-                    winner.assistant_premium = True
-                db.session.commit()
-                current_app.logger.info(f"Опрос {poll.id} завершён. Победитель: user_id={winner.id}")
+                # Находим минимальное отклонение
+                min_dev = min(abs(p.deviation) for p in valid)
+                # Выбираем всех с таким отклонением
+                tied_preds = [p for p in valid if abs(p.deviation) == min_dev]
+                # Из них берём одного случайно
+                winner_prediction = random.choice(tied_preds)
+                instrument_winners.append(winner_prediction.user)
+
+            if instrument_winners:
+                # Сколько у нас инструментов с победителями?
+                count_instruments = len(instrument_winners)
+                if guessing_pool <= 0:
+                    current_app.logger.info(
+                        f"Опрос {poll.id} завершён. Победители есть, но пул=0.0, награда = 0."
+                    )
+                else:
+                    reward_per_winner = guessing_pool / count_instruments
+
+                    # Раздаём награду
+                    for w in instrument_winners:
+                        if not w.wallet_address:
+                            current_app.logger.warning(
+                                f"User {w.id} нет wallet_address, пропускаем награду."
+                            )
+                            continue
+                        success = voting_send_token_reward(w.wallet_address, reward_per_winner)
+                        if success:
+                            current_app.logger.info(
+                                f"User {w.id} получил {reward_per_winner:.4f} UJO за угадывание цены (poll {poll.id})."
+                            )
+                        else:
+                            current_app.logger.error(
+                                f"Не удалось отправить награду {reward_per_winner:.4f} UJO пользователю {w.id}."
+                            )
+            
+                current_app.logger.info(
+                    f"Опрос {poll.id} завершён. Всего победителей (по кол-ву инструментов): {count_instruments}."
+                )
             else:
                 current_app.logger.info(f"Опрос {poll.id} завершён. Нет победителей.")
 
-        # Если хотим сразу запускать новый опрос:
+        # Запускаем новый опрос (сразу, для теста)
         start_new_poll()
 
     except Exception as e:
