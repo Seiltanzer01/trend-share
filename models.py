@@ -177,7 +177,7 @@ class BestSetupPoll(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     start_date = db.Column(db.DateTime, default=datetime.utcnow)
     end_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='active')  # 'active' или 'completed'
+    status = db.Column(db.String(20), default='active')  # active, completed
     candidates = db.relationship('BestSetupCandidate', back_populates='poll', lazy=True)
     real_prices = db.Column(db.JSON, nullable=True)
     predictions = db.relationship('UserPrediction', back_populates='poll', lazy=True)
@@ -200,13 +200,6 @@ class BestSetupVote(db.Model):
     voter_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey('best_setup_candidate.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class BestSetupPoll(db.Model):
-    __tablename__ = 'best_setup_poll'
-    id = db.Column(db.Integer, primary_key=True)
-    start_date = db.Column(db.DateTime, default=datetime.utcnow)
-    end_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='active')  # active, completed
 
 class Poll(db.Model):
     __tablename__ = 'poll'
