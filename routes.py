@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt  # Import moved to the top
 import io
 import base64
 from datetime import datetime, timedelta
+from rapidfuzz import fuzz, process
 
 from flask import (
     render_template, redirect, url_for, flash, request,
@@ -1812,37 +1813,54 @@ def parse_date_time(dt_str: str) -> datetime:
                 f"Invalid date/time format: '{dt_str}'. Use 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'."
             )
 
-def _find_instrument_by_substring(user_input: str) -> Instrument:
+def _find_instrument_by_similarity(user_input: str, threshold: int = 65) -> Instrument:
     """
-    Ищет инструмент в БД по подстроке (case-insensitive).
-    Если находит ровно один инструмент, возвращает его.
-    Если нет совпадений или несколько совпадений — бросает ValueError.
+    Ищет наиболее похожее название инструмента в БД,
+    используя 'fuzzy matching' (rapidfuzz).
+    
+    :param user_input: строка, введённая пользователем (например "silver" или "xagusd" и т.п.)
+    :param threshold: минимальный порог схожести (0..100); чем выше, тем строже требование.
+    :return: Instrument (объект из БД), если нашли подходящее название
+    :raises ValueError: если инструмент не найден или если нет уверенного совпадения.
     """
-    user_input_lower = user_input.lower().strip()
+    user_input_clean = user_input.lower().strip()
+    
+    # Получим все названия инструментов из БД:
     all_instruments = Instrument.query.all()
+    if not all_instruments:
+        raise ValueError("No instruments in the DB at all.")
 
-    matches = []
-    for instr in all_instruments:
-        if user_input_lower in instr.name.lower():
-            matches.append(instr)
+    # Собираем список строк (названий)
+    instrument_names = [instr.name for instr in all_instruments]
 
-    if len(matches) == 1:
-        return matches[0]
-    elif len(matches) > 1:
-        conflict_names = ", ".join(i.name for i in matches)
-        raise ValueError(f"Ambiguous instrument '{user_input}'. Matches: {conflict_names}")
-    else:
-        raise ValueError(f"Instrument '{user_input}' not found in DB.")
-        
+    # Ищем лучшее совпадение:
+    # extractOne возвращает (best_match, best_score, ...)
+    best_match, best_score, _best_idx = process.extractOne(
+        user_input_clean,
+        instrument_names,
+        scorer=fuzz.token_set_ratio  # можно попробовать другие scorers
+    )
+
+    # Проверим минимальный порог совпадения:
+    if best_score < threshold:
+        raise ValueError(f"No sufficiently close instrument for '{user_input}'."
+                         f" Best guess was '{best_match}' with score={best_score} < threshold {threshold}.")
+    
+    # Если всё ок, достаём объект Instrument
+    instrument_obj = Instrument.query.filter_by(name=best_match).first()
+    if not instrument_obj:
+        raise ValueError(f"DB inconsistency: best match was '{best_match}', but no such record in DB.")
+    
+    return instrument_obj
+
 
 def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_time,
                             exit_price=None, close_time=None, comment=None):
     """
-    Пример внутренней функции, сохраняющей ОДНУ сделку в БД,
-    теперь с «поиском» инструмента по подстроке (case-insensitive).
+    Сохраняем ОДНУ сделку в БД, используя fuzzy-поиск _find_instrument_by_similarity(...).
     """
-    # Вместо строгого filter_by(name=instrument), делаем простой partial match
-    instrument_record = _find_instrument_by_substring(instrument)
+    # Вместо _find_instrument_by_substring(...) вызываем более гибкий вариант
+    instrument_record = _find_instrument_by_similarity(instrument, threshold=65)
 
     if direction not in ["Buy", "Sell"]:
         raise ValueError(f"Direction must be 'Buy' or 'Sell', got '{direction}'.")
@@ -1870,7 +1888,6 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     if comment:
         trade.comment = comment
 
-    # Если задан exit_price, считаем profit_loss
     if trade.exit_price:
         sign = 1 if trade.direction == 'Buy' else -1
         trade.profit_loss = (trade.exit_price - trade.entry_price) * sign
