@@ -735,6 +735,21 @@ def initialize():
                     ADD COLUMN IF NOT EXISTS poll_id INTEGER
                 """)
                 logger.info("Column 'poll_id' added to best_setup_candidate if it didn't exist.")
+
+                con.execute("""
+                    ALTER TABLE "user"
+                    DROP CONSTRAINT IF EXISTS user_unique_wallet_address_key
+                """)
+                logger.info("Dropped unique constraint from user.unique_wallet_address if it existed.")
+
+    # =========================================
+    # ИЗМЕНЕНИЕ №2: Добавляем столбец real_prices в best_setup_poll
+    # =========================================
+                con.execute("""
+                    ALTER TABLE best_setup_poll
+                    ADD COLUMN IF NOT EXISTS real_prices JSON
+                """)
+                logger.info("Column 'real_prices' added to best_setup_poll if it didn't exist.")
                 ### /ИЗМЕНЕНИЕ ###
                 
         except Exception as e:
