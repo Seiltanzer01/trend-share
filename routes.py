@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt  # Import moved to the top
 import io
 import base64
 from datetime import datetime, timedelta
-from rapidfuzz import fuzz, process
 
 from flask import (
     render_template, redirect, url_for, flash, request,
@@ -1813,45 +1812,59 @@ def parse_date_time(dt_str: str) -> datetime:
                 f"Invalid date/time format: '{dt_str}'. Use 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'."
             )
 
-def _find_instrument_by_similarity(user_input: str, threshold: int = 65) -> Instrument:
+def _find_instrument_by_substring(user_input: str) -> Instrument:
     """
-    Ищет наиболее похожее название инструмента в БД,
-    используя 'fuzzy matching' (rapidfuzz).
+    Ищет инструмент в БД по подстроке (case-insensitive), сначала используя словарь
+    синонимов, а затем — частичное совпадение. Если находит ровно один инструмент,
+    возвращает его. Если нет совпадений или несколько совпадений, бросает ValueError.
     """
-    user_input_clean = user_input.lower().strip()
+
+    # 1) Определяем словарь синонимов (можно расширять):
+    SYNONYMS = {
+        "серебро": "Silver",
+        "xag": "Silver",
+        "xag/usd": "Silver",
+        "silver": "Silver",
+        "gold": "Gold",
+        "золото": "Gold",
+        # Можно добавлять: "euro": "EUR/USD", "евро": "EUR/USD" и т.д.
+    }
+
+    user_input_lower = user_input.lower().strip()
+
+    # 2) Если это слово есть в словаре синонимов, подменяем
+    if user_input_lower in SYNONYMS:
+        mapped_name = SYNONYMS[user_input_lower]
+        user_input_lower = mapped_name.lower()  # например "Silver".lower() = "silver"
+
+    # 3) Собираем все инструменты из БД
     all_instruments = Instrument.query.all()
-    if not all_instruments:
-        raise ValueError("No instruments in the DB at all.")
 
-    instrument_names = [instr.name for instr in all_instruments]
+    matches = []
+    for instr in all_instruments:
+        # Сравниваем lower-версию имени инструмента с user_input_lower
+        # но при этом делаем проверку "содержит ли"
+        db_instrument_lower = instr.name.lower()
+        if user_input_lower in db_instrument_lower:
+            matches.append(instr)
 
-    best_match, best_score, _ = process.extractOne(
-        user_input_clean,
-        instrument_names,
-        scorer=fuzz.token_set_ratio
-    )
-
-    if best_score < threshold:
-        raise ValueError(
-            f"No sufficiently close instrument for '{user_input}'. "
-            f"Best guess was '{best_match}' with score={best_score} < threshold {threshold}."
-        )
-    
-    instrument_obj = Instrument.query.filter_by(name=best_match).first()
-    if not instrument_obj:
-        raise ValueError(
-            f"DB inconsistency: best match was '{best_match}', but no such record in DB."
-        )
-    return instrument_obj
-
+    if len(matches) == 1:
+        return matches[0]
+    elif len(matches) > 1:
+        conflict_names = ", ".join(i.name for i in matches)
+        raise ValueError(f"Ambiguous instrument '{user_input}'. Matches: {conflict_names}")
+    else:
+        raise ValueError(f"Instrument '{user_input}' not found in DB.")
+        
 
 def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_time,
                             exit_price=None, close_time=None, comment=None):
     """
-    Сохраняем ОДНУ сделку в БД, используя fuzzy-поиск _find_instrument_by_similarity(...).
+    Пример внутренней функции, сохраняющей ОДНУ сделку в БД,
+    теперь с «поиском» инструмента по подстроке (case-insensitive).
     """
-    # Вместо _find_instrument_by_substring(...) вызываем более гибкий вариант
-    instrument_record = _find_instrument_by_similarity(instrument, threshold=65)
+    # Вместо строгого filter_by(name=instrument), делаем простой partial match
+    instrument_record = _find_instrument_by_substring(instrument)
 
     if direction not in ["Buy", "Sell"]:
         raise ValueError(f"Direction must be 'Buy' or 'Sell', got '{direction}'.")
@@ -1879,6 +1892,7 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     if comment:
         trade.comment = comment
 
+    # Если задан exit_price, считаем profit_loss
     if trade.exit_price:
         sign = 1 if trade.direction == 'Buy' else -1
         trade.profit_loss = (trade.exit_price - trade.entry_price) * sign
@@ -1891,16 +1905,10 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     return trade
 
 def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
-    """
-    Проверяет, не существует ли уже точно такой же сделки (дубликата),
-    сверяя user_id, instrument_id, direction, entry_price и время открытия.
-    """
     try:
-        # ЗАМЕНЯЕМ здесь вызов _find_instrument_by_substring
-        # на _find_instrument_by_similarity
-        instrument_obj = _find_instrument_by_similarity(instrument_str, threshold=65)
+        instrument_obj = _find_instrument_by_substring(instrument_str)
     except ValueError:
-        return False  # Если инструмент не найден, считаем что дубликата нет
+        return False  # Или обработайте ошибку соответствующим образом
 
     try:
         open_dt = parse_date_time(open_time_str)
@@ -1978,7 +1986,7 @@ def handle_create_trades(user_id, fn_args):
                     close_time=close_time_str,
                     comment=comment_str
                 )
-                db.session.flush()
+                db.session.flush()с
                 created_ids.append(new_trade.id)
 
             db.session.commit()
@@ -1995,6 +2003,8 @@ def handle_create_trades(user_id, fn_args):
                     text = "All provided trades were duplicates; no new trades created."
                 else:
                     text = "No trades created for unknown reasons."
+# Дополнительная фраза (по желанию):
+text += "\n\nConversation ended. Chat history cleared."
 
             return jsonify({"response": text}), 200
 
