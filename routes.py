@@ -1817,40 +1817,31 @@ def _find_instrument_by_similarity(user_input: str, threshold: int = 65) -> Inst
     """
     Ищет наиболее похожее название инструмента в БД,
     используя 'fuzzy matching' (rapidfuzz).
-    
-    :param user_input: строка, введённая пользователем (например "silver" или "xagusd" и т.п.)
-    :param threshold: минимальный порог схожести (0..100); чем выше, тем строже требование.
-    :return: Instrument (объект из БД), если нашли подходящее название
-    :raises ValueError: если инструмент не найден или если нет уверенного совпадения.
     """
     user_input_clean = user_input.lower().strip()
-    
-    # Получим все названия инструментов из БД:
     all_instruments = Instrument.query.all()
     if not all_instruments:
         raise ValueError("No instruments in the DB at all.")
 
-    # Собираем список строк (названий)
     instrument_names = [instr.name for instr in all_instruments]
 
-    # Ищем лучшее совпадение:
-    # extractOne возвращает (best_match, best_score, ...)
-    best_match, best_score, _best_idx = process.extractOne(
+    best_match, best_score, _ = process.extractOne(
         user_input_clean,
         instrument_names,
-        scorer=fuzz.token_set_ratio  # можно попробовать другие scorers
+        scorer=fuzz.token_set_ratio
     )
 
-    # Проверим минимальный порог совпадения:
     if best_score < threshold:
-        raise ValueError(f"No sufficiently close instrument for '{user_input}'."
-                         f" Best guess was '{best_match}' with score={best_score} < threshold {threshold}.")
+        raise ValueError(
+            f"No sufficiently close instrument for '{user_input}'. "
+            f"Best guess was '{best_match}' with score={best_score} < threshold {threshold}."
+        )
     
-    # Если всё ок, достаём объект Instrument
     instrument_obj = Instrument.query.filter_by(name=best_match).first()
     if not instrument_obj:
-        raise ValueError(f"DB inconsistency: best match was '{best_match}', but no such record in DB.")
-    
+        raise ValueError(
+            f"DB inconsistency: best match was '{best_match}', but no such record in DB."
+        )
     return instrument_obj
 
 
@@ -1900,10 +1891,16 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
     return trade
 
 def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
+    """
+    Проверяет, не существует ли уже точно такой же сделки (дубликата),
+    сверяя user_id, instrument_id, direction, entry_price и время открытия.
+    """
     try:
+        # ЗАМЕНЯЕМ здесь вызов _find_instrument_by_substring
+        # на _find_instrument_by_similarity
         instrument_obj = _find_instrument_by_similarity(instrument_str, threshold=65)
     except ValueError:
-        return False
+        return False  # Если инструмент не найден, считаем что дубликата нет
 
     try:
         open_dt = parse_date_time(open_time_str)
