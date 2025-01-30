@@ -1951,74 +1951,20 @@ def _create_new_trade_in_db(user_id, instrument, direction, entry_price, open_ti
 ############################
 
 
-
 ############################
 # 4) Функция-обработчик вызова create_trades
 ############################
-
-def check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
-    """
-    Возвращает True, если уже существует в БД сделка (Trade) с теми же
-    user_id, instrument_id, direction, entry_price и trade_open_time.
-    """
-    try:
-        # Парсим open_time (уже есть функция parse_date_time)
-        open_dt = parse_date_time(open_time_str)
-    except ValueError:
-        return False  # если формат неверный, пусть потом вылетит ошибка выше
-
-    # Ищем сам инструмент
-    instrument_obj = Instrument.query.filter_by(name=instrument_str).first()
-    if not instrument_obj:
-        return False
-
-    # Проверяем, нет ли точно такого же трейда
-    existing_trade = Trade.query.filter(
-        Trade.user_id == user_id,
-        Trade.instrument_id == instrument_obj.id,
-        Trade.direction == direction_str,
-        Trade.entry_price == entry_price_val,
-        Trade.trade_open_time == open_dt
-    ).first()
-
-    return (existing_trade is not None)
-
-
-# --- функция-обработчик ---
-last_fn_call_cache = {
-    'args': None,
-    'ts': 0
-}
-
 def handle_create_trades(user_id, fn_args):
     """
     Логика, когда ChatGPT вызвал функцию create_trades(...).
     У нас есть:
-      fn_args['trades'] - список словарей
+      fn_args['trades'] - список
       fn_args['confirm'] - bool
     """
     trades = fn_args.get("trades", [])
     confirm = fn_args.get("confirm", False)
 
-    # --- 1) защита от точных повторных вызовов подряд ---
-    import time
-    now_time = time.time()
-
-    # Сериализуем fn_args в строку (упрощённо)
-    import json
-    fn_args_str = json.dumps(fn_args, sort_keys=True)
-    # сравниваем с last_fn_call_cache
-    if last_fn_call_cache['args'] == fn_args_str and (now_time - last_fn_call_cache['ts'] < 5):
-        # Если совпадает и прошло < 5 сек — считаем это дубликат
-        msg = "Ignoring duplicate create_trades call."
-        session['chat_history'].append({'role': 'assistant', 'content': msg})
-        return jsonify({'response': msg}), 200
-
-    # Если не дубликат — запоминаем
-    last_fn_call_cache['args'] = fn_args_str
-    last_fn_call_cache['ts'] = now_time
-
-    # --- 2) обычная валидация ---
+    # Быстрая валидация на стороне сервера: trades не пуст и <= 5
     if not trades:
         msg = "No trades provided."
         session['chat_history'].append({'role': 'assistant', 'content': msg})
@@ -2049,40 +1995,22 @@ def handle_create_trades(user_id, fn_args):
         created_ids = []
         try:
             for t in trades:
-                instrument_str = t["instrument"]
-                direction_str = t["direction"]
-                entry_price_val = t["entry_price"]
-                open_time_str = t["open_time"]
-                exit_price_val = t.get("exit_price")
-                close_time_str = t.get("close_time")
-                comment_val = t.get("comment")
-
-                # --- 3) проверка дубликата ---
-                if check_duplicate_trade(user_id, instrument_str, direction_str, entry_price_val, open_time_str):
-                    logger.info("Duplicate trade detected, skipping creation.")
-                    continue
-
+                # пытаемся создать в БД
                 new_trade = _create_new_trade_in_db(
                     user_id=user_id,
-                    instrument=instrument_str,
-                    direction=direction_str,
-                    entry_price=entry_price_val,
-                    open_time=open_time_str,
-                    exit_price=exit_price_val,
-                    close_time=close_time_str,
-                    comment=comment_val
+                    instrument=t["instrument"],
+                    direction=t["direction"],
+                    entry_price=t["entry_price"],
+                    open_time=t["open_time"],
+                    exit_price=t.get("exit_price"),
+                    close_time=t.get("close_time"),
+                    comment=t.get("comment")
                 )
                 db.session.flush()  # чтобы у new_trade появился ID
                 created_ids.append(new_trade.id)
-
-            # Все ok, теперь commit
+            # Все ок, теперь commit
             db.session.commit()
-
-            if created_ids:
-                text = f"Successfully created trades with IDs: {created_ids}"
-            else:
-                text = "No new trades were created (either duplicates or invalid)."
-
+            text = f"Successfully created trades with IDs: {created_ids}"
             session['chat_history'].append({'role': 'assistant', 'content': text})
             return jsonify({"response": text}), 200
 
@@ -2091,6 +2019,7 @@ def handle_create_trades(user_id, fn_args):
             error_text = f"Error creating trades: {str(e)}"
             session['chat_history'].append({'role': 'assistant', 'content': error_text})
             return jsonify({"response": error_text}), 200
+
 ##################################################
 # Flask Routes for Home Page and Login
 ##################################################
