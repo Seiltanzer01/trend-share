@@ -655,7 +655,6 @@ def create_predefined_data():
     logger.info("All categories, subcategories and criteria (RU stored) successfully added.")
 
 
-# Wrapper functions for APScheduler jobs
 def start_new_poll_test_job():
     with app.app_context():
         try:
@@ -692,6 +691,19 @@ def update_real_prices_job():
             logger.error(f"Error executing job 'Update Real Prices': {e}")
             logger.error(traceback.format_exc())
 
+# ----------------------------------------------------------------------------
+# ВАЖНО: Переносим функцию accumulate_staking_rewards_job ВЫШЕ создания job'ов
+# ----------------------------------------------------------------------------
+def accumulate_staking_rewards_job():
+    """
+    Обёртка для периодического вызова accumulate_staking_rewards().
+    """
+    with app.app_context():
+        accumulate_staking_rewards()
+
+# ----------------------------------------------------------------------------
+# Создаём и запускаем планировщик (теперь функция выше уже определена)
+# ----------------------------------------------------------------------------
 scheduler = BackgroundScheduler(timezone=pytz.UTC)
 
 # 1) Auto finalize best_setup_voting every 5 minutes
@@ -712,7 +724,7 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
 )
 
-# 3) Check poll results every 2 minutes (immediately starts a new one)
+# 3) Check poll results every 2 minutes
 scheduler.add_job(
     id='Process Poll Results',
     func=process_poll_results_job,
@@ -724,7 +736,7 @@ scheduler.add_job(
 # 4) Accumulate staking rewards — every minute
 scheduler.add_job(
     id='Accumulate Staking Rewards',
-    func=accumulate_staking_rewards_job,
+    func=accumulate_staking_rewards_job,  # <-- теперь функция уже объявлена выше
     trigger='interval',
     minutes=1,
     next_run_time=datetime.utcnow() + timedelta(seconds=20)
@@ -742,53 +754,11 @@ scheduler.add_job(
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
-# Import routes after APScheduler initialization
-from routes import *
-
-# Register Blueprints
-app.register_blueprint(staking_bp, url_prefix='/staking')  # Register staking_bp here
-
-# Add OpenAI API Key
-app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
-if not app.config['OPENAI_API_KEY']:
-    logger.error("OPENAI_API_KEY is not set in environment variables.")
-    raise ValueError("OPENAI_API_KEY is not set in environment variables.")
-
-# Initialize OpenAI
-openai.api_key = app.config['OPENAI_API_KEY']
-
-# Add Robokassa settings
-app.config['ROBOKASSA_MERCHANT_LOGIN'] = os.environ.get('ROBOKASSA_MERCHANT_LOGIN', '').strip()
-app.config['ROBOKASSA_PASSWORD1'] = os.environ.get('ROBOKASSA_PASSWORD1', '').strip()
-app.config['ROBOKASSA_PASSWORD2'] = os.environ.get('ROBOKASSA_PASSWORD2', '').strip()
-app.config['ROBOKASSA_RESULT_URL'] = os.environ.get('ROBOKASSA_RESULT_URL', '').strip()
-app.config['ROBOKASSA_SUCCESS_URL'] = os.environ.get('ROBOKASSA_SUCCESS_URL', '').strip()
-app.config['ROBOKASSA_FAIL_URL'] = os.environ.get('ROBOKASSA_FAIL_URL', '').strip()
-
-# Check for required Robokassa settings
-if not all([
-    app.config['ROBOKASSA_MERCHANT_LOGIN'],
-    app.config['ROBOKASSA_PASSWORD1'],
-    app.config['ROBOKASSA_PASSWORD2'],
-    app.config['ROBOKASSA_RESULT_URL'],
-    app.config['ROBOKASSA_SUCCESS_URL'],
-    app.config['ROBOKASSA_FAIL_URL']
-]):
-    logger.error("Some Robokassa settings are missing from environment variables.")
-    raise ValueError("Some Robokassa settings are missing from environment variables.")
-
-# **Run Flask app**
-
-if __name__ == '__main__':
-    # Run the app
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-
 # -------------------------------------------------------------------------
-# Обновления в функции инициализации для добавления poll_id в best_setup_candidate
+# Убираем дублирующийся блок APScheduler (раньше он повторялся в конце).
 # -------------------------------------------------------------------------
 
-# Initialize data before the first request
+# Теперь идёт блок инициализации, чтобы добавить недостающие столбцы
 @app.before_first_request
 def initialize():
     try:
@@ -848,13 +818,13 @@ def initialize():
         except Exception as e:
             logger.error(f"ALTER TABLE execution failed: {e}")
 
-        # Initialize unique_wallet_address for existing users
+        # Инициализация уникальных кошельков (при желании)
         try:
             users_without_wallet = models.User.query.filter(
                 (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # Удалены вызовы функций generate_unique_wallet_address() и generate_unique_private_key()
+                # Удаляем генерацию, т.к. она не нужна
                 user.unique_wallet_address = None
                 user.unique_private_key = None
                 logger.info(f"Unique wallet cleared for user ID {user.id}.")
@@ -879,77 +849,6 @@ def initialize():
 @app.context_processor
 def inject_admin_ids():
     return {'ADMIN_TELEGRAM_IDS': ADMIN_TELEGRAM_IDS}
-
-####################
-# APScheduler jobs
-####################
-
-def accumulate_staking_rewards_job():
-    with app.app_context():
-        accumulate_staking_rewards()
-
-def start_new_poll_job():
-    with app.app_context():
-        # New poll for 10 minutes (see poll_functions.py)
-        start_new_poll()
-
-def process_poll_results_job():
-    with app.app_context():
-        process_poll_results()
-
-def update_real_prices_job():
-    with app.app_context():
-        update_real_prices_for_active_polls()
-
-scheduler = BackgroundScheduler(timezone=pytz.UTC)
-
-# 1) Auto finalize best_setup_voting every 5 minutes
-scheduler.add_job(
-    id='Auto Finalize Best Setup Voting',
-    func=lambda: auto_finalize_best_setup_voting(),
-    trigger='interval',
-    minutes=5,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
-)
-
-# 2) Start a new poll every 10 minutes
-scheduler.add_job(
-    id='Start Poll',
-    func=start_new_poll_job,
-    trigger='interval',
-    minutes=10,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=5)
-)
-
-# 3) Check poll results every 2 minutes (immediately starts a new one)
-scheduler.add_job(
-    id='Process Poll Results',
-    func=process_poll_results_job,
-    trigger='interval',
-    minutes=2,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=2)
-)
-
-# 4) Accumulate staking rewards — every minute
-scheduler.add_job(
-    id='Accumulate Staking Rewards',
-    func=accumulate_staking_rewards_job,
-    trigger='interval',
-    minutes=1,
-    next_run_time=datetime.utcnow() + timedelta(seconds=20)
-)
-
-# 5) Update real price every 2 minutes
-scheduler.add_job(
-    id='Update Real Prices',
-    func=update_real_prices_job,
-    trigger='interval',
-    minutes=2,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
-)
-
-scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
 
 # Import routes after APScheduler initialization
 from routes import *
@@ -987,7 +886,6 @@ if not all([
     raise ValueError("Some Robokassa settings are missing from environment variables.")
 
 # **Run Flask app**
-
 if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 5000))
