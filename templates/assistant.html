@@ -71,6 +71,10 @@
         const analysisChartDiv = document.getElementById('analysis-chart');
         const clearChatButton = document.getElementById('clear-chat');
 
+        // Флаги состояния отправки
+        let isAssistantSubmitting = false;
+        let isChartSubmitting = false;
+
         function updateChatHistoryDisplay() {
             chatHistoryDiv.innerHTML = '';
             chatHistory.forEach(message => {
@@ -110,8 +114,14 @@
         // Отправка вопроса в ассистент
         assistantForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            if (isAssistantSubmitting) return; // Предотвращаем повторную отправку
             const question = assistantQuestionInput.value.trim();
             if (!question) return;
+
+            isAssistantSubmitting = true;
+            const submitButton = assistantForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = language === 'ru' ? 'Отправляется...' : 'Sending...';
 
             // Добавляем сообщение пользователя сразу в интерфейс
             chatHistory.push({ role: 'user', content: question });
@@ -151,6 +161,10 @@
                     : 'There was an error sending your request.');
                 chatHistory.push({ role: 'assistant', content: errorMsg });
                 updateChatHistoryDisplay();
+            } finally {
+                isAssistantSubmitting = false;
+                submitButton.disabled = false;
+                submitButton.textContent = language === 'ru' ? 'Отправить' : 'Send';
             }
 
             // Очищаем поле после отправки
@@ -160,6 +174,7 @@
         // Обработка формы для анализа графика
         chartForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            if (isChartSubmitting) return; // Предотвращаем повторную отправку
             const imageInput = document.getElementById('chart-image');
             const file = imageInput.files[0];
             if (!file) {
@@ -168,6 +183,11 @@
                     : 'Please select an image.');
                 return;
             }
+
+            isChartSubmitting = true;
+            const submitButton = chartForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = language === 'ru' ? 'Анализируется...' : 'Analyzing...';
 
             chartAnalysisResult.textContent = language === 'ru'
                 ? 'Идет анализ...'
@@ -208,6 +228,10 @@
                         ? '<p class="nes-text is-error">Произошла ошибка при анализе графика.</p>'
                         : '<p class="nes-text is-error">An error occurred analyzing the chart.</p>';
                 analysisChartDiv.innerHTML = '';
+            } finally {
+                isChartSubmitting = false;
+                submitButton.disabled = false;
+                submitButton.textContent = language === 'ru' ? 'Анализировать график' : 'Analyze Chart';
             }
 
             imageInput.value = '';
