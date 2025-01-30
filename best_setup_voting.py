@@ -153,23 +153,23 @@ def send_token_reward(user_wallet, amount):
         return False
 
 ### АНТИ-СПАМ МЕХАНИЗМ ###
-def is_spammer(user_id):
-    # Если хотя бы 2 дня из последних 7 дней было >=10 сделок в день, то спамщик.
-    now = datetime.utcnow()
-    spam_days = 0
-    for i in range(7):
-        day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
-        daily_count = Trade.query.filter(
-            Trade.user_id == user_id,
-            Trade.trade_open_time >= day_start,
-            Trade.trade_open_time < day_end
-        ).count()
-        if daily_count >= 10:
-            spam_days += 1
-    if spam_days >= 2:
-        return True
-    return False
+# def is_spammer(user_id):
+#     # Если хотя бы 2 дня из последних 7 дней было >=10 сделок в день, то спамщик.
+#     now = datetime.utcnow()
+#     spam_days = 0
+#     for i in range(7):
+#         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+#         day_end = day_start + timedelta(days=1)
+#         daily_count = Trade.query.filter(
+#             Trade.user_id == user_id,
+#             Trade.trade_open_time >= day_start,
+#             Trade.trade_open_time < day_end
+#         ).count()
+#         if daily_count >= 10:
+#             spam_days += 1
+#     if spam_days >= 2:
+#         return True
+#     return False
 
 def generate_s3_url(filename: str) -> str:
     bucket_name = current_app.config['AWS_S3_BUCKET']
@@ -247,9 +247,9 @@ def start_best_setup_contest():
         candidates = []
 
         for user in premium_users:
-            if is_spammer(user.id):
-                logger.info(f"Пользователь {user.id} помечен как спамер и пропущен.")
-                continue
+            # if is_spammer(user.id):
+            #     logger.info(f"Пользователь {user.id} помечен как спамер и пропущен.")
+            #     continue
             setups = user.setups
             for setup in setups:
                 trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
