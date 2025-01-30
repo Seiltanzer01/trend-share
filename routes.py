@@ -940,7 +940,7 @@ IMPORTANT RULES:
     try:
         # Вместо старого generate_openai_response(...) делаем прямой запрос
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-0613",
+            model="gpt-3.5-turbo",
             messages=session['chat_history'],
             functions=FUNCTIONS,  # <-- Массив функций, объявленный в конце routes.py
             function_call="auto",
