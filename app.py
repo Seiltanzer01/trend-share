@@ -788,6 +788,7 @@ if __name__ == '__main__':
 # Обновления в функции инициализации для добавления poll_id в best_setup_candidate
 # -------------------------------------------------------------------------
 
+# Initialize data before the first request
 @app.before_first_request
 def initialize():
     try:
@@ -803,7 +804,7 @@ def initialize():
                     DROP COLUMN IF EXISTS stake_amount
                 """)
                 logger.info("Column 'stake_amount' dropped from user_staking if it existed.")
-
+    
                 # Add columns to user_staking
                 con.execute("""
                     ALTER TABLE user_staking
@@ -826,19 +827,23 @@ def initialize():
                 """)
                 logger.info("Columns 'private_key', 'unique_wallet_address' and 'unique_private_key' added to 'user' table.")
 
-                # Добавляем poll_id в best_setup_candidate
+                # 2) Add poll_id column to best_setup_candidate if not exists (Mini-hack)
                 con.execute("""
                     ALTER TABLE best_setup_candidate
-                    ADD COLUMN IF NOT EXISTS poll_id INTEGER REFERENCES best_setup_poll(id)
+                    ADD COLUMN IF NOT EXISTS poll_id INTEGER
                 """)
-                logger.info("Column 'poll_id' added to best_setup_candidate table.")
+                logger.info("Column 'poll_id' added to best_setup_candidate table if it did not exist.")
 
-                # Устанавливаем poll_id как nullable=True для существующих записей
-                con.execute("""
-                    ALTER TABLE best_setup_candidate
-                    ALTER COLUMN poll_id DROP NOT NULL
-                """)
-                logger.info("Column 'poll_id' set to nullable=True in best_setup_candidate table.")
+                # 3) Попытка добавить внешний ключ (если его нет)
+                try:
+                    con.execute("""
+                        ALTER TABLE best_setup_candidate
+                        ADD CONSTRAINT best_setup_candidate_poll_id_fkey
+                        FOREIGN KEY (poll_id) REFERENCES best_setup_poll(id)
+                    """)
+                    logger.info("Foreign key constraint 'best_setup_candidate_poll_id_fkey' added to best_setup_candidate table if it did not exist.")
+                except Exception as ex:
+                    logger.warning(f"Could not add foreign key constraint best_setup_candidate_poll_id_fkey (maybe it already exists?): {ex}")
 
         except Exception as e:
             logger.error(f"ALTER TABLE execution failed: {e}")
