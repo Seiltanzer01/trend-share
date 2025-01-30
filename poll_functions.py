@@ -10,7 +10,9 @@ from models import (
     Instrument,
     UserPrediction,
     InstrumentCategory,
-    db
+    db,
+    Config,
+    User
 )
 from flask import current_app
 from best_setup_voting import send_token_reward as voting_send_token_reward
