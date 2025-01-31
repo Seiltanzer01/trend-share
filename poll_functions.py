@@ -19,6 +19,7 @@ from best_setup_voting import send_token_reward as voting_send_token_reward
 
 # Mapping of instruments to yfinance tickers
 YFINANCE_TICKERS = {
+    # Товары
     'Crude Oil': 'CL=F',        # WTI Crude Oil Futures
     'Gold': 'GC=F',             # Gold Futures
     'Silver': 'SI=F',           # Silver Futures
@@ -29,12 +30,15 @@ YFINANCE_TICKERS = {
     'Soybean': 'ZS=F',          # Soybean Futures
     'Coffee': 'KC=F',           # Coffee Futures
     'Sugar': 'SB=F',            # Sugar Futures
+
+    # Криптовалюты (уже присутствующие)
     'BTC-USD': 'BTC-USD',       # Bitcoin to USD
     'ETH-USD': 'ETH-USD',       # Ethereum to USD
     'LTC-USD': 'LTC-USD',       # Litecoin to USD
     'XRP-USD': 'XRP-USD',       # Ripple to USD
-    'NEO/USDT': 'NEO-USD',      # NEO to USD
     'BCH-USD': 'BCH-USD',       # Bitcoin Cash to USD
+
+    # Валютные пары (Форекс)
     'EUR/USD': 'EURUSD=X',      # Euro to USD
     'GBP/USD': 'GBPUSD=X',      # British Pound to USD
     'USD/JPY': 'JPY=X',         # USD to Japanese Yen
@@ -45,6 +49,8 @@ YFINANCE_TICKERS = {
     'EUR/GBP': 'EURGBP=X',      # Euro to British Pound
     'EUR/JPY': 'EURJPY=X',      # Euro to Japanese Yen
     'GBP/JPY': 'GBPJPY=X',      # British Pound to Japanese Yen
+
+    # Индексы
     'S&P 500': '^GSPC',         # S&P 500 Index
     'Dow Jones': '^DJI',        # Dow Jones Industrial Average
     'NASDAQ': '^IXIC',          # NASDAQ Composite
@@ -54,7 +60,64 @@ YFINANCE_TICKERS = {
     'Nikkei 225': '^N225',      # Nikkei 225 Index
     'Hang Seng': '^HSI',        # Hang Seng Index
     'ASX 200': '^AXJO',         # S&P/ASX 200 Index
-    'Euro Stoxx 50': '^STOXX50E' # EURO STOXX 50 Index
+    'Euro Stoxx 50': '^STOXX50E',# EURO STOXX 50 Index
+
+    # Дополнительные криптовалюты
+    'ADA-USD': 'ADA-USD',       # Cardano to USD
+    'SOL-USD': 'SOL-USD',       # Solana to USD
+    'DOT-USD': 'DOT-USD',       # Polkadot to USD
+    'DOGE-USD': 'DOGE-USD',     # Dogecoin to USD
+    'SHIB-USD': 'SHIB-USD',     # Shiba Inu to USD
+    'MATIC-USD': 'MATIC-USD',   # Polygon to USD
+    'AVAX-USD': 'AVAX-USD',     # Avalanche to USD
+    'UNI-USD': 'UNI-USD',       # Uniswap to USD
+    'ATOM-USD': 'ATOM-USD',     # Cosmos to USD
+    'LINK-USD': 'LINK-USD',     # Chainlink to USD
+    'XLM-USD': 'XLM-USD',       # Stellar to USD
+    'TRX-USD': 'TRX-USD',       # TRON to USD
+    'ALGO-USD': 'ALGO-USD',     # Algorand to USD
+    'AAVE-USD': 'AAVE-USD',     # Aave to USD
+    'EOS-USD': 'EOS-USD',       # EOS to USD
+    'FTT-USD': 'FTT-USD',       # FTX Token to USD
+    'NEAR-USD': 'NEAR-USD',     # Near Protocol to USD
+    'ICP-USD': 'ICP-USD',       # Internet Computer to USD
+    'FIL-USD': 'FIL-USD',       # Filecoin to USD
+    'HBAR-USD': 'HBAR-USD',     # Hedera Hashgraph to USD
+    'VET-USD': 'VET-USD',       # VeChain to USD
+    'THETA-USD': 'THETA-USD',   # Theta Network to USD
+    'GRT-USD': 'GRT-USD',       # The Graph to USD
+    'SAND-USD': 'SAND-USD',     # The Sandbox to USD
+    'MANA-USD': 'MANA-USD',     # Decentraland to USD
+    'CHZ-USD': 'CHZ-USD',       # Chiliz to USD
+    'XTZ-USD': 'XTZ-USD',       # Tezos to USD
+    'CRV-USD': 'CRV-USD',       # Curve DAO Token to USD
+    'ENS-USD': 'ENS-USD',       # Ethereum Name Service to USD
+    'DYDX-USD': 'DYDX-USD',     # dYdX to USD
+    'CAKE-USD': 'CAKE-USD',     # PancakeSwap to USD
+    'RUNE-USD': 'RUNE-USD',     # THORChain to USD
+    'KSM-USD': 'KSM-USD',       # Kusama to USD
+    'AXS-USD': 'AXS-USD',       # Axie Infinity to USD
+    'GMT-USD': 'GMT-USD',       # STEPN to USD (пример, если доступен)
+    'LUNA-USD': 'LUNA-USD',     # Terra Luna Classic to USD
+    'CRO-USD': 'CRO-USD',       # Cronos to USD
+    'FTM-USD': 'FTM-USD',       # Fantom to USD
+    'ZIL-USD': 'ZIL-USD',       # Zilliqa to USD
+    'KAVA-USD': 'KAVA-USD',     # Kava to USD
+    '1INCH-USD': '1INCH-USD',   # 1inch to USD
+    'SNX-USD': 'SNX-USD',       # Synthetix to USD
+    'BNT-USD': 'BNT-USD',       # Bancor to USD
+    'REN-USD': 'REN-USD',       # Ren to USD
+    'RSR-USD': 'RSR-USD',       # Reserve Rights to USD
+    'ANKR-USD': 'ANKR-USD',     # Ankr to USD
+    'LRC-USD': 'LRC-USD',       # Loopring to USD
+    'BAT-USD': 'BAT-USD',       # Basic Attention Token to USD
+    'CELR-USD': 'CELR-USD',     # Celer Network to USD
+    'QNT-USD': 'QNT-USD',       # Quant to USD
+    'GALA-USD': 'GALA-USD',     # Gala to USD
+    'IMX-USD': 'IMX-USD',       # Immutable X to USD
+    'FLOW-USD': 'FLOW-USD',     # Flow to USD
+    'YFI-USD': 'YFI-USD',       # Yearn Finance to USD
+    'SUSHI-USD': 'SUSHI-USD'    # SushiSwap to USD
     # add others as needed
 }
 
