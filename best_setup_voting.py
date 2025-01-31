@@ -20,11 +20,11 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session or 'telegram_id' not in session:
-            flash('Пожалуйста, войдите в систему.', 'warning')
+            flash('Please log in.', 'warning')
             return redirect(url_for('login'))
         from app import ADMIN_TELEGRAM_IDS
         if session['telegram_id'] not in ADMIN_TELEGRAM_IDS:
-            flash('Доступ запрещён.', 'danger')
+            flash('Access denied.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -33,11 +33,11 @@ def premium_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            flash('Пожалуйста, войдите в систему.', 'warning')
+            flash('Please log in.', 'warning')
             return redirect(url_for('login'))
         user = User.query.get(session['user_id'])
         if not user or not user.assistant_premium:
-            flash('Доступ запрещён. Приобретите премиум-подписку.', 'danger')
+            flash('Access denied. Purchase a premium subscription.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -47,11 +47,11 @@ def ensure_wallet(f):
     def decorated_function(*args, **kwargs):
         user_id = session.get('user_id')
         if not user_id:
-            flash('Сначала авторизуйтесь.', 'warning')
+            flash('Please log in first.', 'warning')
             return redirect(url_for('login'))
         user = User.query.get(user_id)
         if not user.wallet_address:
-            flash('Для участия в голосовании введите свой адрес кошелька.', 'info')
+            flash('Please enter your wallet address to participate in voting.', 'info')
             return redirect(url_for('best_setup_voting.set_wallet'))
         return f(*args, **kwargs)
     return decorated_function
@@ -187,7 +187,7 @@ def generate_s3_url(filename: str) -> str:
 def start_best_setup_contest():
     active_poll = get_active_poll()
     if active_poll:
-        flash("Уже есть активное голосование.", "info")
+        flash("There is already an active poll.", "info")
         return redirect(url_for('admin_users'))
 
     last_poll_conf = Config.query.filter_by(key='last_best_setup_poll').first()
@@ -202,13 +202,13 @@ def start_best_setup_contest():
                 db.session.commit()
                 logger.info("last_best_setup_poll обновлён до нового формата.")
             except ValueError:
-                flash("Неверный формат даты последнего голосования.", "danger")
+                flash("Invalid date format for the last poll.", "danger")
                 logger.error("Неверный формат даты в last_best_setup_poll.")
                 return redirect(url_for('admin_users'))
 
         time_diff = datetime.utcnow() - last_poll_date
         if time_diff.total_seconds() / 60 < 15:
-            flash("Голосование запускается раз в 15 минут, ещё рано.", "warning")
+            flash("Polls can only be started every 15 minutes; too early.", "warning")
             return redirect(url_for('admin_users'))
 
     # Установка длительности голосования на 15 минут
@@ -225,7 +225,7 @@ def start_best_setup_contest():
     except Exception as e:
         logger.error(f"Ошибка при удалении предыдущих данных голосования: {e}")
         db.session.rollback()
-        flash("Ошибка при инициализации нового голосования.", "danger")
+        flash("Error initializing new poll.", "danger")
         return redirect(url_for('admin_users'))
 
     # Создание нового голосования
@@ -285,12 +285,12 @@ def start_best_setup_contest():
         db.session.commit()
         logger.info("Кандидаты успешно добавлены в новое голосование.")
 
-        flash("Голосование запущено на 15 минут.", "success")
+        flash("Poll started for 15 minutes.", "success")
         return redirect(url_for('admin_users'))
     except Exception as e:
         logger.error(f"Ошибка при создании кандидатов или голосования: {e}")
         db.session.rollback()
-        flash("Ошибка при инициализации нового голосования.", "danger")
+        flash("Error initializing new poll.", "danger")
         return redirect(url_for('admin_users'))
 
 @best_setup_voting_bp.route('/best_setup_candidates', methods=['GET'])
@@ -298,7 +298,7 @@ def start_best_setup_contest():
 def best_setup_candidates():
     poll = get_active_poll()
     if not poll:
-        flash("Сейчас нет активного голосования.", "info")
+        flash("There is no active poll right now.", "info")
         return redirect(url_for('index'))
 
     candidates = BestSetupCandidate.query.filter_by(poll_id=poll.id).order_by(
@@ -319,8 +319,8 @@ def best_setup_candidates():
 
         candidate_dict = {
             'id': c.id,
-            'setup_name': setup.setup_name if setup else "Неизвестно",
-            'description': setup.description if setup else "Нет описания",
+            'setup_name': setup.setup_name if setup else "Unknown",
+            'description': setup.description if setup else "No description",
             'screenshot_url': screenshot_url,
             'criteria': criteria_list,
             'total_trades': c.total_trades,
@@ -338,26 +338,26 @@ def best_setup_candidates():
 def vote_best_setup():
     poll = get_active_poll()
     if not poll:
-        flash("Нет активного голосования.", "info")
+        flash("There is no active poll.", "info")
         return redirect(url_for('index'))
 
     logger.debug(f"Полученные данные формы: {request.form}")
 
     candidate_id = request.form.get('candidate_id')
     if not candidate_id:
-        flash('Не выбран кандидат для голосования.', 'danger')
+        flash('No candidate selected for voting.', 'danger')
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     try:
         candidate_id = int(candidate_id)
     except ValueError:
-        flash('Некорректный идентификатор кандидата.', 'danger')
+        flash('Invalid candidate ID.', 'danger')
         logger.error(f"Некорректный идентификатор кандидата: {candidate_id}")
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     candidate = BestSetupCandidate.query.filter_by(id=candidate_id, poll_id=poll.id).first()
     if not candidate:
-        flash('Неверный кандидат.', 'danger')
+        flash('Invalid candidate.', 'danger')
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     user_id = session['user_id']
@@ -369,7 +369,7 @@ def vote_best_setup():
     ).first()
     
     if existing_vote:
-        flash('Вы уже голосовали в этом голосовании.', 'info')
+        flash('You have already voted in this poll.', 'info')
         return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
     vote = BestSetupVote(
@@ -379,7 +379,7 @@ def vote_best_setup():
     db.session.add(vote)
     db.session.commit()
 
-    flash('Ваш голос учтён!', 'success')
+    flash('Your vote has been recorded!', 'success')
     return redirect(url_for('best_setup_voting.best_setup_candidates'))
 
 @best_setup_voting_bp.route('/set_wallet', methods=['GET', 'POST'])
@@ -391,10 +391,10 @@ def set_wallet():
         if wallet and wallet.startswith('0x') and len(wallet) == 42:
             user.wallet_address = wallet
             db.session.commit()
-            flash('Адрес кошелька успешно сохранён.', 'success')
+            flash('Wallet address saved successfully.', 'success')
             return redirect(url_for('best_setup_voting.best_setup_candidates'))
         else:
-            flash('Некорректный адрес кошелька.', 'danger')
+            flash('Invalid wallet address.', 'danger')
 
     return render_template('set_wallet.html', user=user)
 
@@ -455,7 +455,7 @@ def auto_finalize_best_setup_voting():
                     if user_obj.telegram_id:
                         bot.send_message(
                             chat_id=user_obj.telegram_id,
-                            text=f"Поздравляем! Вам начислено {amount:.4f} UJO {reason}"
+                            text=f"Congratulations! You have been awarded {amount:.4f} UJO {reason}"
                         )
                 except Exception as e:
                     logger.error(f"Ошибка при отправке уведомления TG: {e}")
@@ -466,17 +466,17 @@ def auto_finalize_best_setup_voting():
         if first_candidate:
             c, votes = first_candidate
             winner_user = User.query.get(c.user_id)
-            reward_user(winner_user, first_place_amount, reason="за 1 место в голосовании!")
+            reward_user(winner_user, first_place_amount, reason="for 1st place in the poll!")
         
         if second_candidate:
             c, votes = second_candidate
             winner_user = User.query.get(c.user_id)
-            reward_user(winner_user, second_place_amount, reason="за 2 место в голосовании!")
+            reward_user(winner_user, second_place_amount, reason="for 2nd place in the poll!")
         
         if third_candidate:
             c, votes = third_candidate
             winner_user = User.query.get(c.user_id)
-            reward_user(winner_user, third_place_amount, reason="за 3 место в голосовании!")
+            reward_user(winner_user, third_place_amount, reason="for 3rd place in the poll!")
         
         # Награждаем голосовавших за победителей
         winner_candidate_ids = []
@@ -498,7 +498,7 @@ def auto_finalize_best_setup_voting():
             each_voter_reward = voters_part / total_voters
             for voter_id in rewarded_voters_ids:
                 voter = User.query.get(voter_id)
-                reward_user(voter, each_voter_reward, reason="за верный голос в голосовании!")
+                reward_user(voter, each_voter_reward, reason="for voting for a winner in the poll!")
         
         # Завершаем голосование, ставим статус completed
         poll.status = 'completed'
@@ -511,16 +511,15 @@ def force_finalize_best_setup_voting():
     """Принудительно завершаем текущее голосование для тестирования."""
     poll = BestSetupPoll.query.filter_by(status='active').first()
     if not poll:
-        flash("Нет активного голосования для завершения.", "warning")
+        flash("No active poll to finalize.", "warning")
         return redirect(url_for('admin_users'))
 
     poll.end_date = datetime.utcnow() - timedelta(minutes=1)
     db.session.commit()
     auto_finalize_best_setup_voting()
 
-    flash("Активное голосование принудительно завершено.", "success")
+    flash("Active poll has been forcefully finalized.", "success")
     return redirect(url_for('admin_users'))
 
 def init_best_setup_voting_routes(app, db_instance):
     app.register_blueprint(best_setup_voting_bp)
-
