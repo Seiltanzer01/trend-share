@@ -16,6 +16,7 @@ from models import (
 )
 from flask import current_app
 from best_setup_voting import send_token_reward as voting_send_token_reward
+from routes import bot
 
 # Маппинг инструментов к тикерам yfinance
 YFINANCE_TICKERS = {
@@ -225,6 +226,19 @@ def process_poll_results():
                             current_app.logger.info(
                                 f"User {w.id} получил {reward_per_winner:.4f} UJO за угадывание цены (poll {poll.id})."
                             )
+                            # Отправляем сообщение в Telegram:
+                            if w.telegram_id:
+                                try:
+                                    from routes import bot  # Импорт бота
+                                    bot.send_message(
+                                        chat_id=w.telegram_id,
+                                        text=(
+                                            f"Поздравляем! Вы выиграли {reward_per_winner:.4f} UJO "
+                                            f"за точный прогноз в опросе {poll.id}."
+                                        )
+                                    )
+                                except Exception as e:
+                                    current_app.logger.error(f"Ошибка при отправке уведомления TG: {e}")
                         else:
                             current_app.logger.error(
                                 f"Не удалось отправить награду {reward_per_winner:.4f} UJO пользователю {w.id}."
