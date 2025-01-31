@@ -185,7 +185,7 @@ def process_poll_results():
             else:
                 total_best_setup_pool = 0.0
 
-            guessing_pool = total_best_setup_pool * 0.25  # четверть пула идёт на угадывание
+            guessing_pool = total_best_setup_pool * 0.0625  # (исправлено) четверть пула (на всех 4 победителей, на одного надо умножить на 0.0625) идёт на угадывание, 
 
             instrument_winners = []
             for pi in poll.poll_instruments:
