@@ -413,7 +413,18 @@ def vote():
         try:
             if form.validate_on_submit():
                 selected_instrument_id = form.instrument.data
-                predicted_price = form.predicted_price.data
+                predicted_price_str = request.form.get('predicted_price', '').strip()
+                # Меняем запятые на точки:
+                predicted_price_str = predicted_price_str.replace(',', '.')
+
+                try:
+                    predicted_price = float(predicted_price_str)
+                except ValueError:
+                    flash('Invalid price format. Use "." or "," as decimal separator.', 'danger')
+                    return redirect(url_for('vote'))
+
+                # Теперь подменяем в самой форме, чтобы дальше все проверки шли с нормальным float
+                form.predicted_price.data = predicted_price
 
                 # Check if user has already voted for the selected instrument in this poll
                 existing_prediction = UserPrediction.query.filter_by(
@@ -424,7 +435,16 @@ def vote():
 
                 if existing_prediction:
                     flash('You have already voted for this instrument in the current poll.', 'info')
-                    return render_template('vote.html', form=None, active_poll=active_poll, existing_predictions=existing_predictions)
+                    existing_predictions = UserPrediction.query.filter_by(
+                        user_id=user_id,
+                        poll_id=active_poll.id
+                    ).all()
+                    return render_template(
+                        'vote.html',
+                        form=None,
+                        active_poll=active_poll,
+                        existing_predictions=existing_predictions
+                    )
 
                 # **Added validations**
 
@@ -451,7 +471,10 @@ def vote():
                 upper_bound = 1.2 * real_price
                 if not (lower_bound <= predicted_price <= upper_bound):
                     flash(f'The predicted price must be between {lower_bound:.2f} and {upper_bound:.2f}.', 'danger')
-                    logger.info(f"User ID {user_id} submitted prediction {predicted_price} outside the allowed range for instrument {instrument.name}. Real price: {real_price}.")
+                    logger.info(
+                        f"User ID {user_id} submitted prediction {predicted_price} outside the allowed range "
+                        f"for instrument {instrument.name}. Real price: {real_price}."
+                    )
                     return redirect(url_for('vote'))
 
                 # Create prediction
@@ -464,7 +487,10 @@ def vote():
                 db.session.add(user_prediction)
                 db.session.commit()
                 flash('Your prediction has been saved successfully.', 'success')
-                logger.info(f"User ID {user_id} made a prediction for instrument ID {selected_instrument_id} in poll ID {active_poll.id}.")
+                logger.info(
+                    f"User ID {user_id} made a prediction for instrument ID {selected_instrument_id} "
+                    f"in poll ID {active_poll.id}."
+                )
 
                 return redirect(url_for('vote'))
             else:
