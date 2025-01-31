@@ -603,7 +603,7 @@ def accumulate_staking_rewards():
             if s.staked_amount > 0:
                 s.pending_rewards += s.staked_amount * minute_rate
         db.session.commit()
-        logger.info("accumulate_staking_rewards: Награды успешно добавлены.")
+        logger.info("accumulate_staking_rewards: Rewards added successfully.")
     except Exception as e:
         db.session.rollback()
         logger.error(f"accumulate_staking_rewards except: {e}", exc_info=True)
