@@ -16,7 +16,6 @@ from models import (
 )
 from flask import current_app
 from best_setup_voting import send_token_reward as voting_send_token_reward
-from routes import bot
 
 # Маппинг инструментов к тикерам yfinance
 YFINANCE_TICKERS = {
