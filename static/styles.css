@@ -395,13 +395,13 @@ span.criterion {
     display: none;
     position: fixed;
     z-index: 1500;
-    padding-top: 100px;
+    padding-top: 50px; /* уменьшен верхний отступ, чтобы окно занимало больше места */
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0,0,0,0.85);
+    background-color: rgba(0, 0, 0, 0.85);
     animation: fadeInModal 0.5s ease-in-out;
 }
 
@@ -414,19 +414,29 @@ span.criterion {
 .modal-content {
     margin: auto;
     display: block;
-    max-width: 90vw;   /* Ширина до 90% экрана */
-    max-height: 90vh;  /* Высота до 90% экрана */
+    max-width: 95vw;   /* увеличено до 95% ширины экрана */
+    max-height: 95vh;  /* увеличено до 95% высоты экрана */
     width: auto;
     height: auto;
     border: 4px solid var(--secondary-color);
     border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     transition: transform 0.3s ease;
-    /* Убираем object-fit: contain; чтобы оно не сжималось слишком сильно */
+    /* Добавляем object-fit для сохранения пропорций и качества при масштабировании */
+    object-fit: contain;
 }
 
 .modal-content:hover {
-    transform: scale(1.02); /* Добавлен эффект легкого увеличения при наведении */
+    transform: scale(1.05); /* немного увеличиваем изображение при наведении */
+}
+
+/* Медиазапрос для устройств с маленьким экраном – можно оставить как есть или убрать,
+   если требуется всегда максимальный размер */
+@media (max-width: 480px) {
+    .modal-content {
+        max-width: 95vw;
+        max-height: 90vh;
+    }
 }
 
 .close {
