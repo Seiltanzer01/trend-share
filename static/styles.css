@@ -395,13 +395,16 @@ span.criterion {
     display: none;
     position: fixed;
     z-index: 1500;
-    padding-top: 50px; /* уменьшен верхний отступ, чтобы окно занимало больше места */
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.85);
+    /* Используем Flexbox для центрирования содержимого */
+    display: flex;
+    align-items: center;
+    justify-content: center;
     animation: fadeInModal 0.5s ease-in-out;
 }
 
