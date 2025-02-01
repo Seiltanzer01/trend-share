@@ -23,11 +23,11 @@
     
     <hr>
     <h3>{% if language == 'ru' %}Стейкинг{% else %}Staking{% endif %}</h3>
-    <p>{% if language == 'ru' %}Для подписки необходимо отправить эквивалент 25$ в UJO:{% else %}To subscribe, send the equivalent of $25 in UJO:{% endif %}</p>
+    <p>{% if language == 'ru' %}(APR = 12%) Чтобы получить доступ к новым методам монетизации отправьте в стейкинг 20 $UJO + 5 $UJO  сбор:{% else %}(APR = 12%) To gain access to new monetization methods, stake 20 $UJO + 5 $UJO fee:{% endif %}</p>
     <p><strong>25$ = <span id="requiredUJO">Loading...</span> UJO</strong></p>
     
     <button class="nes-btn is-success" id="stakeButton">
-      {% if language == 'ru' %}Застейкать (25$){% else %}Stake ($25){% endif %}
+      {% if language == 'ru' %}Застейкать 20$ UJO + 5$ UJO сбор{% else %}Stake 20$ UJO + 5$ UJO fee{% endif %}
     </button>
     
     <div id="stakingArea" style="margin-top:1rem;"></div>
