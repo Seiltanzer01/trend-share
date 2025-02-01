@@ -3,16 +3,16 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>{% if language == 'ru' %}Участвовать в Голосовании{% else %}Participate in Voting{% endif %}</h1>
+<h1>{% if language == 'ru' %}Predict to earn{% else %}Predict to earn{% endif %}</h1>
 
 <div class="nes-container is-rounded">
-    <h2>{% if language == 'ru' %}О голосовании{% else %}About Voting{% endif %}</h2>
+    <h2>{% if language == 'ru' %}Голосование для прогнозирования цены активов{% else %}Voting to predict asset prices{% endif %}</h2>
     {% if language == 'ru' %}
-        <p>Голосование проводится для прогнозирования цен на различные инструменты. Участвуя в голосовании, вы помогаете определить наиболее точные предсказания пользователей и получаете возможность выиграть премиум-доступ к дополнительным функциям.</p>
+        <p>Участвуйте в опросах и показывайте свои способности в анализе цен! В каждом опросе для каждого актива выбирается лучший предсказатель, который получает реальные UJO-токены в качестве вознаграждения. Так же это отличный индикатор для понимания ожиданий рынка, сравнивайте свои прогнозы с рыночными и получайте заслуженное признание за точность ваших оценок.</p>
         <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
         <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
     {% else %}
-        <p>Voting is conducted to predict prices for various instruments. By participating, you help determine the most accurate user predictions and get a chance to win premium access to additional features.</p>
+        <p>Participate in surveys and show your skills in price analysis! In each survey, the best predictor is selected for each asset, who receives real UJO tokens as a reward. It is also a great indicator for understanding market expectations, compare your forecasts with the market and get well-deserved recognition for the accuracy of your estimates.</p>
         <p><strong>Voting Starts:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
         <p><strong>Voting Ends:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
     {% endif %}
