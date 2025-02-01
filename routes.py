@@ -327,6 +327,7 @@ dispatcher.add_handler(CallbackQueryHandler(button_click))
 # Routes for voting and assistant
 ##################################################
 
+
 @app.route('/assistant/analyze_chart', methods=['POST'])
 @csrf.exempt
 def assistant_analyze_chart():
@@ -1252,6 +1253,10 @@ def login():
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
+
+@app.route('/white-paper')
+def white_paper():
+    return render_template('white_paper.html')
 
 @app.route('/additional-info')
 def additional_info():
