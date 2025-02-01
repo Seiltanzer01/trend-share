@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="white-paper nes-container with-title is-rounded">
+    {% if language == 'ru' %}
+      <h2 class="title">White Paper – Trend Share: Полное руководство по заработку</h2>
+      <article>
+        <h3>Обзор проекта</h3>
+        <p>
+          Trend Share – это инновационная платформа для трейдеров, объединяющая торговый журнал, интеллектуального ассистента «Uncle John», систему голосований за лучшие торговые сетапы и стейкинг. Платформа позволяет зарабатывать токены UJO двумя способами: через точные прогнозы и через участие в конкурсах торговых сетапов.
+        </p>
+        <h3>Способы заработка</h3>
+        <h4>1. Заработок через прогнозы</h4>
+        <ul>
+          <li><strong>Делайте прогнозы:</strong> Выбирайте актив в разделе «Predict to earn», вводите предполагаемую цену и отправляйте прогноз.</li>
+          <li><strong>Голосование и вознаграждение:</strong> В конце опроса система определяет победителей, и за точные прогнозы начисляются токены UJO.</li>
+        </ul>
+        <h4>2. Заработок через торговые сетапы</h4>
+        <ul>
+          <li><strong>Создание сетапа:</strong> В разделе «Управление Сетапами» создайте свою торговую стратегию. Если ваш сетап имеет достаточное количество сделок и высокий win rate (минимум 70%), он может быть отобран для участия в конкурсе.</li>
+          <li><strong>Участие в голосовании:</strong> Премиум-пользователи переходят в раздел «Best Setup Candidates» и голосуют за лучшие сетапы. Если ваш сетап побеждает, вы получаете до 70% вознаграждения из призового пула.</li>
+          <li><strong>Дополнительный заработок:</strong> Кроме авторов сетапов, все пользователи, проголосовавшие за победителей, получают свою долю (около 30% пула распределяются равномерно среди голосующих).</li>
+        </ul>
+        <h3>Как добавить сделку через ассистента</h3>
+        <p>
+          Вы можете добавить новую сделку в торговый журнал, просто отправив сообщение нашему интеллектуальному помощнику «Uncle John». Например, напишите:
+        </p>
+        <blockquote>
+          "Добавь сделку: BTC-USD, Sell, 29000, открыта 2025-02-01 09:30, закрыта 2025-02-01 15:00, комментарий: сильное падение после новостей."
+        </blockquote>
+        <p>
+          Ассистент проверит введённые данные и попросит подтвердить добавление сделки. После вашего подтверждения сделка будет сохранена в журнале.
+        </p>
+        <h3>Пошаговое руководство по использованию Trend Share</h3>
+        <ol>
+          <li><strong>Регистрация через Telegram:</strong> Нажмите кнопку для перехода к боту TrendShare и авторизуйтесь.</li>
+          <li><strong>Заполнение торгового журнала:</strong>
+            <ul>
+              <li>Через форму: перейдите в раздел «Добавить Сделку» и заполните все поля.</li>
+              <li>Через ассистента: отправьте сообщение с описанием сделки – ассистент добавит её после подтверждения.</li>
+            </ul>
+          </li>
+          <li><strong>Управление торговыми сетапами:</strong> Создавайте и редактируйте свои стратегии. Если ваш сетап успешен, он может стать кандидатом в конкурс и принести дополнительный заработок.</li>
+          <li><strong>Подписка и премиум-функции:</strong> Оформите подписку для доступа к интеллектуальному ассистенту и возможности участвовать в голосованиях за лучшие сетапы.</li>
+          <li><strong>Участие в прогнозах и голосованиях:</strong> Делайте прогнозы в разделе «Predict to earn» и голосуйте за лучшие сетапы, чтобы зарабатывать токены UJO.</li>
+          <li><strong>Настройка кошелька:</strong> Обязательно укажите уникальный адрес кошелька через раздел «Wallet» или «Set Wallet» для получения вознаграждений.</li>
+          <li><strong>Стейкинг:</strong> В разделе «Депозит» инвестируйте токены для получения пассивного дохода.</li>
+          <li><strong>Обучение и поддержка:</strong> Изучите обучающие видео и инструкции, доступные на платформе, чтобы быстро освоить все функции Trend Share.</li>
+        </ol>
+        <h3>Заключение</h3>
+        <p>
+          Trend Share – это комплексное решение для трейдеров, которое помогает вести учет сделок, анализировать стратегии и зарабатывать токены UJO как через точные прогнозы, так и через участие в голосованиях за лучшие торговые сетапы. Присоединяйтесь, обучайтесь и начинайте зарабатывать уже сегодня!
+        </p>
+      </article>
+    {% else %}
+      <h2 class="title">White Paper – Trend Share: A Comprehensive Guide to Earning</h2>
+      <article>
+        <h3>Project Overview</h3>
+        <p>
+          Trend Share is an innovative platform for traders that combines a trading journal, an intelligent assistant “Uncle John”, a voting system for the best trading setups, and staking. You can earn UJO tokens in two ways: by making accurate predictions and by participating in contests for the best trading setups.
+        </p>
+        <h3>Earning Methods</h3>
+        <h4>1. Earning through Predictions</h4>
+        <ul>
+          <li><strong>Make Predictions:</strong> In the "Predict to earn" section, choose an asset, enter your forecasted price, and submit your prediction.</li>
+          <li><strong>Voting and Rewards:</strong> At the end of each poll, the system automatically selects winners and rewards accurate predictions with UJO tokens.</li>
+        </ul>
+        <h4>2. Earning through Trading Setups</h4>
+        <ul>
+          <li><strong>Create Your Setup:</strong> In the "Manage Setups" section, build your trading strategy. If your setup has enough trades and a win rate of at least 70%, it may be selected as a candidate in the contest.</li>
+          <li><strong>Participate in Voting:</strong> Premium users can vote in the "Best Setup Candidates" section. If your setup wins, you receive up to 70% of the prize pool.</li>
+          <li><strong>Additional Earnings:</strong> Even if you are not the author, by voting for the winning setups you earn your share of approximately 30% of the pool distributed equally among voters.</li>
+        </ul>
+        <h3>How to Add a Trade via the Assistant</h3>
+        <p>
+          You can quickly add a new trade to your journal simply by sending a message to our intelligent assistant “Uncle John”. For example, type:
+        </p>
+        <blockquote>
+          "Add trade: BTC-USD, Sell, 29000, opened 2025-02-01 09:30, closed 2025-02-01 15:00, comment: sharp decline after news."
+        </blockquote>
+        <p>
+          The assistant will verify the details and ask you to confirm the addition. Upon confirmation, the trade will be recorded in your journal.
+        </p>
+        <h3>Step-by-Step User Guide</h3>
+        <ol>
+          <li><strong>Register via Telegram:</strong> Click the registration button or go to the TrendShare bot for instant access.</li>
+          <li><strong>Maintain Your Trading Journal:</strong>
+            <ul>
+              <li>Via the form: Go to "Add Trade" and complete the required fields.</li>
+              <li>Via the assistant: Send a message describing your trade and follow the confirmation prompts.</li>
+            </ul>
+          </li>
+          <li><strong>Manage Your Trading Setups:</strong> Create and edit your strategies. A successful setup may be selected for the contest and earn extra rewards.</li>
+          <li><strong>Subscribe for Premium Features:</strong> Subscribe to access the intelligent assistant and participate in setup contests.</li>
+          <li><strong>Participate in Predictions and Voting:</strong> Enter your forecasts in the "Predict to earn" section and vote for the best setups to earn UJO tokens.</li>
+          <li><strong>Configure Your Wallet:</strong> Set up your unique wallet via the "Wallet" or "Set Wallet" section to receive rewards.</li>
+          <li><strong>Staking:</strong> Use the "Deposit" section to stake your tokens and earn passive income.</li>
+          <li><strong>Learn and Get Support:</strong> Watch tutorials and read guides available on the platform to quickly master all features of Trend Share.</li>
+        </ol>
+        <h3>Conclusion</h3>
+        <p>
+          Trend Share is a complete ecosystem that not only helps you maintain a trading journal and analyze your strategies but also provides multiple ways to earn UJO tokens – through accurate predictions and participation in best setup contests. Join Trend Share, learn, analyze, and start earning today!
+        </p>
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}
