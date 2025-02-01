@@ -390,9 +390,9 @@ span.criterion {
     transform: rotate(90deg);
 }
 
-/* Модальное окно */
+/* Модальное окно – по умолчанию скрыто */
 .modal {
-    display: none;
+    display: none !important;  /* Скрываем по умолчанию */
     position: fixed;
     z-index: 1500;
     left: 0;
@@ -401,13 +401,17 @@ span.criterion {
     height: 100%;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.85);
-    /* Используем Flexbox для центрирования содержимого */
-    display: flex;
-    align-items: center;
-    justify-content: center;
     animation: fadeInModal 0.5s ease-in-out;
 }
 
+/* Если JS установил inline‑стиль display: block, переопределяем его на flex для центрирования */
+.modal[style*="display: block"] {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Анимация появления модального окна */
 @keyframes fadeInModal {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -417,20 +421,18 @@ span.criterion {
 .modal-content {
     margin: auto;
     display: block;
-    max-width: 95vw;   /* увеличено до 95% ширины экрана */
-    max-height: 95vh;  /* увеличено до 95% высоты экрана */
+    max-width: 90vw;   /* до 90% ширины экрана */
+    max-height: 90vh;  /* до 90% высоты экрана */
     width: auto;
     height: auto;
     border: 4px solid var(--secondary-color);
     border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
     transition: transform 0.3s ease;
-    /* Добавляем object-fit для сохранения пропорций и качества при масштабировании */
-    object-fit: contain;
 }
 
 .modal-content:hover {
-    transform: scale(1.05); /* немного увеличиваем изображение при наведении */
+    transform: scale(1.02); /* Лёгкое увеличение при наведении */
 }
 
 /* Медиазапрос для устройств с маленьким экраном – можно оставить как есть или убрать,
