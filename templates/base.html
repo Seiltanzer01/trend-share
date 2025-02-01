@@ -105,7 +105,7 @@
                         <!-- на время free версии -->
                     <a href="{{ url_for('vote') }}" class="nav-button nes-btn"><i class="fas fa-vote-yea"></i> {% if language == 'ru' %}Predict to earn{% else %}Predict to earn{% endif %}</a>
                     <a href="{{ url_for('assistant_page') }}" class="nav-button nes-btn"><i class="fas fa-user-cog"></i> {% if language == 'ru' %}Дядя Джон{% else %}Uncle John{% endif %}</a>
-                    <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> {% if language == 'ru' %}Прогнозные графики{% else %}Forecast charts{% endif %}</a>
+                    <a href="{{ url_for('predictions_chart') }}" class="nav-button nes-btn"><i class="fas fa-chart-bar"></i> {% if language == 'ru' %}Рыночные ожидания{% else %}Market expectations{% endif %}</a>
                     <a href="{{ url_for('best_setup_voting.best_setup_candidates') }}" class="nav-button nes-btn"><i class="fas fa-trophy"></i> {% if language == 'ru' %}Explore to earn{% else %}Explore to earn{% endif %}</a>
                     {% endif %}
                     
