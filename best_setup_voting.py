@@ -316,7 +316,11 @@ def best_setup_candidates():
     for c in candidates:
         setup = Setup.query.get(c.setup_id)
         if setup:
-            screenshot_url = generate_s3_url(setup.screenshot) if setup.screenshot else None
+            # Если для кандидата уже зафиксировано изображение, используем его
+            if c.voting_screenshot:
+                screenshot_url = c.voting_screenshot
+            else:
+                screenshot_url = generate_s3_url(setup.screenshot) if setup.screenshot else None
             criteria_list = [criterion.name for criterion in setup.criteria]
         else:
             logger.warning(f"Setup with id {c.setup_id} not found for candidate {c.id}")
