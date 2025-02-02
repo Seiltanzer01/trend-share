@@ -42,7 +42,7 @@
             <div class="nes-container is-rounded" style="background: #fff; color: #000; margin-bottom: 1em;">
                 <strong>{% if language == 'ru' %}{{ translate_python('Критерии') }}:{% else %}Criteria:{% endif %}</strong>
                 {% if c.criteria %}
-                    <ul class="nes-list is-disc">
+                    <ul class="nes-list is-disc" style="word-wrap: break-word; overflow-wrap: break-word;">
                         {% for crit in c.criteria %}
                         <li>{{ translate_python(crit) }}</li>
                         {% endfor %}
