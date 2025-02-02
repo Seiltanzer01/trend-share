@@ -390,9 +390,10 @@ span.criterion {
     transform: rotate(90deg);
 }
 
-/* Модальное окно – по умолчанию скрыто */
+/* Модальное окно – базовые стили */
 .modal {
-    display: none !important;  /* Скрываем по умолчанию */
+    display: none;              /* По умолчанию скрыто */
+    opacity: 0;                 /* Прозрачное */
     position: fixed;
     z-index: 1500;
     left: 0;
@@ -401,14 +402,15 @@ span.criterion {
     height: 100%;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.85);
-    animation: fadeInModal 0.5s ease-in-out;
-}
-
-/* Если JS установил inline‑стиль display: block, переопределяем его на flex для центрирования */
-.modal[style*="display: block"] {
-    display: flex !important;
     align-items: center;
     justify-content: center;
+    transition: opacity 0.3s ease;  /* Плавный переход opacity за 0.3с */
+}
+
+/* Класс для показа модального окна */
+.modal.open {
+    display: flex;   /* Отображаем как flex-контейнер для центрирования */
+    opacity: 1;      /* Полностью видимое */
 }
 
 /* Анимация появления модального окна */
