@@ -274,12 +274,18 @@ def start_best_setup_contest():
         logger.info(f"Найдено {len(top_candidates)} топ-кандидатов для голосования.")
 
         for c in top_candidates:
+            # Получаем объект сетапа для извлечения изображения
+            setup_obj = Setup.query.get(c['setup_id'])
+            voting_screenshot = None
+            if setup_obj and setup_obj.screenshot:
+                voting_screenshot = generate_s3_url(setup_obj.screenshot)
             candidate = BestSetupCandidate(
                 user_id=c['user_id'],
                 setup_id=c['setup_id'],
-                poll_id=poll.id,  # Устанавливаем poll_id
+                poll_id=poll.id,
                 total_trades=c['total_trades'],
-                win_rate=c['win_rate']
+                win_rate=c['win_rate'],
+                voting_screenshot=voting_screenshot  # Фиксированное изображение для голосования
             )
             db.session.add(candidate)
         db.session.commit()
