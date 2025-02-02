@@ -213,7 +213,7 @@ def start_best_setup_contest():
 
     # Установка длительности голосования на 15 минут
     start_date = datetime.utcnow()
-    end_date = start_date + timedelta(minutes=15)
+    end_date = start_date + timedelta(days=30)
 
     # Очистка предыдущих данных голосования
     try:
@@ -254,13 +254,13 @@ def start_best_setup_contest():
             for setup in setups:
                 trades = Trade.query.filter_by(user_id=user.id, setup_id=setup.id).all()
                 total_trades = len(trades)
-                if total_trades < 2:
+                if total_trades < 10:
                     logger.info(f"Сетап {setup.id} пользователя {user.id} имеет недостаточное количество сделок.")
                     continue
                 wins = sum(1 for t in trades if t.profit_loss and t.profit_loss > 0)
                 win_rate = (wins / total_trades) * 100.0 if total_trades > 0 else 0.0
-                if win_rate < 70:
-                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет низкий Win Rate {win_rate}%.")
+                if win_rate < 65 or win_rate > 90:
+                    logger.info(f"Сетап {setup.id} пользователя {user.id} имеет низкий/высокий Win Rate {win_rate}%.")
                     continue
                 candidates.append({
                     'user_id': user.id,
