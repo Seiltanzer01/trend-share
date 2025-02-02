@@ -194,6 +194,7 @@ class BestSetupCandidate(db.Model):
     total_trades = db.Column(db.Integer, nullable=False)
     win_rate = db.Column(db.Float, nullable=False)  # В процентах
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    voting_screenshot = db.Column(db.String(255), nullable=True)
 
     poll = db.relationship('BestSetupPoll', back_populates='candidates')  # Новая связь
 
