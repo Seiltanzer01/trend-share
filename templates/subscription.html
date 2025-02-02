@@ -5,6 +5,16 @@
 <!-- 1) Добавляем метатег с CSRF-токеном -->
 <meta name="csrf-token" content="{{ csrf_token }}">
 
+<!-- Добавляем стиль для переноса длинных строк и предотвращения горизонтального скролла -->
+<style>
+  .tx-hash {
+    word-break: break-all;
+  }
+  .nes-container {
+    overflow-x: hidden;
+  }
+</style>
+
 <div class="nes-container with-title">
   <p class="title">{% if language == 'ru' %}Стейкинг / Подписка{% else %}Staking / Subscription{% endif %}</p>
   
@@ -23,9 +33,18 @@
     
     <hr>
     <h3>{% if language == 'ru' %}Стейкинг{% else %}Staking{% endif %}</h3>
-    <p>{% if language == 'ru' %}(APR = 12%) Чтобы получить доступ к новым методам монетизации отправьте в стейкинг 20 $UJO + 5 $UJO  разовый сбор:{% else %}(APR = 12%) To gain access to new monetization methods, stake 20 $UJO + 5 $UJO one-time fee:{% endif %}</p>
-    <p><strong>25$ = <span id="requiredUJO">Loading...</span> UJO</strong></p>
+    <p>
+      {% if language == 'ru' %}
+        (APR = 12%) Чтобы получить доступ к новым методам монетизации отправьте в стейкинг 20 $UJO + 5 $UJO  разовый сбор:
+      {% else %}
+        (APR = 12%) To gain access to new monetization methods, stake 20 $UJO + 5 $UJO one-time fee:
+      {% endif %}
+    </p>
+    <p>
+      <strong>25$ = <span id="requiredUJO">Loading...</span> UJO</strong>
+    </p>
     
+    <!-- Кнопка стейкинга – будет скрыта, если уже существует активный стейкинг -->
     <button class="nes-btn is-success" id="stakeButton">
       {% if language == 'ru' %}Застейкать 20$ UJO + 5$ UJO сбор{% else %}Stake 20$ UJO + 5$ UJO fee{% endif %}
     </button>
@@ -44,7 +63,7 @@
 {% if not user.unique_wallet_address %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // 2) Считываем токен из метатега
+    // Считываем CSRF-токен из метатега
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     
     document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
@@ -53,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken  // <-- Передаём токен
+                    'X-CSRFToken': csrfToken  // Передаём токен
                 }
             });
             const data = await response.json();
@@ -78,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
 {% if user.unique_wallet_address %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // 2) Снова считываем токен из метатега (или можно вынести это выше, чтобы было один раз)
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
     async function loadRequiredUJO(){
@@ -102,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     loadRequiredUJO();
-    // обновлять раз в сутки
+    // Обновлять раз в сутки
     setInterval(loadRequiredUJO, 24 * 60 * 60 * 1000);
 
     async function loadBalances(){
@@ -126,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadBalances();
 
-    // STAKE
+    // Обработчик кнопки стейкинга
     document.getElementById('stakeButton').addEventListener('click', async () => {
         try {
             const stakeAmountUSD = 25;
@@ -134,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken // <-- Передаём токен
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({ amount_usd: stakeAmountUSD })
             });
@@ -161,6 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('stakingArea').innerHTML = '<p>'+data.error+'</p>';
                 document.getElementById('claimRewardsBtn').style.display = 'none';
                 document.getElementById('unstakeBtn').style.display = 'none';
+                // Если ошибка – показываем кнопку стейкинга
+                document.getElementById('stakeButton').style.display = 'block';
                 return;
             }
             const stakes = data.stakes;
@@ -168,13 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}У вас нет стейкинга.{% else %}You do not have any stakes.{% endif %}</p>';
                 document.getElementById('claimRewardsBtn').style.display = 'none';
                 document.getElementById('unstakeBtn').style.display = 'none';
+                // Если стейкинга нет – показываем кнопку стейкинга
+                document.getElementById('stakeButton').style.display = 'block';
                 return;
             }
             let html = '';
             for(let s of stakes) {
                 html += `
                 <div class="nes-container is-rounded" style="margin-bottom:1rem;">
-                  <p><b>TX Hash:</b> ${s.tx_hash}</p>
+                  <p><b>TX Hash:</b> <span class="tx-hash">${s.tx_hash}</span></p>
                   <p>{% if language == "ru" %}Staked:{% else %}Staked:{% endif %} ${s.staked_amount} UJO (~${s.staked_usd}$)</p>
                   <p>{% if language == "ru" %}Pending Rewards:{% else %}Pending Rewards:{% endif %} ${s.pending_rewards} UJO</p>
                   <p>{% if language == "ru" %}Unlocked At:{% else %}Unlocked At:{% endif %} ${new Date(s.unlocked_at).toLocaleString()}</p>
@@ -183,11 +205,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('stakingArea').innerHTML = html;
             document.getElementById('claimRewardsBtn').style.display = 'block';
             document.getElementById('unstakeBtn').style.display = 'block';
+            // Если активный стейкинг существует – скрываем кнопку стейкинга
+            document.getElementById('stakeButton').style.display = 'none';
         } catch (error) {
             console.error('Ошибка при загрузке стейкингов:', error);
             document.getElementById('stakingArea').innerHTML = '<p>{% if language == "ru" %}Произошла ошибка при загрузке стейкингов.{% else %}An error occurred while loading stakes.{% endif %}</p>';
             document.getElementById('claimRewardsBtn').style.display = 'none';
             document.getElementById('unstakeBtn').style.display = 'none';
+            document.getElementById('stakeButton').style.display = 'block';
         }
     }
 
@@ -199,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/staking/api/claim_staking_rewards', {
                 method:'POST',
                 headers: {
-                    'X-CSRFToken': csrfToken, // <-- Токен
+                    'X-CSRFToken': csrfToken,
                     'Content-Type': 'application/json'
                 }
             });
@@ -221,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/staking/api/unstake', {
                 method:'POST',
                 headers: {
-                    'X-CSRFToken': csrfToken, // <-- Токен
+                    'X-CSRFToken': csrfToken,
                     'Content-Type': 'application/json'
                 }
             });
