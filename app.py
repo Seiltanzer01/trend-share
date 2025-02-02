@@ -751,6 +751,11 @@ def initialize():
                 """)
                 logger.info("Column 'real_prices' added to best_setup_poll if it didn't exist.")
                 ### /ИЗМЕНЕНИЕ ###
+                con.execute("""
+                    ALTER TABLE best_setup_candidate
+                    ADD COLUMN IF NOT EXISTS voting_screenshot VARCHAR(255)
+                """)
+                logger.info("Column 'voting_screenshot' added to best_setup_candidate if it didn't exist.")
                 
         except Exception as e:
             logger.error(f"ALTER TABLE execution failed: {e}")
