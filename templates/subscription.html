@@ -2,7 +2,12 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- 1) Добавляем метатег с CSRF-токеном (без вызова функции, так как csrf_token уже является строкой) -->
+<!-- Определяем глобальную переменную CSRF_TOKEN -->
+<script>
+  window.CSRF_TOKEN = "{{ csrf_token }}";
+</script>
+
+<!-- Добавляем метатег с CSRF-токеном (можно оставить для удобства, но в скриптах будем использовать глобальную переменную) -->
 <meta name="csrf-token" content="{{ csrf_token }}">
 
 <!-- Добавляем стиль для переноса длинных строк и предотвращения горизонтального скролла -->
@@ -63,8 +68,8 @@
 {% if not user.unique_wallet_address %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Считываем CSRF-токен из метатега
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    // Используем глобальную переменную для CSRF-токена
+    const csrfToken = window.CSRF_TOKEN;
     
     document.getElementById('generateUniqueWalletBtn').addEventListener('click', async () => {
         try {
@@ -97,7 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
 {% if user.unique_wallet_address %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    // Используем глобальную переменную для CSRF-токена
+    const csrfToken = window.CSRF_TOKEN;
 
     async function loadRequiredUJO(){
         try {
