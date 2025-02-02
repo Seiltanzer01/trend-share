@@ -540,6 +540,8 @@ def stake_tokens_route():
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_stake)
+        # Добавляем активацию премиума:
+        user.assistant_premium = True
         db.session.commit()
 
         logger.info(f"[TEST stake] user={user.id}, fee=$0.2, stake=$0.3")
