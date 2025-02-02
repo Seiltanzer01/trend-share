@@ -536,7 +536,7 @@ def stake_tokens_route():
             staked_usd=stake_usd,
             pending_rewards=0.0,
             created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow() + timedelta(minutes=5),
+            unlocked_at=datetime.utcnow() + timedelta(days=30),
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_stake)
