@@ -189,6 +189,12 @@ body {
     color: #2ecc71;
 }
 
+/* New style for contract address box */
+.token-box.contract {
+    background: linear-gradient(135deg, #f39c12, #2ecc71);
+    color: #ffffff;
+}
+
 /* Roadmap Section */
 .roadmap-section {
     background-color: #1f1f1f;
