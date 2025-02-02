@@ -37,20 +37,40 @@ $(document).ready(function() {
         $(this).css('background-color', '');
     });
 
-    // Opening modal on image click
-    $(document).on('click', '.clickable-image', function(event) {
-        event.preventDefault(); // Предотвращаем стандартное поведение ссылки, если изображение обернуто в <a>
-        $('#modal').fadeIn();
+    // ***** Модальное окно (обновлённая версия для мобильных устройств) *****
+    let modalJustClosed = false;
+
+    // Открытие модального окна при клике или касании по изображению
+    $(document).on('click touchend', '.clickable-image', function(event) {
+        if (modalJustClosed) return; // Если модальное окно только что закрыли — игнорируем событие
+        event.preventDefault(); // Отменяем стандартное поведение, если изображение обернуто в ссылку
         $('#modal-img').attr('src', $(this).attr('src'));
+        $('#modal').fadeIn();
     });
 
-    // Closing the modal
-    $(document).on('click', '.close', function() {
-        $('#modal').fadeOut();
+    // Функция для закрытия модального окна с блокировкой повторного срабатывания
+    function closeModal() {
+        modalJustClosed = true;
+        $('#modal').fadeOut(function(){
+            // После закрытия очищаем источник изображения, чтобы избежать повторного открытия с тем же src
+            $('#modal-img').attr('src', '');
+            // Разрешаем повторное открытие через 500 мс (подбирайте время при необходимости)
+            setTimeout(function(){ modalJustClosed = false; }, 500);
+        });
+    }
+
+    // Закрытие модального окна по нажатию на крестик (.close)
+    // (обрабатываем и click, и touchend, чтобы учесть мобильные устройства)
+    $(document).on('click touchend', '.close', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeModal();
     });
-    $('#modal').on('click', function(event) {
-        if (!$(event.target).is('#modal-img')) {
-            $(this).fadeOut();
+
+    // Закрытие модального окна при нажатии вне изображения (но не по кресту)
+    $('#modal').on('click touchend', function(event) {
+        if (!$(event.target).is('#modal-img') && !$(event.target).is('.close')) {
+            closeModal();
         }
     });
 
