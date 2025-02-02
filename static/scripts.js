@@ -37,42 +37,48 @@ $(document).ready(function() {
         $(this).css('background-color', '');
     });
 
-    // ***** Модальное окно (обновлённая версия для мобильных устройств) *****
-    let modalJustClosed = false;
+   // ***** Модальное окно (обновлённая версия с использованием pointerup) *****
+let modalJustClosed = false;
 
-    // Открытие модального окна при клике или касании по изображению
-    $(document).on('click touchend', '.clickable-image', function(event) {
-        if (modalJustClosed) return; // Если модальное окно только что закрыли — игнорируем событие
-        event.preventDefault(); // Отменяем стандартное поведение, если изображение обернуто в ссылку
-        $('#modal-img').attr('src', $(this).attr('src'));
-        $('#modal').fadeIn();
+// Функция открытия модального окна
+function openModal(src) {
+    if (modalJustClosed) return; // Если окно только что закрыли, не открываем
+    $('#modal-img').attr('src', src);
+    $('#modal').fadeIn();
+}
+
+// Функция закрытия модального окна с увеличенной блокировкой (1000 мс)
+function closeModal() {
+    modalJustClosed = true;
+    $('#modal').fadeOut(function() {
+        // После завершения анимации очищаем источник изображения
+        $('#modal-img').attr('src', '');
+        // Блокируем повторное открытие на 1000 мс, чтобы избежать ghost click
+        setTimeout(function() {
+            modalJustClosed = false;
+        }, 1000);
     });
+}
 
-    // Функция для закрытия модального окна с блокировкой повторного срабатывания
-    function closeModal() {
-        modalJustClosed = true;
-        $('#modal').fadeOut(function(){
-            // После закрытия очищаем источник изображения, чтобы избежать повторного открытия с тем же src
-            $('#modal-img').attr('src', '');
-            // Разрешаем повторное открытие через 500 мс (подбирайте время при необходимости)
-            setTimeout(function(){ modalJustClosed = false; }, 500);
-        });
-    }
+// Используем событие pointerup, которое корректно работает как для кликов, так и для касаний
+$(document).on('pointerup', '.clickable-image', function(event) {
+    event.preventDefault();
+    openModal($(this).attr('src'));
+});
 
-    // Закрытие модального окна по нажатию на крестик (.close)
-    // (обрабатываем и click, и touchend, чтобы учесть мобильные устройства)
-    $(document).on('click touchend', '.close', function(event) {
-        event.preventDefault();
-        event.stopPropagation();
+$(document).on('pointerup', '.close', function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeModal();
+});
+
+// Закрытие модального окна при нажатии вне изображения (но не по кресту)
+$('#modal').on('pointerup', function(event) {
+    if (!$(event.target).is('#modal-img') && !$(event.target).is('.close')) {
         closeModal();
-    });
-
-    // Закрытие модального окна при нажатии вне изображения (но не по кресту)
-    $('#modal').on('click touchend', function(event) {
-        if (!$(event.target).is('#modal-img') && !$(event.target).is('.close')) {
-            closeModal();
-        }
-    });
+    }
+});
+// ***** Конец обновлённого блока модального окна *****
 
     // Initializing datepickers with improved performance
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
