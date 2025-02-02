@@ -191,8 +191,23 @@ body {
 
 /* New style for contract address box */
 .token-box.contract {
-    background: linear-gradient(135deg, #f39c12, #2ecc71);
+    background: none;      /* убираем фон */
+    border: none;          /* убираем рамку */
+    text-align: center;    /* выравнивание по центру */
+    padding-top: 20px;     /* отступ сверху */
+    margin-top: 20px;      /* отступ сверху для отделения от других блоков */
+}
+
+.token-box.contract h3 {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+    color: #f39c12;
+}
+
+.token-box.contract p {
+    font-size: 1em;
     color: #ffffff;
+    word-wrap: break-word;
 }
 
 /* Roadmap Section */
