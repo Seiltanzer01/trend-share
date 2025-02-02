@@ -190,8 +190,8 @@ def start_new_poll():
         current_app.logger.error("Failed to select instruments.")
         return
 
-    # duration: 10 minutes
-    duration = timedelta(minutes=10)
+    # duration: 7 days
+    duration = timedelta(days=7)
     now = datetime.utcnow()
 
     poll = Poll(
