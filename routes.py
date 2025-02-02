@@ -450,9 +450,9 @@ def vote():
                 # **Added validations**
 
                 now = datetime.utcnow()
-                two_minutes_before_end = active_poll.end_date - timedelta(minutes=2)
-                if now > two_minutes_before_end:
-                    flash('Predictions cannot be submitted less than 2 minutes before the poll ends.', 'danger')
+                cutoff_time = active_poll.end_date - timedelta(days=2)
+                if now > cutoff_time:
+                    flash('Predictions cannot be submitted less than 2 days before the poll ends.', 'danger')
                     logger.info(f"User {user_id} attempted to vote too late for poll {active_poll.id}.")
                     return redirect(url_for('vote'))
 
