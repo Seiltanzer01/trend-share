@@ -37,48 +37,46 @@ $(document).ready(function() {
         $(this).css('background-color', '');
     });
 
-   // ***** Модальное окно (обновлённая версия с использованием pointerup) *****
+// ***** Модальное окно – реализация через переключение CSS-класса *****
 let modalJustClosed = false;
 
 // Функция открытия модального окна
 function openModal(src) {
-    if (modalJustClosed) return; // Если окно только что закрыли, не открываем
+    if (modalJustClosed) return; // Если окно только что закрыли, не открываем его повторно
     $('#modal-img').attr('src', src);
-    $('#modal').fadeIn();
+    $('#modal').addClass('open'); // Добавляем класс, который покажет окно (см. CSS)
 }
 
-// Функция закрытия модального окна с увеличенной блокировкой (1000 мс)
+// Функция закрытия модального окна
 function closeModal() {
     modalJustClosed = true;
-    $('#modal').fadeOut(function() {
-        // После завершения анимации очищаем источник изображения
-        $('#modal-img').attr('src', '');
-        // Блокируем повторное открытие на 1000 мс, чтобы избежать ghost click
-        setTimeout(function() {
-            modalJustClosed = false;
-        }, 1000);
-    });
+    $('#modal').removeClass('open'); // Убираем класс, который показывает окно
+    $('#modal-img').attr('src', '');  // Очищаем изображение
+    // Блокировка повторного открытия на 300 мс (время перехода opacity)
+    setTimeout(function() {
+        modalJustClosed = false;
+    }, 300);
 }
 
-// Используем событие pointerup, которое корректно работает как для кликов, так и для касаний
-$(document).on('pointerup', '.clickable-image', function(event) {
-    event.preventDefault();
+// Обработчики событий (учитываем click, touchend и pointerup)
+$(document).on('click touchend pointerup', '.clickable-image', function(e) {
+    e.preventDefault();
     openModal($(this).attr('src'));
 });
 
-$(document).on('pointerup', '.close', function(event) {
-    event.preventDefault();
-    event.stopPropagation();
+$(document).on('click touchend pointerup', '.close', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
     closeModal();
 });
 
-// Закрытие модального окна при нажатии вне изображения (но не по кресту)
-$('#modal').on('pointerup', function(event) {
-    if (!$(event.target).is('#modal-img') && !$(event.target).is('.close')) {
+// Закрытие окна при клике/касании вне изображения и крестика
+$('#modal').on('click touchend pointerup', function(e) {
+    if (!$(e.target).is('#modal-img') && !$(e.target).is('.close')) {
         closeModal();
     }
 });
-// ***** Конец обновлённого блока модального окна *****
+// ***** Конец блока модального окна *****
 
     // Initializing datepickers with improved performance
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
