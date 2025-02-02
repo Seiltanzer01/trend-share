@@ -384,9 +384,9 @@ document.getElementById('start-game').addEventListener('click', () => {
 document.getElementById('basic-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Basic Subscription',
-        text: 'Go to basic DAO features',
+        text: 'Access core features and real-time market insights.',
         icon: 'info',
-        confirmButtonText: 'Go to Bot.'
+        confirmButtonText: 'Go to Bot'
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = "https://t.me/TrendShare_bot";
@@ -398,9 +398,9 @@ document.getElementById('basic-subscription').addEventListener('click', () => {
 document.getElementById('premium-subscription').addEventListener('click', () => {
     Swal.fire({
         title: 'Premium Subscription',
-        text: 'Unlock full access DAO for 20$ UJO.',
+        text: 'Unlock advanced analytics, premium rewards, and exclusive features.',
         icon: 'warning',
-        confirmButtonText: 'Proceed to stake'
+        confirmButtonText: 'Join Premium'
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = "https://t.me/TrendShare_bot";
