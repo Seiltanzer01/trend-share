@@ -487,13 +487,13 @@ def stake_tokens_route():
 
         try:
             total_usd = float(total_usd)
-            if total_usd < 25:
+            if total_usd < 12:
                 return jsonify({"error": "Exactly $0.5 is required (test mode)."}), 400
         except ValueError:
             return jsonify({"error": "Invalid amount_usd."}), 400
 
-        stake_usd = 20
-        fee_usd = 5
+        stake_usd = 10
+        fee_usd = 2
 
         price_usd = get_token_price_in_usd()
         if not price_usd or price_usd <= 0:
