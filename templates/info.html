@@ -32,9 +32,6 @@
   <!-- Lottie for Animations -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
   
-  <!-- Chart.js for Chart Rendering -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
   <!-- Custom CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='info/css/info.css') }}">
   
@@ -137,12 +134,21 @@
     </div>
   </section>
 
-  <!-- Chart Section -->
+  <!-- Chart Section with GeckoTerminal Embed -->
   <section id="chart" class="chart-section">
     <div class="container" data-aos="fade-up">
       <h2 class="nes-text is-error">Live Market Chart</h2>
-      <!-- Здесь вместо iframe размещаем canvas для Chart.js -->
-      <canvas id="dexChart" style="width: 100%; height: 500px;"></canvas>
+      <!-- Здесь вставляем embed-код GeckoTerminal с адресом контракта -->
+      <iframe 
+        height="100%" 
+        width="100%" 
+        id="geckoterminal-embed" 
+        title="GeckoTerminal Embed" 
+        src="https://www.geckoterminal.com/ru/base/pools/0x70560c2cd364ba7fb197b9c4de021f8c34e9c8ed?embed=1&info=1&swaps=1&grayscale=0&light_chart=0" 
+        frameborder="0" 
+        allow="clipboard-write" 
+        allowfullscreen>
+      </iframe>
     </div>
   </section>
 
@@ -200,7 +206,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
-
+  
   <!-- Custom JS -->
   <script src="{{ url_for('static', filename='info/js/info.js') }}"></script>
 </body>
