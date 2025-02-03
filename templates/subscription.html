@@ -40,9 +40,9 @@
     <h3>{% if language == 'ru' %}Стейкинг{% else %}Staking{% endif %}</h3>
     <p>
       {% if language == 'ru' %}
-        (APR = 12%) Чтобы получить доступ к новым методам монетизации отправьте в стейкинг 20 $UJO + 5 $UJO  разовый сбор:
+        (APR = 12%) Чтобы получить доступ к новым методам монетизации отправьте в стейкинг 10 $UJO + 2 $UJO  разовый сбор:
       {% else %}
-        (APR = 12%) To gain access to new monetization methods, stake 20 $UJO + 5 $UJO one-time fee:
+        (APR = 12%) To gain access to new monetization methods, stake 10 $UJO + 2 $UJO one-time fee:
       {% endif %}
     </p>
     <p>
@@ -51,7 +51,7 @@
     
     <!-- Кнопка стейкинга – будет скрыта, если уже существует активный стейкинг -->
     <button class="nes-btn is-success" id="stakeButton">
-      {% if language == 'ru' %}Застейкать 20$ UJO + 5$ UJO сбор{% else %}Stake 20$ UJO + 5$ UJO fee{% endif %}
+      {% if language == 'ru' %}Застейкать 10$ UJO + 2$ UJO сбор{% else %}Stake 10$ UJO + 2$ UJO fee{% endif %}
     </button>
     
     <div id="stakingArea" style="margin-top:1rem;"></div>
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if(data.price_usd){
-                const requiredUJO = (25 / data.price_usd).toFixed(4);
+                const requiredUJO = (12 / data.price_usd).toFixed(4);
                 document.getElementById('requiredUJO').textContent = requiredUJO;
             } else {
                 document.getElementById('requiredUJO').textContent = 'Error';
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Обработчик кнопки стейкинга
     document.getElementById('stakeButton').addEventListener('click', async () => {
         try {
-            const stakeAmountUSD = 25;
+            const stakeAmountUSD = 12;
             const response = await fetch('/staking/api/stake_tokens', {
                 method: 'POST',
                 headers: {
