@@ -138,36 +138,36 @@
     </section>
 
     <!-- Chart Section -->
-    <section id="chart" class="chart-section">
-        <div class="container" data-aos="fade-up">
-            <h2 class="nes-text is-error">Live Market Chart</h2>
-            <!-- Вставка чарт-виджета Dexscreener -->
-            <style>
-                /* Стили для корректного отображения и адаптивности */
+<section id="chart" class="chart-section">
+    <div class="container" data-aos="fade-up">
+        <h2 class="nes-text is-error">Live Market Chart</h2>
+        <!-- Вставка Dexscreener embed с отображением свечей -->
+        <style>
+            /* Стили для корректного отображения и адаптивности */
+            #dexscreener-embed {
+                position: relative;
+                width: 100%;
+                padding-bottom: 125%;
+            }
+            @media (min-width: 1400px) {
                 #dexscreener-embed {
-                    position: relative;
-                    width: 100%;
-                    padding-bottom: 125%;
+                    padding-bottom: 65%;
                 }
-                @media(min-width: 1400px) {
-                    #dexscreener-embed {
-                        padding-bottom: 65%;
-                    }
-                }
-                #dexscreener-embed iframe {
-                    position: absolute;
-                    width: 100%;
-                    height: 100%;
-                    top: 0;
-                    left: 0;
-                    border: 0;
-                }
-            </style>
-            <div id="dexscreener-embed">
-                <iframe src="https://dexscreener.com/base/0x70560C2cd364BA7fb197B9c4de021F8C34E9C8ed?embed=1&loadChartSettings=0&trades=0&tabs=0&info=0&chartLeftToolbar=0&chartDefaultOnMobile=1&chartTheme=dark&theme=dark&chartStyle=0&chartType=usd&interval=15"></iframe>
-            </div>
+            }
+            #dexscreener-embed iframe {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                top: 0;
+                left: 0;
+                border: 0;
+            }
+        </style>
+        <div id="dexscreener-embed">
+            <iframe src="https://dexscreener.com/base/0x70560C2cd364BA7fb197B9c4de021F8C34E9C8ed?embed=1&loadChartSettings=0&trades=0&tabs=0&info=0&chartLeftToolbar=0&chartDefaultOnMobile=1&chartTheme=dark&theme=dark&chartStyle=1&chartType=candlestick&interval=15"></iframe>
         </div>
-    </section>
+    </div>
+</section>
 
     <!-- Mini-Game Section -->
     <section id="game" class="game-section">
