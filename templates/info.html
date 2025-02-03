@@ -141,18 +141,17 @@
 <section id="chart" class="chart-section">
     <div class="container" data-aos="fade-up">
         <h2 class="nes-text is-error">Live Market Chart</h2>
-        <!-- Вставка Dexscreener embed с отображением свечей -->
+        <!-- Секция с уменьшенным графиком в рамке -->
         <style>
-            /* Стили для корректного отображения и адаптивности */
+            /* Стили для блока графика */
             #dexscreener-embed {
                 position: relative;
-                width: 100%;
-                padding-bottom: 125%;
-            }
-            @media (min-width: 1400px) {
-                #dexscreener-embed {
-                    padding-bottom: 65%;
-                }
+                width: 600px;       /* Ширина окна графика */
+                height: 400px;      /* Высота окна графика */
+                margin: 0 auto;     /* Выравнивание по центру */
+                border: 2px solid #f39c12; /* Рамка */
+                border-radius: 8px; /* Скругленные углы (опционально) */
+                overflow: hidden;   /* На случай, если что-то выйдет за пределы */
             }
             #dexscreener-embed iframe {
                 position: absolute;
@@ -162,13 +161,20 @@
                 left: 0;
                 border: 0;
             }
+            /* Для адаптивности можно задать max-width */
+            @media (max-width: 640px) {
+                #dexscreener-embed {
+                    width: 100%;
+                    height: auto;
+                    padding-bottom: 66.66%; /* Соотношение сторон 3:2, например */
+                }
+            }
         </style>
         <div id="dexscreener-embed">
             <iframe src="https://dexscreener.com/base/0x70560C2cd364BA7fb197B9c4de021F8C34E9C8ed?embed=1&loadChartSettings=0&trades=0&tabs=0&info=0&chartLeftToolbar=0&chartDefaultOnMobile=1&chartTheme=dark&theme=dark&chartStyle=1&chartType=candlestick&interval=15"></iframe>
         </div>
     </div>
 </section>
-
     <!-- Mini-Game Section -->
     <section id="game" class="game-section">
         <div class="container" data-aos="fade-up">
