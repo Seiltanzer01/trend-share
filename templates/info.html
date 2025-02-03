@@ -1,213 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trend Share DAO - UJO Token</title>
-  
-  <!-- NES.css for Retro Style -->
-  <link rel="stylesheet" href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css">
-  
-  <!-- Google Fonts (Retro) -->
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  
-  <!-- Animate On Scroll (AOS) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css">
-  
-  <!-- Swiper.js for Sliders -->
-  <link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.min.css">
-  
-  <!-- GSAP for Animations -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
-  
-  <!-- Three.js for 3D Elements -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  
-  <!-- Particles.js for Background Effects -->
-  <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-  
-  <!-- SweetAlert2 for Alerts -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  
-  <!-- Lottie for Animations -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
-  
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='info/css/info.css') }}">
-  
-  <!-- Favicon (Optional) -->
-  <link rel="icon" href="{{ url_for('static', filename='info/images/favicon.ico') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trend Share DAO - UJO Token</title>
+    
+    <!-- NES.css for Retro Style -->
+    <link rel="stylesheet" href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css">
+    
+    <!-- Google Fonts (Retro) -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Animate On Scroll (AOS) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css">
+    
+    <!-- Swiper.js for Sliders -->
+    <link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.min.css">
+    
+    <!-- GSAP for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    
+    <!-- Three.js for 3D Elements -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Particles.js for Background Effects -->
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    
+    <!-- SweetAlert2 for Alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Lottie for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
+    
+    <!-- TradingView Widget Script (оставляем, если он используется в других местах) -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='info/css/info.css') }}">
+    
+    <!-- Favicon (Optional) -->
+    <link rel="icon" href="{{ url_for('static', filename='info/images/favicon.ico') }}">
 </head>
 <body>
-  <!-- Particles.js Background -->
-  <div id="particles-js"></div>
+    <!-- Particles.js Background -->
+    <div id="particles-js"></div>
 
-  <!-- Navigation Bar -->
-  <nav class="navbar nes-container is-rounded is-dark">
-    <div class="container">
-      <!-- Логотип -->
-      <a href="#" class="nes-btn is-primary logo">
-        <img src="{{ url_for('static', filename='info/images/logo.png') }}" alt="Uncle John DAO" class="logo-img">
-      </a>
+    <!-- Navigation Bar -->
+    <nav class="navbar nes-container is-rounded is-dark">
+        <div class="container">
+            <!-- Логотип -->
+            <a href="#" class="nes-btn is-primary logo">
+                <img src="{{ url_for('static', filename='info/images/logo.png') }}" alt="Uncle John DAO" class="logo-img">
+            </a>
 
-      <!-- Кнопка для мобильного меню (гамбургер) -->
-      <div class="hamburger">
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-      </div>
+            <!-- Кнопка для мобильного меню (гамбургер) -->
+            <div class="hamburger">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
 
-      <!-- Ссылки навигации -->
-      <ul class="nav-links">
-        <li><a href="#hero" class="nes-btn is-link">Home</a></li>
-        <li><a href="#about" class="nes-btn is-link">About Us</a></li>
-        <li><a href="#tokenomics" class="nes-btn is-link">Tokenomics</a></li>
-        <li><a href="#roadmap" class="nes-btn is-link">Roadmap</a></li>
-        <li><a href="#chart" class="nes-btn is-link">Chart</a></li>
-        <li><a href="#game" class="nes-btn is-link">Mini-Game</a></li>
-        <li><a href="#subscription" class="nes-btn is-link">Subscription</a></li>
-      </ul>
+            <!-- Ссылки навигации -->
+            <ul class="nav-links">
+                <li><a href="#hero" class="nes-btn is-link">Home</a></li>
+                <li><a href="#about" class="nes-btn is-link">About Us</a></li>
+                <li><a href="#tokenomics" class="nes-btn is-link">Tokenomics</a></li>
+                <li><a href="#roadmap" class="nes-btn is-link">Roadmap</a></li>
+                <li><a href="#chart" class="nes-btn is-link">Chart</a></li>
+                <li><a href="#game" class="nes-btn is-link">Mini-Game</a></li>
+                <li><a href="#subscription" class="nes-btn is-link">Subscription</a></li>
+            </ul>
 
-      <!-- Кнопка Telegram Bot -->
-      <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning telegram-btn">Telegram Bot 🚀</a>
-    </div>
-  </nav>
-
-  <!-- Hero Section -->
-  <section id="hero" class="hero-section">
-    <div class="hero-content" data-aos="fade-down">
-      <h1 class="nes-text is-warning">Welcome to Trend Share DAO</h1>
-      <p class="nes-text is-success">Experience a fully live and innovative SocialFi ecosystem for traders!</p>
-      <a href="#subscription" class="nes-btn is-primary interactive-btn">Join Now 🚀</a>
-    </div>
-  </section>
-
-  <!-- About Us Section -->
-  <section id="about" class="about-section">
-    <div class="container" data-aos="fade-up">
-      <h2 class="nes-text is-error">About Us</h2>
-      <p class="nes-text is-primary">
-        Trend Share DAO is a decentralized autonomous organization managing the UJO meme coin. We create a dynamic community where every member actively participates. Our live Web3 application combines advanced SocialFi features with powerful analytics tools, enabling traders to collaborate, share high-quality market insights, and refine their strategies in real time. Integrated with AI "Uncle John" and a state-of-the-art neural network, our platform delivers precise trend forecasts, automated payouts, and exclusive premium features. This ecosystem not only rewards active participation with tokens but also offers investors a robust, transparent, and cutting-edge trading experience.
-      </p>
-      <div class="threejs-container" id="threejs-scene"></div>
-      <div id="lottie-animation" class="lottie-animation"></div>
-    </div>
-  </section>
-
-  <!-- Tokenomics Section -->
-  <section id="tokenomics" class="tokenomics-section">
-    <div class="container" data-aos="fade-up">
-      <h2 class="nes-text is-error">Tokenomics</h2>
-      <div class="tokenomics-grid">
-        <div class="nes-container is-rounded is-dark token-box">
-          <h3 class="nes-text is-success">Total Supply</h3>
-          <p class="nes-text is-primary">1,000,000,000 UJO</p>
+            <!-- Кнопка Telegram Bot -->
+            <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning telegram-btn">Telegram Bot 🚀</a>
         </div>
-        <div class="nes-container is-rounded is-dark token-box">
-          <h3 class="nes-text is-success">Distribution</h3>
-          <ul class="nes-list is-disc">
-            <li>50% Community</li>
-            <li>30% DAO Governance</li>
-            <li>10% Team & Development</li>
-            <li>10% Partnerships & Marketing</li>
-          </ul>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero-section">
+        <div class="hero-content" data-aos="fade-down">
+            <h1 class="nes-text is-warning">Welcome to Trend Share DAO</h1>
+            <p class="nes-text is-success">Experience a fully live and innovative SocialFi ecosystem for traders!</p>
+            <a href="#subscription" class="nes-btn is-primary interactive-btn">Join Now 🚀</a>
         </div>
-        <div class="nes-container is-rounded is-dark token-box">
-          <h3 class="nes-text is-success">Staking</h3>
-          <p class="nes-text is-primary">Stake UJO and earn a competitive passive income.</p>
+    </section>
+
+    <!-- About Us Section -->
+    <section id="about" class="about-section">
+        <div class="container" data-aos="fade-up">
+            <h2 class="nes-text is-error">About Us</h2>
+            <p class="nes-text is-primary">
+                Trend Share DAO is a decentralized autonomous organization managing the UJO meme coin. We create a dynamic community where every member actively participates. Our live Web3 application combines advanced SocialFi features with powerful analytics tools, enabling traders to collaborate, share high-quality market insights, and refine their strategies in real time. Integrated with AI "Uncle John" and a state-of-the-art neural network, our platform delivers precise trend forecasts, automated payouts, and exclusive premium features. This ecosystem not only rewards active participation with tokens but also offers investors a robust, transparent, and cutting-edge trading experience.
+            </p>
+            <div class="threejs-container" id="threejs-scene"></div>
+            <div id="lottie-animation" class="lottie-animation"></div>
         </div>
-        <div class="token-box contract">
-          <h3 class="nes-text is-success">Contract Address</h3>
-          <p class="nes-text is-primary">0x0Dbf044974c10fF20770056d6772d6ba99F5859a</p>
+    </section>
+
+    <!-- Tokenomics Section -->
+    <section id="tokenomics" class="tokenomics-section">
+        <div class="container" data-aos="fade-up">
+            <h2 class="nes-text is-error">Tokenomics</h2>
+            <div class="tokenomics-grid">
+                <div class="nes-container is-rounded is-dark token-box">
+                    <h3 class="nes-text is-success">Total Supply</h3>
+                    <p class="nes-text is-primary">1,000,000,000 UJO</p>
+                </div>
+                <div class="nes-container is-rounded is-dark token-box">
+                    <h3 class="nes-text is-success">Distribution</h3>
+                    <ul class="nes-list is-disc">
+                        <li>50% Community</li>
+                        <li>30% DAO Governance</li>
+                        <li>10% Team & Development</li>
+                        <li>10% Partnerships & Marketing</li>
+                    </ul>
+                </div>
+                <div class="nes-container is-rounded is-dark token-box">
+                    <h3 class="nes-text is-success">Staking</h3>
+                    <p class="nes-text is-primary">Stake UJO and earn a competitive passive income.</p>
+                </div>
+                <div class="token-box contract">
+                    <h3 class="nes-text is-success">Contract Address</h3>
+                    <p class="nes-text is-primary">0x0Dbf044974c10fF20770056d6772d6ba99F5859a</p>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Roadmap Section -->
-  <section id="roadmap" class="roadmap-section">
-    <div class="container" data-aos="fade-up">
-      <h2 class="nes-text is-error">Roadmap</h2>
-      <div class="roadmap-image-container">
-        <img src="{{ url_for('static', filename='info/images/roadmap-placeholder.png') }}" alt="Roadmap" class="roadmap-image nes-container is-rounded is-dark">
-      </div>
-    </div>
-  </section>
-
-  <!-- Chart Section with GeckoTerminal Embed -->
-  <section id="chart" class="chart-section">
-    <div class="container" data-aos="fade-up">
-      <h2 class="nes-text is-error">Live Market Chart</h2>
-      <!-- Здесь вставляем embed-код GeckoTerminal с адресом контракта -->
-      <iframe 
-        height="100%" 
-        width="100%" 
-        id="geckoterminal-embed" 
-        title="GeckoTerminal Embed" 
-        src="https://www.geckoterminal.com/ru/base/pools/0x70560c2cd364ba7fb197b9c4de021f8c34e9c8ed?embed=1&info=1&swaps=1&grayscale=0&light_chart=0" 
-        frameborder="0" 
-        allow="clipboard-write" 
-        allowfullscreen>
-      </iframe>
-    </div>
-  </section>
-
-  <!-- Mini-Game Section -->
-  <section id="game" class="game-section">
-    <div class="container" data-aos="fade-up">
-      <h2 class="nes-text is-error">Mini-Game</h2>
-      <p class="nes-text is-primary">Test your skills and earn rewards in our interactive mini-game!</p>
-      <div style="position: relative;">
-        <canvas id="gameCanvas" width="600" height="400" class="nes-container is-rounded is-dark"></canvas>
-        <button class="nes-btn is-primary mobile-shoot-btn" id="mobile-shoot">Shoot</button>
-      </div>
-      <button class="nes-btn is-success" id="start-game">Start Game</button>
-    </div>
-  </section>
-
-  <!-- Subscription Section -->
-  <section id="subscription" class="subscription-section">
-    <div class="container">
-      <h2 class="nes-text is-error">Subscription</h2>
-      <p>Experience our live application now and start earning UJO tokens immediately!</p>
-      <div class="subscription-options">
-        <div class="subscription-card nes-container is-rounded is-dark">
-          <h3 class="nes-text is-success">Basic</h3>
-          <p>Access core features and gain real-time market insights.</p>
-          <button class="nes-btn is-success" id="basic-subscription">Go to Bot</button>
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="roadmap-section">
+        <div class="container" data-aos="fade-up">
+            <h2 class="nes-text is-error">Roadmap</h2>
+            <div class="roadmap-image-container">
+                <img src="{{ url_for('static', filename='info/images/roadmap-placeholder.png') }}" alt="Roadmap" class="roadmap-image nes-container is-rounded is-dark">
+            </div>
         </div>
-        <div class="subscription-card nes-container is-rounded is-dark">
-          <h3 class="nes-text is-success">Premium</h3>
-          <p>Unlock advanced analytics, premium rewards, and exclusive features.</p>
-          <button class="nes-btn is-success" id="premium-subscription">Join Premium</button>
+    </section>
+
+    <!-- Chart Section -->
+    <section id="chart" class="chart-section">
+        <div class="container" data-aos="fade-up">
+            <h2 class="nes-text is-error">Live Market Chart</h2>
+            <!-- Вставка чарт-виджета Dexscreener -->
+            <style>
+                /* Стили для корректного отображения и адаптивности */
+                #dexscreener-embed {
+                    position: relative;
+                    width: 100%;
+                    padding-bottom: 125%;
+                }
+                @media(min-width: 1400px) {
+                    #dexscreener-embed {
+                        padding-bottom: 65%;
+                    }
+                }
+                #dexscreener-embed iframe {
+                    position: absolute;
+                    width: 100%;
+                    height: 100%;
+                    top: 0;
+                    left: 0;
+                    border: 0;
+                }
+            </style>
+            <div id="dexscreener-embed">
+                <iframe src="https://dexscreener.com/base/0x70560C2cd364BA7fb197B9c4de021F8C34E9C8ed?embed=1&loadChartSettings=0&trades=0&tabs=0&info=0&chartLeftToolbar=0&chartDefaultOnMobile=1&chartTheme=dark&theme=dark&chartStyle=0&chartType=usd&interval=15"></iframe>
+            </div>
         </div>
-      </div>
+    </section>
+
+    <!-- Mini-Game Section -->
+    <section id="game" class="game-section">
+        <div class="container" data-aos="fade-up">
+            <h2 class="nes-text is-error">Mini-Game</h2>
+            <p class="nes-text is-primary">Test your skills and earn rewards in our interactive mini-game!</p>
+            <div style="position: relative;">
+                <canvas id="gameCanvas" width="600" height="400" class="nes-container is-rounded is-dark"></canvas>
+                <button class="nes-btn is-primary mobile-shoot-btn" id="mobile-shoot">Shoot</button>
+            </div>
+            <button class="nes-btn is-success" id="start-game">Start Game</button>
+        </div>
+    </section>
+
+    <!-- Subscription Section -->
+    <section id="subscription" class="subscription-section">
+        <div class="container">
+            <h2 class="nes-text is-error">Subscription</h2>
+            <p>Experience our live application now and start earning UJO tokens immediately!</p>
+            <div class="subscription-options">
+                <div class="subscription-card nes-container is-rounded is-dark">
+                    <h3 class="nes-text is-success">Basic</h3>
+                    <p>Access core features and gain real-time market insights.</p>
+                    <button class="nes-btn is-success" id="basic-subscription">Go to Bot</button>
+                </div>
+                <div class="subscription-card nes-container is-rounded is-dark">
+                    <h3 class="nes-text is-success">Premium</h3>
+                    <p>Unlock advanced analytics, premium rewards, and exclusive features.</p>
+                    <button class="nes-btn is-success" id="premium-subscription">Join Premium</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer Section -->
+    <footer class="footer-section">
+        <div class="container">
+            <p class="nes-text is-primary">&copy; 2024 Uncle John DAO. All rights reserved.</p>
+            <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning">Telegram Bot 🚀</a>
+        </div>
+    </footer>
+
+    <!-- Video Modal -->
+    <div id="videoModal" class="modal">
+        <span class="close-video nes-icon close is-small">✖</span>
+        <iframe id="videoIframe" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
     </div>
-  </section>
 
-  <!-- Footer Section -->
-  <footer class="footer-section">
-    <div class="container">
-      <p class="nes-text is-primary">&copy; 2024 Uncle John DAO. All rights reserved.</p>
-      <a href="https://t.me/TrendShare_bot" class="nes-btn is-warning">Telegram Bot 🚀</a>
-    </div>
-  </footer>
+    <!-- External Libraries JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+    <script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
+    <script src="https://s3.tradingview.com/tv.js"></script>
 
-  <!-- Video Modal -->
-  <div id="videoModal" class="modal">
-    <span class="close-video nes-icon close is-small">✖</span>
-    <iframe id="videoIframe" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-  </div>
-
-  <!-- External Libraries JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
-  <script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
-  
-  <!-- Custom JS -->
-  <script src="{{ url_for('static', filename='info/js/info.js') }}"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='info/js/info.js') }}"></script>
 </body>
 </html>
