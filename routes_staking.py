@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timedelta
 import secrets
 import string
-import requests  # Новый импорт для работы с HTTP запросами
+import requests  # Импорт для работы с HTTP запросами
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
@@ -36,7 +36,6 @@ from staking_logic import (
 from best_setup_voting import send_token_reward as voting_send_token_reward  # For compatibility
 
 logger = logging.getLogger(__name__)
-
 staking_bp = Blueprint('staking_bp', __name__)
 
 
@@ -57,7 +56,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     """
     try:
         logger.info("=== swap_tokens_via_paraswap START ===")
-        # Определяем количество десятичных знаков для токенов
+        # Определяем srcDecimals и destDecimals
         if sell_token.lower() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
             src_decimals = 18
         else:
@@ -69,19 +68,19 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         logger.info(f"Source decimals: {src_decimals}, Destination decimals: {dest_decimals}")
 
         # Преобразуем from_amount в минимальные единицы (например, wei)
-        from_amount_units = int(from_amount * 10**src_decimals)
+        from_amount_units = int(from_amount * 10 ** src_decimals)
         logger.info(f"Converted from_amount: {from_amount} -> {from_amount_units} units")
 
         # Получаем chainId из web3
         chain_id = web3.eth.chain_id
         logger.info(f"Using chain id: {chain_id}")
 
-        # Получаем базовый URL из переменной окружения (PARASWAP_API_URL)
+        # Получаем базовый URL для ParaSwap из переменной окружения
         PARASWAP_API_URL = os.environ.get("PARASWAP_API_URL", "https://api.paraswap.io")
         version = "6.2"
         logger.info(f"Using ParaSwap API URL: {PARASWAP_API_URL} with version {version}")
 
-        # Шаг 1: Получение котировки с передачей параметров version, srcDecimals, destDecimals и chainId
+        # Шаг 1: Получение котировки
         quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
@@ -91,7 +90,8 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "side": "SELL",
             "srcDecimals": src_decimals,
             "destDecimals": dest_decimals,
-            "chainId": chain_id
+            "chainId": chain_id,
+            "mode": "all"  # Используем режим all: Delta с fallback на Market
         }
         logger.info(f"Sending GET request to {quote_url} with params: {params}")
         quote_response = requests.get(quote_url, params=params)
@@ -101,12 +101,20 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             return False
         quote_data = quote_response.json()
         logger.info(f"Quote data received: {quote_data}")
+
+        # Если delta не получена, используем fallback (market)
         price_route = quote_data.get("priceRoute")
         if not price_route:
-            logger.error("priceRoute not found in ParaSwap quote response.")
-            return False
+            fallback_reason = quote_data.get("fallbackReason", {})
+            logger.warning(f"Delta quote failed, fallbackReason: {fallback_reason}")
+            price_route = quote_data.get("market")
+            if not price_route:
+                logger.error("No valid priceRoute (neither delta nor market) found in ParaSwap quote response.")
+                return False
+            else:
+                logger.info("Using market priceRoute as fallback.")
 
-        # Шаг 2: Построение транзакции
+        # Шаг 2: Построение данных транзакции
         tx_url = f"{PARASWAP_API_URL}/transactions?version={version}"
         tx_payload = {
             "srcToken": sell_token,
@@ -114,7 +122,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "srcAmount": str(from_amount_units),
             "userAddress": user_address,
             "route": price_route,
-            "slippage": 250  # допустимое проскальзывание: 2.5%
+            "slippage": 250  # Допустимое проскальзывание: 2.5%
         }
         logger.info(f"Sending POST request to {tx_url} with payload: {tx_payload}")
         tx_response = requests.post(tx_url, json=tx_payload)
@@ -189,8 +197,7 @@ def generate_unique_wallet_route():
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
-        logger.error(f"Error: {e}", exc_info=True)
-        logger.error(traceback.format_exc())
+        logger.error(f"Error in generate_unique_wallet_route: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
 
@@ -270,7 +277,6 @@ def get_user_stakes():
 
     try:
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
-
         stakes_data = []
         for s in stakings:
             if s.staked_amount > 0:
