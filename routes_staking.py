@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta
 import secrets
 import string
+import time
 import requests  # Импорт для работы с HTTP запросами
 
 from flask import Blueprint, request, jsonify, session, render_template, flash, redirect, url_for
@@ -375,7 +376,6 @@ def exchange_tokens():
                     return jsonify({"error": "Failed to wrap ETH to WETH."}), 400
                 else:
                     logger.info("Successfully wrapped ETH to WETH.")
-            # Если целевой токен тоже WETH, просто возвращаем обновлённые балансы (избегая двойного wrap)
             if to_token_symbol.upper() == "WETH":
                 logger.info("Exchange ETH to WETH requested; deposit operation completed, returning balances.")
                 result = get_balances(user)
@@ -388,7 +388,8 @@ def exchange_tokens():
         if effective_from_token.upper() == "WETH" and to_token_symbol.upper() == "ETH":
             logger.info("Exchange WETH to ETH requested; initiating unwrap process.")
             current_weth = get_token_balance(user.unique_wallet_address, weth_contract)
-            if current_weth < from_amount:
+            # Добавляем небольшую толерантность
+            if current_weth < from_amount - 1e-12:
                 logger.error("Insufficient WETH balance for unwrap.")
                 return jsonify({"error": "Insufficient WETH balance for unwrap."}), 400
             unwrap_success = unwrap_weth_to_eth(user.unique_private_key, user.unique_wallet_address, from_amount)
@@ -407,7 +408,7 @@ def exchange_tokens():
                 Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS)
             ).call()
             logger.info(f"Current UJO allowance for proxy {PARASWAP_PROXY_ADDRESS}: {allowance}")
-            required_amount = int(from_amount * 10 ** get_token_decimals(TOKEN_CONTRACT_ADDRESS))
+            required_amount = int(from_amount * 10 ** get_token_decimals(UJO_CONTRACT_ADDRESS))
             if allowance < required_amount:
                 logger.info("Allowance insufficient for UJO, initiating approve transaction.")
                 max_allowance = 2**256 - 1
@@ -425,7 +426,9 @@ def exchange_tokens():
                 signed_approve_tx = web3.eth.account.sign_transaction(approve_tx, user.unique_private_key)
                 approve_tx_hash = web3.eth.send_raw_transaction(signed_approve_tx.rawTransaction)
                 logger.info(f"UJO approve transaction sent, tx_hash: {Web3.to_hex(approve_tx_hash)}")
-        # Если источник WETH, проверяем allowance (для случаев обмена WETH->UJO и т.п.)
+                # Ждём подтверждения транзакции
+                web3.eth.wait_for_transaction_receipt(approve_tx_hash, timeout=180)
+        # Если источник WETH, проверяем allowance (для обменов WETH->UJO и т.п.)
         if effective_from_token.upper() == "WETH":
             allowance = weth_contract.functions.allowance(
                 Web3.to_checksum_address(user.unique_wallet_address),
