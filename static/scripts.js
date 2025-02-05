@@ -37,46 +37,46 @@ $(document).ready(function() {
         $(this).css('background-color', '');
     });
 
-// ***** Модальное окно – реализация через переключение CSS-класса *****
-let modalJustClosed = false;
+    // ***** Модальное окно – реализация через переключение CSS-класса *****
+    let modalJustClosed = false;
 
-// Функция открытия модального окна
-function openModal(src) {
-    if (modalJustClosed) return; // Если окно только что закрыли, не открываем его повторно
-    $('#modal-img').attr('src', src);
-    $('#modal').addClass('open'); // Добавляем класс, который покажет окно (см. CSS)
-}
-
-// Функция закрытия модального окна
-function closeModal() {
-    modalJustClosed = true;
-    $('#modal').removeClass('open'); // Убираем класс, который показывает окно
-    $('#modal-img').attr('src', '');  // Очищаем изображение
-    // Блокировка повторного открытия на 300 мс (время перехода opacity)
-    setTimeout(function() {
-        modalJustClosed = false;
-    }, 300);
-}
-
-// Обработчики событий (учитываем click, touchend и pointerup)
-$(document).on('click touchend pointerup', '.clickable-image', function(e) {
-    e.preventDefault();
-    openModal($(this).attr('src'));
-});
-
-$(document).on('click touchend pointerup', '.close', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    closeModal();
-});
-
-// Закрытие окна при клике/касании вне изображения и крестика
-$('#modal').on('click touchend pointerup', function(e) {
-    if (!$(e.target).is('#modal-img') && !$(e.target).is('.close')) {
-        closeModal();
+    // Функция открытия модального окна
+    function openModal(src) {
+        if (modalJustClosed) return; // Если окно только что закрыли, не открываем его повторно
+        $('#modal-img').attr('src', src);
+        $('#modal').addClass('open'); // Добавляем класс, который покажет окно (см. CSS)
     }
-});
-// ***** Конец блока модального окна *****
+
+    // Функция закрытия модального окна
+    function closeModal() {
+        modalJustClosed = true;
+        $('#modal').removeClass('open'); // Убираем класс, который показывает окно
+        $('#modal-img').attr('src', '');  // Очищаем изображение
+        // Блокировка повторного открытия на 300 мс (время перехода opacity)
+        setTimeout(function() {
+            modalJustClosed = false;
+        }, 300);
+    }
+
+    // Обработчики событий (учитываем click, touchend и pointerup)
+    $(document).on('click touchend pointerup', '.clickable-image', function(e) {
+        e.preventDefault();
+        openModal($(this).attr('src'));
+    });
+
+    $(document).on('click touchend pointerup', '.close', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeModal();
+    });
+
+    // Закрытие окна при клике/касании вне изображения и крестика
+    $('#modal').on('click touchend pointerup', function(e) {
+        if (!$(e.target).is('#modal-img') && !$(e.target).is('.close')) {
+            closeModal();
+        }
+    });
+    // ***** Конец блока модального окна *****
 
     // Initializing datepickers with improved performance
     $("#start_date, #end_date, #trade_open_time, #trade_close_time").datepicker({
@@ -91,7 +91,6 @@ $('#modal').on('click touchend pointerup', function(e) {
     $('#setup-table').DataTable({
         responsive: true,
         language: {
-            // You can replace with an English i18n file if needed
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/en-GB.json"
         },
         "pageLength": 10,
@@ -111,7 +110,6 @@ $('#modal').on('click touchend pointerup', function(e) {
     $('#trade-table').DataTable({
         responsive: true,
         language: {
-            // You can replace with an English i18n file if needed
             "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/en-GB.json"
         },
         "pageLength": 10,
@@ -199,9 +197,7 @@ $('#modal').on('click touchend pointerup', function(e) {
                 const data = await response.json();
                 console.log('Chat Response:', data);
                 if (data.response) {
-                    const assistantContent = (typeof data.response === 'object') 
-                        ? JSON.stringify(data.response, null, 2) 
-                        : data.response;
+                    const assistantContent = (typeof data.response === 'object') ? JSON.stringify(data.response, null, 2) : data.response;
                     chatHistory.push({ role: 'assistant', content: assistantContent });
                     updateChatHistoryDisplay();
                 } else if (data.error) {
@@ -309,35 +305,49 @@ $('#modal').on('click touchend pointerup', function(e) {
 
     loadBalances();
 
-    // Handler for exchange form
+    // Handler for exchange form (example for WETH to UJO or similar)
     $('#exchangeForm').on('submit', async function(e){
         e.preventDefault();
-        const amountWETH = parseFloat($('#exchangeAmount').val());
-        if(isNaN(amountWETH) || amountWETH <= 0){
-            alert('Please enter a valid amount of WETH to exchange.');
+        // Показываем loader
+        $('#loader').show();
+        const fromToken = document.getElementById('fromToken').value;
+        const toToken = document.getElementById('toToken').value;
+        const fromAmount = parseFloat(document.getElementById('fromAmount').value);
+
+        if(isNaN(fromAmount) || fromAmount <= 0){
+            alert('{% if language == "ru" %}Пожалуйста, введите корректное количество токенов для обмена.{% else %}Please enter a valid token amount to swap.{% endif %}');
+            $('#loader').hide();
             return;
         }
+
         try{
             const csrfToken = window.config.CSRF_TOKEN;
-            const response = await fetch('/staking/exchange_weth_to_ujo', {
+            const response = await fetch('{{ url_for("staking_bp.exchange_tokens") }}', {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': csrfToken,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
-                body: JSON.stringify({ amount_weth: amountWETH })
+                body: JSON.stringify({
+                    from_token: fromToken,
+                    to_token: toToken,
+                    from_amount: fromAmount
+                })
             });
+
             const data = await response.json();
             if(data.status === 'success'){
-                alert('Exchange successful! You received ' + data.ujo_received.toFixed(4) + ' UJO.');
+                alert('{% if language == "ru" %}Обмен успешно выполнен!{% else %}Swap executed successfully!{% endif %}');
                 loadBalances();
             } else{
                 alert('Error: ' + data.error);
             }
         } catch(error){
-            console.error("Error exchanging tokens:", error);
-            alert("An error occurred during the exchange.");
+            console.error('Ошибка при обмене токенов:', error);
+            alert('{% if language == "ru" %}Произошла ошибка при обмене токенов.{% else %}An error occurred while swapping tokens.{% endif %}');
         }
+        // Скрываем loader
+        $('#loader').hide();
     });
 
     // Handler for confirm staking form
