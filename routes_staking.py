@@ -38,6 +38,8 @@ from best_setup_voting import send_token_reward as voting_send_token_reward  # F
 logger = logging.getLogger(__name__)
 staking_bp = Blueprint('staking_bp', __name__)
 
+# Адрес TokenTransferProxy для ParaSwap (можно задать в переменной окружения)
+PARASWAP_PROXY_ADDRESS = os.environ.get("PARASWAP_PROXY_ADDRESS", "0x6a000f20005980200259b80c5102003040001068")
 
 def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, user_address):
     """
@@ -116,7 +118,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
                 logger.info("Using market priceRoute as fallback.")
 
         # Шаг 2: Построение данных транзакции.
-        # Согласно документации, endpoint для транзакций требует указания сети в URL, но не параметр version.
+        # Согласно документации, endpoint для транзакций требует указания сети в URL, без параметра version.
         tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}"
         # Увеличиваем допустимое проскальзывание до 10% (1000) для большей гибкости.
         tx_payload = {
@@ -293,6 +295,7 @@ def exchange_tokens():
     """
     Обмен токенов через ParaSwap.
     Если в качестве исходного токена указан ETH, сначала оборачиваем ETH в WETH.
+    Перед обменом, если исходный токен — WETH, проверяем _allowance_ для TokenTransferProxy и при необходимости вызываем approve.
     """
     try:
         logger.info("=== exchange_tokens START ===")
@@ -359,8 +362,32 @@ def exchange_tokens():
         buy_token = get_token_address(to_token_symbol)
         logger.info(f"Exchange: {from_amount} {from_token_symbol} (using {sell_token}) -> {to_token_symbol} ({buy_token})")
 
+        # Если исходный токен (после оборачивания) WETH, проверяем allowance для TokenTransferProxy
+        if effective_from_token.upper() == "WETH":
+            allowance = weth_contract.functions.allowance(
+                Web3.to_checksum_address(user.unique_wallet_address),
+                Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS)
+            ).call()
+            logger.info(f"Current WETH allowance for proxy {PARASWAP_PROXY_ADDRESS}: {allowance}")
+            required_amount = int(from_amount * 10 ** get_token_decimals(WETH_CONTRACT_ADDRESS))
+            if allowance < required_amount:
+                logger.info("Allowance insufficient, initiating approve transaction.")
+                # Устанавливаем максимальное разрешение
+                max_allowance = 2**256 - 1
+                approve_success = weth_contract.functions.approve(
+                    Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS),
+                    max_allowance
+                ).transact({
+                    "from": Web3.to_checksum_address(user.unique_wallet_address),
+                    "gas": 100000
+                })
+                logger.info(f"Approve transaction sent, tx_hash: {Web3.toHex(approve_success)}")
+                # Можно добавить ожидание подтверждения (опционально)
+            else:
+                logger.info("Sufficient allowance exists for WETH.")
+
         # Проверка баланса пользователя
-        if effective_from_token.upper() == "ETH":
+        if effective_from_token.upper() == "WETH":
             # Баланс уже обёрнут в WETH – проверяем баланс WETH через контракт
             user_balance = get_token_balance(user.unique_wallet_address, weth_contract)
             logger.info(f"User WETH balance: {user_balance}")
