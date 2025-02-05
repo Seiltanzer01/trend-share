@@ -349,7 +349,7 @@ def get_balances(user: User) -> dict:
         ua = Web3.to_checksum_address(user.unique_wallet_address)
 
         raw_eth = web3.eth.get_balance(ua)
-        eth_bal = Web3.from_wei(raw_eth, 'ether')
+        eth_bal = float(Web3.from_wei(raw_eth, 'ether'))
         eth_bal = math.floor(eth_bal * 1e6) / 1e6
 
         raw_w  = weth_contract.functions.balanceOf(ua).call()
@@ -362,9 +362,9 @@ def get_balances(user: User) -> dict:
 
         return {
             "balances": {
-                "eth":  float(eth_bal),
-                "weth": float(wbal),
-                "ujo":  float(ujo_bal)
+                "eth":  eth_bal,
+                "weth": wbal,
+                "ujo":  ujo_bal
             }
         }
     except Exception as e:
