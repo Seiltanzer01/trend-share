@@ -47,6 +47,8 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     Шаг 2: Построение данных транзакции через POST запрос.
     Шаг 3: Подпись и отправка транзакции через web3.
 
+    Если котировка (delta) не получена, используется fallback – рыночная котировка.
+
     :param private_key: Приватный ключ отправителя.
     :param sell_token: Адрес исходного токена (ожидается WETH или другой ERC20).
     :param buy_token: Адрес токена, в который производится обмен.
@@ -80,7 +82,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         version = "6.2"
         logger.info(f"Using ParaSwap API URL: {PARASWAP_API_URL} with version {version}")
 
-        # Шаг 1: Получение котировки с режимом "market" (чтобы не получать fallback с ошибкой SourceEth)
+        # Шаг 1: Получение котировки с режимом "market" (для получения рыночной цены)
         quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
@@ -91,7 +93,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "srcDecimals": src_decimals,
             "destDecimals": dest_decimals,
             "chainId": chain_id,
-            "mode": "market"  # Явно используем режим market
+            "mode": "market"  # Режим market – для получения рыночной котировки без delta fallback
         }
         logger.info(f"Sending GET request to {quote_url} with params: {params}")
         quote_response = requests.get(quote_url, params=params)
@@ -102,22 +104,28 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         quote_data = quote_response.json()
         logger.info(f"Quote data received: {quote_data}")
 
-        # Если priceRoute не получена, ошибка
+        # Если ключ 'priceRoute' отсутствует, пытаемся использовать 'market'
         price_route = quote_data.get("priceRoute")
         if not price_route:
-            logger.error("No valid priceRoute found in ParaSwap quote response.")
-            return False
+            logger.warning("Delta priceRoute not found; attempting to use market priceRoute fallback.")
+            price_route = quote_data.get("market")
+            if not price_route:
+                logger.error("No valid priceRoute (neither delta nor market) found in ParaSwap quote response.")
+                return False
+            else:
+                logger.info("Using market priceRoute as fallback.")
 
-        # Шаг 2: Построение данных транзакции. Теперь URL включает chain_id.
+        # Шаг 2: Построение данных транзакции.
+        # Согласно документации, endpoint для транзакций требует указания сети в URL.
         tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}?version={version}"
-        # Увеличиваем допустимое проскальзывание до 10% (1000) для большей гибкости
+        # Увеличиваем допустимое проскальзывание до 10% (1000) для большей гибкости.
         tx_payload = {
             "srcToken": sell_token,
             "destToken": buy_token,
             "srcAmount": str(from_amount_units),
             "userAddress": user_address,
             "route": price_route,
-            "slippage": 1000  # 10%
+            "slippage": 1000  # 10% допускаемого проскальзывания
         }
         logger.info(f"Sending POST request to {tx_url} with payload: {tx_payload}")
         tx_response = requests.post(tx_url, json=tx_payload)
@@ -157,38 +165,29 @@ def generate_unique_wallet_route():
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             return jsonify({"error": "Unauthorized"}), 401
-
         user_id = session['user_id']
         user = User.query.get(user_id)
         if not user:
             return jsonify({"error": "User not found."}), 404
-
         if user.unique_wallet_address:
             return jsonify({
                 "error": "Unique wallet already exists.",
                 "unique_wallet_address": user.unique_wallet_address
             }), 400
-
         unique_wallet_address, unique_private_key = generate_unique_wallet()
-
-        # Verify that the private key matches the wallet address
         temp_user = User(
             unique_wallet_address=unique_wallet_address,
             unique_private_key=unique_private_key
         )
         if not verify_private_key(temp_user):
             return jsonify({"error": "Generated private key does not match the wallet address."}), 500
-
         user.unique_wallet_address = unique_wallet_address
         user.unique_private_key = unique_private_key
         db.session.commit()
-
         logger.info(f"Unique wallet {unique_wallet_address} for user_id={user_id}")
         return jsonify({"status": "success", "unique_wallet_address": unique_wallet_address}), 200
-
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
@@ -201,12 +200,10 @@ def deposit_page():
     if 'user_id' not in session:
         flash('Please log in for deposit.', 'warning')
         return redirect(url_for('login'))
-
     user = User.query.get(session['user_id'])
     if not user:
         flash('User not found.', 'danger')
         return redirect(url_for('login'))
-
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
 
 
@@ -215,16 +212,13 @@ def subscription_page():
     if 'user_id' not in session:
         flash('Please log in.', 'warning')
         return redirect(url_for('login'))
-
     user = User.query.get(session['user_id'])
     if not user:
         flash('User not found.', 'danger')
         return redirect(url_for('login'))
-
     if not user.unique_wallet_address:
         flash('Please generate your wallet.', 'warning')
         return redirect(url_for('staking_bp.generate_unique_wallet_route'))
-
     return render_template('subscription.html', user=user)
 
 
@@ -235,25 +229,20 @@ def confirm_staking():
         if not csrf_token:
             return jsonify({"error": "CSRF token missing"}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             return jsonify({"error": "Unauthorized"}), 401
-
         user = User.query.get(session['user_id'])
         if not user:
             return jsonify({"error": "User not found."}), 404
-
         data = request.get_json() or {}
         tx_hash = data.get("txHash")
         if not tx_hash:
             return jsonify({"error": "No txHash provided"}), 400
-
         ok = confirm_staking_tx(user, tx_hash)
         if ok:
             return jsonify({"status": "success"}), 200
         else:
             return jsonify({"error": "Staking confirmation failed"}), 400
-
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
@@ -265,11 +254,9 @@ def confirm_staking():
 def get_user_stakes():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
-
     user = User.query.get(session['user_id'])
     if not user:
         return jsonify({"error": "User not found."}), 404
-
     try:
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
         stakes_data = []
@@ -292,11 +279,9 @@ def get_user_stakes():
 def get_balances_route():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
-
     user = User.query.get(session['user_id'])
     if not user or not user.unique_wallet_address:
         return jsonify({"error": "User not found or unique wallet not set."}), 404
-
     result = get_balances(user)
     if "error" in result:
         return jsonify({"error": result["error"]}), 500
@@ -316,16 +301,13 @@ def exchange_tokens():
             logger.error("CSRF token missing in exchange_tokens request.")
             return jsonify({"error": "CSRF token missing."}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             logger.error("Unauthorized access in exchange_tokens.")
             return jsonify({"error": "Unauthorized"}), 401
-
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
             logger.error("User not found or unique wallet not set in exchange_tokens.")
             return jsonify({"error": "User not found or unique wallet not set."}), 404
-
         data = request.get_json() or {}
         from_token_symbol = data.get("from_token")
         to_token_symbol = data.get("to_token")
@@ -358,9 +340,7 @@ def exchange_tokens():
         # Если исходный токен указан как ETH, сначала обернём его в WETH
         if from_token_symbol.upper() == "ETH":
             logger.info("Detected ETH as source token. Initiating wrapping (deposit) to WETH.")
-            eth_balance = Web3.from_wei(
-                web3.eth.get_balance(user.unique_wallet_address), 'ether'
-            )
+            eth_balance = Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
             logger.info(f"User ETH balance: {eth_balance} ETH")
             if eth_balance < from_amount:
                 logger.error("Insufficient ETH balance for wrapping.")
