@@ -1,3 +1,5 @@
+# routes_staking.py
+
 import logging
 import traceback
 import os
@@ -38,30 +40,33 @@ staking_bp = Blueprint('staking_bp', __name__)
 
 def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, user_address):
     """
-    Обмен токенов через API ParaSwap.
-
+    Обмен токенов через API ParaSwap v6.2.
+    
     Шаг 1: Получение котировки (quote) от ParaSwap.
     Шаг 2: Построение данных транзакции через POST запрос.
     Шаг 3: Подпись и отправка транзакции через web3.
-
+    
     :param private_key: приватный ключ отправителя
-    :param sell_token: адрес исходного токена (например, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" для ETH)
+    :param sell_token: адрес исходного токена (например, ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
     :param buy_token: адрес токена, в который производится обмен
     :param from_amount: сумма обмена в единицах токена (например, в ETH)
     :param user_address: адрес отправителя
     :return: True при успешном выполнении обмена, иначе False
     """
     try:
-        # Преобразуем from_amount в минимальные единицы:
+        # Преобразуем from_amount в минимальные единицы (wei или соответствующие для токена)
         if sell_token.lower() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
-            # Для ETH – 18 десятичных знаков
             from_amount_units = int(from_amount * 10**18)
         else:
             decimals = get_token_decimals(sell_token)
             from_amount_units = int(from_amount * 10**decimals)
-
-        # Шаг 1: Получение котировки
-        quote_url = "https://apiv4.paraswap.io/quote"
+        
+        # Получаем базовый URL из переменной окружения (для v6.2 используем "https://api.paraswap.io")
+        PARASWAP_API_URL = os.environ.get("PARASWAP_API_URL", "https://api.paraswap.io")
+        version = "6.2"
+        
+        # Шаг 1: Получение котировки с передачей параметра version
+        quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
             "destToken": buy_token,
@@ -79,15 +84,15 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             logger.error("priceRoute not found in ParaSwap quote response.")
             return False
 
-        # Шаг 2: Построение транзакции
-        tx_url = "https://apiv4.paraswap.io/transactions"
+        # Шаг 2: Построение транзакции (endpoint transactions с параметром version)
+        tx_url = f"{PARASWAP_API_URL}/transactions?version={version}"
         tx_payload = {
             "srcToken": sell_token,
             "destToken": buy_token,
             "srcAmount": str(from_amount_units),
             "userAddress": user_address,
             "route": price_route,
-            "slippage": 250  # пример: 2.5% допустимого проскальзывания
+            "slippage": 250  # допустимое проскальзывание: 2.5%
         }
         tx_response = requests.post(tx_url, json=tx_payload)
         if tx_response.status_code != 200:
@@ -95,7 +100,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             return False
         tx_data = tx_response.json()
 
-        # Шаг 3: Подготовка и отправка транзакции
+        # Шаг 3: Подготовка и отправка транзакции через web3
         nonce = web3.eth.get_transaction_count(user_address)
         transaction = {
             "to": tx_data["to"],
