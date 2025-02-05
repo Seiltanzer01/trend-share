@@ -43,17 +43,16 @@ PARASWAP_PROXY_ADDRESS = os.environ.get("PARASWAP_PROXY_ADDRESS", "0x6a000f20005
 
 def unwrap_weth_to_eth(private_key, user_address, amount_eth):
     """
-    Разворачивает WETH в ETH, вызывая метод withdraw у контракта WETH.
+    Разворачивает WETH в ETH, вызывая метод withdraw() у контракта WETH.
+    (На сети Base функция withdraw не принимает аргументов.)
     :param private_key: Приватный ключ пользователя.
     :param user_address: Адрес пользователя.
-    :param amount_eth: Сумма в ETH для разворачивания.
+    :param amount_eth: Сумма в ETH для разворачивания (используется только для проверки баланса).
     :return: True при успешном выполнении, иначе False.
     """
     try:
-        # Переводим сумму в wei
-        amount_wei = int(amount_eth * 10 ** 18)
         nonce = web3.eth.get_transaction_count(user_address)
-        tx = weth_contract.functions.withdraw(amount_wei).build_transaction({
+        tx = weth_contract.functions.withdraw().build_transaction({
             "from": user_address,
             "nonce": nonce,
             "gas": 100000,
@@ -63,7 +62,6 @@ def unwrap_weth_to_eth(private_key, user_address, amount_eth):
         signed_tx = web3.eth.account.sign_transaction(tx, private_key)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
         logger.info(f"WETH to ETH unwrap transaction sent, tx_hash: {Web3.to_hex(tx_hash)}")
-        # При необходимости можно ждать подтверждения
         return True
     except Exception as e:
         logger.error(f"unwrap_weth_to_eth exception: {e}", exc_info=True)
@@ -80,9 +78,9 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     Если котировка (delta) не получена, используется fallback – рыночная котировка.
     
     :param private_key: Приватный ключ отправителя.
-    :param sell_token: Адрес исходного токена (ожидается WETH или другой ERC20).
+    :param sell_token: Адрес исходного токена.
     :param buy_token: Адрес токена, в который производится обмен.
-    :param from_amount: Сумма обмена в единицах токена (например, в ETH/WETH).
+    :param from_amount: Сумма обмена в единицах токена.
     :param user_address: Адрес отправителя.
     :return: True при успешном выполнении обмена, иначе False.
     """
@@ -112,7 +110,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         version = "6.2"
         logger.info(f"Using ParaSwap API URL: {PARASWAP_API_URL} with version {version}")
 
-        # Шаг 1: Получение котировки с режимом "market" (для получения рыночной цены)
+        # Шаг 1: Получение котировки с режимом "market"
         quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
@@ -123,7 +121,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "srcDecimals": src_decimals,
             "destDecimals": dest_decimals,
             "chainId": chain_id,
-            "mode": "market"  # Режим market – получение рыночной котировки без delta fallback
+            "mode": "market"
         }
         logger.info(f"Sending GET request to {quote_url} with params: {params}")
         quote_response = requests.get(quote_url, params=params)
@@ -134,28 +132,26 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         quote_data = quote_response.json()
         logger.info(f"Quote data received: {quote_data}")
 
-        # Если ключ 'priceRoute' отсутствует, пытаемся использовать 'market'
+        # Если ключ 'priceRoute' отсутствует, используем 'market'
         price_route = quote_data.get("priceRoute")
         if not price_route:
             logger.warning("Delta priceRoute not found; attempting to use market priceRoute fallback.")
             price_route = quote_data.get("market")
             if not price_route:
-                logger.error("No valid priceRoute (neither delta nor market) found in ParaSwap quote response.")
+                logger.error("No valid priceRoute found in ParaSwap quote response.")
                 return False
             else:
                 logger.info("Using market priceRoute as fallback.")
 
         # Шаг 2: Построение данных транзакции.
-        # Согласно документации, endpoint для транзакций требует указания сети в URL, без параметра version.
         tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}"
-        # Увеличиваем допустимое проскальзывание до 10% (1000) для большей гибкости.
         tx_payload = {
             "srcToken": sell_token,
             "destToken": buy_token,
             "srcAmount": str(from_amount_units),
             "userAddress": user_address,
-            "priceRoute": price_route,  # Передаём котировку под ключом priceRoute
-            "slippage": 1000  # 10% допускаемого проскальзывания
+            "priceRoute": price_route,
+            "slippage": 1000
         }
         logger.info(f"Sending POST request to {tx_url} with payload: {tx_payload}")
         tx_response = requests.post(tx_url, json=tx_payload)
@@ -167,7 +163,6 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         logger.info(f"Transaction data received: {tx_data}")
 
         # Шаг 3: Подготовка и отправка транзакции через web3.
-        # Приводим адрес полученный от API к checksum-формату.
         to_address = Web3.to_checksum_address(tx_data["to"])
         nonce = web3.eth.get_transaction_count(user_address)
         logger.info(f"Obtained nonce: {nonce} for address: {user_address}")
@@ -188,7 +183,6 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     except Exception as e:
         logger.error(f"swap_tokens_via_paraswap exception: {e}", exc_info=True)
         return False
-
 
 @staking_bp.route('/generate_unique_wallet', methods=['POST'])
 def generate_unique_wallet_route():
@@ -226,7 +220,6 @@ def generate_unique_wallet_route():
         logger.error(f"Error in generate_unique_wallet_route: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/deposit', methods=['GET'])
 def deposit_page():
     if 'user_id' not in session:
@@ -237,7 +230,6 @@ def deposit_page():
         flash('User not found.', 'danger')
         return redirect(url_for('login'))
     return render_template('deposit.html', unique_wallet_address=user.unique_wallet_address)
-
 
 @staking_bp.route('/subscription', methods=['GET'])
 def subscription_page():
@@ -252,7 +244,6 @@ def subscription_page():
         flash('Please generate your wallet.', 'warning')
         return redirect(url_for('staking_bp.generate_unique_wallet_route'))
     return render_template('subscription.html', user=user)
-
 
 @staking_bp.route('/confirm', methods=['POST'])
 def confirm_staking():
@@ -281,7 +272,6 @@ def confirm_staking():
         logger.error(f"Error in confirm_staking: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/api/get_user_stakes', methods=['GET'])
 def get_user_stakes():
     if 'user_id' not in session:
@@ -306,7 +296,6 @@ def get_user_stakes():
         logger.error(f"Error in get_user_stakes: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/api/get_balances', methods=['GET'])
 def get_balances_route():
     if 'user_id' not in session:
@@ -319,15 +308,14 @@ def get_balances_route():
         return jsonify({"error": result["error"]}), 500
     return jsonify(result), 200
 
-
 @staking_bp.route('/api/exchange_tokens', methods=['POST'])
 def exchange_tokens():
     """
     Обмен токенов через ParaSwap.
     Если в качестве исходного токена указан ETH, сначала оборачиваем ETH в WETH.
-    Если целевой токен равен ETH и исходный — WETH, выполняется операция «unwrap» (WETH -> ETH).
-    Перед обменом, если исходный токен — WETH, проверяем allowance для TokenTransferProxy и при необходимости вызываем approve.
-    Также добавлен индикатор процесса (обрабатывается на фронтенде).
+    Если целевой токен равен ETH и исходный – WETH, выполняется операция unwrap (WETH -> ETH).
+    Если обмен осуществляется с UJO, проверяется allowance для TokenTransferProxy.
+    Также, если обмен производится из ETH в WETH, повторное оборачивание не выполняется.
     """
     try:
         logger.info("=== exchange_tokens START ===")
@@ -374,13 +362,11 @@ def exchange_tokens():
         # Если исходный токен указан как ETH, оборачиваем его в WETH (но не если уже достаточно WETH)
         if from_token_symbol.upper() == "ETH":
             logger.info("Detected ETH as source token. Initiating wrapping (deposit) to WETH.")
-            const_eth_balance = Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
-            logger.info(f"User ETH balance: {const_eth_balance} ETH")
-            # Если ETH меньше требуемого, выдаем ошибку
-            if const_eth_balance < from_amount:
+            eth_balance = Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
+            logger.info(f"User ETH balance: {eth_balance} ETH")
+            if eth_balance < from_amount:
                 logger.error("Insufficient ETH balance for wrapping.")
                 return jsonify({"error": "Insufficient ETH balance for wrapping."}), 400
-            # Если уже есть достаточный баланс WETH, можно не оборачивать
             current_weth = get_token_balance(user.unique_wallet_address, weth_contract)
             if current_weth < from_amount:
                 wrap_success = deposit_eth_to_weth(user.unique_private_key, user.unique_wallet_address, from_amount)
@@ -389,6 +375,11 @@ def exchange_tokens():
                     return jsonify({"error": "Failed to wrap ETH to WETH."}), 400
                 else:
                     logger.info("Successfully wrapped ETH to WETH.")
+            # Если целевой токен тоже WETH, просто возвращаем обновлённые балансы (избегая двойного wrap)
+            if to_token_symbol.upper() == "WETH":
+                logger.info("Exchange ETH to WETH requested; deposit operation completed, returning balances.")
+                result = get_balances(user)
+                return jsonify({"status": "success", "balances": result["balances"]}), 200
             effective_from_token = "WETH"
         else:
             effective_from_token = from_token_symbol
@@ -396,7 +387,6 @@ def exchange_tokens():
         # Если обмен WETH -> ETH, выполняем операцию unwrap
         if effective_from_token.upper() == "WETH" and to_token_symbol.upper() == "ETH":
             logger.info("Exchange WETH to ETH requested; initiating unwrap process.")
-            # Проверяем баланс WETH
             current_weth = get_token_balance(user.unique_wallet_address, weth_contract)
             if current_weth < from_amount:
                 logger.error("Insufficient WETH balance for unwrap.")
@@ -404,44 +394,38 @@ def exchange_tokens():
             unwrap_success = unwrap_weth_to_eth(user.unique_private_key, user.unique_wallet_address, from_amount)
             if unwrap_success:
                 logger.info("Successfully unwrapped WETH to ETH.")
-                # Обновляем балансы и возвращаем успех
                 result = get_balances(user)
                 return jsonify({"status": "success", "balances": result["balances"]}), 200
             else:
                 logger.error("Error executing unwrap (WETH to ETH).")
                 return jsonify({"error": "Error executing unwrap (WETH to ETH)."}), 400
 
-        # Для остальных обменов используем API ParaSwap
-        sell_token = get_token_address(effective_from_token)
-        buy_token = get_token_address(to_token_symbol)
-        logger.info(f"Exchange: {from_amount} {from_token_symbol} (using {sell_token}) -> {to_token_symbol} ({buy_token})")
-
-        # Проверка баланса пользователя
-        if effective_from_token.upper() == "WETH":
-            user_balance = get_token_balance(user.unique_wallet_address, weth_contract)
-            logger.info(f"User WETH balance: {user_balance}")
-            if user_balance < from_amount:
-                logger.error("Insufficient WETH for exchange.")
-                return jsonify({"error": "Insufficient WETH for exchange."}), 400
-        else:
-            if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
-                sell_contract = token_contract
-            elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
-                sell_contract = weth_contract
-            elif sell_token.lower() == UJO_CONTRACT_ADDRESS.lower():
-                sell_contract = ujo_contract
-            else:
-                sell_contract = web3.eth.contract(
-                    address=Web3.to_checksum_address(sell_token),
-                    abi=ERC20_ABI
-                )
-            user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
-            logger.info(f"User {effective_from_token} balance: {user_balance}")
-            if user_balance < from_amount:
-                logger.error(f"Insufficient {effective_from_token} for exchange.")
-                return jsonify({"error": f"Insufficient {effective_from_token} for exchange."}), 400
-
-        # Если исходный токен — WETH, проверяем allowance для TokenTransferProxy
+        # Если источник UJO, проверяем allowance для TokenTransferProxy
+        if effective_from_token.upper() == "UJO":
+            allowance = token_contract.functions.allowance(
+                Web3.to_checksum_address(user.unique_wallet_address),
+                Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS)
+            ).call()
+            logger.info(f"Current UJO allowance for proxy {PARASWAP_PROXY_ADDRESS}: {allowance}")
+            required_amount = int(from_amount * 10 ** get_token_decimals(TOKEN_CONTRACT_ADDRESS))
+            if allowance < required_amount:
+                logger.info("Allowance insufficient for UJO, initiating approve transaction.")
+                max_allowance = 2**256 - 1
+                approve_tx = token_contract.functions.approve(
+                    Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS),
+                    max_allowance
+                ).build_transaction({
+                    "from": Web3.to_checksum_address(user.unique_wallet_address),
+                    "nonce": web3.eth.get_transaction_count(Web3.to_checksum_address(user.unique_wallet_address), "pending"),
+                    "gas": 100000,
+                    "gasPrice": web3.to_wei(0.1, "gwei"),
+                    "chainId": web3.eth.chain_id
+                })
+                logger.info(f"UJO approve transaction built: {approve_tx}")
+                signed_approve_tx = web3.eth.account.sign_transaction(approve_tx, user.unique_private_key)
+                approve_tx_hash = web3.eth.send_raw_transaction(signed_approve_tx.rawTransaction)
+                logger.info(f"UJO approve transaction sent, tx_hash: {Web3.to_hex(approve_tx_hash)}")
+        # Если источник WETH, проверяем allowance (для случаев обмена WETH->UJO и т.п.)
         if effective_from_token.upper() == "WETH":
             allowance = weth_contract.functions.allowance(
                 Web3.to_checksum_address(user.unique_wallet_address),
@@ -470,6 +454,35 @@ def exchange_tokens():
                 logger.info("Sufficient allowance exists for WETH.")
 
         # Выполнение обмена через ParaSwap
+        sell_token = get_token_address(effective_from_token)
+        buy_token = get_token_address(to_token_symbol)
+        logger.info(f"Exchange: {from_amount} {from_token_symbol} (using {sell_token}) -> {to_token_symbol} ({buy_token})")
+
+        # Проверка баланса пользователя для исходного токена
+        if effective_from_token.upper() == "WETH":
+            user_balance = get_token_balance(user.unique_wallet_address, weth_contract)
+            logger.info(f"User WETH balance: {user_balance}")
+            if user_balance < from_amount:
+                logger.error("Insufficient WETH for exchange.")
+                return jsonify({"error": "Insufficient WETH for exchange."}), 400
+        else:
+            if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
+                sell_contract = token_contract
+            elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
+                sell_contract = weth_contract
+            elif sell_token.lower() == UJO_CONTRACT_ADDRESS.lower():
+                sell_contract = ujo_contract
+            else:
+                sell_contract = web3.eth.contract(
+                    address=Web3.to_checksum_address(sell_token),
+                    abi=ERC20_ABI
+                )
+            user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
+            logger.info(f"User {effective_from_token} balance: {user_balance}")
+            if user_balance < from_amount:
+                logger.error(f"Insufficient {effective_from_token} for exchange.")
+                return jsonify({"error": f"Insufficient {effective_from_token} for exchange."}), 400
+
         swap_ok = swap_tokens_via_paraswap(
             user.unique_private_key,
             sell_token,
@@ -481,7 +494,6 @@ def exchange_tokens():
             logger.error("Error executing exchange via ParaSwap.")
             return jsonify({"error": "Error executing exchange via ParaSwap."}), 400
 
-        # Обновление балансов
         result = get_balances(user)
         if "error" in result:
             logger.error(f"Error in get_balances: {result['error']}")
@@ -500,7 +512,6 @@ def exchange_tokens():
     except Exception as e:
         logger.error(f"Error in exchange_tokens: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
 
 @staking_bp.route('/api/claim_staking_rewards', methods=['POST'])
 def claim_staking_rewards_route():
@@ -545,7 +556,6 @@ def claim_staking_rewards_route():
     except Exception as e:
         logger.error("claim_staking_rewards_route exception", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
 
 @staking_bp.route('/api/unstake', methods=['POST'])
 def unstake_staking_route():
@@ -605,7 +615,6 @@ def unstake_staking_route():
     except Exception as e:
         logger.error(f"unstake_staking error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
 
 ###################################################################
 # PLEASE NOTE: This is a TEST: $0.5 => (0.2 + 0.3)
@@ -691,7 +700,6 @@ def stake_tokens_route():
         db.session.rollback()
         return jsonify({"error": "Internal server error."}), 500
 
-
 @staking_bp.route('/api/withdraw_funds', methods=['POST'])
 def withdraw_funds():
     try:
@@ -748,7 +756,6 @@ def withdraw_funds():
     except Exception as e:
         logger.error("withdraw_funds error", exc_info=True)
         return jsonify({"error": "Internal server error."}), 500
-
 
 @staking_bp.route('/api/get_token_price', methods=['GET'])
 def get_token_price_api():
