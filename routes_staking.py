@@ -116,8 +116,8 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
                 logger.info("Using market priceRoute as fallback.")
 
         # Шаг 2: Построение данных транзакции.
-        # Согласно документации, endpoint для транзакций требует указания сети в URL.
-        tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}?version={version}"
+        # Согласно документации, endpoint для транзакций требует указания сети в URL, но не параметр version.
+        tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}"
         # Увеличиваем допустимое проскальзывание до 10% (1000) для большей гибкости.
         tx_payload = {
             "srcToken": sell_token,
