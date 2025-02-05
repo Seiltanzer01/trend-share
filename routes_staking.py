@@ -93,7 +93,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "srcDecimals": src_decimals,
             "destDecimals": dest_decimals,
             "chainId": chain_id,
-            "mode": "market"  # Режим market – для получения рыночной котировки без delta fallback
+            "mode": "market"  # Режим market – получение рыночной котировки без delta fallback
         }
         logger.info(f"Sending GET request to {quote_url} with params: {params}")
         quote_response = requests.get(quote_url, params=params)
@@ -124,7 +124,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "destToken": buy_token,
             "srcAmount": str(from_amount_units),
             "userAddress": user_address,
-            "route": price_route,
+            "priceRoute": price_route,  # Передаём котировку под ключом priceRoute
             "slippage": 1000  # 10% допускаемого проскальзывания
         }
         logger.info(f"Sending POST request to {tx_url} with payload: {tx_payload}")
