@@ -26,7 +26,6 @@ from staking_logic import (
     get_balances,
     generate_unique_wallet,
     send_token_reward,
-    # swap_tokens_via_1inch,  # заменяем вызов на новую реализацию
     deposit_eth_to_weth,
     verify_private_key,
     send_eth_from_user,
@@ -40,25 +39,33 @@ staking_bp = Blueprint('staking_bp', __name__)
 def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, user_address):
     """
     Обмен токенов через API ParaSwap.
-    
+
     Шаг 1: Получение котировки (quote) от ParaSwap.
     Шаг 2: Построение данных транзакции через POST запрос.
     Шаг 3: Подпись и отправка транзакции через web3.
-    
+
     :param private_key: приватный ключ отправителя
-    :param sell_token: адрес исходного токена (например, "0xeeee...EEeE" для ETH)
+    :param sell_token: адрес исходного токена (например, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" для ETH)
     :param buy_token: адрес токена, в который производится обмен
-    :param from_amount: сумма обмена в минимальных единицах (wei)
+    :param from_amount: сумма обмена в единицах токена (например, в ETH)
     :param user_address: адрес отправителя
     :return: True при успешном выполнении обмена, иначе False
     """
     try:
+        # Преобразуем from_amount в минимальные единицы:
+        if sell_token.lower() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
+            # Для ETH – 18 десятичных знаков
+            from_amount_units = int(from_amount * 10**18)
+        else:
+            decimals = get_token_decimals(sell_token)
+            from_amount_units = int(from_amount * 10**decimals)
+
         # Шаг 1: Получение котировки
         quote_url = "https://apiv4.paraswap.io/quote"
         params = {
             "srcToken": sell_token,
             "destToken": buy_token,
-            "amount": str(int(from_amount)),
+            "amount": str(from_amount_units),
             "userAddress": user_address,
             "side": "SELL"
         }
@@ -77,7 +84,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         tx_payload = {
             "srcToken": sell_token,
             "destToken": buy_token,
-            "srcAmount": str(int(from_amount)),
+            "srcAmount": str(from_amount_units),
             "userAddress": user_address,
             "route": price_route,
             "slippage": 250  # пример: 2.5% допустимого проскальзывания
@@ -178,7 +185,7 @@ def subscription_page():
 
     if not user.unique_wallet_address:
         flash('Please generate your wallet.', 'warning')
-        return redirect(url_for('staking_bp.generate_unique_wallet_page'))
+        return redirect(url_for('staking_bp.generate_unique_wallet_route'))
 
     return render_template('subscription.html', user=user)
 
