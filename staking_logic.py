@@ -2,6 +2,7 @@
 
 import os
 import logging
+import math
 from datetime import datetime, timedelta
 import requests
 import secrets
@@ -71,7 +72,7 @@ ERC20_ABI = [
     {
         "constant": False,
         "inputs": [
-            {"name": "_to",    "type": "address"},
+            {"name": "_to", "type": "address"},
             {"name": "_value", "type": "uint256"}
         ],
         "name": "transfer",
@@ -88,7 +89,7 @@ ERC20_ABI = [
     {
         "constant": True,
         "inputs": [
-            {"name": "_owner",   "type": "address"},
+            {"name": "_owner", "type": "address"},
             {"name": "_spender", "type": "address"}
         ],
         "name": "allowance",
@@ -99,7 +100,7 @@ ERC20_ABI = [
         "constant": False,
         "inputs": [
             {"name": "_spender", "type": "address"},
-            {"name": "_value",   "type": "uint256"}
+            {"name": "_value", "type": "uint256"}
         ],
         "name": "approve",
         "outputs": [{"name": "success", "type": "bool"}],
@@ -112,6 +113,7 @@ try:
         address=Web3.to_checksum_address(TOKEN_CONTRACT_ADDRESS),
         abi=ERC20_ABI
     )
+    # Обновлённый ABI для WETH: функция withdraw теперь принимает аргумент "wad"
     weth_contract = web3.eth.contract(
         address=Web3.to_checksum_address(WETH_CONTRACT_ADDRESS),
         abi=ERC20_ABI + [
@@ -125,7 +127,7 @@ try:
             },
             {
                 "constant": False,
-                "inputs": [],
+                "inputs": [{"name": "wad", "type": "uint256"}],
                 "name": "withdraw",
                 "outputs": [],
                 "type": "function"
@@ -244,7 +246,6 @@ def send_token_reward(
                 "gas":     gas_limit,
                 "maxFeePerGas": gas_price,
                 "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
-                # Не указываем "to": ... – оно подставится автоматом при build_transaction
                 "value": 0
             })
 
@@ -341,19 +342,23 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 
 def get_balances(user: User) -> dict:
     """
-    Возвращаем словарь c балансами ETH/WETH/UJO для уникального кошелька user.
+    Возвращаем словарь с балансами ETH/WETH/UJO для уникального кошелька user.
+    Балансы округляются вниз до 6 знаков после запятой.
     """
     try:
         ua = Web3.to_checksum_address(user.unique_wallet_address)
 
         raw_eth = web3.eth.get_balance(ua)
         eth_bal = Web3.from_wei(raw_eth, 'ether')
+        eth_bal = math.floor(eth_bal * 1e6) / 1e6
 
         raw_w  = weth_contract.functions.balanceOf(ua).call()
         wdec   = weth_contract.functions.decimals().call()
         wbal   = raw_w / (10**wdec)
+        wbal = math.floor(wbal * 1e6) / 1e6
 
         ujo_bal = get_token_balance(ua, ujo_contract)
+        ujo_bal = math.floor(ujo_bal * 1e6) / 1e6
 
         return {
             "balances": {
@@ -438,7 +443,7 @@ def approve_token(user_private_key: str, token_contract_instance, spender: str, 
 
 def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str, amount: float) -> bool:
     """
-    Если нужно свапать через 1inch
+    Если нужно свапать через 1inch.
     """
     try:
         acct = Account.from_key(user_private_key)
@@ -574,7 +579,7 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
             staked_usd=found["usd_amount"],
             staked_amount=found["token_amount"],
             created_at=datetime.utcnow(),
-            unlocked_at=datetime.utcnow() + timedelta(days=30),  # ИЛИ на 5 минут в тесте
+            unlocked_at=datetime.utcnow() + timedelta(days=30),  # или 5 минут в тесте
             last_claim_at=datetime.utcnow()
         )
         db.session.add(new_s)
