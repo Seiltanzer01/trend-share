@@ -44,16 +44,16 @@ PARASWAP_PROXY_ADDRESS = os.environ.get("PARASWAP_PROXY_ADDRESS", "0x6a000f20005
 
 def unwrap_weth_to_eth(private_key, user_address, amount_eth):
     """
-    Разворачивает WETH в ETH, вызывая метод withdraw() у контракта WETH.
-    (На сети Base функция withdraw не принимает аргументов.)
+    Разворачивает WETH в ETH, вызывая метод withdraw(wad) у контракта WETH.
     :param private_key: Приватный ключ пользователя.
     :param user_address: Адрес пользователя.
-    :param amount_eth: Сумма в ETH для разворачивания (используется только для проверки баланса).
+    :param amount_eth: Сумма в ETH для разворачивания.
     :return: True при успешном выполнении, иначе False.
     """
     try:
+        amount_wei = int(amount_eth * 10**18)
         nonce = web3.eth.get_transaction_count(user_address)
-        tx = weth_contract.functions.withdraw().build_transaction({
+        tx = weth_contract.functions.withdraw(amount_wei).build_transaction({
             "from": user_address,
             "nonce": nonce,
             "gas": 100000,
@@ -76,7 +76,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     Шаг 2: Построение данных транзакции через POST запрос.
     Шаг 3: Подпись и отправка транзакции через web3.
     
-    Если котировка (delta) не получена, используется fallback – рыночная котировка.
+    Если котировка не получена, используется fallback – рыночная котировка.
     
     :param private_key: Приватный ключ отправителя.
     :param sell_token: Адрес исходного токена.
@@ -106,7 +106,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         chain_id = web3.eth.chain_id
         logger.info(f"Using chain id: {chain_id}")
 
-        # Получаем базовый URL для ParaSwap из переменной окружения
+        # Получаем базовый URL для ParaSwap
         PARASWAP_API_URL = os.environ.get("PARASWAP_API_URL", "https://api.paraswap.io")
         version = "6.2"
         logger.info(f"Using ParaSwap API URL: {PARASWAP_API_URL} with version {version}")
@@ -388,7 +388,6 @@ def exchange_tokens():
         if effective_from_token.upper() == "WETH" and to_token_symbol.upper() == "ETH":
             logger.info("Exchange WETH to ETH requested; initiating unwrap process.")
             current_weth = get_token_balance(user.unique_wallet_address, weth_contract)
-            # Добавляем небольшую толерантность
             if current_weth < from_amount - 1e-12:
                 logger.error("Insufficient WETH balance for unwrap.")
                 return jsonify({"error": "Insufficient WETH balance for unwrap."}), 400
@@ -426,9 +425,8 @@ def exchange_tokens():
                 signed_approve_tx = web3.eth.account.sign_transaction(approve_tx, user.unique_private_key)
                 approve_tx_hash = web3.eth.send_raw_transaction(signed_approve_tx.rawTransaction)
                 logger.info(f"UJO approve transaction sent, tx_hash: {Web3.to_hex(approve_tx_hash)}")
-                # Ждём подтверждения транзакции
                 web3.eth.wait_for_transaction_receipt(approve_tx_hash, timeout=180)
-        # Если источник WETH, проверяем allowance (для обменов WETH->UJO и т.п.)
+        # Если источник WETH, проверяем allowance
         if effective_from_token.upper() == "WETH":
             allowance = weth_contract.functions.allowance(
                 Web3.to_checksum_address(user.unique_wallet_address),
@@ -730,7 +728,8 @@ def withdraw_funds():
         balances_dict = get_balances(user)
         if "error" in balances_dict:
             return jsonify({"error": balances_dict["error"]}), 500
-        available_balance = balances_dict["balances"].get(token.lower(), 0.0)
+        # Округляем баланс вниз до 6 знаков
+        available_balance = float((int(balances_dict["balances"].get(token.lower(), 0) * 1e6)) / 1e6)
         if available_balance < amount:
             return jsonify({"error": f"Insufficient {token} for withdrawal."}), 400
         if token == "ETH":
