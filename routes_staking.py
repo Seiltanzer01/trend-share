@@ -44,13 +44,13 @@ PARASWAP_PROXY_ADDRESS = os.environ.get("PARASWAP_PROXY_ADDRESS", "0x6a000f20005
 def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, user_address):
     """
     Обмен токенов через API ParaSwap v6.2.
-
+    
     Шаг 1: Получение котировки (quote) от ParaSwap.
     Шаг 2: Построение данных транзакции через POST запрос.
     Шаг 3: Подпись и отправка транзакции через web3.
-
+    
     Если котировка (delta) не получена, используется fallback – рыночная котировка.
-
+    
     :param private_key: Приватный ключ отправителя.
     :param sell_token: Адрес исходного токена (ожидается WETH или другой ERC20).
     :param buy_token: Адрес токена, в который производится обмен.
@@ -138,11 +138,13 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         tx_data = tx_response.json()
         logger.info(f"Transaction data received: {tx_data}")
 
-        # Шаг 3: Подготовка и отправка транзакции через web3
+        # Шаг 3: Подготовка и отправка транзакции через web3.
+        # Приводим адрес полученный от API к checksum-формату.
+        to_address = Web3.toChecksumAddress(tx_data["to"])
         nonce = web3.eth.get_transaction_count(user_address)
         logger.info(f"Obtained nonce: {nonce} for address: {user_address}")
         transaction = {
-            "to": tx_data["to"],
+            "to": to_address,
             "data": tx_data["data"],
             "value": int(tx_data["value"]),
             "gasPrice": int(tx_data["gasPrice"]),
@@ -152,7 +154,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         logger.info(f"Final transaction data: {transaction}")
         signed_tx = web3.eth.account.sign_transaction(transaction, private_key)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        logger.info(f"ParaSwap transaction sent, tx_hash: {web3.toHex(tx_hash)}")
+        logger.info(f"ParaSwap transaction sent, tx_hash: {Web3.toHex(tx_hash)}")
         logger.info("=== swap_tokens_via_paraswap END ===")
         return True
     except Exception as e:
@@ -295,7 +297,7 @@ def exchange_tokens():
     """
     Обмен токенов через ParaSwap.
     Если в качестве исходного токена указан ETH, сначала оборачиваем ETH в WETH.
-    Перед обменом, если исходный токен — WETH, проверяем _allowance_ для TokenTransferProxy и при необходимости вызываем approve.
+    Перед обменом, если исходный токен — WETH, проверяем allowance для TokenTransferProxy и при необходимости вызываем approve.
     """
     try:
         logger.info("=== exchange_tokens START ===")
@@ -414,7 +416,7 @@ def exchange_tokens():
                 signed_approve_tx = web3.eth.account.sign_transaction(approve_tx, user.unique_private_key)
                 approve_tx_hash = web3.eth.send_raw_transaction(signed_approve_tx.rawTransaction)
                 logger.info(f"Approve transaction sent, tx_hash: {Web3.toHex(approve_tx_hash)}")
-                # Опционально можно ждать подтверждения транзакции approve здесь
+                # Здесь можно опционально добавить ожидание подтверждения транзакции approve
             else:
                 logger.info("Sufficient allowance exists for WETH.")
 
