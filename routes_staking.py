@@ -729,7 +729,7 @@ def withdraw_funds():
         if "error" in balances_dict:
             return jsonify({"error": balances_dict["error"]}), 500
         # Округляем баланс вниз до 6 знаков
-        available_balance = float((int(balances_dict["balances"].get(token.lower(), 0) * 1e6)) / 1e6)
+        available_balance = float((int(float(balances_dict["balances"].get(token.lower(), "0")) * 1e6)) / 1e6)
         if available_balance < amount:
             return jsonify({"error": f"Insufficient {token} for withdrawal."}), 400
         if token == "ETH":
