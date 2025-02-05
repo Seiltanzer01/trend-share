@@ -363,7 +363,7 @@ def exchange_tokens():
         # Если исходный токен указан как ETH, оборачиваем его в WETH (но не если уже достаточно WETH)
         if from_token_symbol.upper() == "ETH":
             logger.info("Detected ETH as source token. Initiating wrapping (deposit) to WETH.")
-            eth_balance = Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether')
+            eth_balance = float(Web3.from_wei(web3.eth.get_balance(user.unique_wallet_address), 'ether'))
             logger.info(f"User ETH balance: {eth_balance} ETH")
             if eth_balance < from_amount:
                 logger.error("Insufficient ETH balance for wrapping.")
