@@ -48,9 +48,9 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     Шаг 3: Подпись и отправка транзакции через web3.
 
     :param private_key: Приватный ключ отправителя.
-    :param sell_token: Адрес исходного токена (например, для ETH/WETH).
+    :param sell_token: Адрес исходного токена (ожидается WETH или другой ERC20).
     :param buy_token: Адрес токена, в который производится обмен.
-    :param from_amount: Сумма обмена в единицах токена (например, в ETH).
+    :param from_amount: Сумма обмена в единицах токена (например, в ETH/WETH).
     :param user_address: Адрес отправителя.
     :return: True при успешном выполнении обмена, иначе False.
     """
@@ -80,7 +80,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         version = "6.2"
         logger.info(f"Using ParaSwap API URL: {PARASWAP_API_URL} with version {version}")
 
-        # Шаг 1: Получение котировки с передачей параметров: srcDecimals, destDecimals, chainId, mode = all
+        # Шаг 1: Получение котировки с режимом "market" (чтобы не получать fallback с ошибкой SourceEth)
         quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
@@ -91,7 +91,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "srcDecimals": src_decimals,
             "destDecimals": dest_decimals,
             "chainId": chain_id,
-            "mode": "all"  # Режим all: Delta с fallback на рыночную цену
+            "mode": "market"  # Явно используем режим market
         }
         logger.info(f"Sending GET request to {quote_url} with params: {params}")
         quote_response = requests.get(quote_url, params=params)
@@ -102,28 +102,22 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         quote_data = quote_response.json()
         logger.info(f"Quote data received: {quote_data}")
 
-        # Если delta не получена, используем fallback (market)
+        # Если priceRoute не получена, ошибка
         price_route = quote_data.get("priceRoute")
         if not price_route:
-            fallback_reason = quote_data.get("fallbackReason", {})
-            logger.warning(f"Delta quote failed, fallbackReason: {fallback_reason}")
-            price_route = quote_data.get("market")
-            if not price_route:
-                logger.error("No valid priceRoute (neither delta nor market) found in ParaSwap quote response.")
-                return False
-            else:
-                logger.info("Using market priceRoute as fallback.")
+            logger.error("No valid priceRoute found in ParaSwap quote response.")
+            return False
 
-        # Шаг 2: Построение данных транзакции
-        # Согласно документации, endpoint для транзакций требует указания сети в URL
+        # Шаг 2: Построение данных транзакции. Теперь URL включает chain_id.
         tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}?version={version}"
+        # Увеличиваем допустимое проскальзывание до 10% (1000) для большей гибкости
         tx_payload = {
             "srcToken": sell_token,
             "destToken": buy_token,
             "srcAmount": str(from_amount_units),
             "userAddress": user_address,
             "route": price_route,
-            "slippage": 250  # Допустимое проскальзывание: 2.5%
+            "slippage": 1000  # 10%
         }
         logger.info(f"Sending POST request to {tx_url} with payload: {tx_payload}")
         tx_response = requests.post(tx_url, json=tx_payload)
@@ -313,6 +307,7 @@ def get_balances_route():
 def exchange_tokens():
     """
     Обмен токенов через ParaSwap.
+    Если в качестве исходного токена указан ETH, сначала оборачиваем ETH в WETH.
     """
     try:
         logger.info("=== exchange_tokens START ===")
@@ -335,11 +330,9 @@ def exchange_tokens():
         from_token_symbol = data.get("from_token")
         to_token_symbol = data.get("to_token")
         from_amount = data.get("from_amount")
-
         if not from_token_symbol or not to_token_symbol or from_amount is None:
             logger.error("Insufficient data for exchange in exchange_tokens.")
             return jsonify({"error": "Insufficient data for exchange."}), 400
-
         try:
             from_amount = float(from_amount)
             if from_amount <= 0:
@@ -349,7 +342,7 @@ def exchange_tokens():
             return jsonify({"error": "Invalid value for from_amount."}), 400
 
         # Функция для определения адреса токена по символу.
-        # Если символ равен "ETH", то возвращаем адрес WETH, так как ParaSwap не поддерживает ETH в качестве исходного токена.
+        # Если символ равен "ETH", то возвращаем адрес WETH, так как ParaSwap не поддерживает ETH как исходный токен.
         def get_token_address(symbol: str) -> str:
             symbol_upper = symbol.upper()
             if symbol_upper == "ETH":
@@ -362,22 +355,39 @@ def exchange_tokens():
             else:
                 return symbol
 
-        sell_token = get_token_address(from_token_symbol)
+        # Если исходный токен указан как ETH, сначала обернём его в WETH
+        if from_token_symbol.upper() == "ETH":
+            logger.info("Detected ETH as source token. Initiating wrapping (deposit) to WETH.")
+            eth_balance = Web3.from_wei(
+                web3.eth.get_balance(user.unique_wallet_address), 'ether'
+            )
+            logger.info(f"User ETH balance: {eth_balance} ETH")
+            if eth_balance < from_amount:
+                logger.error("Insufficient ETH balance for wrapping.")
+                return jsonify({"error": "Insufficient ETH balance for wrapping."}), 400
+            wrap_success = deposit_eth_to_weth(user.unique_private_key, user.unique_wallet_address, from_amount)
+            if not wrap_success:
+                logger.error("Failed to wrap ETH to WETH.")
+                return jsonify({"error": "Failed to wrap ETH to WETH."}), 400
+            else:
+                logger.info("Successfully wrapped ETH to WETH.")
+            effective_from_token = "WETH"
+        else:
+            effective_from_token = from_token_symbol
+
+        sell_token = get_token_address(effective_from_token)
         buy_token = get_token_address(to_token_symbol)
-        logger.info(f"Exchange: {from_amount} {from_token_symbol} ({sell_token}) -> {to_token_symbol} ({buy_token})")
+        logger.info(f"Exchange: {from_amount} {from_token_symbol} (using {sell_token}) -> {to_token_symbol} ({buy_token})")
 
         # Проверка баланса пользователя
-        if from_token_symbol.upper() == "ETH":
-            user_eth_balance = Web3.from_wei(
-                web3.eth.get_balance(user.unique_wallet_address),
-                'ether'
-            )
-            logger.info(f"User ETH balance: {user_eth_balance}")
-            if user_eth_balance < from_amount:
-                logger.error("Insufficient ETH for exchange.")
-                return jsonify({"error": "Insufficient ETH for exchange."}), 400
+        if effective_from_token.upper() == "ETH":
+            # Баланс уже обёрнут в WETH – проверяем баланс WETH через контракт
+            user_balance = get_token_balance(user.unique_wallet_address, weth_contract)
+            logger.info(f"User WETH balance: {user_balance}")
+            if user_balance < from_amount:
+                logger.error("Insufficient WETH for exchange.")
+                return jsonify({"error": "Insufficient WETH for exchange."}), 400
         else:
-            # Если токен не ETH, проверяем баланс через контракт
             if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
                 sell_contract = token_contract
             elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
@@ -390,10 +400,10 @@ def exchange_tokens():
                     abi=ERC20_ABI
                 )
             user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
-            logger.info(f"User {from_token_symbol} balance: {user_balance}")
+            logger.info(f"User {effective_from_token} balance: {user_balance}")
             if user_balance < from_amount:
-                logger.error(f"Insufficient {from_token_symbol} for exchange.")
-                return jsonify({"error": f"Insufficient {from_token_symbol} for exchange."}), 400
+                logger.error(f"Insufficient {effective_from_token} for exchange.")
+                return jsonify({"error": f"Insufficient {effective_from_token} for exchange."}), 400
 
         # Выполнение обмена через ParaSwap
         swap_ok = swap_tokens_via_paraswap(
@@ -435,18 +445,14 @@ def claim_staking_rewards_route():
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             return jsonify({"error": "Unauthorized"}), 401
-
         user = User.query.get(session['user_id'])
         if not user:
             return jsonify({"error": "User not found."}), 404
-
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
         if not stakings:
             return jsonify({"error": "You have no staking."}), 400
-
         now = datetime.utcnow()
         totalRewards = 0.0
         for s in stakings:
@@ -456,13 +462,10 @@ def claim_staking_rewards_route():
                     totalRewards += s.pending_rewards
                     s.pending_rewards = 0.0
                     s.last_claim_at = now
-
         if totalRewards <= 0:
             return jsonify({"error": "Nothing to claim yet."}), 400
-
         if not user.unique_wallet_address:
             return jsonify({"error": "No unique wallet address"}), 400
-
         ok = send_token_reward(
             to_address=user.unique_wallet_address,
             amount=totalRewards,
@@ -471,10 +474,8 @@ def claim_staking_rewards_route():
         if not ok:
             db.session.rollback()
             return jsonify({"error": "Transaction error."}), 400
-
         db.session.commit()
         return jsonify({"message": f"Claimed {totalRewards:.4f} UJO"}), 200
-
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
@@ -489,31 +490,24 @@ def unstake_staking_route():
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             return jsonify({"error": "Unauthorized"}), 401
-
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address or not user.wallet_address:
             return jsonify({"error": "User not found or wallet address not set."}), 400
-
         stakings = UserStaking.query.filter_by(user_id=user.id).all()
         total_unstake = 0.0
         now = datetime.utcnow()
-
         for s in stakings:
             if s.staked_amount > 0 and s.unlocked_at <= now:
                 total_unstake += s.staked_amount
                 s.staked_usd = 0.0
                 s.staked_amount = 0.0
                 s.pending_rewards = 0.0
-
         if total_unstake <= 0:
             return jsonify({"error": "No available stakes for unstake."}), 400
-
         fee = total_unstake * 0.01
         withdraw_amount = total_unstake - fee
-
         success = send_token_reward(
             to_address=user.unique_wallet_address,
             amount=withdraw_amount,
@@ -523,7 +517,6 @@ def unstake_staking_route():
         if not success:
             db.session.rollback()
             return jsonify({"error": "Error sending UJO to your wallet."}), 400
-
         fee_success = send_token_reward(
             to_address=PROJECT_WALLET_ADDRESS,
             amount=fee,
@@ -533,19 +526,16 @@ def unstake_staking_route():
         if not fee_success:
             db.session.rollback()
             return jsonify({"error": "Error sending fee."}), 400
-
         active_count = UserStaking.query.filter(
             UserStaking.user_id == user.id,
             UserStaking.staked_amount > 0
         ).count()
         if active_count == 0:
             user.assistant_premium = False
-
         db.session.commit()
         return jsonify({
             "message": f"Unstaked {total_unstake:.4f} UJO (fee: 1%, you got {withdraw_amount:.4f} UJO)."
         }), 200
-
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
@@ -563,48 +553,38 @@ def stake_tokens_route():
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             return jsonify({"error": "Unauthorized"}), 401
-
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address:
             return jsonify({"error": "User not found or unique wallet."}), 404
-
         active_stake = UserStaking.query.filter(
             UserStaking.user_id == user.id,
             UserStaking.staked_amount > 0
         ).first()
         if active_stake:
             return jsonify({"error": "You already have an active stake. Another stake is not allowed."}), 400
-
         data = request.get_json() or {}
         total_usd = data.get("amount_usd")
         if total_usd is None:
             return jsonify({"error": "No amount_usd provided."}), 400
-
         try:
             total_usd = float(total_usd)
             if total_usd < 12:
                 return jsonify({"error": "Exactly $0.5 is required (test mode)."}), 400
         except ValueError:
             return jsonify({"error": "Invalid amount_usd."}), 400
-
         stake_usd = 10
         fee_usd = 2
-
         price_usd = get_token_price_in_usd()
         if not price_usd or price_usd <= 0:
             return jsonify({"error": "Failed to get UJO price."}), 400
-
         fee_ujo = fee_usd / price_usd
         stake_ujo = stake_usd / price_usd
         total_need_ujo = fee_ujo + stake_ujo
-
         user_balance = get_token_balance(user.unique_wallet_address, token_contract)
         if user_balance < total_need_ujo:
             return jsonify({"error": "Insufficient UJO in wallet (test $0.5 required)."}), 400
-
         ok_fee = send_token_reward(
             to_address=PROJECT_WALLET_ADDRESS,
             amount=fee_ujo,
@@ -613,7 +593,6 @@ def stake_tokens_route():
         )
         if not ok_fee:
             return jsonify({"error": "Error sending $0.2 (fee)."}), 400
-
         ok_stake = send_token_reward(
             to_address=PROJECT_WALLET_ADDRESS,
             amount=stake_ujo,
@@ -622,7 +601,6 @@ def stake_tokens_route():
         )
         if not ok_stake:
             return jsonify({"error": "Error sending $0.3 (stake)."}), 400
-
         new_stake = UserStaking(
             user_id=user.id,
             tx_hash=f"staking_{datetime.utcnow().timestamp()}_{secrets.token_hex(8)}",
@@ -636,14 +614,12 @@ def stake_tokens_route():
         db.session.add(new_stake)
         user.assistant_premium = True
         db.session.commit()
-
         logger.info(f"[TEST stake] user={user.id}, fee=$0.2, stake=$0.3")
         return jsonify({
             "status": "success",
             "staked_amount": stake_ujo,
             "staked_usd": stake_usd
         }), 200
-
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
@@ -659,21 +635,16 @@ def withdraw_funds():
         if not csrf_token:
             return jsonify({"error": "CSRF token missing."}), 400
         validate_csrf(csrf_token)
-
         if 'user_id' not in session:
             return jsonify({"error": "Unauthorized"}), 401
-
         user = User.query.get(session['user_id'])
         if not user or not user.unique_wallet_address or not user.wallet_address:
             return jsonify({"error": "User not found or wallet address not set."}), 400
-
         data = request.get_json() or {}
         token = data.get("token")
         amount = data.get("amount")
-
         if not token or amount is None:
             return jsonify({"error": "Insufficient data for withdrawal."}), 400
-
         token = token.upper()
         try:
             amount = float(amount)
@@ -681,15 +652,12 @@ def withdraw_funds():
                 raise ValueError
         except ValueError:
             return jsonify({"error": "Invalid withdrawal amount."}), 400
-
         balances_dict = get_balances(user)
         if "error" in balances_dict:
             return jsonify({"error": balances_dict["error"]}), 500
-
         available_balance = balances_dict["balances"].get(token.lower(), 0.0)
         if available_balance < amount:
             return jsonify({"error": f"Insufficient {token} for withdrawal."}), 400
-
         if token == "ETH":
             success = send_eth_from_user(
                 user_private_key=user.unique_private_key,
@@ -707,12 +675,10 @@ def withdraw_funds():
             )
         else:
             return jsonify({"error": "Unsupported coin for withdrawal."}), 400
-
         if success:
             return jsonify({"status": "success"}), 200
         else:
             return jsonify({"error": "Failed to withdraw funds."}), 400
-
     except CSRFError:
         return jsonify({"error": "CSRF token missing or invalid."}), 400
     except Exception as e:
