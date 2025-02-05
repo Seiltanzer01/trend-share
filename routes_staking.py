@@ -362,30 +362,6 @@ def exchange_tokens():
         buy_token = get_token_address(to_token_symbol)
         logger.info(f"Exchange: {from_amount} {from_token_symbol} (using {sell_token}) -> {to_token_symbol} ({buy_token})")
 
-        # Если исходный токен (после оборачивания) WETH, проверяем allowance для TokenTransferProxy
-        if effective_from_token.upper() == "WETH":
-            allowance = weth_contract.functions.allowance(
-                Web3.to_checksum_address(user.unique_wallet_address),
-                Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS)
-            ).call()
-            logger.info(f"Current WETH allowance for proxy {PARASWAP_PROXY_ADDRESS}: {allowance}")
-            required_amount = int(from_amount * 10 ** get_token_decimals(WETH_CONTRACT_ADDRESS))
-            if allowance < required_amount:
-                logger.info("Allowance insufficient, initiating approve transaction.")
-                # Устанавливаем максимальное разрешение
-                max_allowance = 2**256 - 1
-                approve_success = weth_contract.functions.approve(
-                    Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS),
-                    max_allowance
-                ).transact({
-                    "from": Web3.to_checksum_address(user.unique_wallet_address),
-                    "gas": 100000
-                })
-                logger.info(f"Approve transaction sent, tx_hash: {Web3.toHex(approve_success)}")
-                # Можно добавить ожидание подтверждения (опционально)
-            else:
-                logger.info("Sufficient allowance exists for WETH.")
-
         # Проверка баланса пользователя
         if effective_from_token.upper() == "WETH":
             # Баланс уже обёрнут в WETH – проверяем баланс WETH через контракт
@@ -411,6 +387,36 @@ def exchange_tokens():
             if user_balance < from_amount:
                 logger.error(f"Insufficient {effective_from_token} for exchange.")
                 return jsonify({"error": f"Insufficient {effective_from_token} for exchange."}), 400
+
+        # Если исходный токен (после оборачивания) — WETH, проверяем allowance для TokenTransferProxy
+        if effective_from_token.upper() == "WETH":
+            allowance = weth_contract.functions.allowance(
+                Web3.to_checksum_address(user.unique_wallet_address),
+                Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS)
+            ).call()
+            logger.info(f"Current WETH allowance for proxy {PARASWAP_PROXY_ADDRESS}: {allowance}")
+            required_amount = int(from_amount * 10 ** get_token_decimals(WETH_CONTRACT_ADDRESS))
+            if allowance < required_amount:
+                logger.info("Allowance insufficient, initiating approve transaction using raw signed transaction.")
+                max_allowance = 2**256 - 1
+                # Формируем транзакцию approve
+                approve_tx = weth_contract.functions.approve(
+                    Web3.to_checksum_address(PARASWAP_PROXY_ADDRESS),
+                    max_allowance
+                ).build_transaction({
+                    "from": Web3.to_checksum_address(user.unique_wallet_address),
+                    "nonce": web3.eth.get_transaction_count(Web3.to_checksum_address(user.unique_wallet_address), "pending"),
+                    "gas": 100000,
+                    "gasPrice": web3.to_wei(0.1, "gwei"),
+                    "chainId": web3.eth.chain_id
+                })
+                logger.info(f"Approve transaction built: {approve_tx}")
+                signed_approve_tx = web3.eth.account.sign_transaction(approve_tx, user.unique_private_key)
+                approve_tx_hash = web3.eth.send_raw_transaction(signed_approve_tx.rawTransaction)
+                logger.info(f"Approve transaction sent, tx_hash: {Web3.toHex(approve_tx_hash)}")
+                # Опционально можно ждать подтверждения транзакции approve здесь
+            else:
+                logger.info("Sufficient allowance exists for WETH.")
 
         # Выполнение обмена через ParaSwap
         swap_ok = swap_tokens_via_paraswap(
