@@ -48,7 +48,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
     Шаг 3: Подпись и отправка транзакции через web3.
 
     :param private_key: Приватный ключ отправителя.
-    :param sell_token: Адрес исходного токена (например, для ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE").
+    :param sell_token: Адрес исходного токена (например, для ETH/WETH).
     :param buy_token: Адрес токена, в который производится обмен.
     :param from_amount: Сумма обмена в единицах токена (например, в ETH).
     :param user_address: Адрес отправителя.
@@ -80,7 +80,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
         version = "6.2"
         logger.info(f"Using ParaSwap API URL: {PARASWAP_API_URL} with version {version}")
 
-        # Шаг 1: Получение котировки
+        # Шаг 1: Получение котировки с передачей параметров: srcDecimals, destDecimals, chainId, mode = all
         quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
@@ -91,7 +91,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
             "srcDecimals": src_decimals,
             "destDecimals": dest_decimals,
             "chainId": chain_id,
-            "mode": "all"  # Используем режим all: Delta с fallback на Market
+            "mode": "all"  # Режим all: Delta с fallback на рыночную цену
         }
         logger.info(f"Sending GET request to {quote_url} with params: {params}")
         quote_response = requests.get(quote_url, params=params)
@@ -115,7 +115,8 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
                 logger.info("Using market priceRoute as fallback.")
 
         # Шаг 2: Построение данных транзакции
-        tx_url = f"{PARASWAP_API_URL}/transactions?version={version}"
+        # Согласно документации, endpoint для транзакций требует указания сети в URL
+        tx_url = f"{PARASWAP_API_URL}/transactions/{chain_id}?version={version}"
         tx_payload = {
             "srcToken": sell_token,
             "destToken": buy_token,
@@ -331,11 +332,11 @@ def exchange_tokens():
             return jsonify({"error": "User not found or unique wallet not set."}), 404
 
         data = request.get_json() or {}
-        from_token = data.get("from_token")
-        to_token = data.get("to_token")
+        from_token_symbol = data.get("from_token")
+        to_token_symbol = data.get("to_token")
         from_amount = data.get("from_amount")
 
-        if not from_token or not to_token or from_amount is None:
+        if not from_token_symbol or not to_token_symbol or from_amount is None:
             logger.error("Insufficient data for exchange in exchange_tokens.")
             return jsonify({"error": "Insufficient data for exchange."}), 400
 
@@ -347,11 +348,13 @@ def exchange_tokens():
             logger.error(f"Invalid from_amount value: {from_amount}")
             return jsonify({"error": "Invalid value for from_amount."}), 400
 
-        # Функция для определения адреса токена по символу
+        # Функция для определения адреса токена по символу.
+        # Если символ равен "ETH", то возвращаем адрес WETH, так как ParaSwap не поддерживает ETH в качестве исходного токена.
         def get_token_address(symbol: str) -> str:
             symbol_upper = symbol.upper()
             if symbol_upper == "ETH":
-                return "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+                logger.info("Received ETH as source token – switching to WETH address for swap.")
+                return WETH_CONTRACT_ADDRESS
             elif symbol_upper == "WETH":
                 return WETH_CONTRACT_ADDRESS
             elif symbol_upper == "UJO":
@@ -359,12 +362,12 @@ def exchange_tokens():
             else:
                 return symbol
 
-        sell_token = get_token_address(from_token)
-        buy_token = get_token_address(to_token)
-        logger.info(f"Exchange: {from_amount} {from_token} ({sell_token}) -> {to_token} ({buy_token})")
+        sell_token = get_token_address(from_token_symbol)
+        buy_token = get_token_address(to_token_symbol)
+        logger.info(f"Exchange: {from_amount} {from_token_symbol} ({sell_token}) -> {to_token_symbol} ({buy_token})")
 
         # Проверка баланса пользователя
-        if from_token.upper() == "ETH":
+        if from_token_symbol.upper() == "ETH":
             user_eth_balance = Web3.from_wei(
                 web3.eth.get_balance(user.unique_wallet_address),
                 'ether'
@@ -374,6 +377,7 @@ def exchange_tokens():
                 logger.error("Insufficient ETH for exchange.")
                 return jsonify({"error": "Insufficient ETH for exchange."}), 400
         else:
+            # Если токен не ETH, проверяем баланс через контракт
             if sell_token.lower() == TOKEN_CONTRACT_ADDRESS.lower():
                 sell_contract = token_contract
             elif sell_token.lower() == WETH_CONTRACT_ADDRESS.lower():
@@ -386,10 +390,10 @@ def exchange_tokens():
                     abi=ERC20_ABI
                 )
             user_balance = get_token_balance(user.unique_wallet_address, sell_contract)
-            logger.info(f"User {from_token} balance: {user_balance}")
+            logger.info(f"User {from_token_symbol} balance: {user_balance}")
             if user_balance < from_amount:
-                logger.error(f"Insufficient {from_token} for exchange.")
-                return jsonify({"error": f"Insufficient {from_token} for exchange."}), 400
+                logger.error(f"Insufficient {from_token_symbol} for exchange.")
+                return jsonify({"error": f"Insufficient {from_token_symbol} for exchange."}), 400
 
         # Выполнение обмена через ParaSwap
         swap_ok = swap_tokens_via_paraswap(
@@ -409,7 +413,7 @@ def exchange_tokens():
             logger.error(f"Error in get_balances: {result['error']}")
             return jsonify({"error": result["error"]}), 500
 
-        logger.info(f"Successful exchange: {from_token} -> {to_token}, amount: {from_amount}")
+        logger.info(f"Successful exchange: {from_token_symbol} -> {to_token_symbol}, amount: {from_amount}")
         logger.info("=== exchange_tokens END ===")
         return jsonify({
             "status": "success",
