@@ -344,6 +344,7 @@ def get_balances(user: User) -> dict:
     """
     Возвращаем словарь с балансами ETH/WETH/UJO для уникального кошелька user.
     Балансы округляются вниз до 4 знаков после запятой и возвращаются как строки.
+    В случае ошибки возвращаются балансы "0.0000".
     """
     try:
         ua = Web3.to_checksum_address(user.unique_wallet_address)
@@ -372,7 +373,8 @@ def get_balances(user: User) -> dict:
         }
     except Exception as e:
         logger.error(f"get_balances error: {e}", exc_info=True)
-        return {"error": "Internal server error."}
+        # Вместо возврата ошибки возвращаем нулевые балансы
+        return {"balances": {"eth": "0.0000", "weth": "0.0000", "ujo": "0.0000"}}
 
 def get_token_price_in_usd() -> float:
     """
