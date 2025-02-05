@@ -140,7 +140,7 @@ def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, us
 
         # Шаг 3: Подготовка и отправка транзакции через web3.
         # Приводим адрес полученный от API к checksum-формату.
-        to_address = Web3.toChecksumAddress(tx_data["to"])
+        to_address = Web3.to_checksum_address(tx_data["to"])
         nonce = web3.eth.get_transaction_count(user_address)
         logger.info(f"Obtained nonce: {nonce} for address: {user_address}")
         transaction = {
