@@ -165,10 +165,10 @@
                         document.getElementById('ujoBalance').textContent = 'Error';
                         console.error('Ошибка при получении балансов:', data.error);
                     } else{
-                        // Значения уже возвращены как строки с 4 знаками после запятой
-                        document.getElementById('ethBalance').textContent = data.balances.eth;
-                        document.getElementById('wethBalance').textContent = data.balances.weth;
-                        document.getElementById('ujoBalance').textContent = data.balances.ujo;
+                        // Значения возвращены как числа, поэтому можно использовать toFixed(4)
+                        document.getElementById('ethBalance').textContent = data.balances.eth.toFixed(4);
+                        document.getElementById('wethBalance').textContent = data.balances.weth.toFixed(4);
+                        document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
                     }
                 } catch(error){
                     console.error("Ошибка при загрузке балансов:", error);
