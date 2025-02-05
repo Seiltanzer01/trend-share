@@ -304,7 +304,7 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
     try:
         acct = Account.from_key(user_private_key)
         balance_wei = web3.eth.get_balance(acct.address)
-        eth_balance = Web3.from_wei(balance_wei, 'ether')
+        eth_balance = float(Web3.from_wei(balance_wei, 'ether'))
         logger.info(f"User {acct.address} balance: {eth_balance} ETH")
 
         nonce = web3.eth.get_transaction_count(acct.address, 'pending')
@@ -343,28 +343,29 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 def get_balances(user: User) -> dict:
     """
     Возвращаем словарь с балансами ETH/WETH/UJO для уникального кошелька user.
-    Балансы округляются вниз до 6 знаков после запятой.
+    Балансы округляются вниз до 4 знаков после запятой.
     """
     try:
         ua = Web3.to_checksum_address(user.unique_wallet_address)
 
         raw_eth = web3.eth.get_balance(ua)
         eth_bal = float(Web3.from_wei(raw_eth, 'ether'))
-        eth_bal = math.floor(eth_bal * 1e6) / 1e6
+        # Округление вниз до 4 знаков
+        eth_bal = math.floor(eth_bal * 1e4) / 1e4
 
         raw_w  = weth_contract.functions.balanceOf(ua).call()
         wdec   = weth_contract.functions.decimals().call()
         wbal   = raw_w / (10**wdec)
-        wbal = math.floor(wbal * 1e6) / 1e6
+        wbal = math.floor(wbal * 1e4) / 1e4
 
         ujo_bal = get_token_balance(ua, ujo_contract)
-        ujo_bal = math.floor(ujo_bal * 1e6) / 1e6
+        ujo_bal = math.floor(ujo_bal * 1e4) / 1e4
 
         return {
             "balances": {
-                "eth":  eth_bal,
+                "eth": eth_bal,
                 "weth": wbal,
-                "ujo":  ujo_bal
+                "ujo": ujo_bal
             }
         }
     except Exception as e:
@@ -420,16 +421,16 @@ def approve_token(user_private_key: str, token_contract_instance, spender: str, 
             spender, amount
         ).build_transaction({
             "chainId": web3.eth.chain_id,
-            "nonce":   nonce,
-            "gas":     gas_limit,
+            "nonce": nonce,
+            "gas": gas_limit,
             "maxFeePerGas": gas_price,
             "maxPriorityFeePerGas": web3.to_wei(0.1, 'gwei'),
             "value": 0,
         })
 
         signed_tx = acct.sign_transaction(approve_tx)
-        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
 
         if receipt.status == 1:
             logger.info(f"approve_token ok, tx={tx_hash.hex()}")
@@ -471,14 +472,14 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
         swap_endpoint = f"{ONEINCH_API_URL}/swap"
 
         dec_from = 18 if is_eth else get_token_decimals(from_token)
-        amt_str  = str(int(amount * (10**dec_from)))
-        params   = {
+        amt_str = str(int(amount * (10**dec_from)))
+        params = {
             "fromTokenAddress": from_token,
-            "toTokenAddress":   to_token,
-            "amount":           amt_str,
-            "fromAddress":      user_address,
-            "slippage":         "1",
-            "disableEstimate":  False,
+            "toTokenAddress": to_token,
+            "amount": amt_str,
+            "fromAddress": user_address,
+            "slippage": "1",
+            "disableEstimate": False,
             "allowPartialFill": False
         }
 
@@ -498,10 +499,10 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
         max_fee = base_fee * 2 + max_priority_fee
 
         txn = {
-            'to':   Web3.to_checksum_address(tx['to']),
+            'to': Web3.to_checksum_address(tx['to']),
             'data': tx['data'],
             'value': int(tx['value']),
-            'gas':   int(tx['gas']),
+            'gas': int(tx['gas']),
             'nonce': web3.eth.get_transaction_count(user_address, 'pending'),
             'chainId': web3.eth.chain_id,
             'type': 2,
@@ -510,8 +511,8 @@ def swap_tokens_via_1inch(user_private_key: str, from_token: str, to_token: str,
         }
 
         signed_tx = acct.sign_transaction(txn)
-        tx_hash   = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        receipt   = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, 180)
 
         return (receipt.status == 1)
 
@@ -546,17 +547,17 @@ def confirm_staking_tx(user: User, tx_hash: str) -> bool:
             if lg.address.lower() == token_contract.address.lower():
                 if len(lg.topics) >= 3 and lg.topics[0].hex().lower() == transfer_topic.lower():
                     from_addr = "0x" + lg.topics[1].hex()[26:]
-                    to_addr   = "0x" + lg.topics[2].hex()[26:]
+                    to_addr = "0x" + lg.topics[2].hex()[26:]
                     from_addr = Web3.to_checksum_address(from_addr)
-                    to_addr   = Web3.to_checksum_address(to_addr)
+                    to_addr = Web3.to_checksum_address(to_addr)
 
                     # Ищем именно user -> project (в тесте 0.5$, в основном 25$).
                     if from_addr.lower() == user.unique_wallet_address.lower() and \
-                       to_addr.lower()   == PROJECT_WALLET_ADDRESS.lower():
+                       to_addr.lower() == PROJECT_WALLET_ADDRESS.lower():
                         amt_int = int(lg.data, 16)
                         token_decimals = get_token_decimals(token_contract.address)
                         token_amt = amt_int / (10**token_decimals)
-                        usd_amt   = token_amt * price_usd
+                        usd_amt = token_amt * price_usd
                         logger.info(f"[confirm_staking_tx] found {token_amt} UJO => ~{usd_amt} USD")
                         if usd_amt >= 0.5:  # или 25
                             found = {"token_amount": token_amt, "usd_amount": usd_amt}
