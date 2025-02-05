@@ -18,7 +18,7 @@
             </p>
             <img src="https://api.qrserver.com/v1/create-qr-code/?data={{ unique_wallet_address }}&amp;size=200x200" alt="QR Code" >
             <button class="nes-btn is-success" id="copyUniqueWalletBtn">
-                <i class="fas fa-copy"></i> {% if language == 'ru' %}Копировать Адрес{% else %}Copy Address{% endif %}
+                <i class="fas fa-copy"></i> {% if language == 'ru' %}Копировать Адрес{% else %}Copy Address{% endif %} 
             </button>
         </div>
         
@@ -165,9 +165,10 @@
                         document.getElementById('ujoBalance').textContent = 'Error';
                         console.error('Ошибка при получении балансов:', data.error);
                     } else{
-                        document.getElementById('ethBalance').textContent = data.balances.eth.toFixed(4);
-                        document.getElementById('wethBalance').textContent = data.balances.weth.toFixed(4);
-                        document.getElementById('ujoBalance').textContent = data.balances.ujo.toFixed(4);
+                        // Значения уже возвращены как строки с 4 знаками после запятой
+                        document.getElementById('ethBalance').textContent = data.balances.eth;
+                        document.getElementById('wethBalance').textContent = data.balances.weth;
+                        document.getElementById('ujoBalance').textContent = data.balances.ujo;
                     }
                 } catch(error){
                     console.error("Ошибка при загрузке балансов:", error);
