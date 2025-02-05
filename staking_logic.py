@@ -343,29 +343,31 @@ def deposit_eth_to_weth(user_private_key: str, user_wallet: str, amount_eth: flo
 def get_balances(user: User) -> dict:
     """
     Возвращаем словарь с балансами ETH/WETH/UJO для уникального кошелька user.
-    Балансы округляются вниз до 4 знаков после запятой.
+    Балансы округляются вниз до 4 знаков после запятой и возвращаются как строки.
     """
     try:
         ua = Web3.to_checksum_address(user.unique_wallet_address)
 
         raw_eth = web3.eth.get_balance(ua)
         eth_bal = float(Web3.from_wei(raw_eth, 'ether'))
-        # Округление вниз до 4 знаков
         eth_bal = math.floor(eth_bal * 1e4) / 1e4
+        eth_str = format(eth_bal, ".4f")
 
         raw_w  = weth_contract.functions.balanceOf(ua).call()
         wdec   = weth_contract.functions.decimals().call()
         wbal   = raw_w / (10**wdec)
         wbal = math.floor(wbal * 1e4) / 1e4
+        weth_str = format(wbal, ".4f")
 
         ujo_bal = get_token_balance(ua, ujo_contract)
         ujo_bal = math.floor(ujo_bal * 1e4) / 1e4
+        ujo_str = format(ujo_bal, ".4f")
 
         return {
             "balances": {
-                "eth": eth_bal,
-                "weth": wbal,
-                "ujo": ujo_bal
+                "eth": eth_str,
+                "weth": weth_str,
+                "ujo": ujo_str
             }
         }
     except Exception as e:
