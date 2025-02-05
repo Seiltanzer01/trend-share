@@ -16,6 +16,7 @@ from staking_logic import (
     confirm_staking_tx,
     get_token_balance,
     get_token_price_in_usd,
+    get_token_decimals,  # убедитесь, что эта функция импортирована
     web3,
     token_contract,
     weth_contract,
@@ -41,38 +42,46 @@ staking_bp = Blueprint('staking_bp', __name__)
 def swap_tokens_via_paraswap(private_key, sell_token, buy_token, from_amount, user_address):
     """
     Обмен токенов через API ParaSwap v6.2.
-    
+
     Шаг 1: Получение котировки (quote) от ParaSwap.
     Шаг 2: Построение данных транзакции через POST запрос.
     Шаг 3: Подпись и отправка транзакции через web3.
-    
-    :param private_key: приватный ключ отправителя
-    :param sell_token: адрес исходного токена (например, ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
-    :param buy_token: адрес токена, в который производится обмен
-    :param from_amount: сумма обмена в единицах токена (например, в ETH)
-    :param user_address: адрес отправителя
-    :return: True при успешном выполнении обмена, иначе False
+
+    :param private_key: Приватный ключ отправителя.
+    :param sell_token: Адрес исходного токена (например, для ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE").
+    :param buy_token: Адрес токена, в который производится обмен.
+    :param from_amount: Сумма обмена в единицах токена (например, в ETH).
+    :param user_address: Адрес отправителя.
+    :return: True при успешном выполнении обмена, иначе False.
     """
     try:
-        # Преобразуем from_amount в минимальные единицы (wei или соответствующие для токена)
+        # Определяем количество десятичных знаков для токенов
         if sell_token.lower() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
-            from_amount_units = int(from_amount * 10**18)
+            src_decimals = 18
         else:
-            decimals = get_token_decimals(sell_token)
-            from_amount_units = int(from_amount * 10**decimals)
+            src_decimals = get_token_decimals(sell_token)
+        if buy_token.lower() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee":
+            dest_decimals = 18
+        else:
+            dest_decimals = get_token_decimals(buy_token)
+        
+        # Преобразуем from_amount в минимальные единицы (wei или соответствующие для токена)
+        from_amount_units = int(from_amount * 10**src_decimals)
         
         # Получаем базовый URL из переменной окружения (для v6.2 используем "https://api.paraswap.io")
         PARASWAP_API_URL = os.environ.get("PARASWAP_API_URL", "https://api.paraswap.io")
         version = "6.2"
         
-        # Шаг 1: Получение котировки с передачей параметра version
+        # Шаг 1: Получение котировки с передачей параметров version, srcDecimals и destDecimals
         quote_url = f"{PARASWAP_API_URL}/quote?version={version}"
         params = {
             "srcToken": sell_token,
             "destToken": buy_token,
             "amount": str(from_amount_units),
             "userAddress": user_address,
-            "side": "SELL"
+            "side": "SELL",
+            "srcDecimals": src_decimals,
+            "destDecimals": dest_decimals
         }
         quote_response = requests.get(quote_url, params=params)
         if quote_response.status_code != 200:
