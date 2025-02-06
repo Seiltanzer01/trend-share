@@ -1,0 +1,176 @@
+<!-- mini_game.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Retro Platformer Mini Game</title>
+  <!-- Подключим стили NES.css (пример) -->
+  <link href="https://unpkg.com/nes.css@latest/css/nes.min.css" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0; padding: 0;
+      background: #000;
+      color: #fff;
+    }
+    #game-canvas {
+      background: #222;
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+    }
+    .game-container {
+      text-align: center;
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1 class="nes-text is-primary">Retro Trader on Wall Street</h1>
+    <canvas id="game-canvas" width="640" height="360"></canvas>
+    <p>Use arrows to move the trader. Press <em>Space</em> to interact with a terminal and guess direction.</p>
+    <div id="ui-panel" class="nes-container is-rounded" style="color:black; margin: 1em auto; width: 60%;">
+      <button class="nes-btn is-primary" id="btn-check-status">Check My Stats</button>
+      <span id="status-span"></span>
+      <hr>
+      <select id="direction-select" class="nes-select">
+        <option value="up">UP</option>
+        <option value="down">DOWN</option>
+      </select>
+      <button class="nes-btn is-success" id="btn-guess">Guess</button>
+      <span id="guess-result"></span>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Примитивный «ретро-платформер» (очень условно)
+    // Нарисуем «трейдера» - просто квадрат, и «терминалы» - ещё квадраты, 
+    // и позволим ходить влево-вправо + прыжок.
+    // Здесь код чисто демонстрационный.
+
+    let trader = { x: 50, y: 300, vx: 0, vy: 0, onGround: true };
+    let keys = {};
+
+    let terminalX = 400;  // где-то на сцене будет «терминал» (считаем 1)
+
+    function gameLoop() {
+      // Update
+      if (keys['ArrowLeft']) trader.vx = -2;
+      else if (keys['ArrowRight']) trader.vx = 2;
+      else trader.vx = 0;
+
+      // jump
+      if (keys['Space'] && trader.onGround) {
+        trader.vy = -6;
+        trader.onGround = false;
+      }
+
+      trader.x += trader.vx;
+      trader.y += trader.vy;
+      trader.vy += 0.2; // gravity
+
+      if (trader.y > 300) {
+        trader.y = 300; 
+        trader.vy = 0;
+        trader.onGround = true;
+      }
+
+      if (trader.x < 0) trader.x = 0;
+      if (trader.x > canvas.width - 20) trader.x = canvas.width - 20;
+
+      // Draw
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // draw floor
+      ctx.fillStyle = 'green';
+      ctx.fillRect(0, 320, canvas.width, 40);
+
+      // draw trader
+      ctx.fillStyle = 'white';
+      ctx.fillRect(trader.x, trader.y, 20, 20);
+
+      // draw terminal
+      ctx.fillStyle = 'yellow';
+      ctx.fillRect(terminalX, 280, 20, 40);
+
+      // If user is near the terminal (distance < 30) and pressed Space -> guess:
+      // Для реального взаимодействия - сделали кнопку "Guess" ниже,
+      // но логика может быть разной. 
+      
+      requestAnimationFrame(gameLoop);
+    }
+
+    requestAnimationFrame(gameLoop);
+
+    // Клавиши
+    document.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+    });
+    document.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    // Интерфейс: кнопки Check Status, Guess
+    const btnCheckStatus = document.getElementById('btn-check-status');
+    const statusSpan = document.getElementById('status-span');
+    const btnGuess = document.getElementById('btn-guess');
+    const directionSelect = document.getElementById('direction-select');
+    const guessResult = document.getElementById('guess-result');
+
+    btnCheckStatus.addEventListener('click', async () => {
+      statusSpan.innerText = "...loading...";
+      try {
+        let resp = await fetch('/api/game_status', { method: 'GET' });
+        if (!resp.ok) {
+          statusSpan.innerText = "Error checking status.";
+          return;
+        }
+        let data = await resp.json();
+        if (data.error) {
+          statusSpan.innerText = data.error;
+          return;
+        }
+        statusSpan.innerText = `Plays today: ${data.times_played_today}, Weekly points: ${data.weekly_points}`;
+      } catch (err) {
+        statusSpan.innerText = "Network error.";
+      }
+    });
+
+    btnGuess.addEventListener('click', async () => {
+      guessResult.innerText = "...";
+      let formData = new FormData();
+      formData.append('direction', directionSelect.value);
+      // csrf
+      const csrfToken = document.querySelector('meta[name="csrf-token"]');
+      let headers = {};
+      if (csrfToken) {
+        headers['X-CSRFToken'] = csrfToken.getAttribute('content');
+      }
+      try {
+        let resp = await fetch('/api/guess_direction', {
+          method: 'POST',
+          headers: headers,
+          body: formData
+        });
+        if (!resp.ok) {
+          let text = await resp.json();
+          guessResult.innerText = text.error || "Error guess";
+          return;
+        }
+        let data = await resp.json();
+        if (data.error) {
+          guessResult.innerText = data.error;
+          return;
+        }
+        guessResult.innerText = `Real: ${data.real_direction.toUpperCase()} - You are ${data.result.toUpperCase()}! 
+          You now have ${data.weekly_points} pts (plays today ${data.times_played_today}/5).`;
+      } catch (err) {
+        guessResult.innerText = "Network error for guess.";
+      }
+    });
+  </script>
+</body>
+</html>
