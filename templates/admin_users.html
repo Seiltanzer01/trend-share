@@ -49,6 +49,16 @@
     <button type="submit" class="nes-btn is-success" style="margin-left: 10px;">Установить</button>
 </form>
 
+<div class="nes-container is-rounded" style="margin-bottom: 1em; padding: 1em;">
+  <p>
+    Текущий месячный пул (best_setup_pool_size): <strong>{{ existing_pool_size }}</strong> UJO
+  </p>
+  <p>
+    Недельный пул для мини-игры (game_rewards_pool_size = месяц / 8): 
+    <strong>{{ game_pool_size }}</strong> UJO
+  </p>
+</div>
+
 <!-- Таблица пользователей -->
 <table class="nes-table is-bordered is-striped">
     <thead>
