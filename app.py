@@ -20,6 +20,8 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from routes_staking import staking_bp  # Make sure routes_staking.py exists and contains staking_bp
+from mini_game import mini_game_bp
+
 # Adding OpenAI
 import openai
 
@@ -757,6 +759,7 @@ def initialize():
                 """)
                 logger.info("Column 'voting_screenshot' added to best_setup_candidate if it didn't exist.")
                 
+                
         except Exception as e:
             logger.error(f"ALTER TABLE execution failed: {e}")
 
@@ -777,6 +780,36 @@ def initialize():
                 user.unique_private_key = ""
                 #
                 ### /ИЗМЕНЕНИЕ ###
+
+        try:
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS user_game_score (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES "user"(id),
+                    weekly_points INTEGER NOT NULL DEFAULT 0,
+                    times_played_today INTEGER NOT NULL DEFAULT 0,
+                    last_played_date DATE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            logger.info("Table user_game_score created/exists.")
+        except Exception as e:
+            logger.error(f"Error creating user_game_score: {e}")
+
+        # Проверяем, есть ли config(key='game_rewards_pool_size'):
+        res = con.execute("""
+            SELECT * FROM config WHERE key='game_rewards_pool_size'
+        """)
+        row = res.fetchone()
+        if not row:
+            try:
+                con.execute("""
+                    INSERT INTO config(key, value) VALUES('game_rewards_pool_size','100')
+                """)
+                logger.info("Default game_rewards_pool_size=100 set in config.")
+            except Exception as e:
+                logger.error(f"Error inserting game_rewards_pool_size in config: {e}")
+        
             db.session.commit()
             logger.info("Unique wallets for existing users have been initialized (now set to empty).")
         except Exception as e:
@@ -869,6 +902,18 @@ scheduler.add_job(
     next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=1)
 )
 
+#6) P2E
+
+scheduler.add_job(
+    id='Distribute Weekly Game Rewards',
+    func=distribute_game_rewards,
+    trigger='cron',
+    day_of_week='sun',
+    hour=23,
+    minute=59,
+    next_run_time=datetime.now(pytz.UTC) + timedelta(seconds=30)  # первое срабатывание через 30сек
+)
+
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
@@ -877,6 +922,8 @@ from routes import *
 
 # Register Blueprints
 app.register_blueprint(staking_bp, url_prefix='/staking')  # Register staking_bp here
+
+app.register_blueprint(mini_game_bp, url_prefix='/game')
 
 # Add OpenAI API Key
 app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '').strip()
