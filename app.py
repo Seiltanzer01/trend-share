@@ -700,8 +700,11 @@ def initialize():
         db.create_all()
         logger.info("Database created or already exists.")
 
-        try:
-            with db.engine.connect() as con:
+        # Открываем одно соединение и внутри него делаем все нужные запросы
+        with db.engine.connect() as con:
+
+            # -- 1) Выполняем ALTER TABLE
+            try:
                 # 1) First remove (if exists):
                 con.execute("""
                     ALTER TABLE user_staking
@@ -731,7 +734,7 @@ def initialize():
                 """)
                 logger.info("Columns 'private_key', 'unique_wallet_address' and 'unique_private_key' added to 'user' table.")
                 
-                ### ИЗМЕНЕНИЕ: Добавляем poll_id в таблицу best_setup_candidate ###
+                # Добавляем poll_id в таблицу best_setup_candidate
                 con.execute("""
                     ALTER TABLE best_setup_candidate
                     ADD COLUMN IF NOT EXISTS poll_id INTEGER
@@ -744,86 +747,76 @@ def initialize():
                 """)
                 logger.info("Dropped unique constraint from user.unique_wallet_address if it existed.")
 
-    # =========================================
-    # ИЗМЕНЕНИЕ №2: Добавляем столбец real_prices в best_setup_poll
-    # =========================================
+                # Добавляем столбец real_prices в best_setup_poll
                 con.execute("""
                     ALTER TABLE best_setup_poll
                     ADD COLUMN IF NOT EXISTS real_prices JSON
                 """)
                 logger.info("Column 'real_prices' added to best_setup_poll if it didn't exist.")
-                ### /ИЗМЕНЕНИЕ ###
+
+                # Добавляем voting_screenshot в best_setup_candidate
                 con.execute("""
                     ALTER TABLE best_setup_candidate
                     ADD COLUMN IF NOT EXISTS voting_screenshot VARCHAR(255)
                 """)
                 logger.info("Column 'voting_screenshot' added to best_setup_candidate if it didn't exist.")
-                
-                
-        except Exception as e:
-            logger.error(f"ALTER TABLE execution failed: {e}")
 
-        # Инициализация unique_wallet_address для пользователей
+            except Exception as e:
+                logger.error(f"ALTER TABLE execution failed: {e}")
+
+            # -- 2) Создаём таблицу user_game_score
+            try:
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS user_game_score (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES "user"(id),
+                        weekly_points INTEGER NOT NULL DEFAULT 0,
+                        times_played_today INTEGER NOT NULL DEFAULT 0,
+                        last_played_date DATE,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                logger.info("Table user_game_score created/exists.")
+            except Exception as e:
+                logger.error(f"Error creating user_game_score: {e}")
+
+            # -- 3) Проверяем, есть ли config(key='game_rewards_pool_size'):
+            res = con.execute("""
+                SELECT * FROM config WHERE key='game_rewards_pool_size'
+            """)
+            row = res.fetchone()
+            if not row:
+                try:
+                    con.execute("""
+                        INSERT INTO config(key, value) VALUES('game_rewards_pool_size','100')
+                    """)
+                    logger.info("Default game_rewards_pool_size=100 set in config.")
+                except Exception as e:
+                    logger.error(f"Error inserting game_rewards_pool_size in config: {e}")
+
+        # -- 4) Инициализация unique_wallet_address для пользователей (уже вне with, т.к. дальше используем ORM)
         try:
             users_without_wallet = models.User.query.filter(
                 (models.User.unique_wallet_address == None) | (models.User.unique_wallet_address == '')
             ).all()
             for user in users_without_wallet:
-                # ### ИЗМЕНЕНИЕ: убираем вызовы несуществующих функций generate_unique_wallet_address() и generate_unique_private_key()
-                #
-                # user.unique_wallet_address = generate_unique_wallet_address()
-                # user.unique_private_key = generate_unique_private_key()
-                # logger.info(f"Unique wallet generated for user ID {user.id}.")
-                #
-                # Вместо этого просто оставим pass или присвоим пустые значения, чтобы не было ошибки
+                # Вместо генерации - временно присвоим пустые значения
                 user.unique_wallet_address = ""
                 user.unique_private_key = ""
-                #
-                ### /ИЗМЕНЕНИЕ ###
 
-        try:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS user_game_score (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL REFERENCES "user"(id),
-                    weekly_points INTEGER NOT NULL DEFAULT 0,
-                    times_played_today INTEGER NOT NULL DEFAULT 0,
-                    last_played_date DATE,
-                    created_at TIMESTAMP DEFAULT NOW()
-                )
-            """)
-            logger.info("Table user_game_score created/exists.")
-        except Exception as e:
-            logger.error(f"Error creating user_game_score: {e}")
-
-        # Проверяем, есть ли config(key='game_rewards_pool_size'):
-        res = con.execute("""
-            SELECT * FROM config WHERE key='game_rewards_pool_size'
-        """)
-        row = res.fetchone()
-        if not row:
-            try:
-                con.execute("""
-                    INSERT INTO config(key, value) VALUES('game_rewards_pool_size','100')
-                """)
-                logger.info("Default game_rewards_pool_size=100 set in config.")
-            except Exception as e:
-                logger.error(f"Error inserting game_rewards_pool_size in config: {e}")
-        
             db.session.commit()
             logger.info("Unique wallets for existing users have been initialized (now set to empty).")
+
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error initializing unique wallets: {e}")
             logger.error(traceback.format_exc())
 
-        # If needed, create_predefined_data()
-        # create_predefined_data()
+        # -- 5) При необходимости заполняем предустановленные данные
         if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
             create_predefined_data()
             create_predefined_data()
             logger.info("Predefined data successfully updated.")
-            
 
     except Exception as e:
         db.session.rollback()
