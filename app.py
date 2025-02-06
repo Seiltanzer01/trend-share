@@ -140,6 +140,8 @@ s3_client = boto3.client(
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+from mini_game import mini_game_bp, distribute_game_rewards
+
 init_best_setup_voting_routes(app, db)
 
 
@@ -832,6 +834,9 @@ def inject_admin_ids():
 ####################
 # APScheduler jobs
 ####################
+def distribute_game_rewards_job():
+    with app.app_context():
+        distribute_game_rewards()
 
 def accumulate_staking_rewards_job():
     with app.app_context():
@@ -901,19 +906,18 @@ scheduler.add_job(
 
 scheduler.add_job(
     id='Distribute Weekly Game Rewards',
-    func=distribute_game_rewards,
+    func=distribute_game_rewards_job,   # <-- вызываем "обёртку"
     trigger='cron',
     day_of_week='sun',
     hour=23,
     minute=59,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(seconds=30)  # первое срабатывание через 30сек
+    next_run_time=datetime.now(pytz.UTC) + timedelta(seconds=30)
 )
 
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 
-from mini_game import mini_game_bp
 
 # Import routes after APScheduler initialization
 from routes import *
