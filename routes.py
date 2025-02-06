@@ -1117,16 +1117,23 @@ def init():
 def admin_users():
     users = User.query.all()
     voting_config = Config.query.filter_by(key='voting_enabled').first()
+
+    # Считаем месячный пул (best_setup_pool_size)
     pool_config = Config.query.filter_by(key='best_setup_pool_size').first()
     existing_pool_size = pool_config.value if pool_config else '0'
+
+    # Считаем недельный пул (game_rewards_pool_size)
+    game_pool_config = Config.query.filter_by(key='game_rewards_pool_size').first()
+    game_pool_size = game_pool_config.value if game_pool_config else '0'
 
     return render_template(
         'admin_users.html',
         users=users,
         voting_config=voting_config,
-        existing_pool_size=existing_pool_size
+        existing_pool_size=existing_pool_size,  # Месячный пул
+        game_pool_size=game_pool_size           # Недельный пул
     )
-
+    
 @app.route('/admin/toggle_voting', methods=['POST'])
 @admin_required
 def toggle_voting():
@@ -1165,16 +1172,39 @@ def toggle_premium(user_id):
 @app.route('/admin/set_pool_size', methods=['POST'])
 @admin_required
 def set_pool_size():
-    pool_size = request.form.get('pool_size', '0').strip()
+    pool_size_str = request.form.get('pool_size', '0').strip()
     try:
+        monthly_pool_float = float(pool_size_str)  # общее число, введенное админом (например 80.0)
+    except ValueError:
+        flash('Invalid pool size.', 'danger')
+        return redirect(url_for('admin_users'))
+
+    try:
+        # 1) Записываем в config key='best_setup_pool_size'
         config_record = Config.query.filter_by(key='best_setup_pool_size').first()
         if not config_record:
             config_record = Config(key='best_setup_pool_size', value='0')
             db.session.add(config_record)
-        
-        config_record.value = pool_size
+
+        config_record.value = str(monthly_pool_float)
+
+        # 2) Одновременно считаем недельный пул для мини-игры: делим на 8
+        weekly_pool = monthly_pool_float / 8.0
+
+        # Сохраняем в config key='game_rewards_pool_size'
+        config_game = Config.query.filter_by(key='game_rewards_pool_size').first()
+        if not config_game:
+            config_game = Config(key='game_rewards_pool_size', value='0')
+            db.session.add(config_game)
+
+        config_game.value = f"{weekly_pool:.4f}"  # например округлим/храним 4 знака
+
         db.session.commit()
-        flash(f"Prize pool size updated: {pool_size} UJO", 'success')
+        
+        flash(f"Updated monthly pool = {monthly_pool_float} UJO. "
+              f"Weekly game pool is now {weekly_pool:.4f} UJO.",
+              'success')
+
     except Exception as e:
         db.session.rollback()
         flash('Error saving prize pool.', 'danger')
