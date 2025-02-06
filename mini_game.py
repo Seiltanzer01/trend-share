@@ -7,18 +7,15 @@ import pytz
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, jsonify, request, session, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
-from app import db, logger
-from models import User, Config
+from models import db, User, Config  # <-- берем db, User, Config из models
 from web3 import Web3
 from best_setup_voting import send_token_reward as voting_send_token_reward  # используем ту же функцию наград
 import math
 
-mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
+# Создаем свой локальный logger
+logger = logging.getLogger(__name__)
 
-### ----------------------------------------------------------------
-### 1) Модельные данные хранятся в таблице user_game_score,
-###    которую мы создадим без миграций в initialize().
-### ----------------------------------------------------------------
+mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
 
 @mini_game_bp.route('/retro-game', methods=['GET'])
 def retro_game():
@@ -42,7 +39,6 @@ def game_status():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
     user_id = session['user_id']
-    # Получаем запись из user_game_score
     record = db.session.execute("""
         SELECT * FROM user_game_score WHERE user_id = :uid
     """, {"uid": user_id}).fetchone()
@@ -53,7 +49,6 @@ def game_status():
             "weekly_points": 0
         }), 200
 
-    # Проверяем, не сменилась ли дата (если поменялась — мы в initialize() обнулим, но если user_login после этого... )
     times_played_today = record["times_played_today"]
     weekly_points = record["weekly_points"]
     return jsonify({
@@ -65,8 +60,7 @@ def game_status():
 def guess_direction():
     """
     Пользователь пытается угадать направление (Up/Down) для следующих 10 свечей.
-    Считаем это упрощённо случайным образом. При правильном ответе +1 очко.
-    Можно играть до 5 раз в день.
+    При правильном ответе +1 очко. Лимит 5 раз в день.
     """
     try:
         csrf_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
@@ -84,43 +78,39 @@ def guess_direction():
     if user_guess not in ['up', 'down']:
         return jsonify({"error": "Invalid guess (must be 'up' or 'down')"}), 400
 
-    # Получаем/создаём запись в user_game_score
+    # Проверяем/создаём запись в user_game_score
     row = db.session.execute("""
         SELECT * FROM user_game_score WHERE user_id = :uid
     """, {"uid": user_id}).fetchone()
 
     if row is None:
-        # Вставляем новую строчку
         db.session.execute("""
             INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date)
             VALUES (:uid, 0, 0, CURRENT_DATE)
         """, {"uid": user_id})
         db.session.commit()
-        # Перечитываем
         row = db.session.execute("""
             SELECT * FROM user_game_score WHERE user_id = :uid
         """, {"uid": user_id}).fetchone()
 
-    # Проверка ежедневного лимита
     times_played_today = row["times_played_today"]
-    last_played_date = row["last_played_date"]  # DATE
-    # Если дата сменилась — сбросим счётчик
+    last_played_date = row["last_played_date"]
     today_date = datetime.utcnow().date()
+
+    # Если дата сменилась — сбросим счётчик
     if last_played_date is None or last_played_date < today_date:
         times_played_today = 0
 
     if times_played_today >= 5:
         return jsonify({"error": "Daily limit reached (5 plays per day)."}), 400
 
-    # Случайно генерируем результат
-    real_direction = random.choice(['up', 'down'])  # где-то 50/50
+    real_direction = random.choice(['up', 'down'])
     is_correct = (user_guess == real_direction)
     points_earned = 1 if is_correct else 0
 
     new_weekly_points = row["weekly_points"] + points_earned
     new_times_played_today = times_played_today + 1
 
-    # Обновляем запись
     db.session.execute("""
         UPDATE user_game_score
            SET weekly_points = :wpts,
@@ -143,18 +133,12 @@ def guess_direction():
         "times_played_today": new_times_played_today
     }), 200
 
-### ----------------------------------------------------------------
-### 2) Еженедельная выплата: в воскресенье ночью (или любой день/время),
-###    распределяем game_rewards_pool между всеми игроками по их weekly_points.
-### ----------------------------------------------------------------
-
 def distribute_game_rewards():
     """
     Смотрим Config(key='game_rewards_pool_size'), делим пропорционально weekly_points,
     рассылаем награды (voting_send_token_reward), обнуляем weekly_points.
     """
     try:
-        # Ищем в таблице config запись с key='game_rewards_pool_size'
         cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
         if not cfg:
             logger.warning("[mini_game] No config 'game_rewards_pool_size' found, pool=0.")
@@ -166,17 +150,16 @@ def distribute_game_rewards():
                 pool = 0.0
 
         if pool <= 0:
-            logger.info("[mini_game] game_rewards_pool_size <= 0, пропускаем.")
+            logger.info("[mini_game] game_rewards_pool_size <= 0, skip distribution.")
             return
 
-        # Суммируем weekly_points
-        rows = db.session.execute("SELECT SUM(weekly_points) AS total_points FROM user_game_score").fetchone()
-        total_points = rows["total_points"] if rows and rows["total_points"] else 0
+        row_sum = db.session.execute("SELECT SUM(weekly_points) AS total_points FROM user_game_score").fetchone()
+        total_points = row_sum["total_points"] if row_sum and row_sum["total_points"] else 0
         if total_points <= 0:
-            logger.info("[mini_game] total_points=0, никто не играл.")
+            logger.info("[mini_game] total_points=0, no participants.")
             return
 
-        # Получаем список (user_id, weekly_points, user.wallet_address)
+        # Собираем (user_id, weekly_points, user.wallet_address)
         data = db.session.execute("""
             SELECT ugs.user_id, ugs.weekly_points, "user".wallet_address
               FROM user_game_score ugs
@@ -189,20 +172,18 @@ def distribute_game_rewards():
             wpts = row["weekly_points"]
             wallet = row["wallet_address"] or ""
             if not wallet:
-                # Если у пользователя нет кошелька - пропускаем
+                # нет кошелька - пропускаем
                 continue
             share = pool * (wpts / total_points)
             if share <= 0:
                 continue
 
-            # Отправляем токены
             success = voting_send_token_reward(wallet, share)
             if success:
                 logger.info(f"[mini_game] Sent {share:.4f} UJO to user_id={user_id}")
             else:
                 logger.error(f"[mini_game] Could NOT send tokens to user_id={user_id}")
 
-        # Обнуляем weekly_points
         db.session.execute("UPDATE user_game_score SET weekly_points=0")
         db.session.commit()
         logger.info("[mini_game] Weekly points reset after distribution.")
