@@ -111,6 +111,7 @@
                     
                     {% if session.get('telegram_id') in ADMIN_TELEGRAM_IDS %}
                         <a href="{{ url_for('admin_users') }}" class="nav-button nes-btn"><i class="fas fa-users-cog"></i> {% if language == 'ru' %}Админ{% else %}Admin{% endif %}</a>
+                        <a href="{{ url_for('mini_game_bp.retro_game') }}" class="nav-button nes-btn"><i class="fas fa-gamepad"></i> {% if language == 'ru' %}Игра{% else %}Game{% endif %}</a>
                     {% endif %}
                     
                     <!-- Кнопка "Выйти": Если запущено в Telegram, закрывается веб-приложение, иначе переход на logout -->
