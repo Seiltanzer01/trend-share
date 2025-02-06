@@ -20,7 +20,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from routes_staking import staking_bp  # Make sure routes_staking.py exists and contains staking_bp
-from mini_game import mini_game_bp
+
 
 # Adding OpenAI
 import openai
@@ -141,6 +141,8 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 init_best_setup_voting_routes(app, db)
+
+
 
 # Context processor to provide datetime in templates
 @app.context_processor
@@ -909,6 +911,9 @@ scheduler.add_job(
 
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
+
+
+from mini_game import mini_game_bp
 
 # Import routes after APScheduler initialization
 from routes import *
