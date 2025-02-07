@@ -1,158 +1,261 @@
-# mini_game.py
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wall Street Retro Platformer</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; image-rendering: pixelated; }
+    /* Оверлей для мини-игры (график и кнопки угадывания) */
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 10;
+      font-family: "Press Start 2P", cursive;
+      color: #fff;
+    }
+    #overlay h2 { margin-bottom: 20px; }
+    #chartCanvas {
+      border: 2px solid #fff;
+      margin-bottom: 20px;
+    }
+    .btn {
+      padding: 10px 20px;
+      margin: 0 10px;
+      background: #2ecc71;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      font-family: "Press Start 2P", cursive;
+    }
+    @media (max-width: 480px) {
+      #chartCanvas { width: 250px; height: 150px; }
+      .btn { font-size: 14px; padding: 8px 16px; }
+    }
+  </style>
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- OrbitControls (опционально для отладки) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <!-- Оверлей для мини-игры (при появлении терминала) -->
+  <div id="overlay">
+    <h2>Guess the Direction</h2>
+    <canvas id="chartCanvas" width="300" height="200"></canvas>
+    <div>
+      <button class="btn" id="guessUp">UP</button>
+      <button class="btn" id="guessDown">DOWN</button>
+    </div>
+  </div>
+  <script>
+    // Глобальные переменные
+    let scene, camera, renderer, controls;
+    let player, terminal;
+    let clock = new THREE.Clock();
+    let gameActive = true;
+    let overlay = document.getElementById('overlay');
+    let chartCanvas = document.getElementById('chartCanvas');
+    let chartCtx = chartCanvas.getContext('2d');
+    let keys = {};
 
-import random
-import logging
-import traceback
-import pytz
-from datetime import datetime, timedelta
-from flask import Blueprint, render_template, jsonify, request, session, flash, redirect, url_for
-from flask_wtf.csrf import validate_csrf, CSRFError
-from models import db, User, Config  # Берем из моделей, чтобы не создавать циклический импорт
-from best_setup_voting import send_token_reward as voting_send_token_reward  # Используем уже существующую функцию наград
-import math
+    init();
+    animate();
 
-# Создаем свой локальный logger
-logger = logging.getLogger(__name__)
+    function init() {
+      // Создаем сцену
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
 
-mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
+      // Камера (третье лицо)
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 5, 12);
 
-@mini_game_bp.route('/retro-game', methods=['GET'])
-def retro_game():
-    """
-    Страница с ретро‑3D платформером, где трейдер бегает по Wall Street и может подойти к терминалу,
-    чтобы запустить мини‑игру с угадыванием направления свечного графика.
-    """
-    if 'user_id' not in session:
-        flash("Пожалуйста, войдите в систему.", "warning")
-        return redirect(url_for('login'))
-    return render_template('mini_game.html')  # Используется шаблон ниже
+      // Рендерер
+      renderer = new THREE.WebGLRenderer({ antialias: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-@mini_game_bp.route('/api/game_status', methods=['GET'])
-def game_status():
-    """
-    Возвращает состояние игры:
-      - сколько раз сегодня сыграл пользователь,
-      - сколько у него очков (weekly_points).
-    """
-    if 'user_id' not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-    user_id = session['user_id']
-    record = db.session.execute(
-        "SELECT * FROM user_game_score WHERE user_id = :uid",
-        {"uid": user_id}
-    ).fetchone()
-    if not record:
-        return jsonify({"times_played_today": 0, "weekly_points": 0}), 200
-    return jsonify({
-        "times_played_today": record["times_played_today"],
-        "weekly_points": record["weekly_points"]
-    }), 200
+      // Освещение
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      scene.add(directionalLight);
 
-@mini_game_bp.route('/api/guess_direction', methods=['POST'])
-def guess_direction():
-    """
-    Пользователь угадывает направление (up/down) для мини-игры (candlestick график).
-    Если ответ правильный, +1 очко. Лимит — 5 игр в день.
-    """
-    try:
-        csrf_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
-        if not csrf_token:
-            return jsonify({"error": "CSRF token missing"}), 400
-        validate_csrf(csrf_token)
-    except CSRFError:
-        return jsonify({"error": "CSRF token invalid"}), 400
+      // Земля: плоскость с текстурой (используйте свою текстуру для пиксельного эффекта)
+      const textureLoader = new THREE.TextureLoader();
+      const groundTexture = textureLoader.load('https://i.imgur.com/4HJbzEq.png'); // пример текстуры
+      groundTexture.magFilter = THREE.NearestFilter;
+      groundTexture.minFilter = THREE.NearestFilter;
+      const groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
+      const groundGeometry = new THREE.PlaneGeometry(200, 200);
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
 
-    if 'user_id' not in session:
-        return jsonify({"error": "Unauthorized"}), 401
+      // Добавляем несколько "зданий" (прямоугольники) для создания атмосферы Wall Street
+      for (let i = 0; i < 20; i++) {
+        const bHeight = Math.random() * 10 + 5;
+        const buildingGeometry = new THREE.BoxGeometry(4, bHeight, 4);
+        const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.x = Math.random() * 180 - 90;
+        building.position.z = Math.random() * 180 - 90;
+        building.position.y = bHeight / 2;
+        scene.add(building);
+      }
 
-    user_id = session['user_id']
-    user_guess = request.form.get('direction', '').strip().lower()  # 'up' или 'down'
-    if user_guess not in ['up', 'down']:
-        return jsonify({"error": "Invalid guess (must be 'up' or 'down')"}), 400
+      // Создаем игрока: простой куб
+      const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
+      const playerMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+      player = new THREE.Mesh(playerGeometry, playerMaterial);
+      player.position.set(0, 1, 0);
+      scene.add(player);
 
-    # Получаем или создаем запись в таблице user_game_score
-    row = db.session.execute(
-        "SELECT * FROM user_game_score WHERE user_id = :uid",
-        {"uid": user_id}
-    ).fetchone()
-    if row is None:
-        db.session.execute(
-            "INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)",
-            {"uid": user_id}
-        )
-        db.session.commit()
-        row = db.session.execute(
-            "SELECT * FROM user_game_score WHERE user_id = :uid",
-            {"uid": user_id}
-        ).fetchone()
+      // Терминал: красный куб, при столкновении с которым запускается мини-игра
+      const termGeometry = new THREE.BoxGeometry(1, 2, 1);
+      const termMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+      terminal = new THREE.Mesh(termGeometry, termMaterial);
+      terminal.position.set(10, 1, -10);
+      scene.add(terminal);
 
-    times_played_today = row["times_played_today"]
-    last_played_date = row["last_played_date"]
-    today_date = datetime.utcnow().date()
-    if last_played_date is None or last_played_date < today_date:
-        times_played_today = 0
-    if times_played_today >= 5:
-        return jsonify({"error": "Daily limit reached (5 plays per day)."}), 400
+      // Контроллеры (для отладки; можно отключить в продакшене)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
 
-    real_direction = random.choice(['up', 'down'])
-    is_correct = (user_guess == real_direction)
-    points_earned = 1 if is_correct else 0
-    new_weekly_points = row["weekly_points"] + points_earned
-    new_times_played_today = times_played_today + 1
+      window.addEventListener('resize', onWindowResize, false);
+      document.addEventListener('keydown', onKeyDown, false);
+      document.addEventListener('keyup', onKeyUp, false);
+    }
 
-    db.session.execute(
-        "UPDATE user_game_score SET weekly_points = :wpts, times_played_today = :tp, last_played_date = :ld WHERE user_id = :uid",
-        {"wpts": new_weekly_points, "tp": new_times_played_today, "ld": today_date, "uid": user_id}
-    )
-    db.session.commit()
+    function onWindowResize() {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
 
-    return jsonify({
-        "result": "correct" if is_correct else "wrong",
-        "real_direction": real_direction,
-        "points_earned": points_earned,
-        "weekly_points": new_weekly_points,
-        "times_played_today": new_times_played_today
-    }), 200
+    function onKeyDown(event) {
+      keys[event.code] = true;
+    }
 
-def distribute_game_rewards():
-    """
-    Смотрим значение game_rewards_pool_size в таблице Config,
-    затем делим пул пропорционально набранным очкам (weekly_points) всех игроков,
-    отправляем награды с помощью voting_send_token_reward и обнуляем очки.
-    """
-    try:
-        cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
-        pool = float(cfg.value) if cfg and cfg.value else 0.0
-        if pool <= 0:
-            logger.info("[mini_game] game_rewards_pool_size <= 0, skip distribution.")
-            return
-        row_sum = db.session.execute("SELECT SUM(weekly_points) AS total_points FROM user_game_score").fetchone()
-        total_points = row_sum["total_points"] if row_sum and row_sum["total_points"] else 0
-        if total_points <= 0:
-            logger.info("[mini_game] total_points=0, no participants.")
-            return
-        data = db.session.execute("""
-            SELECT ugs.user_id, ugs.weekly_points, "user".wallet_address
-            FROM user_game_score ugs
-            JOIN "user" ON "user".id = ugs.user_id
-            WHERE ugs.weekly_points > 0
-        """).fetchall()
-        for row in data:
-            user_id = row["user_id"]
-            wpts = row["weekly_points"]
-            wallet = row["wallet_address"] or ""
-            if not wallet:
-                continue
-            share = pool * (wpts / total_points)
-            if share > 0:
-                success = voting_send_token_reward(wallet, share)
-                if success:
-                    logger.info(f"[mini_game] Sent {share:.4f} UJO to user_id={user_id}")
-                else:
-                    logger.error(f"[mini_game] Could NOT send tokens to user_id={user_id}")
-        db.session.execute("UPDATE user_game_score SET weekly_points=0")
-        db.session.commit()
-        logger.info("[mini_game] Weekly points reset after distribution.")
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"[mini_game] distribute_game_rewards error: {e}", exc_info=True)
+    function onKeyUp(event) {
+      keys[event.code] = false;
+    }
+
+    // Основной игровой цикл
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!gameActive) return;
+
+      let delta = clock.getDelta();
+
+      // Простейшая физика движения игрока
+      if (keys['ArrowLeft']) player.position.x -= 5 * delta;
+      if (keys['ArrowRight']) player.position.x += 5 * delta;
+      if (keys['ArrowUp']) player.position.z -= 5 * delta;
+      if (keys['ArrowDown']) player.position.z += 5 * delta;
+
+      // Проверка столкновения с терминалом (простейшая проверка расстояния)
+      if (player.position.distanceTo(terminal.position) < 2) {
+        // Если игрок рядом и нажата клавиша "Space", запускаем мини-игру
+        if (keys['Space']) {
+          triggerMinigame();
+          keys['Space'] = false; // предотвратить многократное срабатывание
+        }
+      }
+
+      // Обновляем камеру, чтобы следовать за игроком
+      camera.position.x = player.position.x;
+      camera.position.z = player.position.z + 12;
+      camera.lookAt(player.position);
+
+      renderer.render(scene, camera);
+    }
+
+    // Функция запуска мини-игры: останавливает 3D-сцену и показывает оверлей с графиком
+    function triggerMinigame() {
+      gameActive = false;
+      generateCandlestickChart();
+      overlay.style.display = "flex";
+    }
+
+    // Генерация случайного графика свечей для UJO/USD
+    function generateCandlestickChart() {
+      // Сгенерировать 30 свечей
+      let candles = [];
+      let price = Math.random() * 100 + 100;
+      for (let i = 0; i < 30; i++) {
+        let open = price;
+        let close = open + (Math.random() - 0.5) * 10;
+        let high = Math.max(open, close) + Math.random() * 5;
+        let low = Math.min(open, close) - Math.random() * 5;
+        candles.push({ open, close, high, low });
+        price = close;
+      }
+      drawCandlestickChart(candles);
+    }
+
+    // Рисование графика свечей на canvas
+    function drawCandlestickChart(candles) {
+      chartCtx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+      let prices = [];
+      candles.forEach(c => { prices.push(c.open, c.close, c.high, c.low); });
+      let minPrice = Math.min(...prices);
+      let maxPrice = Math.max(...prices);
+      let scale = chartCanvas.height / (maxPrice - minPrice);
+      let candleWidth = chartCanvas.width / candles.length;
+      candles.forEach((c, i) => {
+        let x = i * candleWidth;
+        let highY = chartCanvas.height - (c.high - minPrice) * scale;
+        let lowY = chartCanvas.height - (c.low - minPrice) * scale;
+        chartCtx.strokeStyle = "white";
+        chartCtx.beginPath();
+        chartCtx.moveTo(x + candleWidth/2, highY);
+        chartCtx.lineTo(x + candleWidth/2, lowY);
+        chartCtx.stroke();
+        let openY = chartCanvas.height - (c.open - minPrice) * scale;
+        let closeY = chartCanvas.height - (c.close - minPrice) * scale;
+        chartCtx.fillStyle = c.close >= c.open ? "green" : "red";
+        let top = Math.min(openY, closeY);
+        let height = Math.abs(openY - closeY);
+        if (height < 1) height = 1;
+        chartCtx.fillRect(x, top, candleWidth * 0.8, height);
+      });
+    }
+
+    // Отправка угадывания направления на сервер
+    function submitGuess(guess) {
+      let formData = new FormData();
+      formData.append('direction', guess);
+      let csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
+      fetch('/game/api/guess_direction', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert("Result: " + data.result.toUpperCase() + ". Your points: " + data.weekly_points);
+        overlay.style.display = "none";
+        gameActive = true;
+      })
+      .catch(err => {
+        alert("Error submitting guess.");
+        overlay.style.display = "none";
+        gameActive = true;
+      });
+    }
+
+    // Кнопки в оверлее
+    document.getElementById('guessUp').addEventListener('click', () => submitGuess('up'));
+    document.getElementById('guessDown').addEventListener('click', () => submitGuess('down'));
+  </script>
+</body>
+</html>
