@@ -6,19 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
     body { margin: 0; overflow: hidden; background: #000; font-family: 'Press Start 2P', cursive; }
-    canvas { display: block; }
-    /* Оверлей мини-игры (для угадывания направления графика) */
+    #game-container { width: 100%; height: 100vh; }
+    /* Оверлей мини-игры (график свечей и управление) */
     #minigame-overlay {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.9);
-      color: #fff;
+      background: rgba(0, 0, 0, 0.95);
       display: none;
-      z-index: 10;
+      z-index: 20;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      color: #fff;
     }
     #minigame-overlay canvas {
       border: 2px solid #fff;
@@ -33,21 +33,55 @@
       font-size: 16px;
       cursor: pointer;
     }
-    @media (max-width: 480px) {
-      .minigame-btn { font-size: 14px; padding: 8px 16px; }
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 0, 0, 0.8);
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 5px 10px;
+      border-radius: 50%;
+      z-index: 25;
+    }
+    #points-window {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid #fff;
+      padding: 10px;
+      color: #fff;
+      font-size: 16px;
+      z-index: 25;
+    }
+    /* Контейнер для виртуального джойстика */
+    #joystick-container {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 25;
     }
   </style>
-  <!-- Three.js и GLTFLoader -->
+  <!-- Three.js, GLTFLoader и NippleJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <!-- PointerLockControls для управления от первого лица (мы будем адаптировать для третьего лица) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
 </head>
 <body>
-  <!-- Контейнер для рендеринга 3D-сцены -->
   <div id="game-container"></div>
-  <!-- Оверлей для мини-игры (график свечей) -->
+  
+  <!-- Окно с очками -->
+  <div id="points-window">Points: <span id="points-value">0</span></div>
+  
+  <!-- Контейнер для виртуального джойстика -->
+  <div id="joystick-container"></div>
+  
+  <!-- Оверлей мини-игры (график свечей) -->
   <div id="minigame-overlay">
+    <button class="close-btn" id="close-overlay">&times;</button>
     <h2>Guess the Market Direction!</h2>
     <canvas id="chartCanvas" width="300" height="200"></canvas>
     <div>
@@ -55,186 +89,153 @@
       <button class="minigame-btn" id="btnDown">DOWN</button>
     </div>
   </div>
-
+  
   <script>
     // Глобальные переменные
-    let scene, camera, renderer, controls;
-    let player, terminal;
-    let clock = new THREE.Clock();
+    let scene, camera, renderer, clock;
+    let player, city, terminal;
     let moveSpeed = 5;
-    let keys = {};
+    let joystick = null;
     let gamePaused = false;
-
-    // Инициализация сцены
+    let points = 0;
+    
+    // Инициализация Three.js
     init();
     animate();
-
+    
     function init() {
-      // Сцена
+      clock = new THREE.Clock();
       scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x000000, 20, 100);
-
-      // Камера (третьего лица)
+      scene.fog = new THREE.Fog(0x000000, 20, 150);
+      
+      // Камера от третьего лица
       camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 4, 10);
-
-      // Рендерер
+      camera.position.set(0, 5, 12);
+      
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
-
+      document.getElementById('game-container').appendChild(renderer.domElement);
+      
       // Освещение
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
       scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(10, 20, 10);
-      scene.add(dirLight);
-
-      // Генерация процедурной карты Wall Street:
-      generateCity();
-
-      // Создаем терминал (здание фондовой биржи)
-      terminal = createBuilding(3, 6, 3, 0xff0000);
-      terminal.position.set(10, 3, -15);
-      scene.add(terminal);
-
-      // Создаем игрока: простой персонаж (капа) – используем цилиндр + сфера
-      const bodyGeom = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
-      const bodyMat = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-      const body = new THREE.Mesh(bodyGeom, bodyMat);
-      body.position.y = 1;
-
-      const headGeom = new THREE.SphereGeometry(0.5, 8, 8);
-      const headMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
-      const head = new THREE.Mesh(headGeom, headMat);
-      head.position.y = 2.5;
-
-      player = new THREE.Group();
-      player.add(body);
-      player.add(head);
-      player.position.set(0, 0, 0);
-      scene.add(player);
-
-      // Настраиваем камеру, чтобы она следовала за игроком
-      // (Простой треккинг-эффект)
-      // Создадим объект-мишень, на который будет смотреть камера
-      const target = new THREE.Object3D();
-      player.add(target);
-      target.position.set(0, 2, 0);
-
-      // Обработчики событий
-      window.addEventListener('resize', onWindowResize, false);
-      document.addEventListener('keydown', onKeyDown, false);
-      document.addEventListener('keyup', onKeyUp, false);
-      // Для мобильных устройств: слушаем касания
-      document.addEventListener('touchstart', onTouchStart, false);
-      document.addEventListener('touchmove', onTouchMove, false);
-      document.addEventListener('touchend', onTouchEnd, false);
-    }
-
-    function generateCity() {
-      // Генерация ряда зданий вдоль улицы
-      const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0x555555 });
-      for (let i = -50; i < 50; i += 5) {
-        for (let j = -50; j < 50; j += 5) {
-          let width = 3 + Math.random() * 2;
-          let depth = 3 + Math.random() * 2;
-          let height = 5 + Math.random() * 15;
-          let geom = new THREE.BoxGeometry(width, height, depth);
-          let building = new THREE.Mesh(geom, buildingMaterial.clone());
-          building.material.color.setHSL(Math.random(), 0.5, 0.3);
-          building.position.set(i, height/2, j);
-          scene.add(building);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      scene.add(directionalLight);
+      
+      // Загрузим карту города (Wall Street)
+      // Замените URL на реальный файл glTF
+      const loader = new THREE.GLTFLoader();
+      loader.load('https://example.com/models/wall_street_city.gltf', function(gltf) {
+        city = gltf.scene;
+        city.scale.set(0.5, 0.5, 0.5);
+        scene.add(city);
+      }, undefined, function(error) {
+        console.error('Error loading city model:', error);
+      });
+      
+      // Загрузим модель терминала фондовой биржи
+      loader.load('https://example.com/models/terminal.gltf', function(gltf) {
+        terminal = gltf.scene;
+        terminal.scale.set(0.5, 0.5, 0.5);
+        terminal.position.set(15, 0, -20);
+        scene.add(terminal);
+      }, undefined, function(error) {
+        console.error('Error loading terminal model:', error);
+      });
+      
+      // Загрузим модель персонажа (игрока)
+      loader.load('https://example.com/models/character.gltf', function(gltf) {
+        player = gltf.scene;
+        player.scale.set(0.5, 0.5, 0.5);
+        player.position.set(0, 0, 0);
+        scene.add(player);
+      }, undefined, function(error) {
+        console.error('Error loading character model:', error);
+        // Фолбэк: простой куб
+        const geometry = new THREE.BoxGeometry(1, 2, 1);
+        const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        player = new THREE.Mesh(geometry, material);
+        player.position.set(0, 1, 0);
+        scene.add(player);
+      });
+      
+      // Добавляем виртуальный джойстик с использованием NippleJS
+      joystick = nipplejs.create({
+        zone: document.getElementById('joystick-container'),
+        mode: 'static',
+        position: { left: '60px', bottom: '60px' },
+        color: 'white',
+        size: 100,
+        dynamicPage: true
+      });
+      
+      joystick.on('move', function (evt, data) {
+        // data.angle.degree - направление
+        // data.distance - сила
+        if (player) {
+          let rad = THREE.Math.degToRad(data.angle.degree);
+          player.position.x += Math.cos(rad) * (data.distance / 50) * moveSpeed * clock.getDelta();
+          player.position.z -= Math.sin(rad) * (data.distance / 50) * moveSpeed * clock.getDelta();
         }
-      }
+      });
+      
+      joystick.on('end', function () {
+        // Когда джойстик отпущен, можно прекратить движение
+      });
+      
+      // Кнопка для закрытия оверлея мини-игры
+      document.getElementById('close-overlay').addEventListener('click', function() {
+        document.getElementById('minigame-overlay').style.display = "none";
+        gamePaused = false;
+      });
+      
+      window.addEventListener('resize', onWindowResize, false);
     }
-
-    function createBuilding(width, height, depth, color) {
-      const geom = new THREE.BoxGeometry(width, height, depth);
-      const mat = new THREE.MeshLambertMaterial({ color: color });
-      const building = new THREE.Mesh(geom, mat);
-      return building;
-    }
-
+    
     function onWindowResize() {
-      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
-
-    // Обработчики клавиатуры
-    function onKeyDown(e) {
-      keys[e.code] = true;
-    }
-    function onKeyUp(e) {
-      keys[e.code] = false;
-    }
-
-    // Обработчики для касаний (простой слайдер)
-    let touchX = null, touchY = null;
-    function onTouchStart(e) {
-      if (e.touches.length == 1) {
-        touchX = e.touches[0].pageX;
-        touchY = e.touches[0].pageY;
-      }
-    }
-    function onTouchMove(e) {
-      if (e.touches.length == 1 && touchX !== null && touchY !== null) {
-        let deltaX = e.touches[0].pageX - touchX;
-        let deltaY = e.touches[0].pageY - touchY;
-        // Простейшее перемещение игрока
-        player.position.x += deltaX * 0.01;
-        player.position.z += deltaY * 0.01;
-        touchX = e.touches[0].pageX;
-        touchY = e.touches[0].pageY;
-      }
-    }
-    function onTouchEnd(e) {
-      touchX = null;
-      touchY = null;
-    }
-
+    
     function animate() {
       requestAnimationFrame(animate);
-      if (gamePaused) {
-        renderer.render(scene, camera);
-        return;
-      }
-      let delta = clock.getDelta();
-      // Обработка клавиш (для настольных устройств)
-      if (keys['ArrowLeft']) player.position.x -= moveSpeed * delta;
-      if (keys['ArrowRight']) player.position.x += moveSpeed * delta;
-      if (keys['ArrowUp']) player.position.z -= moveSpeed * delta;
-      if (keys['ArrowDown']) player.position.z += moveSpeed * delta;
-
-      // Простая коллизия с терминалом: если расстояние < 2, запускаем мини-игру
-      if (player.position.distanceTo(terminal.position) < 2) {
-        // Запускаем мини-игру, если игрок нажал пробел (на десктопе) или коснулся терминала (на мобильном)
-        if (keys['Space']) {
-          triggerMinigame();
-          keys['Space'] = false;
+      if (!gamePaused && player) {
+        // Для настольных устройств: клавиши
+        if (keys['ArrowLeft']) player.position.x -= moveSpeed * clock.getDelta();
+        if (keys['ArrowRight']) player.position.x += moveSpeed * clock.getDelta();
+        if (keys['ArrowUp']) player.position.z -= moveSpeed * clock.getDelta();
+        if (keys['ArrowDown']) player.position.z += moveSpeed * clock.getDelta();
+        
+        // Проверка: если игрок близко к терминалу, запускаем мини-игру
+        if (terminal && player.position.distanceTo(terminal.position) < 3) {
+          // Запуск мини-игры, если не запущена
+          if (!document.getElementById('minigame-overlay').style.display || document.getElementById('minigame-overlay').style.display === "none") {
+            triggerMinigame();
+          }
         }
       }
-
-      // Камера следует за игроком: позиционируем её позади и выше
-      camera.position.lerp(new THREE.Vector3(
-        player.position.x,
-        player.position.y + 5,
-        player.position.z + 10
-      ), 0.1);
-      camera.lookAt(player.position);
-
+      
+      // Камера следует за игроком (третье лицо)
+      if (player) {
+        camera.position.lerp(new THREE.Vector3(
+          player.position.x,
+          player.position.y + 5,
+          player.position.z + 10
+        ), 0.1);
+        camera.lookAt(player.position);
+      }
+      
       renderer.render(scene, camera);
     }
-
-    // Функция, вызываемая при столкновении с терминалом
-    function triggerMinigame() {
-      gamePaused = true;
-      generateCandlestickChart();
-      document.getElementById('minigame-overlay').style.display = "flex";
-    }
-
-    // Генерация случайного графика свечей для UJO/USD
+    
+    // Простейшая клавиатурная поддержка (для десктопа)
+    let keys = {};
+    document.addEventListener('keydown', (e) => { keys[e.code] = true; });
+    document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+    
+    // Функция для генерации случайного графика свечей (мини-игра)
     function generateCandlestickChart() {
       let candles = [];
       let price = Math.random() * 50 + 100;
@@ -248,7 +249,7 @@
       }
       drawCandlestickChart(candles);
     }
-
+    
     function drawCandlestickChart(candles) {
       const canvas = document.getElementById('chartCanvas');
       const ctx = canvas.getContext('2d');
@@ -277,12 +278,21 @@
         ctx.fillRect(x, top, candleWidth * 0.8, height);
       });
     }
-
-    // Отправка угадывания направления на сервер
+    
+    // Функция запуска мини-игры: останавливает основной игровой процесс и показывает оверлей
+    function triggerMinigame() {
+      gamePaused = true;
+      generateCandlestickChart();
+      document.getElementById('minigame-overlay').style.display = "flex";
+    }
+    
+    // Отправка результата угадывания на сервер
     function submitGuess(guess) {
       let formData = new FormData();
       formData.append('direction', guess);
-      let csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
+      // Получаем csrf-token (если есть)
+      let csrfToken = document.querySelector('meta[name="csrf-token"]') ?
+                      document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
       fetch('/game/api/guess_direction', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrfToken },
@@ -291,6 +301,8 @@
       .then(response => response.json())
       .then(data => {
         alert("Result: " + data.result.toUpperCase() + ". Your points: " + data.weekly_points);
+        // Обновляем окно очков
+        document.getElementById('points-value').innerText = data.weekly_points;
         document.getElementById('minigame-overlay').style.display = "none";
         gamePaused = false;
       })
@@ -300,7 +312,7 @@
         gamePaused = false;
       });
     }
-
+    
     document.getElementById('btnUp').addEventListener('click', () => submitGuess('up'));
     document.getElementById('btnDown').addEventListener('click', () => submitGuess('down'));
   </script>
