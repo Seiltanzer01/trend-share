@@ -8,7 +8,7 @@ from models import db, User, Config
 from best_setup_voting import send_token_reward as voting_send_token_reward
 import math
 
-# Создаем локальный логгер для этого модуля
+# Создаем локальный логгер для данного модуля
 logger = logging.getLogger(__name__)
 
 mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
@@ -16,10 +16,10 @@ mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
 @mini_game_bp.route('/retro-game', methods=['GET'])
 def retro_game():
     """
-    Возвращает страницу с 3D-игрой, реализованной с использованием Three.js.
-    Пользователь видит карту Wall Street, где его персонаж бегает от третьего лица,
-    и при приближении к "терминалу" (фондовой бирже) запускается мини-игра для угадывания
-    направления случайно сгенерированного графика.
+    Возвращает страницу с 3D-игрой.
+    Если пользователь авторизован, ему показывается страница с 3D-сценой,
+    где он (персонаж) перемещается по улицам Wall Street и может войти в здание фондовой биржи (терминал),
+    чтобы запустить мини-игру с графиком свечей.
     """
     if 'user_id' not in session:
         flash("Пожалуйста, войдите в систему.", "warning")
@@ -28,6 +28,11 @@ def retro_game():
 
 @mini_game_bp.route('/api/game_status', methods=['GET'])
 def game_status():
+    """
+    Возвращает состояние игры для пользователя:
+      - plays today (times_played_today)
+      - weekly points (weekly_points)
+    """
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
     user_id = session['user_id']
@@ -41,6 +46,11 @@ def game_status():
 
 @mini_game_bp.route('/api/guess_direction', methods=['POST'])
 def guess_direction():
+    """
+    Получает от клиента направление ('up' или 'down') и сравнивает с случайно сгенерированным.
+    Если пользователь угадывает, начисляется 1 очко.
+    Ограничение: не более 5 попыток в день.
+    """
     try:
         csrf_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
         if not csrf_token:
@@ -97,9 +107,9 @@ def guess_direction():
 
 def distribute_game_rewards():
     """
-    Еженедельное распределение наград. Функция смотрит конфигурацию (ключ 'game_rewards_pool_size'),
-    затем делит пул пропорционально набранным weekly_points у всех игроков, отправляет награды через
-    voting_send_token_reward и обнуляет weekly_points.
+    Еженедельное распределение наград: функция смотрит значение в конфигурации (ключ 'game_rewards_pool_size'),
+    затем делит пул пропорционально набранным weekly_points у всех игроков,
+    отправляет награды через voting_send_token_reward и обнуляет weekly_points.
     """
     try:
         cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
