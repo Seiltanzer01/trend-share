@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
     body { margin: 0; overflow: hidden; background: #000; font-family: 'Press Start 2P', cursive; }
-    #game-container { width: 100%; height: 100vh; }
+    #game-container { width: 100%; height: 100vh; position: relative; }
     /* Оверлей мини-игры (график свечей и управление) */
     #minigame-overlay {
       position: absolute;
@@ -64,6 +64,20 @@
       left: 20px;
       z-index: 25;
     }
+    /* Кнопка выхода из игры */
+    #exit-game-btn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 30;
+      padding: 8px 12px;
+      background: rgba(255, 0, 0, 0.8);
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
   </style>
   <!-- Three.js, GLTFLoader и NippleJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -71,6 +85,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
 </head>
 <body>
+  <!-- Кнопка выхода из игры -->
+  <button id="exit-game-btn">Exit Game</button>
+  
   <div id="game-container"></div>
   
   <!-- Окно с очками -->
@@ -80,7 +97,7 @@
   <div id="joystick-container"></div>
   
   <!-- Оверлей мини-игры (график свечей) -->
-  <div id="minigame-overlay">
+  <div id="minigame-overlay" style="display: none; flex-direction: column; align-items: center; justify-content: center;">
     <button class="close-btn" id="close-overlay">&times;</button>
     <h2>Guess the Market Direction!</h2>
     <canvas id="chartCanvas" width="300" height="200"></canvas>
@@ -91,230 +108,236 @@
   </div>
   
   <script>
-    // Глобальные переменные
-    let scene, camera, renderer, clock;
-    let player, city, terminal;
-    let moveSpeed = 5;
-    let joystick = null;
-    let gamePaused = false;
-    let points = 0;
-    
-    // Инициализация Three.js
-    init();
-    animate();
-    
-    function init() {
-      clock = new THREE.Clock();
-      scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x000000, 20, 150);
-      
-      // Камера от третьего лица
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 5, 12);
-      
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.getElementById('game-container').appendChild(renderer.domElement);
-      
-      // Освещение
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-      scene.add(ambientLight);
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      directionalLight.position.set(10, 20, 10);
-      scene.add(directionalLight);
-      
-      // Загрузим карту города (Wall Street)
-      // Замените URL на реальный файл glTF
-      const loader = new THREE.GLTFLoader();
-      loader.load('https://example.com/models/wall_street_city.gltf', function(gltf) {
-        city = gltf.scene;
-        city.scale.set(0.5, 0.5, 0.5);
-        scene.add(city);
-      }, undefined, function(error) {
-        console.error('Error loading city model:', error);
-      });
-      
-      // Загрузим модель терминала фондовой биржи
-      loader.load('https://example.com/models/terminal.gltf', function(gltf) {
-        terminal = gltf.scene;
-        terminal.scale.set(0.5, 0.5, 0.5);
-        terminal.position.set(15, 0, -20);
-        scene.add(terminal);
-      }, undefined, function(error) {
-        console.error('Error loading terminal model:', error);
-      });
-      
-      // Загрузим модель персонажа (игрока)
-      loader.load('https://example.com/models/character.gltf', function(gltf) {
-        player = gltf.scene;
-        player.scale.set(0.5, 0.5, 0.5);
-        player.position.set(0, 0, 0);
-        scene.add(player);
-      }, undefined, function(error) {
-        console.error('Error loading character model:', error);
-        // Фолбэк: простой куб
-        const geometry = new THREE.BoxGeometry(1, 2, 1);
-        const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-        player = new THREE.Mesh(geometry, material);
-        player.position.set(0, 1, 0);
-        scene.add(player);
-      });
-      
-      // Добавляем виртуальный джойстик с использованием NippleJS
-      joystick = nipplejs.create({
-        zone: document.getElementById('joystick-container'),
-        mode: 'static',
-        position: { left: '60px', bottom: '60px' },
-        color: 'white',
-        size: 100,
-        dynamicPage: true
-      });
-      
-      joystick.on('move', function (evt, data) {
-        // data.angle.degree - направление
-        // data.distance - сила
-        if (player) {
-          let rad = THREE.Math.degToRad(data.angle.degree);
-          player.position.x += Math.cos(rad) * (data.distance / 50) * moveSpeed * clock.getDelta();
-          player.position.z -= Math.sin(rad) * (data.distance / 50) * moveSpeed * clock.getDelta();
-        }
-      });
-      
-      joystick.on('end', function () {
-        // Когда джойстик отпущен, можно прекратить движение
-      });
-      
-      // Кнопка для закрытия оверлея мини-игры
-      document.getElementById('close-overlay').addEventListener('click', function() {
-        document.getElementById('minigame-overlay').style.display = "none";
-        gamePaused = false;
-      });
-      
-      window.addEventListener('resize', onWindowResize, false);
-    }
-    
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-    
-    function animate() {
-      requestAnimationFrame(animate);
-      if (!gamePaused && player) {
-        // Для настольных устройств: клавиши
-        if (keys['ArrowLeft']) player.position.x -= moveSpeed * clock.getDelta();
-        if (keys['ArrowRight']) player.position.x += moveSpeed * clock.getDelta();
-        if (keys['ArrowUp']) player.position.z -= moveSpeed * clock.getDelta();
-        if (keys['ArrowDown']) player.position.z += moveSpeed * clock.getDelta();
+    document.addEventListener('DOMContentLoaded', () => {
+      // Глобальные переменные
+      let scene, camera, renderer, clock;
+      let player, city, terminal;
+      let moveSpeed = 5;
+      let joystick = null;
+      let gamePaused = false;
+      let points = 0;
+      let keys = {};  // Убедимся, что переменная keys объявлена до animate()
+
+      // Инициализация Three.js
+      init();
+      animate();
+
+      function init() {
+        clock = new THREE.Clock();
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x000000, 20, 150);
+
+        // Камера от третьего лица
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 12);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('game-container').appendChild(renderer.domElement);
+
+        // Освещение
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+
+        // Загрузка модели города
+        const loader = new THREE.GLTFLoader();
+        // Здесь замените '/static/models/scene.gltf' на путь к вашей модели города (GLTF-файл)
+        loader.load('/static/models/scene.gltf', function(gltf) {
+          city = gltf.scene;
+          city.scale.set(1, 1, 1);
+          scene.add(city);
+        }, undefined, function(error) {
+          console.error('Error loading city model:', error);
+        });
+
+        // Загрузка модели терминала фондовой биржи
+        // Замените URL на реальный путь (например, '/static/models/terminal.gltf')
+        loader.load('/static/models/terminal.gltf', function(gltf) {
+          terminal = gltf.scene;
+          terminal.scale.set(1, 1, 1);
+          terminal.position.set(15, 0, -20);
+          scene.add(terminal);
+        }, undefined, function(error) {
+          console.error('Error loading terminal model:', error);
+        });
+
+        // Загрузка модели персонажа (игрока)
+        // Замените URL на реальный путь (например, '/static/models/character.gltf')
+        loader.load('/static/models/character.gltf', function(gltf) {
+          player = gltf.scene;
+          player.scale.set(1, 1, 1);
+          player.position.set(0, 0, 0);
+          scene.add(player);
+        }, undefined, function(error) {
+          console.error('Error loading character model:', error);
+          // Фолбэк: простой куб
+          const geometry = new THREE.BoxGeometry(1, 2, 1);
+          const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+          player = new THREE.Mesh(geometry, material);
+          player.position.set(0, 1, 0);
+          scene.add(player);
+        });
+
+        // Добавляем виртуальный джойстик с использованием NippleJS
+        joystick = nipplejs.create({
+          zone: document.getElementById('joystick-container'),
+          mode: 'static',
+          position: { left: '60px', bottom: '60px' },
+          color: 'white',
+          size: 100,
+          dynamicPage: true
+        });
+
+        joystick.on('move', function (evt, data) {
+          console.log('Joystick move:', data);
+          if (player && data && data.angle) {
+            let rad = THREE.Math.degToRad(data.angle.degree);
+            let delta = clock.getDelta();
+            player.position.x += Math.cos(rad) * (data.distance / 50) * moveSpeed * delta;
+            player.position.z -= Math.sin(rad) * (data.distance / 50) * moveSpeed * delta;
+          }
+        });
         
-        // Проверка: если игрок близко к терминалу, запускаем мини-игру
-        if (terminal && player.position.distanceTo(terminal.position) < 3) {
-          // Запуск мини-игры, если не запущена
-          if (!document.getElementById('minigame-overlay').style.display || document.getElementById('minigame-overlay').style.display === "none") {
-            triggerMinigame();
+        joystick.on('end', function () {
+          console.log('Joystick released');
+        });
+        
+        // Кнопка закрытия мини-игры
+        document.getElementById('close-overlay').addEventListener('click', function() {
+          document.getElementById('minigame-overlay').style.display = "none";
+          gamePaused = false;
+        });
+
+        // Кнопка выхода из игры -> возвращает на главную страницу
+        document.getElementById('exit-game-btn').addEventListener('click', function() {
+          window.location.href = '/';
+        });
+
+        window.addEventListener('resize', onWindowResize, false);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        if (!gamePaused && player) {
+          // Простейшая клавиатурная поддержка для десктопа
+          if (keys['ArrowLeft']) player.position.x -= moveSpeed * clock.getDelta();
+          if (keys['ArrowRight']) player.position.x += moveSpeed * clock.getDelta();
+          if (keys['ArrowUp']) player.position.z -= moveSpeed * clock.getDelta();
+          if (keys['ArrowDown']) player.position.z += moveSpeed * clock.getDelta();
+
+          // Если игрок близко к терминалу, запускаем мини-игру
+          if (terminal && player.position.distanceTo(terminal.position) < 3) {
+            if (!document.getElementById('minigame-overlay').style.display || document.getElementById('minigame-overlay').style.display === "none") {
+              triggerMinigame();
+            }
           }
         }
+
+        // Камера следует за игроком
+        if (player) {
+          camera.position.lerp(new THREE.Vector3(
+            player.position.x,
+            player.position.y + 5,
+            player.position.z + 10
+          ), 0.1);
+          camera.lookAt(player.position);
+        }
+        
+        renderer.render(scene, camera);
+      }
+
+      // Клавиатурные обработчики
+      document.addEventListener('keydown', (e) => { keys[e.code] = true; });
+      document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+      
+      // Функция для генерации случайного графика свечей (мини-игра)
+      function generateCandlestickChart() {
+        let candles = [];
+        let price = Math.random() * 50 + 100;
+        for (let i = 0; i < 30; i++) {
+          let open = price;
+          let close = open + (Math.random() - 0.5) * 10;
+          let high = Math.max(open, close) + Math.random() * 5;
+          let low = Math.min(open, close) - Math.random() * 5;
+          candles.push({ open, close, high, low });
+          price = close;
+        }
+        drawCandlestickChart(candles);
       }
       
-      // Камера следует за игроком (третье лицо)
-      if (player) {
-        camera.position.lerp(new THREE.Vector3(
-          player.position.x,
-          player.position.y + 5,
-          player.position.z + 10
-        ), 0.1);
-        camera.lookAt(player.position);
+      function drawCandlestickChart(candles) {
+        const canvas = document.getElementById('chartCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let prices = [];
+        candles.forEach(c => { prices.push(c.open, c.close, c.high, c.low); });
+        let minPrice = Math.min(...prices);
+        let maxPrice = Math.max(...prices);
+        let scale = canvas.height / (maxPrice - minPrice);
+        let candleWidth = canvas.width / candles.length;
+        candles.forEach((c, i) => {
+          let x = i * candleWidth;
+          let highY = canvas.height - (c.high - minPrice) * scale;
+          let lowY = canvas.height - (c.low - minPrice) * scale;
+          ctx.strokeStyle = "white";
+          ctx.beginPath();
+          ctx.moveTo(x + candleWidth/2, highY);
+          ctx.lineTo(x + candleWidth/2, lowY);
+          ctx.stroke();
+          let openY = canvas.height - (c.open - minPrice) * scale;
+          let closeY = canvas.height - (c.close - minPrice) * scale;
+          ctx.fillStyle = c.close >= c.open ? "green" : "red";
+          let top = Math.min(openY, closeY);
+          let height = Math.abs(openY - closeY);
+          if (height < 1) height = 1;
+          ctx.fillRect(x, top, candleWidth * 0.8, height);
+        });
       }
       
-      renderer.render(scene, camera);
-    }
-    
-    // Простейшая клавиатурная поддержка (для десктопа)
-    let keys = {};
-    document.addEventListener('keydown', (e) => { keys[e.code] = true; });
-    document.addEventListener('keyup', (e) => { keys[e.code] = false; });
-    
-    // Функция для генерации случайного графика свечей (мини-игра)
-    function generateCandlestickChart() {
-      let candles = [];
-      let price = Math.random() * 50 + 100;
-      for (let i = 0; i < 30; i++) {
-        let open = price;
-        let close = open + (Math.random() - 0.5) * 10;
-        let high = Math.max(open, close) + Math.random() * 5;
-        let low = Math.min(open, close) - Math.random() * 5;
-        candles.push({ open, close, high, low });
-        price = close;
+      // Функция запуска мини-игры
+      function triggerMinigame() {
+        gamePaused = true;
+        generateCandlestickChart();
+        document.getElementById('minigame-overlay').style.display = "flex";
       }
-      drawCandlestickChart(candles);
-    }
-    
-    function drawCandlestickChart(candles) {
-      const canvas = document.getElementById('chartCanvas');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let prices = [];
-      candles.forEach(c => { prices.push(c.open, c.close, c.high, c.low); });
-      let minPrice = Math.min(...prices);
-      let maxPrice = Math.max(...prices);
-      let scale = canvas.height / (maxPrice - minPrice);
-      let candleWidth = canvas.width / candles.length;
-      candles.forEach((c, i) => {
-        let x = i * candleWidth;
-        let highY = canvas.height - (c.high - minPrice) * scale;
-        let lowY = canvas.height - (c.low - minPrice) * scale;
-        ctx.strokeStyle = "white";
-        ctx.beginPath();
-        ctx.moveTo(x + candleWidth/2, highY);
-        ctx.lineTo(x + candleWidth/2, lowY);
-        ctx.stroke();
-        let openY = canvas.height - (c.open - minPrice) * scale;
-        let closeY = canvas.height - (c.close - minPrice) * scale;
-        ctx.fillStyle = c.close >= c.open ? "green" : "red";
-        let top = Math.min(openY, closeY);
-        let height = Math.abs(openY - closeY);
-        if (height < 1) height = 1;
-        ctx.fillRect(x, top, candleWidth * 0.8, height);
-      });
-    }
-    
-    // Функция запуска мини-игры: останавливает основной игровой процесс и показывает оверлей
-    function triggerMinigame() {
-      gamePaused = true;
-      generateCandlestickChart();
-      document.getElementById('minigame-overlay').style.display = "flex";
-    }
-    
-    // Отправка результата угадывания на сервер
-    function submitGuess(guess) {
-      let formData = new FormData();
-      formData.append('direction', guess);
-      // Получаем csrf-token (если есть)
-      let csrfToken = document.querySelector('meta[name="csrf-token"]') ?
-                      document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
-      fetch('/game/api/guess_direction', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken },
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        alert("Result: " + data.result.toUpperCase() + ". Your points: " + data.weekly_points);
-        // Обновляем окно очков
-        document.getElementById('points-value').innerText = data.weekly_points;
-        document.getElementById('minigame-overlay').style.display = "none";
-        gamePaused = false;
-      })
-      .catch(err => {
-        alert("Error submitting guess.");
-        document.getElementById('minigame-overlay').style.display = "none";
-        gamePaused = false;
-      });
-    }
-    
-    document.getElementById('btnUp').addEventListener('click', () => submitGuess('up'));
-    document.getElementById('btnDown').addEventListener('click', () => submitGuess('down'));
+      
+      // Отправка результата мини-игры на сервер
+      function submitGuess(guess) {
+        let formData = new FormData();
+        formData.append('direction', guess);
+        let csrfToken = document.querySelector('meta[name="csrf-token"]') ?
+                        document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
+        fetch('/game/api/guess_direction', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken },
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          alert("Result: " + data.result.toUpperCase() + ". Your points: " + data.weekly_points);
+          document.getElementById('points-value').innerText = data.weekly_points;
+          document.getElementById('minigame-overlay').style.display = "none";
+          gamePaused = false;
+        })
+        .catch(err => {
+          alert("Error submitting guess.");
+          document.getElementById('minigame-overlay').style.display = "none";
+          gamePaused = false;
+        });
+      }
+      
+      document.getElementById('btnUp').addEventListener('click', () => submitGuess('up'));
+      document.getElementById('btnDown').addEventListener('click', () => submitGuess('down'));
+    });
   </script>
 </body>
 </html>
