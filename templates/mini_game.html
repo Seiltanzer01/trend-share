@@ -1,176 +1,158 @@
-<!-- mini_game.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Retro Platformer Mini Game</title>
-  <!-- Подключим стили NES.css (пример) -->
-  <link href="https://unpkg.com/nes.css@latest/css/nes.min.css" rel="stylesheet" />
-  <style>
-    body {
-      margin: 0; padding: 0;
-      background: #000;
-      color: #fff;
-    }
-    #game-canvas {
-      background: #222;
-      display: block;
-      margin: 0 auto;
-      image-rendering: pixelated;
-    }
-    .game-container {
-      text-align: center;
-      margin-top: 1em;
-    }
-  </style>
-</head>
-<body>
-  <div class="game-container">
-    <h1 class="nes-text is-primary">Retro Trader on Wall Street</h1>
-    <canvas id="game-canvas" width="640" height="360"></canvas>
-    <p>Use arrows to move the trader. Press <em>Space</em> to interact with a terminal and guess direction.</p>
-    <div id="ui-panel" class="nes-container is-rounded" style="color:black; margin: 1em auto; width: 60%;">
-      <button class="nes-btn is-primary" id="btn-check-status">Check My Stats</button>
-      <span id="status-span"></span>
-      <hr>
-      <select id="direction-select" class="nes-select">
-        <option value="up">UP</option>
-        <option value="down">DOWN</option>
-      </select>
-      <button class="nes-btn is-success" id="btn-guess">Guess</button>
-      <span id="guess-result"></span>
-    </div>
-  </div>
+# mini_game.py
 
-  <script>
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
+import random
+import logging
+import traceback
+import pytz
+from datetime import datetime, timedelta
+from flask import Blueprint, render_template, jsonify, request, session, flash, redirect, url_for
+from flask_wtf.csrf import validate_csrf, CSRFError
+from models import db, User, Config  # Берем из моделей, чтобы не создавать циклический импорт
+from best_setup_voting import send_token_reward as voting_send_token_reward  # Используем уже существующую функцию наград
+import math
 
-    // Примитивный «ретро-платформер» (очень условно)
-    // Нарисуем «трейдера» - просто квадрат, и «терминалы» - ещё квадраты, 
-    // и позволим ходить влево-вправо + прыжок.
-    // Здесь код чисто демонстрационный.
+# Создаем свой локальный logger
+logger = logging.getLogger(__name__)
 
-    let trader = { x: 50, y: 300, vx: 0, vy: 0, onGround: true };
-    let keys = {};
+mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
 
-    let terminalX = 400;  // где-то на сцене будет «терминал» (считаем 1)
+@mini_game_bp.route('/retro-game', methods=['GET'])
+def retro_game():
+    """
+    Страница с ретро‑3D платформером, где трейдер бегает по Wall Street и может подойти к терминалу,
+    чтобы запустить мини‑игру с угадыванием направления свечного графика.
+    """
+    if 'user_id' not in session:
+        flash("Пожалуйста, войдите в систему.", "warning")
+        return redirect(url_for('login'))
+    return render_template('mini_game.html')  # Используется шаблон ниже
 
-    function gameLoop() {
-      // Update
-      if (keys['ArrowLeft']) trader.vx = -2;
-      else if (keys['ArrowRight']) trader.vx = 2;
-      else trader.vx = 0;
+@mini_game_bp.route('/api/game_status', methods=['GET'])
+def game_status():
+    """
+    Возвращает состояние игры:
+      - сколько раз сегодня сыграл пользователь,
+      - сколько у него очков (weekly_points).
+    """
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    user_id = session['user_id']
+    record = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid",
+        {"uid": user_id}
+    ).fetchone()
+    if not record:
+        return jsonify({"times_played_today": 0, "weekly_points": 0}), 200
+    return jsonify({
+        "times_played_today": record["times_played_today"],
+        "weekly_points": record["weekly_points"]
+    }), 200
 
-      // jump
-      if (keys['Space'] && trader.onGround) {
-        trader.vy = -6;
-        trader.onGround = false;
-      }
+@mini_game_bp.route('/api/guess_direction', methods=['POST'])
+def guess_direction():
+    """
+    Пользователь угадывает направление (up/down) для мини-игры (candlestick график).
+    Если ответ правильный, +1 очко. Лимит — 5 игр в день.
+    """
+    try:
+        csrf_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
+        if not csrf_token:
+            return jsonify({"error": "CSRF token missing"}), 400
+        validate_csrf(csrf_token)
+    except CSRFError:
+        return jsonify({"error": "CSRF token invalid"}), 400
 
-      trader.x += trader.vx;
-      trader.y += trader.vy;
-      trader.vy += 0.2; // gravity
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
 
-      if (trader.y > 300) {
-        trader.y = 300; 
-        trader.vy = 0;
-        trader.onGround = true;
-      }
+    user_id = session['user_id']
+    user_guess = request.form.get('direction', '').strip().lower()  # 'up' или 'down'
+    if user_guess not in ['up', 'down']:
+        return jsonify({"error": "Invalid guess (must be 'up' or 'down')"}), 400
 
-      if (trader.x < 0) trader.x = 0;
-      if (trader.x > canvas.width - 20) trader.x = canvas.width - 20;
+    # Получаем или создаем запись в таблице user_game_score
+    row = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid",
+        {"uid": user_id}
+    ).fetchone()
+    if row is None:
+        db.session.execute(
+            "INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)",
+            {"uid": user_id}
+        )
+        db.session.commit()
+        row = db.session.execute(
+            "SELECT * FROM user_game_score WHERE user_id = :uid",
+            {"uid": user_id}
+        ).fetchone()
 
-      // Draw
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // draw floor
-      ctx.fillStyle = 'green';
-      ctx.fillRect(0, 320, canvas.width, 40);
+    times_played_today = row["times_played_today"]
+    last_played_date = row["last_played_date"]
+    today_date = datetime.utcnow().date()
+    if last_played_date is None or last_played_date < today_date:
+        times_played_today = 0
+    if times_played_today >= 5:
+        return jsonify({"error": "Daily limit reached (5 plays per day)."}), 400
 
-      // draw trader
-      ctx.fillStyle = 'white';
-      ctx.fillRect(trader.x, trader.y, 20, 20);
+    real_direction = random.choice(['up', 'down'])
+    is_correct = (user_guess == real_direction)
+    points_earned = 1 if is_correct else 0
+    new_weekly_points = row["weekly_points"] + points_earned
+    new_times_played_today = times_played_today + 1
 
-      // draw terminal
-      ctx.fillStyle = 'yellow';
-      ctx.fillRect(terminalX, 280, 20, 40);
+    db.session.execute(
+        "UPDATE user_game_score SET weekly_points = :wpts, times_played_today = :tp, last_played_date = :ld WHERE user_id = :uid",
+        {"wpts": new_weekly_points, "tp": new_times_played_today, "ld": today_date, "uid": user_id}
+    )
+    db.session.commit()
 
-      // If user is near the terminal (distance < 30) and pressed Space -> guess:
-      // Для реального взаимодействия - сделали кнопку "Guess" ниже,
-      // но логика может быть разной. 
-      
-      requestAnimationFrame(gameLoop);
-    }
+    return jsonify({
+        "result": "correct" if is_correct else "wrong",
+        "real_direction": real_direction,
+        "points_earned": points_earned,
+        "weekly_points": new_weekly_points,
+        "times_played_today": new_times_played_today
+    }), 200
 
-    requestAnimationFrame(gameLoop);
-
-    // Клавиши
-    document.addEventListener('keydown', (e) => {
-      keys[e.code] = true;
-    });
-    document.addEventListener('keyup', (e) => {
-      keys[e.code] = false;
-    });
-
-    // Интерфейс: кнопки Check Status, Guess
-    const btnCheckStatus = document.getElementById('btn-check-status');
-    const statusSpan = document.getElementById('status-span');
-    const btnGuess = document.getElementById('btn-guess');
-    const directionSelect = document.getElementById('direction-select');
-    const guessResult = document.getElementById('guess-result');
-
-    btnCheckStatus.addEventListener('click', async () => {
-      statusSpan.innerText = "...loading...";
-      try {
-        let resp = await fetch('/api/game_status', { method: 'GET' });
-        if (!resp.ok) {
-          statusSpan.innerText = "Error checking status.";
-          return;
-        }
-        let data = await resp.json();
-        if (data.error) {
-          statusSpan.innerText = data.error;
-          return;
-        }
-        statusSpan.innerText = `Plays today: ${data.times_played_today}, Weekly points: ${data.weekly_points}`;
-      } catch (err) {
-        statusSpan.innerText = "Network error.";
-      }
-    });
-
-    btnGuess.addEventListener('click', async () => {
-      guessResult.innerText = "...";
-      let formData = new FormData();
-      formData.append('direction', directionSelect.value);
-      // csrf
-      const csrfToken = document.querySelector('meta[name="csrf-token"]');
-      let headers = {};
-      if (csrfToken) {
-        headers['X-CSRFToken'] = csrfToken.getAttribute('content');
-      }
-      try {
-        let resp = await fetch('/api/guess_direction', {
-          method: 'POST',
-          headers: headers,
-          body: formData
-        });
-        if (!resp.ok) {
-          let text = await resp.json();
-          guessResult.innerText = text.error || "Error guess";
-          return;
-        }
-        let data = await resp.json();
-        if (data.error) {
-          guessResult.innerText = data.error;
-          return;
-        }
-        guessResult.innerText = `Real: ${data.real_direction.toUpperCase()} - You are ${data.result.toUpperCase()}! 
-          You now have ${data.weekly_points} pts (plays today ${data.times_played_today}/5).`;
-      } catch (err) {
-        guessResult.innerText = "Network error for guess.";
-      }
-    });
-  </script>
-</body>
-</html>
+def distribute_game_rewards():
+    """
+    Смотрим значение game_rewards_pool_size в таблице Config,
+    затем делим пул пропорционально набранным очкам (weekly_points) всех игроков,
+    отправляем награды с помощью voting_send_token_reward и обнуляем очки.
+    """
+    try:
+        cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
+        pool = float(cfg.value) if cfg and cfg.value else 0.0
+        if pool <= 0:
+            logger.info("[mini_game] game_rewards_pool_size <= 0, skip distribution.")
+            return
+        row_sum = db.session.execute("SELECT SUM(weekly_points) AS total_points FROM user_game_score").fetchone()
+        total_points = row_sum["total_points"] if row_sum and row_sum["total_points"] else 0
+        if total_points <= 0:
+            logger.info("[mini_game] total_points=0, no participants.")
+            return
+        data = db.session.execute("""
+            SELECT ugs.user_id, ugs.weekly_points, "user".wallet_address
+            FROM user_game_score ugs
+            JOIN "user" ON "user".id = ugs.user_id
+            WHERE ugs.weekly_points > 0
+        """).fetchall()
+        for row in data:
+            user_id = row["user_id"]
+            wpts = row["weekly_points"]
+            wallet = row["wallet_address"] or ""
+            if not wallet:
+                continue
+            share = pool * (wpts / total_points)
+            if share > 0:
+                success = voting_send_token_reward(wallet, share)
+                if success:
+                    logger.info(f"[mini_game] Sent {share:.4f} UJO to user_id={user_id}")
+                else:
+                    logger.error(f"[mini_game] Could NOT send tokens to user_id={user_id}")
+        db.session.execute("UPDATE user_game_score SET weekly_points=0")
+        db.session.commit()
+        logger.info("[mini_game] Weekly points reset after distribution.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[mini_game] distribute_game_rewards error: {e}", exc_info=True)
