@@ -1,40 +1,20 @@
 import random
 import logging
-import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Blueprint, render_template, jsonify, request, session, flash, redirect, url_for
 from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, Config
 from best_setup_voting import send_token_reward as voting_send_token_reward
 import math
 
-# Создаем локальный логгер для данного модуля
 logger = logging.getLogger(__name__)
-
 mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
-
-# (Опционально) Класс для простейшей физики (если понадобится)
-class Player:
-    def __init__(self, mesh):
-        self.mesh = mesh
-        self.velocity = [0, 0, 0]
-        self.damping = 0.9  # коэффициент затухания
-        self.speed = 5
-
-    def update(self, delta):
-        for i in range(3):
-            self.velocity[i] *= self.damping
-        self.mesh.position.x += self.velocity[0] * delta
-        self.mesh.position.y += self.velocity[1] * delta
-        self.mesh.position.z += self.velocity[2] * delta
 
 @mini_game_bp.route('/retro-game', methods=['GET'])
 def retro_game():
     """
-    Возвращает страницу с 3D-игрой.
-    Если пользователь авторизован, ему показывается страница с 3D‑сценой,
-    где персонаж перемещается по улицам Wall Street, сталкиваясь с объектами,
-    а при приближении к терминалу или интерактивному NPC "Дядя Джон" запускается мини-игра (график свечей).
+    Возвращает страницу с ретро-игрой по угадыванию направления графика свечей.
+    Игра стартует сразу после загрузки страницы.
     """
     if 'user_id' not in session:
         flash("Пожалуйста, войдите в систему.", "warning")
@@ -111,11 +91,6 @@ def guess_direction():
     }), 200
 
 def distribute_game_rewards():
-    """
-    Еженедельное распределение наград: функция смотрит значение в конфигурации (ключ 'game_rewards_pool_size'),
-    затем делит пул пропорционально набранным weekly_points у всех игроков,
-    отправляет награды через voting_send_token_reward и обнуляет weekly_points.
-    """
     try:
         cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
         if not cfg:
