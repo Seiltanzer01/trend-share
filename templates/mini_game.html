@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{% if language == 'ru' %}ru{% else %}en{% endif %}">
 <head>
   <meta charset="UTF-8">
-  <title>UJO/USD Chart Guessing Game</title>
+  <title>Retro Chart Guessing Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
-    /* Ретро-оформление: чёрный фон, зелёный текст, пиксельный шрифт */
+    /* Retro style: black background, neon green text, pixelated font */
     body {
       margin: 0;
       background: #000;
@@ -13,13 +13,13 @@
       font-family: 'Press Start 2P', cursive;
       overflow: hidden;
     }
-    /* Основной контейнер для игры */
+    /* Main game container */
     #game-container {
       position: relative;
       width: 100%;
       height: 100vh;
     }
-    /* Стартовое меню */
+    /* Start menu */
     #menu {
       position: absolute;
       top: 0;
@@ -53,7 +53,7 @@
       cursor: pointer;
       font-size: 18px;
     }
-    /* Терминальный экран – игровой интерфейс */
+    /* Terminal screen (game interface) */
     #terminal {
       position: absolute;
       top: 50%;
@@ -65,17 +65,17 @@
       border: 6px solid #00FF00;
       box-shadow: 0 0 20px #00FF00;
       padding: 20px;
-      display: flex;
+      display: none;
       flex-direction: column;
       justify-content: space-between;
     }
-    /* Заголовок графика */
+    /* Chart title */
     #chart-title {
       text-align: center;
       font-size: 20px;
       margin-bottom: 10px;
     }
-    /* Canvas с графиком свечей */
+    /* Canvas for the candlestick chart */
     #chartCanvas {
       background: #000;
       width: 100%;
@@ -83,7 +83,7 @@
       border: 2px solid #00FF00;
       display: block;
     }
-    /* Информационная панель */
+    /* Info panel */
     #info-panel {
       display: flex;
       justify-content: space-between;
@@ -96,7 +96,7 @@
       padding: 5px 10px;
       font-size: 16px;
     }
-    /* Панель управления кнопками */
+    /* Control panel (buttons) */
     #controls {
       text-align: center;
       margin-top: 15px;
@@ -111,7 +111,7 @@
       cursor: pointer;
       font-size: 18px;
     }
-    /* Кнопка выхода из игры */
+    /* Exit button */
     #exit-btn {
       position: absolute;
       top: 20px;
@@ -124,16 +124,9 @@
       cursor: pointer;
       font-size: 16px;
       z-index: 300;
+      display: none;
     }
-    /* Отметка выбранного направления на графике */
-    .flag {
-      position: absolute;
-      font-size: 24px;
-      font-weight: bold;
-      color: #FF0;
-      pointer-events: none;
-    }
-    /* Оверлей для завершения сессии и перезапуска игры */
+    /* Overlay for game over / restart */
     #overlay {
       position: absolute;
       top: 0;
@@ -161,8 +154,7 @@
       cursor: pointer;
       font-size: 18px;
     }
-
-    /* Адаптив для мобильных устройств */
+    /* Responsive adjustments for mobile devices */
     @media (max-width: 600px) {
       #menu h1 {
         font-size: 28px;
@@ -185,40 +177,40 @@
   </style>
 </head>
 <body>
-  <!-- Стартовое меню -->
+  <!-- Start Menu -->
   <div id="menu">
     <h1>UJO/USD Chart Guessing Game</h1>
-    <p>Добро пожаловать в ретро-игру прогнозирования! Здесь вам предстоит угадывать, пойдет ли цена UJO/USD вверх (Long) или вниз (Short).</p>
-    <p>Каждая игровая сессия состоит из 10 прогнозов. Вы можете проводить до 3 сессий в день.</p>
-    <p>За каждый правильный прогноз вы получаете очко, а в конце недели эти очки будут использоваться для распределения токенов UJO!</p>
-    <button id="start-btn">Начать игру</button>
+    <p>Welcome to the Retro Chart Guessing Game! Predict whether the UJO/USD price will go up (Long) or down (Short).</p>
+    <p>Each session consists of 10 forecasts. You can play up to 3 sessions per day.</p>
+    <p>Earn 1 point for every correct forecast. Weekly points will be used to distribute UJO tokens!</p>
+    <button id="start-btn">Start Game</button>
   </div>
 
-  <!-- Основной игровой экран (терминал) -->
+  <!-- Game Terminal -->
   <div id="game-container">
-    <div id="terminal" style="display:none;">
+    <div id="terminal">
       <div id="chart-title">UJO/USD</div>
       <canvas id="chartCanvas" width="600" height="200"></canvas>
       <div id="info-panel">
-        <div id="points-window">Очки: <span id="points-value">0</span></div>
-        <div id="session-info">Прогнозов: <span id="guesses-left">10</span> / Сессий: <span id="sessions-left">3</span></div>
+        <div id="points-window">Points: <span id="points-value">0</span></div>
+        <div id="session-info">Forecasts: <span id="guesses-left">10</span> / Sessions: <span id="sessions-left">3</span></div>
       </div>
       <div id="controls">
         <button id="btnLong">Long</button>
         <button id="btnShort">Short</button>
       </div>
     </div>
-    <button id="exit-btn" style="display:none;">Выход</button>
+    <button id="exit-btn">Exit</button>
   </div>
 
-  <!-- Оверлей для завершения сессии и перезапуска -->
+  <!-- Overlay for game over / restart -->
   <div id="overlay">
     <div id="overlay-message"></div>
-    <button id="overlay-btn">Начать заново</button>
+    <button id="overlay-btn">Restart Game</button>
   </div>
 
   <script>
-    // Элементы интерфейса
+    // Interface elements
     const startBtn = document.getElementById('start-btn');
     const menu = document.getElementById('menu');
     const terminal = document.getElementById('terminal');
@@ -228,14 +220,13 @@
     const pointsElem = document.getElementById('points-value');
     const guessesLeftElem = document.getElementById('guesses-left');
     const sessionsLeftElem = document.getElementById('sessions-left');
-    const commentaryElem = document.getElementById('commentary');
     const btnLong = document.getElementById('btnLong');
     const btnShort = document.getElementById('btnShort');
     const overlay = document.getElementById('overlay');
     const overlayMsg = document.getElementById('overlay-message');
     const overlayBtn = document.getElementById('overlay-btn');
 
-    // Глобальные переменные игры
+    // Global game variables
     let points = 0;
     let candles = [];
     const numCandles = 30;
@@ -243,22 +234,23 @@
     let sessionsLeft = 3;
     let gameRunning = false;
 
-    // Список комментариев от Дяди Джона (можно расширять)
+    // Commentary messages from Uncle John
     const comments = [
-      "Дядя Джон: Рынок сегодня полон возможностей!",
-      "Дядя Джон: Осторожно, тренд меняется!",
-      "Дядя Джон: Видите ли вы пробой вверх?",
-      "Дядя Джон: Сейчас отличное время для сделок!",
-      "Дядя Джон: Будьте бдительны, движется вниз.",
-      "Дядя Джон: Большие прибыли – большие риски!"
+      "Uncle John: The market is full of opportunities today!",
+      "Uncle John: Caution, the trend is changing!",
+      "Uncle John: Do you see the breakout up?",
+      "Uncle John: Now is a great time for trades!",
+      "Uncle John: Be alert, it's moving down.",
+      "Uncle John: Big profits come with big risks!"
     ];
 
     function updateCommentary() {
-      const msg = comments[Math.floor(Math.random() * comments.length)];
-      commentaryElem.textContent = msg;
+      // (Optional: you can add an element for commentary if desired)
+      // For this version, commentary can be added later in the UI if needed.
+      console.log(comments[Math.floor(Math.random() * comments.length)]);
     }
 
-    // Генерация начальных свечей (более "естественная" генерация)
+    // Generate initial candles with natural movement
     function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
       candles = [];
@@ -273,7 +265,8 @@
       }
     }
 
-    // Функция отрисовки графика с заголовком UJO/USD
+    // Draw the candlestick chart with title "UJO/USD"
+    // If flag is provided, display flag letter and result text above the last candle.
     function drawChart(flag = null, flagText = "", resultText = "") {
       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
       let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
@@ -287,21 +280,21 @@
         let closeY = chartCanvas.height - (c.close - minPrice) * scale;
         let highY = chartCanvas.height - (c.high - minPrice) * scale;
         let lowY = chartCanvas.height - (c.low - minPrice) * scale;
-        // Тень свечи
+        // Draw the wick
         ctx.strokeStyle = "#00FF00";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(x + candleWidth / 2, highY);
         ctx.lineTo(x + candleWidth / 2, lowY);
         ctx.stroke();
-        // Тело свечи
+        // Draw the body
         ctx.fillStyle = c.close >= c.open ? "#00FF00" : "#FF0000";
         let rectY = Math.min(openY, closeY);
         let rectHeight = Math.abs(openY - closeY);
         if (rectHeight < 2) rectHeight = 2;
         ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectHeight);
       });
-      // Если передан флаг (Long/Short), рисуем его над последней свечой
+      // If a flag is provided, draw it above the last candle
       if (flag) {
         const lastX = (candles.length - 1) * candleWidth;
         const lastCandle = candles[candles.length - 1];
@@ -309,14 +302,13 @@
         ctx.font = "bold 24px 'Press Start 2P'";
         ctx.fillStyle = "#FFFF00";
         ctx.fillText(flagText, lastX + candleWidth/2 - 10, lastY);
-        // Рисуем результат под флагом
         ctx.font = "16px 'Press Start 2P'";
         ctx.fillStyle = "#FFFFFF";
         ctx.fillText(resultText, lastX + candleWidth/2 - 20, lastY + 25);
       }
     }
 
-    // Анимация плавного добавления новой свечи
+    // Animate the addition of a new candle with a smooth transition
     function addNewCandle() {
       let lastCandle = candles[candles.length - 1];
       let open = lastCandle.close;
@@ -350,57 +342,49 @@
       animateStep();
     }
 
-    // Обработка прогноза игрока
-    // Теперь вместо "up"/"down" используются "Long" и "Short"
-    // Функция также отображает флажок и результат (Profit/Loss)
+    // Handle the player's guess ("Long" or "Short")
     function handleGuess(guess) {
-      // Определяем правильное направление: случайно выбирается,
-      // но можно усложнить логику (например, задать тренд)
+      if (!gameRunning) return;
+      // Determine the correct direction randomly (this logic can be extended)
       let realDirection = Math.random() < 0.5 ? "Long" : "Short";
       let correct = (guess === realDirection);
       let resultText = correct ? "Profit" : "Loss";
-      // Обновляем очки
       if (correct) {
         points++;
       }
       pointsElem.textContent = points;
       updateCommentary();
-      // Снижаем число прогнозов в сессии
+      // Decrement the number of forecasts left in the session
       guessesLeft--;
       guessesLeftElem.textContent = guessesLeft;
-      // Если в сессии закончились прогнозы, уменьшаем число сессий
       if (guessesLeft <= 0) {
         sessionsLeft--;
         sessionsLeftElem.textContent = sessionsLeft;
-        // Если сессий осталось, показываем сообщение о завершении сессии и кнопку перезапуска
         if (sessionsLeft > 0) {
-          endSession("Сессия завершена! Осталось сессий: " + sessionsLeft);
+          endSession("Session finished! Sessions left: " + sessionsLeft);
         } else {
-          endSession("День окончен! Вы набрали " + points + " очков.");
+          endSession("Day over! You scored " + points + " points.");
         }
       }
-      // Анимация перехода новой свечи с отображением флага и результата
-      // Рисуем флаг: если игрок выбрал Long, то буква "L", иначе "S"
+      // Display flag (L for Long, S for Short) on the last candle and animate a new candle
       let flagLetter = (guess === "Long") ? "L" : "S";
-      // Рисуем график с флагом на последней свече
       drawChart(true, flagLetter, resultText);
-      // После короткой задержки запускаем анимацию новой свечи
       setTimeout(() => {
         addNewCandle();
       }, 800);
     }
 
-    // Функция завершения сессии (отключает кнопки и показывает оверлей)
+    // End the current session and show the overlay
     function endSession(message) {
       gameRunning = false;
       overlayMsg.textContent = message;
       overlay.style.display = "flex";
-      // Блокируем кнопки прогнозов
+      // Disable forecast buttons
       btnLong.disabled = true;
       btnShort.disabled = true;
     }
 
-    // Функция перезапуска игры (сброс параметров сессии)
+    // Restart the game session
     function restartGame() {
       points = 0;
       guessesLeft = 10;
@@ -413,16 +397,13 @@
       updateCommentary();
       overlay.style.display = "none";
       gameRunning = true;
-      // Разблокировать кнопки
       btnLong.disabled = false;
       btnShort.disabled = false;
     }
 
-    // Привязываем обработчики к кнопкам
-    document.getElementById('btnUp')?.remove(); // если были старые
-    // Используем новые кнопки: Long и Short
-    const btnLong = document.getElementById('btnLong') || document.getElementById('btnUp');
-    const btnShort = document.getElementById('btnShort') || document.getElementById('btnDown');
+    // Bind button events
+    const btnLong = document.getElementById('btnLong');
+    const btnShort = document.getElementById('btnShort');
 
     btnLong.addEventListener('click', () => {
       if (gameRunning) handleGuess("Long");
@@ -431,29 +412,26 @@
       if (gameRunning) handleGuess("Short");
     });
 
-    // Обработчик кнопки старта
     startBtn.addEventListener('click', () => {
       menu.style.display = "none";
       terminal.style.display = "flex";
       exitBtn.style.display = "block";
-      // Инициализируем данные игры
       restartGame();
     });
 
-    // Обработчик кнопки выхода из игры
     exitBtn.addEventListener('click', () => {
-      // Возвращаемся в стартовое меню
+      // Return to the start menu and end the game session
       menu.style.display = "flex";
       terminal.style.display = "none";
       exitBtn.style.display = "none";
+      gameRunning = false;
     });
 
-    // Обработчик кнопки перезапуска из оверлея
     overlayBtn.addEventListener('click', () => {
       restartGame();
     });
 
-    // При загрузке страницы показываем меню
+    // On page load, show the start menu and hide the game interface
     menu.style.display = "flex";
     terminal.style.display = "none";
     exitBtn.style.display = "none";
