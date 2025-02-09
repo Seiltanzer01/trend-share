@@ -26,7 +26,9 @@ def game_status():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
     user_id = session['user_id']
-    record = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+    record = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
     if not record:
         return jsonify({"times_played_today": 0, "weekly_points": 0}), 200
     return jsonify({
@@ -49,14 +51,22 @@ def guess_direction():
 
     user_id = session['user_id']
     user_guess = request.form.get('direction', '').strip().lower()
-    if user_guess not in ['up', 'down']:
-        return jsonify({"error": "Invalid guess (must be 'up' or 'down')"}), 400
+    # Ожидаем "long" или "short" (регистр не важен)
+    if user_guess not in ['long', 'short']:
+        return jsonify({"error": "Invalid guess (must be 'long' or 'short')"}), 400
 
-    row = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+    row = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
     if row is None:
-        db.session.execute("INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)", {"uid": user_id})
+        db.session.execute(
+            "INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)",
+            {"uid": user_id}
+        )
         db.session.commit()
-        row = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+        row = db.session.execute(
+            "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+        ).fetchone()
 
     times_played_today = row["times_played_today"]
     last_played_date = row["last_played_date"]
@@ -64,10 +74,10 @@ def guess_direction():
     if last_played_date is None or last_played_date < today_date:
         times_played_today = 0
 
-    if times_played_today >= 5:
-        return jsonify({"error": "Daily limit reached (5 plays per day)."}), 400
+    if times_played_today >= 30:  # Например, максимум 30 прогнозов в день (10 прогнозов * 3 сессии)
+        return jsonify({"error": "Daily limit reached (30 forecasts per day)."}), 400
 
-    real_direction = random.choice(['up', 'down'])
+    real_direction = random.choice(['long', 'short'])
     is_correct = (user_guess == real_direction)
     points_earned = 1 if is_correct else 0
     new_weekly_points = row["weekly_points"] + points_earned
@@ -91,6 +101,10 @@ def guess_direction():
     }), 200
 
 def distribute_game_rewards():
+    """
+    Еженедельное распределение наград: пул наград делится пропорционально набранным weekly_points у всех игроков.
+    После распределения weekly_points сбрасываются.
+    """
     try:
         cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
         if not cfg:
