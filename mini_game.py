@@ -7,7 +7,7 @@ from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, Config
 from best_setup_voting import send_token_reward as voting_send_token_reward
 import math
-import THREE  # если понадобится (псевдоним для three.js, здесь не используется в Python)
+
 # Создаем локальный логгер для данного модуля
 logger = logging.getLogger(__name__)
 
