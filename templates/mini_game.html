@@ -5,7 +5,7 @@
   <title>Retro Chart Guessing Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
-    /* Ретро-стиль: чёрный фон, зелёный текст, пиксельная эстетика */
+    /* Ретро-оформление: чёрный фон, зелёный текст, пиксельный шрифт */
     body {
       margin: 0;
       background: #000;
@@ -17,45 +17,48 @@
       position: relative;
       width: 100%;
       height: 100vh;
-      /* Можно добавить ретро фон – заменить URL на свою картинку */
-      background: url('https://i.imgur.com/9z1bWlz.png') center center / cover no-repeat;
     }
-    /* Canvas с графиком свечей */
-    #chartCanvas {
+    /* Эмуляция экрана старого компьютера */
+    #terminal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 640px;
+      height: 360px;
       background: #111;
-      display: block;
-      margin: 80px auto;
-      border: 4px solid #00FF00;
+      border: 6px solid #00FF00;
+      box-shadow: 0 0 20px #00FF00;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
     }
-    /* Окно с очками */
-    #points-window {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px 20px;
-      border: 2px solid #00FF00;
-      border-radius: 5px;
-      font-size: 18px;
-    }
-    /* Окно с комментариями от Дяди Джона */
-    #commentary {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px 20px;
-      border: 2px solid #00FF00;
-      border-radius: 5px;
-      font-size: 18px;
-      width: 300px;
-    }
-    /* Панель управления (кнопки) */
-    #controls {
-      position: absolute;
-      bottom: 20px;
+    /* Canvas для графика свечей */
+    #chartCanvas {
+      background: #000;
       width: 100%;
+      height: 60%;
+      border: 2px solid #00FF00;
+    }
+    /* Панель с информацией */
+    #info-panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+      padding: 10px;
+    }
+    #points-window, #commentary {
+      background: rgba(0,0,0,0.8);
+      border: 2px solid #00FF00;
+      border-radius: 4px;
+      padding: 5px 10px;
+    }
+    /* Панель управления кнопками */
+    #controls {
       text-align: center;
+      margin-top: 10px;
     }
     #controls button {
       font-family: 'Press Start 2P', cursive;
@@ -66,17 +69,68 @@
       margin: 0 10px;
       cursor: pointer;
     }
+    /* Кнопка перезапуска (для мобильных и ПК) */
+    #start-btn {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Press Start 2P', cursive;
+      background: #000;
+      color: #00FF00;
+      border: 2px solid #00FF00;
+      padding: 10px 20px;
+      cursor: pointer;
+      display: none;
+    }
+    /* Оверлей мини-игры для дополнительной информации (если потребуется) */
+    #minigame-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      display: none;
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #00FF00;
+      font-size: 20px;
+    }
+    #minigame-overlay button {
+      font-family: 'Press Start 2P', cursive;
+      background: #000;
+      color: #00FF00;
+      border: 2px solid #00FF00;
+      padding: 10px 20px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
+  <!-- Основной контейнер игры – эмуляция старого терминала -->
   <div id="game-container">
-    <canvas id="chartCanvas" width="600" height="300"></canvas>
-    <div id="points-window">Points: <span id="points-value">0</span></div>
-    <div id="commentary">Дядя Джон: Добро пожаловать, трейдер!</div>
-    <div id="controls">
-      <button id="btnUp">UP</button>
-      <button id="btnDown">DOWN</button>
+    <div id="terminal">
+      <canvas id="chartCanvas" width="600" height="200"></canvas>
+      <div id="info-panel">
+        <div id="points-window">Points: <span id="points-value">0</span></div>
+        <div id="commentary">Дядя Джон: Добро пожаловать, трейдер!</div>
+      </div>
+      <div id="controls">
+        <button id="btnUp">UP</button>
+        <button id="btnDown">DOWN</button>
+      </div>
     </div>
+    <button id="start-btn">Начать игру</button>
+  </div>
+
+  <!-- Оверлей для дополнительной информации или перезапуска игры -->
+  <div id="minigame-overlay">
+    <div id="overlay-message"></div>
+    <button id="overlay-btn">Начать заново</button>
   </div>
 
   <script>
@@ -85,15 +139,37 @@
     const ctx = canvas.getContext('2d');
     const pointsElem = document.getElementById('points-value');
     const commentaryElem = document.getElementById('commentary');
+    const startBtn = document.getElementById('start-btn');
+    const overlay = document.getElementById('minigame-overlay');
+    const overlayMsg = document.getElementById('overlay-message');
+    const overlayBtn = document.getElementById('overlay-btn');
 
     // Глобальные переменные игры
     let points = 0;
     let candles = [];
-    const numCandles = 30; // начальное число свечей
+    const numCandles = 30; // число свечей
+    let gameRunning = false;
 
-    // Генерация начальных данных для графика
+    // Список комментариев от Дяди Джона
+    const comments = [
+      "Дядя Джон: Рынок сегодня полон возможностей!",
+      "Дядя Джон: Осторожно, тренд меняется!",
+      "Дядя Джон: Видите ли вы пробой вверх?",
+      "Дядя Джон: Сейчас отличное время для сделок!",
+      "Дядя Джон: Будьте бдительны, движется вниз.",
+      "Дядя Джон: Большие прибыли – большие риски!"
+    ];
+
+    // Функция обновления комментария
+    function updateCommentary() {
+      let msg = comments[Math.floor(Math.random() * comments.length)];
+      commentaryElem.textContent = msg;
+    }
+
+    // Генерация начальных данных для свечей
     function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
+      candles = [];
       for (let i = 0; i < numCandles; i++) {
         let open = price;
         let change = (Math.random() - 0.5) * 10;
@@ -105,10 +181,9 @@
       }
     }
 
-    // Рисование графика свечей
+    // Отрисовка графика свечей
     function drawChart() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // Определяем минимальное и максимальное значение цен
       let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
       let minPrice = Math.min(...allPrices);
       let maxPrice = Math.max(...allPrices);
@@ -120,12 +195,12 @@
         let closeY = canvas.height - (c.close - minPrice) * scale;
         let highY = canvas.height - (c.high - minPrice) * scale;
         let lowY = canvas.height - (c.low - minPrice) * scale;
-        // Рисуем линию (тень свечи)
+        // Рисуем тень свечи
         ctx.strokeStyle = "#00FF00";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(x + candleWidth/2, highY);
-        ctx.lineTo(x + candleWidth/2, lowY);
+        ctx.moveTo(x + candleWidth / 2, highY);
+        ctx.lineTo(x + candleWidth / 2, lowY);
         ctx.stroke();
         // Рисуем тело свечи
         ctx.fillStyle = c.close >= c.open ? "#00FF00" : "#FF0000";
@@ -136,7 +211,7 @@
       });
     }
 
-    // Анимация добавления новой свечи
+    // Анимация добавления новой свечи с плавным переходом
     function addNewCandle() {
       let lastCandle = candles[candles.length - 1];
       let open = lastCandle.close;
@@ -145,51 +220,33 @@
       let high = Math.max(open, close) + Math.random() * 5;
       let low = Math.min(open, close) - Math.random() * 5;
       let newCandle = { open, close, high, low };
-
-      // Анимация: плавно добавляем новую свечу, удаляя старейшую
-      let steps = 30;
+      const steps = 30;
       let step = 0;
       function animateStep() {
         step++;
         let t = step / steps;
-        // Интерполируем новую свечу (простейшая линейная интерполяция)
         let interpolated = {
           open: lastCandle.close + (newCandle.open - lastCandle.close) * t,
           close: lastCandle.close + (newCandle.close - lastCandle.close) * t,
           high: lastCandle.close + (newCandle.high - lastCandle.close) * t,
           low: lastCandle.close + (newCandle.low - lastCandle.close) * t
         };
-        // Обновляем массив свечей: удаляем первую свечу, добавляем интерполированную в конец
         candles.shift();
         candles.push(interpolated);
         drawChart();
         if (step < steps) {
           requestAnimationFrame(animateStep);
         } else {
-          // По окончании анимации фиксируем новую свечу
           candles[candles.length - 1] = newCandle;
+          drawChart();
         }
       }
       animateStep();
     }
 
-    // Список комментариев от Дяди Джона
-    const comments = [
-      "Дядя Джон: Рынок сегодня полон возможностей!",
-      "Дядя Джон: Осторожно, тренд меняется!",
-      "Дядя Джон: Видите ли вы пробой вверх?",
-      "Дядя Джон: Сейчас отличное время для сделок!",
-      "Дядя Джон: Будьте бдительны, движется вниз.",
-      "Дядя Джон: Большие прибыли – большие риски!"
-    ];
-    function updateCommentary() {
-      let msg = comments[Math.floor(Math.random() * comments.length)];
-      commentaryElem.textContent = msg;
-    }
-
-    // Обработка выбора направления пользователем
+    // Обработка выбора направления игроком
     function handleGuess(guess) {
-      // Здесь мы случайно определяем правильное направление
+      // Определяем правильное направление случайно (в дальнейшем можно усложнить логику)
       let realDirection = Math.random() < 0.5 ? "up" : "down";
       let correct = (guess === realDirection);
       if (correct) {
@@ -200,13 +257,44 @@
       addNewCandle();
     }
 
-    // Привязываем обработчики к кнопкам
+    // Обработчики кнопок
     document.getElementById('btnUp').addEventListener('click', () => handleGuess("up"));
     document.getElementById('btnDown').addEventListener('click', () => handleGuess("down"));
 
-    // Запускаем игру: генерируем начальные свечи и рисуем график
-    generateInitialCandles();
-    drawChart();
+    // Обработчик кнопки старта игры
+    startBtn.style.display = "block";
+    startBtn.textContent = "Начать игру";
+    startBtn.addEventListener('click', () => {
+      startBtn.style.display = "none";
+      gameRunning = true;
+      generateInitialCandles();
+      drawChart();
+    });
+
+    // Обработчик оверлея для перезапуска (если игра закончилась или для дополнительного режима)
+    overlayBtn.addEventListener('click', () => {
+      overlay.style.display = "none";
+      points = 0;
+      pointsElem.textContent = points;
+      generateInitialCandles();
+      drawChart();
+      gameRunning = true;
+    });
+
+    // Можно добавить дополнительную логику завершения игры (например, по времени или количеству попыток)
+    // Пример: если очков больше 20, показываем оверлей с поздравлением
+    function checkGameOver() {
+      if (points >= 20) {
+        gameRunning = false;
+        overlayMsg.textContent = "Поздравляем! Вы набрали " + points + " очков!";
+        overlay.style.display = "flex";
+      }
+    }
+
+    // После каждого обновления графика можно проверять условие завершения игры
+    // Для простоты можно добавить вызов checkGameOver() внутри функции addNewCandle() после завершения анимации
+    // (Например, раскомментируйте следующую строку в animateStep() после установки новой свечи)
+    // checkGameOver();
   </script>
 </body>
 </html>
