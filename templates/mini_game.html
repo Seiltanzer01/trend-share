@@ -140,35 +140,34 @@
   
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // Глобальные переменные
       let scene, camera, renderer, clock;
       let player, city, terminal, npc;
-      let moveSpeed = 8; // увеличенная скорость
-      let jumpSpeed = 6; // скорость прыжка
+      let moveSpeed = 8;      // увеличенная скорость
+      let jumpSpeed = 6;      // скорость прыжка
       let gravity = 9.8;
       let velocityY = 0;
       let isJumping = false;
-      let joystickData = null; // данные от джойстика
+      let joystickData = null;
       let gamePaused = false;
       let points = 0;
       let keys = {};
       let previousTime = performance.now();
-      let cameraRotationOffset = 0; // для поворота обзора
+      let cameraRotationOffset = 0;  // горизонтальный обзор
+      let cameraPitchOffset = 0;     // вертикальный обзор
 
-      // Ограничения карты (границы координат)
+      // Ограничения карты (границы перемещения)
       const mapBounds = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
 
-      // Инициализация Three.js
       init();
       animate();
 
       function init() {
         clock = new THREE.Clock();
         scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0xffffff, 20, 200);  // светлый мир
+        scene.fog = new THREE.Fog(0xffffff, 20, 200);
 
-        // Камера от третьего лица
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 1000);
+        // Настраиваем камеру от третьего лица
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
         camera.position.set(0, 5, 12);
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -186,57 +185,54 @@
 
         const loader = new THREE.GLTFLoader();
 
-        // Загрузка модели города
+        // Загрузка модели города (основная карта)
         loader.load('/static/models/wall_street_city.glb', function(gltf) {
           city = gltf.scene;
           city.scale.set(1, 1, 1);
-          city.traverse(function(child) {
+          city.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
+              child.material.side = THREE.DoubleSide;
             }
           });
           scene.add(city);
-        }, undefined, function(error) {
+        }, undefined, error => {
           console.error('Error loading city model:', error);
         });
 
-        // Загрузка модели терминала (две башни)
+        // Загрузка модели терминала (две башни) – ставим отдельно от карты
         loader.load('/static/models/terminal.glb', function(gltf) {
           terminal = gltf.scene;
           terminal.scale.set(1, 1, 1);
-          // Размещаем терминал в стороне от улицы
-          terminal.position.set(25, 0, -30);
-          terminal.traverse(function(child) {
+          terminal.position.set(25, 0, -40);  // смещаем терминал от основной карты
+          terminal.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
             }
           });
           scene.add(terminal);
-        }, undefined, function(error) {
+        }, undefined, error => {
           console.error('Error loading terminal model:', error);
         });
 
         // Загрузка модели персонажа (игрока)
         loader.load('/static/models/character.glb', function(gltf) {
           player = gltf.scene;
-          // Увеличиваем масштаб и корректируем позицию, чтобы вся модель была видна
           player.scale.set(1.2, 1.2, 1.2);
-          // Располагаем игрока немного от терминала
+          // Корректируем позицию так, чтобы модель была полностью видна
           player.position.set(-10, 0, 10);
-          player.traverse(function(child) {
+          player.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
-              // Используем обе стороны материала, чтобы текстуры корректно отображались
-              if(child.material) child.material.side = THREE.DoubleSide;
+              child.material.side = THREE.DoubleSide;
             }
           });
           scene.add(player);
-        }, undefined, function(error) {
+        }, undefined, error => {
           console.error('Error loading character model:', error);
-          // Фолбэк: простой куб
           const geometry = new THREE.BoxGeometry(1, 2, 1);
           const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
           player = new THREE.Mesh(geometry, material);
@@ -248,47 +244,53 @@
         loader.load('/static/models/uncle_john.glb', function(gltf) {
           npc = gltf.scene;
           npc.scale.set(1, 1, 1);
-          // Размещаем NPC рядом с терминалом, но не слишком близко, чтобы игрок мог подойти и начать диалог
+          // Размещаем NPC рядом с терминалом, но так, чтобы игрок мог свободно подойти
           npc.position.set(terminal ? terminal.position.x - 5 : 20, 0, terminal ? terminal.position.z + 5 : -25);
-          npc.traverse(function(child) {
+          npc.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
             }
           });
           scene.add(npc);
-        }, undefined, function(error) {
+        }, undefined, error => {
           console.error('Error loading NPC model:', error);
         });
 
-        // Настройка виртуального джойстика для мобильных устройств (dynamic режим для лучшей адаптации)
+        // Настройка виртуального джойстика для мобильных устройств (режим dynamic)
         joystick = nipplejs.create({
           zone: document.getElementById('joystick-container'),
           mode: 'dynamic',
           color: 'white',
           size: 100
         });
-        joystick.on('move', function (evt, data) {
+        joystick.on('move', function(evt, data) {
           if (data && data.angle) {
             joystickData = data;
           }
         });
-        joystick.on('end', function () {
+        joystick.on('end', function() {
           joystickData = null;
         });
 
-        // Обработка касаний для поворота обзора (один палец)
+        // Обработка касаний для поворота обзора (один палец для горизонтального и вертикального поворота)
         let touchStartX = null;
+        let touchStartY = null;
         document.addEventListener('touchstart', function(e) {
           if (e.touches.length === 1) {
             touchStartX = e.touches[0].pageX;
+            touchStartY = e.touches[0].pageY;
           }
         }, false);
         document.addEventListener('touchmove', function(e) {
-          if (e.touches.length === 1 && touchStartX !== null) {
+          if (e.touches.length === 1 && touchStartX !== null && touchStartY !== null) {
             let deltaX = e.touches[0].pageX - touchStartX;
+            let deltaY = e.touches[0].pageY - touchStartY;
             cameraRotationOffset += deltaX * 0.005;
+            // Ограничиваем вертикальный наклон камеры (от -45° до +45°)
+            cameraPitchOffset = Math.max(-Math.PI/4, Math.min(Math.PI/4, cameraPitchOffset + deltaY * 0.005));
             touchStartX = e.touches[0].pageX;
+            touchStartY = e.touches[0].pageY;
           }
         }, false);
 
@@ -298,7 +300,7 @@
           gamePaused = false;
         });
 
-        // Кнопка выхода из игры -> возвращает на главную страницу
+        // Кнопка выхода из игры
         document.getElementById('exit-game-btn').addEventListener('click', function() {
           window.location.href = '/';
         });
@@ -307,7 +309,6 @@
         document.getElementById('talk-btn').addEventListener('click', function() {
           alert("You are now talking with Uncle John. Press OK to start the mini-game!");
           triggerMinigame();
-          // После начала диалога кнопку скрываем, чтобы не мешала
           document.getElementById('talk-btn').style.display = "none";
         });
 
@@ -322,26 +323,25 @@
 
       function animate() {
         let currentTime = performance.now();
-        let delta = (currentTime - previousTime) / 1000;  // delta в секундах
+        let delta = (currentTime - previousTime) / 1000;
         previousTime = currentTime;
         requestAnimationFrame(animate);
 
         if (!gamePaused && player) {
-          // Обновляем движение игрока по данным джойстика (если есть)
+          // Движение по джойстику
           if (joystickData) {
             let rad = THREE.Math.degToRad(joystickData.angle.degree);
             let factor = (joystickData.distance / 50) * moveSpeed;
             player.position.x += Math.cos(rad) * factor * delta;
             player.position.z -= Math.sin(rad) * factor * delta;
           }
-
-          // Обработка клавиатуры (для десктопа)
+          // Клавиатурное управление (для десктопа)
           if (keys['ArrowLeft']) player.position.x -= moveSpeed * delta;
           if (keys['ArrowRight']) player.position.x += moveSpeed * delta;
           if (keys['ArrowUp']) player.position.z -= moveSpeed * delta;
           if (keys['ArrowDown']) player.position.z += moveSpeed * delta;
 
-          // Обработка прыжка (клавиша Space)
+          // Прыжок
           if (keys['Space'] && !isJumping) {
             velocityY = jumpSpeed;
             isJumping = true;
@@ -356,11 +356,11 @@
             }
           }
 
-          // Ограничиваем движение игрока внутри карты
+          // Ограничиваем движение игрока в пределах карты
           player.position.x = Math.max(mapBounds.minX, Math.min(mapBounds.maxX, player.position.x));
           player.position.z = Math.max(mapBounds.minZ, Math.min(mapBounds.maxZ, player.position.z));
 
-          // Простая коллизия с терминалом: отталкиваем игрока, если слишком близко
+          // Простая коллизия с терминалом: если слишком близко – отталкиваем
           if (terminal) {
             let distTerminal = player.position.distanceTo(terminal.position);
             if (distTerminal < 2) {
@@ -381,21 +381,22 @@
           }
         }
 
-        // Камера следует за игроком с учётом поворота обзора
+        // Обновляем камеру: плавное следование, с учетом горизонтального (yaw) и вертикального (pitch) обзора
         if (player) {
           let desiredPosition = new THREE.Vector3(
             player.position.x,
             player.position.y + 5,
             player.position.z + 10
           );
-          // Применяем поворот обзора вокруг оси Y
           let offset = new THREE.Vector3().subVectors(desiredPosition, player.position);
           offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotationOffset);
           desiredPosition = new THREE.Vector3().addVectors(player.position, offset);
+          // Применяем вертикальный наклон (pitch)
           camera.position.lerp(desiredPosition, 0.1);
+          camera.rotation.x = -cameraPitchOffset;
           camera.lookAt(player.position);
         }
-
+        
         renderer.render(scene, camera);
       }
 
