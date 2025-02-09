@@ -167,17 +167,17 @@
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xffffff, 20, 200);
 
-        // Инициализация камеры с возможностью изменять угол обзора
+        // Инициализация камеры с возможностью изменения обзора
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
         camera.position.set(0, 5, 12);
 
-        // Рендерер
+        // Инициализация рендерера
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         document.getElementById('game-container').appendChild(renderer.domElement);
 
-        // Физический мир Cannon‑ES с фиксированным временным шагом
+        // Инициализация физического мира Cannon‑ES
         world = new CANNON.World({
           gravity: new CANNON.Vec3(0, gravity, 0)
         });
@@ -203,7 +203,7 @@
               child.castShadow = true;
               child.receiveShadow = true;
               child.material.side = THREE.DoubleSide;
-              // Вычисляем bounding box и создаём статические физические тела
+              // Для каждого объекта создаем статическое тело по bounding box
               child.geometry.computeBoundingBox();
               let bbox = child.geometry.boundingBox;
               let size = new THREE.Vector3();
@@ -232,6 +232,7 @@
             if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
+              // Создаем физическое тело для терминала
               let bbox = new THREE.Box3().setFromObject(child);
               let size = new THREE.Vector3();
               bbox.getSize(size);
@@ -254,7 +255,7 @@
         loader.load('/static/models/character.glb', function(gltf) {
           playerMesh = gltf.scene;
           playerMesh.scale.set(1.2, 1.2, 1.2);
-          // Корректируем позицию так, чтобы модель была полностью видна
+          // Корректируем позицию так, чтобы вся модель была видна и не перекрывалась терминалом
           playerMesh.position.set(-10, 0, 10);
           playerMesh.traverse(child => {
             if (child.isMesh) {
@@ -264,7 +265,7 @@
             }
           });
           scene.add(playerMesh);
-          // Создаем физическое тело для игрока на основе bounding box модели
+          // Создаем физическое тело для игрока (на основе bounding box модели)
           let box = new THREE.Box3().setFromObject(playerMesh);
           let size = new THREE.Vector3();
           box.getSize(size);
@@ -295,8 +296,12 @@
         loader.load('/static/models/uncle_john.glb', function(gltf) {
           npcMesh = gltf.scene;
           npcMesh.scale.set(1, 1, 1);
-          // Размещаем NPC рядом с терминалом – если терминал уже загружен, используем его позицию, иначе задаём по умолчанию
-          npcMesh.position.set(terminalMesh ? terminalMesh.position.x - 5 : 20, 0, terminalMesh ? terminalMesh.position.z + 5 : -25);
+          // Размещаем NPC рядом с терминалом – если терминал загружен, используем его позицию; иначе задаем значение по умолчанию
+          if (terminalMesh) {
+            npcMesh.position.set(terminalMesh.position.x - 5, 0, terminalMesh.position.z + 5);
+          } else {
+            npcMesh.position.set(20, 0, -25);
+          }
           npcMesh.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -304,7 +309,7 @@
             }
           });
           scene.add(npcMesh);
-          // Добавляем статическое физическое тело для NPC
+          // Создаем статическое физическое тело для NPC
           let bbox = new THREE.Box3().setFromObject(npcMesh);
           let size = new THREE.Vector3();
           bbox.getSize(size);
@@ -389,11 +394,11 @@
         world.step(fixedTimeStep, delta, 10);
 
         if (!gamePaused && playerBody) {
-          // Синхронизируем позицию модели с физическим телом
+          // Синхронизация модели с физическим телом
           playerMesh.position.copy(playerBody.position);
           playerMesh.quaternion.copy(playerBody.quaternion);
 
-          // Управление по данным джойстика (для мобильных устройств)
+          // Управление по данным джойстика (мобильные устройства)
           if (joystickData) {
             let rad = THREE.Math.degToRad(joystickData.angle.degree);
             let factor = (joystickData.distance / 50) * moveSpeed;
@@ -401,11 +406,11 @@
             playerBody.velocity.x = Math.cos(rad) * factor;
             playerBody.velocity.z = -Math.sin(rad) * factor;
           } else {
-            // Если нет ввода, плавно сбрасываем скорость
+            // Плавное снижение скорости при отсутствии ввода
             playerBody.velocity.x *= 0.9;
             playerBody.velocity.z *= 0.9;
           }
-          // Обработка клавиатуры (для десктопа)
+          // Управление с клавиатуры (для десктопа)
           if (keys['ArrowLeft']) playerBody.velocity.x = -moveSpeed;
           if (keys['ArrowRight']) playerBody.velocity.x = moveSpeed;
           if (keys['ArrowUp']) playerBody.velocity.z = -moveSpeed;
@@ -427,9 +432,9 @@
           playerBody.position.x = Math.max(mapBounds.minX, Math.min(mapBounds.maxX, playerBody.position.x));
           playerBody.position.z = Math.max(mapBounds.minZ, Math.min(mapBounds.maxZ, playerBody.position.z));
 
-          // Коллизии с объектами (физика обрабатывает столкновения с телами, созданными для cityMesh и terminalMesh)
+          // Физические коллизии обрабатываются движком Cannon‑ES (для объектов города и терминала)
 
-          // Если игрок рядом с NPC, показываем кнопку Talk
+          // Показываем кнопку Talk, если игрок рядом с NPC
           if (npcMesh) {
             let distNPC = playerMesh.position.distanceTo(npcMesh.position);
             let talkBtn = document.getElementById('talk-btn');
@@ -441,7 +446,7 @@
           }
         }
 
-        // Обновляем камеру: плавное следование за игроком с учетом горизонтального (yaw) и вертикального (pitch) обзора
+        // Обновляем камеру: плавное следование за игроком с учётом вращения (yaw и pitch)
         if (playerMesh) {
           let desiredPosition = new THREE.Vector3(
             playerMesh.position.x,
@@ -455,7 +460,7 @@
           camera.rotation.x = -cameraPitchOffset;
           camera.lookAt(playerMesh.position);
         }
-        
+
         renderer.render(scene, camera);
       }
 
@@ -507,7 +512,7 @@
         });
       }
 
-      // Функция запуска мини-игры (остановка симуляции и показ оверлея)
+      // Функция запуска мини-игры (останавливает симуляцию и показывает оверлей)
       function triggerMinigame() {
         gamePaused = true;
         generateCandlestickChart();
