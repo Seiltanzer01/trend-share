@@ -13,12 +13,27 @@ logger = logging.getLogger(__name__)
 
 mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
 
+# (Опционально) Для физики можно расширить класс Player, если хотите использовать серверные расчеты.
+class Player:
+    def __init__(self, mesh):
+        self.mesh = mesh
+        self.velocity = [0, 0, 0]
+        self.damping = 0.9  # коэффициент затухания
+        self.speed = 5
+
+    def update(self, delta):
+        for i in range(3):
+            self.velocity[i] *= self.damping
+        self.mesh.position.x += self.velocity[0] * delta
+        self.mesh.position.y += self.velocity[1] * delta
+        self.mesh.position.z += self.velocity[2] * delta
+
 @mini_game_bp.route('/retro-game', methods=['GET'])
 def retro_game():
     """
     Возвращает страницу с 3D-игрой. Если пользователь авторизован, ему показывается страница с 3D‑сценой,
-    где персонаж перемещается по улицам Wall Street, сталкиваясь с объектами, и может начать диалог с интерактивным NPC "Дядя Джон"
-    для запуска мини-игры с графиком свечей.
+    где персонаж перемещается по улицам Wall Street, сталкивается с объектами, а при приближении к терминалу
+    или интерактивному NPC "Дядя Джон" запускается мини-игра (график свечей).
     """
     if 'user_id' not in session:
         flash("Пожалуйста, войдите в систему.", "warning")
@@ -30,7 +45,9 @@ def game_status():
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
     user_id = session['user_id']
-    record = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+    record = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
     if not record:
         return jsonify({"times_played_today": 0, "weekly_points": 0}), 200
     return jsonify({
@@ -56,11 +73,18 @@ def guess_direction():
     if user_guess not in ['up', 'down']:
         return jsonify({"error": "Invalid guess (must be 'up' or 'down')"}), 400
 
-    row = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+    row = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
     if row is None:
-        db.session.execute("INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)", {"uid": user_id})
+        db.session.execute(
+            "INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)",
+            {"uid": user_id}
+        )
         db.session.commit()
-        row = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+        row = db.session.execute(
+            "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+        ).fetchone()
 
     times_played_today = row["times_played_today"]
     last_played_date = row["last_played_date"]
@@ -97,8 +121,8 @@ def guess_direction():
 def distribute_game_rewards():
     """
     Еженедельное распределение наград: функция смотрит значение в конфигурации (ключ 'game_rewards_pool_size'),
-    затем делит пул пропорционально набранным weekly_points у всех игроков,
-    отправляет награды через voting_send_token_reward и обнуляет weekly_points.
+    затем делит пул пропорционально набранным weekly_points у всех игроков, отправляет награды через voting_send_token_reward
+    и обнуляет weekly_points.
     """
     try:
         cfg = Config.query.filter_by(key='game_rewards_pool_size').first()
