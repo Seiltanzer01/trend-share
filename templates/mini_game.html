@@ -4,143 +4,179 @@
   <meta charset="UTF-8">
   <title>Retro Chart Guessing Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Подключаем ретро-шрифт Press Start 2P, например через Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    /* Retro style: black background, neon green text, pixelated font */
+    /* --- Общие стили --- */
+    * {
+      box-sizing: border-box;
+    }
     body {
       margin: 0;
-      background: #000;
+      padding: 0;
+      background: linear-gradient(135deg, #111 0%, #222 100%);
       color: #00FF00;
       font-family: 'Press Start 2P', cursive;
-      overflow: hidden;
+      overflow: hidden; /* Убираем скролл, если хотим полноэкран */
     }
-    /* Main game container */
+    /* Контейнер игры (всю высоту) */
     #game-container {
       position: relative;
       width: 100%;
       height: 100vh;
-    }
-    /* Start menu */
-    #menu {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #000;
       display: flex;
       flex-direction: column;
-      justify-content: center;
       align-items: center;
-      z-index: 200;
+      justify-content: center;
     }
-    #menu h1 {
-      font-size: 36px;
-      margin-bottom: 20px;
-    }
-    #menu p {
-      font-size: 18px;
-      margin: 5px 0;
-      text-align: center;
-      max-width: 80%;
-    }
-    #menu button {
-      margin-top: 30px;
-      font-family: 'Press Start 2P', cursive;
-      background: #000;
-      color: #00FF00;
-      border: 2px solid #00FF00;
-      padding: 10px 20px;
-      cursor: pointer;
-      font-size: 18px;
-    }
-    /* Terminal screen (game interface) */
-    #terminal {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 640px;
-      max-width: 90%;
-      background: #111;
-      border: 6px solid #00FF00;
-      box-shadow: 0 0 20px #00FF00;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    /* Chart title */
-    #chart-title {
-      text-align: center;
-      font-size: 20px;
-      margin-bottom: 10px;
-    }
-    /* Canvas for the candlestick chart */
-    #chartCanvas {
-      background: #000;
-      width: 100%;
-      height: 200px;
-      border: 2px solid #00FF00;
-      display: block;
-    }
-    /* Info panel */
-    #info-panel {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 10px;
-    }
-    #points-window, #session-info {
-      background: rgba(0,0,0,0.8);
-      border: 2px solid #00FF00;
-      border-radius: 4px;
-      padding: 5px 10px;
-      font-size: 16px;
-    }
-    /* Control panel (buttons) */
-    #controls {
-      text-align: center;
-      margin-top: 15px;
-    }
-    #controls button {
-      font-family: 'Press Start 2P', cursive;
-      background: #000;
-      color: #00FF00;
-      border: 2px solid #00FF00;
-      padding: 10px 20px;
-      margin: 0 10px;
-      cursor: pointer;
-      font-size: 18px;
-    }
-    /* Exit button */
+    /* Кнопка выхода (высший приоритет) */
     #exit-btn {
       position: absolute;
       top: 20px;
       right: 20px;
+      z-index: 999;
+      background: #000;
+      color: #00ff00;
+      border: 3px solid #00FF00;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s ease-in-out;
+    }
+    #exit-btn:hover {
+      background: #00ff00;
+      color: #000;
+      box-shadow: 0 0 5px #fff, 0 0 15px #0f0, 0 0 20px #0f0;
+    }
+
+    /* Окно с меню (правила, кнопки) - overlay */
+    #main-menu {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    #menu-content {
+      width: 90%;
+      max-width: 500px;
+      background: #000;
+      border: 3px solid #0f0;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 0 15px #0f0;
+    }
+    #menu-content h1 {
+      margin-bottom: 20px;
+      font-size: 22px;
+    }
+    #menu-content p {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .menu-btn {
+      display: inline-block;
+      margin: 10px;
+      padding: 10px 15px;
+      font-size: 14px;
+      background: #000;
+      color: #0f0;
+      border: 2px solid #0f0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .menu-btn:hover {
+      background: #0f0;
+      color: #000;
+      box-shadow: 0 0 5px #fff, 0 0 15px #0f0, 0 0 20px #0f0;
+    }
+
+    /* Основной "терминал" */
+    #terminal {
+      position: relative;
+      width: 90%;
+      max-width: 800px;
+      background: #111;
+      border: 5px solid #0f0;
+      box-shadow: 0 0 20px #0f0;
+      padding: 10px;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #chart-title {
+      text-align: center;
+      font-size: 20px;
+      margin-bottom: 5px;
+      text-shadow: 0 0 3px #0f0;
+    }
+
+    /* Канвас делаем responsive */
+    #chartCanvas {
+      width: 100%;
+      height: auto; /* выставляем через скрипт точную высоту или auto */
+      background: #000;
+      border: 2px solid #0f0;
+      display: block;
+    }
+
+    /* Панель информации */
+    #info-panel {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      margin-top: 5px;
+      gap: 10px;
+    }
+    .info-box {
+      background: rgba(0,0,0,0.8);
+      border: 2px solid #00FF00;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+
+    /* Кнопки управления */
+    #controls {
+      text-align: center;
+      margin-top: 10px;
+    }
+    .control-btn {
       font-family: 'Press Start 2P', cursive;
       background: #000;
       color: #00FF00;
       border: 2px solid #00FF00;
-      padding: 10px 15px;
+      padding: 8px 16px;
+      margin: 5px 10px;
       cursor: pointer;
       font-size: 16px;
-      z-index: 300;
-      display: none;
+      transition: all 0.2s;
     }
-    /* Overlay for game over / restart */
+    .control-btn:hover {
+      background: #0f0;
+      color: #000;
+      box-shadow: 0 0 5px #fff, 0 0 15px #0f0;
+    }
+
+    /* Окно оверлея «игра окончена» */
     #overlay {
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 0; left: 0;
       width: 100%;
       height: 100%;
       background: rgba(0,0,0,0.95);
       display: none;
-      z-index: 400;
+      z-index: 999;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       color: #00FF00;
-      font-size: 22px;
+      font-size: 18px;
       text-align: center;
       padding: 20px;
     }
@@ -152,176 +188,266 @@
       padding: 10px 20px;
       margin-top: 20px;
       cursor: pointer;
-      font-size: 18px;
+      font-size: 16px;
+      transition: all 0.2s;
     }
-    /* Responsive adjustments for mobile devices */
+    #overlay button:hover {
+      background: #0f0;
+      color: #000;
+    }
+
+    /* --- Мобильная адаптация --- */
     @media (max-width: 600px) {
-      #menu h1 {
-        font-size: 28px;
+      #menu-content h1 {
+        font-size: 18px;
       }
-      #menu p, #info-panel div {
+      #menu-content p {
+        font-size: 12px;
+      }
+      .menu-btn {
+        font-size: 12px;
+      }
+      #chart-title {
+        font-size: 16px;
+      }
+      #info-panel .info-box {
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+      .control-btn {
         font-size: 14px;
+        padding: 6px 10px;
+        margin: 5px;
       }
-      #controls button {
-        padding: 8px 16px;
+      #overlay {
         font-size: 16px;
       }
       #exit-btn {
-        padding: 8px 12px;
         font-size: 14px;
-      }
-      #overlay {
-        font-size: 18px;
+        padding: 8px 12px;
       }
     }
   </style>
 </head>
 <body>
-  <!-- Start Menu -->
-  <div id="menu">
-    <h1>UJO/USD Chart Guessing Game</h1>
-    <p>Welcome to the Retro Chart Guessing Game! Predict whether the UJO/USD price will go up (Long) or down (Short).</p>
-    <p>Each session consists of 10 forecasts. You can play up to 3 sessions per day.</p>
-    <p>Earn 1 point for every correct forecast. Weekly points will be used to distribute UJO tokens!</p>
-    <button id="start-btn">Start Game</button>
+
+  <!-- Главное меню / Скрыто, пока не надо -->
+  <div id="main-menu">
+    <div id="menu-content">
+      <h1>Retro Trading Game</h1>
+      <p>
+        Добро пожаловать в ретро-игру про трейдинг!<br>
+        Заходите в игру, делайте прогнозы (Long/Short).<br>
+        <strong>10</strong> прогнозов за сессию, максимум <strong>3</strong> сессии в день (итого 30 сделок).
+      </p>
+      <p>
+        За каждую угаданную свечу — <strong>1 балл</strong>.<br>
+        Все очки за неделю суммируются и не сбрасываются до распределения наград.<br>
+        Затем на их основе распределяются реальные токены!
+      </p>
+      <button class="menu-btn" id="btn-rules">Правила</button>
+      <button class="menu-btn" id="btn-start">Начать игру</button>
+    </div>
   </div>
 
-  <!-- Game Terminal -->
   <div id="game-container">
+    <!-- Кнопка выхода -->
+    <button id="exit-btn" style="display:none;">Exit</button>
+
+    <!-- «Терминал» с самим графиком и управлением -->
     <div id="terminal">
       <div id="chart-title">UJO/USD</div>
-      <canvas id="chartCanvas" width="600" height="200"></canvas>
+      <canvas id="chartCanvas" width="600" height="300"></canvas>
+
       <div id="info-panel">
-        <div id="points-window">Points: <span id="points-value">0</span></div>
-        <div id="session-info">Forecasts: <span id="guesses-left">10</span> / Sessions: <span id="sessions-left">3</span></div>
+        <div class="info-box" id="session-box">
+          Сессия: <span id="session-index">1</span> / 3<br>
+          Прогнозов в сессии: <span id="guesses-left">10</span>
+        </div>
+        <div class="info-box">
+          Очки (неделя): <span id="points-value">0</span>
+        </div>
+        <div class="info-box" id="daily-panel">
+          Прогнозов сегодня: <span id="today-plays">0</span>/30
+        </div>
       </div>
+
       <div id="controls">
-        <button id="btnLong">Long</button>
-        <button id="btnShort">Short</button>
+        <button class="control-btn" id="btnLong">Long</button>
+        <button class="control-btn" id="btnShort">Short</button>
+        <!-- Дополнительная кнопка «Hold» для разнообразия -->
+        <button class="control-btn" id="btnHold">Hold</button>
       </div>
     </div>
-    <button id="exit-btn">Exit</button>
-  </div>
 
-  <!-- Overlay for game over / restart -->
-  <div id="overlay">
-    <div id="overlay-message"></div>
-    <button id="overlay-btn">Restart Game</button>
+    <!-- Оверлей окончания игры / сессии -->
+    <div id="overlay">
+      <div id="overlay-message"></div>
+      <button id="overlay-btn">Начать заново</button>
+    </div>
   </div>
 
   <script>
-    // Interface elements
-    const startBtn = document.getElementById('start-btn');
-    const menu = document.getElementById('menu');
-    const terminal = document.getElementById('terminal');
+    // ------------------------------
+    // Переменные интерфейса
+    // ------------------------------
+    const mainMenu = document.getElementById('main-menu');
+    const btnStart = document.getElementById('btn-start');
+    const btnRules = document.getElementById('btn-rules');
     const exitBtn = document.getElementById('exit-btn');
+    const gameContainer = document.getElementById('game-container');
+    const terminal = document.getElementById('terminal');
+
     const chartCanvas = document.getElementById('chartCanvas');
     const ctx = chartCanvas.getContext('2d');
-    const pointsElem = document.getElementById('points-value');
+
+    const sessionIndexElem = document.getElementById('session-index');
     const guessesLeftElem = document.getElementById('guesses-left');
-    const sessionsLeftElem = document.getElementById('sessions-left');
+    const pointsElem = document.getElementById('points-value');
+    const todayPlaysElem = document.getElementById('today-plays');
+
     const btnLong = document.getElementById('btnLong');
     const btnShort = document.getElementById('btnShort');
+    const btnHold = document.getElementById('btnHold');
+
     const overlay = document.getElementById('overlay');
     const overlayMsg = document.getElementById('overlay-message');
     const overlayBtn = document.getElementById('overlay-btn');
 
-    // Global game variables
-    let points = 0;
+    // ------------------------------
+    // Глобальные переменные игры
+    // ------------------------------
     let candles = [];
-    const numCandles = 30;
-    let guessesLeft = 10;
-    let sessionsLeft = 3;
+    const numCandles = 30; // Сколько свечей на экране
+    let points = 0;
+
+    // Сессии, лимиты
+    let currentSession = 1;
+    let maxSessions = 3;
+    let guessesLeft = 10; // 10 прогнозов на сессию
+    let dailyGuessesUsed = 0; // для отображения
+    const dailyGuessesMax = 30; // 3 сессии * 10 = 30
+
     let gameRunning = false;
 
-    // Commentary messages from Uncle John
-    const comments = [
-      "Uncle John: The market is full of opportunities today!",
-      "Uncle John: Caution, the trend is changing!",
-      "Uncle John: Do you see the breakout up?",
-      "Uncle John: Now is a great time for trades!",
-      "Uncle John: Be alert, it's moving down.",
-      "Uncle John: Big profits come with big risks!"
-    ];
-
-    function updateCommentary() {
-      // For simplicity, we output commentary to the console.
-      console.log(comments[Math.floor(Math.random() * comments.length)]);
-    }
-
-    // Generate initial candles with natural movement
+    // ------------------------------
+    // Генерация начальных свечей
+    // ------------------------------
     function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
       candles = [];
       for (let i = 0; i < numCandles; i++) {
         let open = price;
-        let change = (Math.random() - 0.5) * 10;
+        // «Реалистичный» небольшой шаг
+        let change = (Math.random() - 0.5) * 5;
         let close = open + change;
-        let high = Math.max(open, close) + Math.random() * 5;
-        let low = Math.min(open, close) - Math.random() * 5;
+        let high = Math.max(open, close) + Math.random() * 3;
+        let low = Math.min(open, close) - Math.random() * 3;
         candles.push({ open, close, high, low });
         price = close;
       }
     }
 
-    // Draw the candlestick chart with title "UJO/USD"
-    // If flag is provided, display flag letter and result text above the last candle.
-    function drawChart(flag = null, flagText = "", resultText = "") {
+    // ------------------------------
+    // Отрисовка свечей
+    // (с флажком/результатом при необходимости)
+    // ------------------------------
+    function drawChart(showFlag = false, flagText = "", resultText = "") {
       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+
       let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
       let minPrice = Math.min(...allPrices);
       let maxPrice = Math.max(...allPrices);
-      let scale = chartCanvas.height / (maxPrice - minPrice);
-      let candleWidth = chartCanvas.width / candles.length;
+      let chartHeight = chartCanvas.height;
+      let chartWidth = chartCanvas.width;
+
+      let scale = chartHeight / (maxPrice - minPrice);
+      let candleWidth = chartWidth / candles.length;
+
       candles.forEach((c, i) => {
         let x = i * candleWidth;
-        let openY = chartCanvas.height - (c.open - minPrice) * scale;
-        let closeY = chartCanvas.height - (c.close - minPrice) * scale;
-        let highY = chartCanvas.height - (c.high - minPrice) * scale;
-        let lowY = chartCanvas.height - (c.low - minPrice) * scale;
-        // Draw the wick
+        let openY = chartHeight - (c.open - minPrice) * scale;
+        let closeY = chartHeight - (c.close - minPrice) * scale;
+        let highY = chartHeight - (c.high - minPrice) * scale;
+        let lowY = chartHeight - (c.low - minPrice) * scale;
+
+        // "Фитиль"
         ctx.strokeStyle = "#00FF00";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(x + candleWidth / 2, highY);
         ctx.lineTo(x + candleWidth / 2, lowY);
         ctx.stroke();
-        // Draw the body
-        ctx.fillStyle = c.close >= c.open ? "#00FF00" : "#FF0000";
+
+        // "Тело"
+        let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
+        ctx.fillStyle = color;
         let rectY = Math.min(openY, closeY);
-        let rectHeight = Math.abs(openY - closeY);
-        if (rectHeight < 2) rectHeight = 2;
-        ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectHeight);
+        let rectH = Math.abs(openY - closeY);
+        if (rectH < 2) rectH = 2;
+        ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
       });
-      // If a flag is provided, draw it above the last candle
-      if (flag) {
-        const lastX = (candles.length - 1) * candleWidth;
-        const lastCandle = candles[candles.length - 1];
-        const lastY = chartCanvas.height - (lastCandle.high - minPrice) * scale - 20;
-        ctx.font = "bold 24px 'Press Start 2P'";
+
+      // Если нужно показать флажок (L/S) + результат (Profit/Loss)
+      if (showFlag) {
+        let lastIndex = candles.length - 1;
+        let lastCandle = candles[lastIndex];
+        let x = lastIndex * candleWidth;
+        let textY = chartHeight - (lastCandle.high - minPrice) * scale - 20;
+
+        ctx.font = "bold 18px 'Press Start 2P'";
         ctx.fillStyle = "#FFFF00";
-        ctx.fillText(flagText, lastX + candleWidth/2 - 10, lastY);
+        ctx.fillText(flagText, x + candleWidth/2 - 10, textY);
+        
         ctx.font = "16px 'Press Start 2P'";
         ctx.fillStyle = "#FFFFFF";
-        ctx.fillText(resultText, lastX + candleWidth/2 - 20, lastY + 25);
+        ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
       }
     }
 
-    // Animate the addition of a new candle with a smooth transition
+    // ------------------------------
+    // Анимация добавления новой свечи
+    // (Теперь более «реалистичное» движение цены + иногда «события»)
+    // ------------------------------
     function addNewCandle() {
       let lastCandle = candles[candles.length - 1];
       let open = lastCandle.close;
-      let change = (Math.random() - 0.5) * 10;
+
+      // Генерируем «трендовое» смещение
+      // Например, возьмём предыдущие 3 свечи, чтобы оценить текущее направление
+      let recentCandles = candles.slice(-3);
+      let avgChange = 0;
+      recentCandles.forEach(c => {
+        avgChange += (c.close - c.open);
+      });
+      avgChange /= 3.0;
+
+      // Базовое случайное изменение
+      let baseChange = (Math.random() - 0.5) * 4;
+      // Учтём «средний тренд», чтобы движение не было совсем хаотичным
+      let trendFactor = avgChange * 0.5;
+      let change = baseChange + trendFactor;
+
+      // Периодический «всплеск» (Breaking News) с некоторой вероятностью
+      if (Math.random() < 0.15) {
+        // Волатильное событие
+        change *= (2 + Math.random() * 3); // усиливаем
+        console.log("Breaking News! Price spikes!");
+      }
+
       let close = open + change;
-      let high = Math.max(open, close) + Math.random() * 5;
-      let low = Math.min(open, close) - Math.random() * 5;
+      let high = Math.max(open, close) + Math.random() * 2;
+      let low = Math.min(open, close) - Math.random() * 2;
+
       let newCandle = { open, close, high, low };
 
+      // Плавная анимация:
       const steps = 30;
       let step = 0;
       function animateStep() {
         step++;
         let t = step / steps;
+        // Интерполяция от "lastCandle.close" к новым значениям
         let interpolated = {
           open: lastCandle.close + (newCandle.open - lastCandle.close) * t,
           close: lastCandle.close + (newCandle.close - lastCandle.close) * t,
@@ -341,99 +467,209 @@
       animateStep();
     }
 
-    // Handle the player's guess ("Long" or "Short")
+    // ------------------------------
+    // Обработка выбора (Long / Short)
+    // ------------------------------
     function handleGuess(guess) {
       if (!gameRunning) return;
-      // Determine the correct direction randomly (can be extended with trend logic)
+
+      // Реальная «направление» — просто рандом (50/50) или зависит от будущей свечи
+      // Для простоты пока оставляем 50/50
       let realDirection = Math.random() < 0.5 ? "Long" : "Short";
       let correct = (guess === realDirection);
       let resultText = correct ? "Profit" : "Loss";
+
       if (correct) {
         points++;
+        pointsElem.textContent = points;
       }
-      pointsElem.textContent = points;
-      updateCommentary();
-      // Decrement forecasts left and update display
+
+      // Увеличиваем счётчик сделок на сегодня
+      dailyGuessesUsed++;
+      if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
+      todayPlaysElem.textContent = dailyGuessesUsed;
+
+      // Уменьшаем оставшиеся прогнозы в текущей сессии
       guessesLeft--;
+      if (guessesLeft < 0) guessesLeft = 0;
       guessesLeftElem.textContent = guessesLeft;
-      if (guessesLeft <= 0) {
-        sessionsLeft--;
-        sessionsLeftElem.textContent = sessionsLeft;
-        if (sessionsLeft > 0) {
-          endSession("Session finished! Sessions left: " + sessionsLeft);
-        } else {
-          endSession("Day over! You scored " + points + " points.");
-        }
-      }
-      // Display flag (L for Long, S for Short) and result on the last candle, then animate new candle
+
+      // Рисуем флажок "L" / "S" + результат
       let flagLetter = (guess === "Long") ? "L" : "S";
       drawChart(true, flagLetter, resultText);
-      setTimeout(() => {
-        addNewCandle();
-      }, 800);
+
+      // Если закончились прогнозы в сессии, переходим к следующей
+      if (guessesLeft <= 0) {
+        currentSession++;
+        if (currentSession > maxSessions) {
+          // Игра на сегодня закончена
+          endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
+        } else {
+          // Следующая сессия
+          setTimeout(() => {
+            endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+          }, 1200);
+        }
+      } else {
+        // Подождём чуть, потом новая свеча
+        setTimeout(() => {
+          addNewCandle();
+        }, 1200);
+      }
     }
 
-    // End the current session and show the overlay
+    // ------------------------------
+    // Доп. кнопка Hold для разнообразия
+    // ------------------------------
+    function handleHold() {
+      if (!gameRunning) return;
+      // Шанс получить +1 очко "за терпение" или -1 "за упущенную возможность"
+      let chance = Math.random();
+      if (chance < 0.3) {
+        // +1 очко
+        points++;
+        pointsElem.textContent = points;
+        console.log("Hold Bonus!");
+      } else if (chance < 0.5) {
+        // -1 очко
+        if (points > 0) {
+          points--;
+          pointsElem.textContent = points;
+        }
+        console.log("Hold Penalty!");
+      } else {
+        console.log("No effect from Hold.");
+      }
+
+      // Считаем это за «прогноз»? Или нет?
+      // Давайте сделаем так, что Hold тоже уменьшает прогнозы
+      dailyGuessesUsed++;
+      if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
+      todayPlaysElem.textContent = dailyGuessesUsed;
+
+      guessesLeft--;
+      if (guessesLeft < 0) guessesLeft = 0;
+      guessesLeftElem.textContent = guessesLeft;
+
+      if (guessesLeft <= 0) {
+        currentSession++;
+        if (currentSession > maxSessions) {
+          endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
+        } else {
+          setTimeout(() => {
+            endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+          }, 1000);
+        }
+      } else {
+        setTimeout(() => {
+          addNewCandle();
+        }, 1000);
+      }
+    }
+
+    // ------------------------------
+    // Завершение текущей сессии
+    // ------------------------------
     function endSession(message) {
       gameRunning = false;
       overlayMsg.textContent = message;
       overlay.style.display = "flex";
-      // Disable forecast buttons
       btnLong.disabled = true;
       btnShort.disabled = true;
+      btnHold.disabled = true;
     }
 
-    // Restart the game session
+    // ------------------------------
+    // Окончание игры (все сессии исчерпаны)
+    // ------------------------------
+    function endGame(message) {
+      gameRunning = false;
+      overlayMsg.textContent = message;
+      overlay.style.display = "flex";
+
+      btnLong.disabled = true;
+      btnShort.disabled = true;
+      btnHold.disabled = true;
+    }
+
+    // ------------------------------
+    // Рестарт игры / сессии
+    // ------------------------------
     function restartGame() {
+      // Сброс
       points = 0;
+      currentSession = 1;
       guessesLeft = 10;
-      sessionsLeft = 3;
-      pointsElem.textContent = points;
+      dailyGuessesUsed = 0;
+
+      // Отобразим
+      sessionIndexElem.textContent = currentSession;
       guessesLeftElem.textContent = guessesLeft;
-      sessionsLeftElem.textContent = sessionsLeft;
+      pointsElem.textContent = points;
+      todayPlaysElem.textContent = dailyGuessesUsed;
+
+      // Генерация новых свечей
       generateInitialCandles();
       drawChart();
-      updateCommentary();
+
+      // Разблок кнопок
       overlay.style.display = "none";
       gameRunning = true;
+
       btnLong.disabled = false;
       btnShort.disabled = false;
+      btnHold.disabled = false;
     }
 
-    // Bind button events
-    btnLong.addEventListener('click', () => {
-      if (gameRunning) handleGuess("Long");
-    });
-    btnShort.addEventListener('click', () => {
-      if (gameRunning) handleGuess("Short");
+    // ------------------------------
+    // События кнопок
+    // ------------------------------
+    btnLong.addEventListener('click', () => handleGuess("Long"));
+    btnShort.addEventListener('click', () => handleGuess("Short"));
+    btnHold.addEventListener('click', () => handleHold());
+
+    overlayBtn.addEventListener('click', () => {
+      if (currentSession > maxSessions) {
+        // Все сессии исчерпаны: начнём заново
+        restartGame();
+      } else {
+        // Новая сессия
+        overlay.style.display = "none";
+        guessesLeft = 10;
+        guessesLeftElem.textContent = guessesLeft;
+        sessionIndexElem.textContent = currentSession;
+        gameRunning = true;
+        btnLong.disabled = false;
+        btnShort.disabled = false;
+        btnHold.disabled = false;
+        addNewCandle();
+      }
     });
 
-    // Start button event handler
-    startBtn.addEventListener('click', () => {
-      console.log("Start Game button clicked");
-      menu.style.display = "none";
+    // Меню (главное) — кнопка "Начать игру"
+    btnStart.addEventListener('click', () => {
+      mainMenu.style.display = "none";
       terminal.style.display = "flex";
       exitBtn.style.display = "block";
       restartGame();
     });
 
-    // Exit button event handler: return to menu and stop game
+    // Пример: кнопка "Правила" — просто alert или что-то подобное
+    btnRules.addEventListener('click', () => {
+      alert("Правила:\n1) 10 прогнозов — 1 сессия.\n2) Можно сыграть 3 сессии за день.\n3) Long — ставка на рост, Short — на падение.\n4) Hold — пропустить ход, может дать +1/-1 очко случайно.\n5) За каждое верное направление — 1 очко.\n6) Очки копятся всю неделю, затем распределяются реальные токены!");
+    });
+
+    // Кнопка выхода — возвращаемся на главную страницу/мини-приложение
     exitBtn.addEventListener('click', () => {
-      menu.style.display = "flex";
+      window.location.href = '/';  // Укажите нужный URL (например, главная вашего Flask)
+    });
+
+    // При загрузке страницы показываем меню
+    window.addEventListener('load', () => {
+      mainMenu.style.display = "flex";
       terminal.style.display = "none";
       exitBtn.style.display = "none";
-      gameRunning = false;
     });
-
-    // Overlay restart button handler
-    overlayBtn.addEventListener('click', () => {
-      restartGame();
-    });
-
-    // On page load, show the menu and hide game interface
-    menu.style.display = "flex";
-    terminal.style.display = "none";
-    exitBtn.style.display = "none";
   </script>
 </body>
 </html>
