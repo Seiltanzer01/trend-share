@@ -12,13 +12,17 @@ mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
 
 @mini_game_bp.route('/retro-game', methods=['GET'])
 def retro_game():
-    """
-    Returns the page for the Retro Chart Guessing Game.
-    The game starts immediately after page load.
-    """
     if 'user_id' not in session:
         flash("Please log in.", "warning")
         return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user or not user.wallet_address:
+        flash("Для участия в игре укажите ваш кошелёк (Set Wallet).", "warning")
+        return redirect(url_for('best_setup_voting.set_wallet'))
+    
+    # Далее рендерим нашу страницу mini_game.html
     return render_template('mini_game.html')
 
 @mini_game_bp.route('/api/game_status', methods=['GET'])
