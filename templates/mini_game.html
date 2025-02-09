@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <title>Wall Street 3D Platformer</title>
@@ -154,13 +154,28 @@
   </div>
   
   <script>
+    // Функция для создания CANNON.Trimesh из BufferGeometry
+    function createTrimesh(geometry) {
+      if (!geometry.attributes.position) return null;
+      const vertices = geometry.attributes.position.array;
+      let indices = [];
+      if (geometry.index) {
+        indices = geometry.index.array;
+      } else {
+        for (let i = 0; i < vertices.length / 3; i++) {
+          indices.push(i);
+        }
+      }
+      return new CANNON.Trimesh(vertices, indices);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       // Глобальные переменные
       let scene, camera, renderer, clock;
       let world; // Физический мир Cannon.js
       let playerMesh, cityMesh, npcMesh;
       let playerBody;
-      // Задаём фиксированные размеры для физического тела игрока
+      // Задаём фиксированные размеры для физического тела героя
       const PLAYER_SIZE = { width: 1.0, height: 2.0, depth: 1.0 };
       let moveSpeed = 8, jumpSpeed = 6, gravity = -9.8;
       let isJumping = false;
@@ -169,13 +184,15 @@
       let keys = {};
       let previousTime = performance.now();
       let cameraRotationOffset = 0, cameraPitchOffset = 0;
-      // Ограничения карты (настройте по размерам модели)
+      // Ограничения карты (настраиваем вручную – под размеры модели)
       const mapBounds = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+      // Смещение камеры относительно героя
+      const cameraOffset = new THREE.Vector3(0, 5, 10);
 
       // Для ПК: обработчик колесика мыши для изменения вертикального обзора
       window.addEventListener('wheel', (e) => {
         cameraPitchOffset += e.deltaY * 0.001;
-        cameraPitchOffset = Math.max(-Math.PI/4, Math.min(Math.PI/4, cameraPitchOffset));
+        cameraPitchOffset = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, cameraPitchOffset));
       });
 
       init();
@@ -187,20 +204,19 @@
         scene.fog = new THREE.Fog(0xffffff, 20, 200);
 
         // Инициализация камеры
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
-        camera.position.set(0, 5, 12);
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.copy(cameraOffset);
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         document.getElementById('game-container').appendChild(renderer.domElement);
 
-        // Создаем ground plane для столкновений – фиксированный пол на уровне Y=0
+        // Создаем ground plane (фиксированный пол) – используем для столкновений с землей
         const groundShape = new CANNON.Plane();
         const groundBody = new CANNON.Body({ mass: 0 });
         groundBody.addShape(groundShape);
-        // Повернём пол, чтобы он был горизонтальным (Y=0)
-        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2);
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
         
         world = new CANNON.World({ gravity: new CANNON.Vec3(0, gravity, 0) });
         world.addBody(groundBody);
@@ -217,15 +233,32 @@
 
         const loader = new THREE.GLTFLoader();
 
-        // Загрузка модели карты (город) – только визуально (без физики)
+        // Загрузка модели карты (wall_street_city.glb) – для визуала и коллизий
         loader.load('/static/models/wall_street_city.glb', function(gltf) {
           cityMesh = gltf.scene;
           cityMesh.scale.set(1, 1, 1);
+          // Для каждого дочернего меша создаём статический тримеш-коллайдер
           cityMesh.traverse(child => {
-            if (child.isMesh) {
+            if (child.isMesh && child.geometry) {
+              child.updateMatrixWorld();
+              // Попытаемся создать тримеш-коллайдер
+              let shape = createTrimesh(child.geometry);
+              if (shape) {
+                let body = new CANNON.Body({ mass: 0 });
+                // Используем world трансформацию объекта
+                let pos = new THREE.Vector3();
+                pos.setFromMatrixPosition(child.matrixWorld);
+                body.position.set(pos.x, pos.y, pos.z);
+                // Копируем кватернион (ориентацию)
+                let quat = new THREE.Quaternion();
+                quat.setFromRotationMatrix(child.matrixWorld);
+                body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
+                body.addShape(shape);
+                world.addBody(body);
+              }
+              child.material.side = THREE.DoubleSide;
               child.castShadow = true;
               child.receiveShadow = true;
-              child.material.side = THREE.DoubleSide;
             }
           });
           scene.add(cityMesh);
@@ -233,11 +266,11 @@
           console.error('Error loading city model:', error);
         });
 
-        // Загрузка модели персонажа (героя)
+        // Загрузка модели персонажа (character.glb)
         loader.load('/static/models/character.glb', function(gltf) {
           playerMesh = gltf.scene;
           playerMesh.scale.set(1.2, 1.2, 1.2);
-          // Выбираем стартовую позицию на открытой дороге (корректируйте по необходимости)
+          // Выбираем стартовую позицию на открытой дороге (убедитесь, что эта позиция безопасна)
           playerMesh.position.set(-30, 0, 30);
           playerMesh.traverse(child => {
             if (child.isMesh) {
@@ -247,17 +280,16 @@
             }
           });
           scene.add(playerMesh);
-          // Корректируем позицию по Y так, чтобы нижняя точка модели совпадала с уровнем 0
-          let box = new THREE.Box3().setFromObject(playerMesh);
-          let minY = box.min.y;
-          if (minY < 0) {
-            playerMesh.position.y -= minY;
+          // Для корректного спавна: вычисляем нижнюю точку модели и сдвигаем её к уровню 0
+          const box = new THREE.Box3().setFromObject(playerMesh);
+          if (box.min.y < 0) {
+            playerMesh.position.y -= box.min.y;
           }
           // Создаем физическое тело для героя с фиксированными размерами
-          let shape = new CANNON.Box(new CANNON.Vec3(PLAYER_SIZE.width/2, PLAYER_SIZE.height/2, PLAYER_SIZE.depth/2));
+          const shape = new CANNON.Box(new CANNON.Vec3(PLAYER_SIZE.width/2, PLAYER_SIZE.height/2, PLAYER_SIZE.depth/2));
           playerBody = new CANNON.Body({ mass: 1 });
           playerBody.addShape(shape);
-          // Устанавливаем положение: нижняя точка = 0
+          // Устанавливаем позицию тела так, чтобы нижняя точка была на 0
           playerBody.position.set(playerMesh.position.x, PLAYER_SIZE.height/2, playerMesh.position.z);
           playerBody.fixedRotation = true;
           playerBody.updateMassProperties();
@@ -270,7 +302,7 @@
           playerMesh = new THREE.Mesh(geometry, material);
           playerMesh.position.set(-30, PLAYER_SIZE.height/2, 30);
           scene.add(playerMesh);
-          let shape = new CANNON.Box(new CANNON.Vec3(PLAYER_SIZE.width/2, PLAYER_SIZE.height/2, PLAYER_SIZE.depth/2));
+          const shape = new CANNON.Box(new CANNON.Vec3(PLAYER_SIZE.width/2, PLAYER_SIZE.height/2, PLAYER_SIZE.depth/2));
           playerBody = new CANNON.Body({ mass: 1 });
           playerBody.addShape(shape);
           playerBody.position.copy(playerMesh.position);
@@ -278,11 +310,11 @@
           world.addBody(playerBody);
         });
 
-        // Загрузка модели NPC "Дядя Джон" – просто визуально, без физического тела
+        // Загрузка модели NPC "Дядя Джон" (uncle_john.glb) – только визуально
         loader.load('/static/models/uncle_john.glb', function(gltf) {
           npcMesh = gltf.scene;
           npcMesh.scale.set(1, 1, 1);
-          // Размещаем NPC в удобном месте на карте (например, возле перекрестка)
+          // Размещаем NPC в удобном месте (например, возле перекрестка)
           npcMesh.position.set(-20, 0, 10);
           npcMesh.traverse(child => {
             if (child.isMesh) {
@@ -291,12 +323,13 @@
             }
           });
           scene.add(npcMesh);
+          // (Для NPC можно не задавать физику, если столкновения с ним не нужны)
         }, undefined, function(error) {
           console.error('Error loading NPC model:', error);
         });
 
-        // Настройка виртуального джойстика (режим dynamic для мобильных устройств)
-        let joystick = nipplejs.create({
+        // Настройка виртуального джойстика для мобильных устройств (режим dynamic)
+        const joystick = nipplejs.create({
           zone: document.getElementById('joystick-container'),
           mode: 'dynamic',
           color: 'white',
@@ -330,7 +363,7 @@
           }
         }, false);
 
-        // Обработчик кнопки прыжка (мобильные устройства)
+        // Обработчик кнопки прыжка (для мобильных)
         document.getElementById('jump-btn').addEventListener('click', function() {
           if (!isJumping) {
             playerBody.velocity.y = jumpSpeed;
@@ -372,18 +405,18 @@
         world.step(fixedTimeStep, delta, 10);
 
         if (!gamePaused && playerBody) {
-          // Синхронизируем позицию модели с физическим телом
+          // Синхронизируем 3D-модель героя с физическим телом
           playerMesh.position.copy(playerBody.position);
           playerMesh.quaternion.copy(playerBody.quaternion);
 
-          // Управление через джойстик (мобильные устройства)
+          // Управление через джойстик (мобильные)
           if (joystickData) {
             let rad = THREE.Math.degToRad(joystickData.angle.degree);
             let factor = (joystickData.distance / 50) * moveSpeed;
             playerBody.velocity.x = Math.cos(rad) * factor;
             playerBody.velocity.z = -Math.sin(rad) * factor;
           } else {
-            // Плавное затухание скорости
+            // Плавное затухание горизонтальной скорости
             playerBody.velocity.x *= 0.9;
             playerBody.velocity.z *= 0.9;
           }
@@ -403,11 +436,11 @@
             playerBody.velocity.y = 0;
           }
 
-          // Ограничиваем движение в пределах карты
+          // Ограничиваем движение героя по карте
           playerBody.position.x = Math.max(mapBounds.minX, Math.min(mapBounds.maxX, playerBody.position.x));
           playerBody.position.z = Math.max(mapBounds.minZ, Math.min(mapBounds.maxZ, playerBody.position.z));
 
-          // Если игрок рядом с NPC, показываем кнопку "Talk"
+          // Если герой рядом с NPC, показываем кнопку "Talk"
           if (npcMesh) {
             let distNPC = playerMesh.position.distanceTo(npcMesh.position);
             let talkBtn = document.getElementById('talk-btn');
@@ -415,16 +448,12 @@
           }
         }
 
-        // Обновляем камеру: плавное следование за игроком с учетом вращения (yaw и pitch)
+        // Обновляем камеру: плавное следование за героем с учётом вращения (yaw и pitch)
         if (playerMesh) {
-          let desiredPosition = new THREE.Vector3(
-            playerMesh.position.x,
-            playerMesh.position.y + 5,
-            playerMesh.position.z + 10
-          );
+          let desiredPosition = new THREE.Vector3().copy(playerMesh.position).add(cameraOffset);
           let offset = new THREE.Vector3().subVectors(desiredPosition, playerMesh.position);
           offset.applyAxisAngle(new THREE.Vector3(0,1,0), cameraRotationOffset);
-          desiredPosition = new THREE.Vector3().addVectors(playerMesh.position, offset);
+          desiredPosition.copy(playerMesh.position).add(offset);
           camera.position.lerp(desiredPosition, 0.1);
           camera.rotation.x = -cameraPitchOffset;
           camera.lookAt(playerMesh.position);
