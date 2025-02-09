@@ -77,6 +77,20 @@
       left: 20px;
       z-index: 55;
     }
+    /* Дополнительная кнопка для прыжка (мобильные устройства) – правый нижний угол */
+    #jump-btn {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 55;
+      padding: 10px 15px;
+      background: rgba(0, 128, 0, 0.8);
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
     /* Кнопка выхода из игры – левый верхний угол */
     #exit-game-btn {
       position: absolute;
@@ -109,13 +123,9 @@
     }
   </style>
 
-  <!-- Импортируем cannon-es как модуль и присваиваем его в window.CANNON -->
-  <script type="module">
-    import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
-    window.CANNON = CANNON;
-  </script>
-
-  <!-- Подключаем Three.js, GLTFLoader и NippleJS (не модульный вариант) -->
+  <!-- Подключаем Cannon.js (UMD-версия) вместо cannon‑es -->
+  <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
+  <!-- Подключаем Three.js, GLTFLoader и NippleJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -123,11 +133,11 @@
 <body>
   <button id="exit-game-btn">Exit Game</button>
   <button id="talk-btn">Talk with Uncle John</button>
+  <!-- Дополнительная кнопка для прыжка (на мобильных) -->
+  <button id="jump-btn">Jump</button>
   
   <div id="game-container"></div>
-  
   <div id="points-window">Points: <span id="points-value">0</span></div>
-  
   <div id="joystick-container"></div>
   
   <div id="minigame-overlay">
@@ -144,7 +154,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       // Глобальные переменные
       let scene, camera, renderer, clock;
-      let world; // Физический мир Cannon‑ES
+      let world; // Физический мир Cannon.js
       let playerMesh, cityMesh, terminalMesh, npcMesh;
       let playerBody;
       let moveSpeed = 8, jumpSpeed = 6, gravity = -9.8;
@@ -173,7 +183,7 @@
         renderer.shadowMap.enabled = true;
         document.getElementById('game-container').appendChild(renderer.domElement);
 
-        // Создаем ground plane для столкновений (фиксированный пол)
+        // Создаем ground plane (пол) для столкновений
         const groundShape = new CANNON.Plane();
         const groundBody = new CANNON.Body({ mass: 0 });
         groundBody.addShape(groundShape);
@@ -193,19 +203,18 @@
 
         const loader = new THREE.GLTFLoader();
 
-        // Загрузка модели карты города
+        // Загрузка модели карты (wall_street_city.glb)
         loader.load('/static/models/wall_street_city.glb', function (gltf) {
           cityMesh = gltf.scene;
           cityMesh.scale.set(1, 1, 1);
           cityMesh.traverse(child => {
             if (child.isMesh && child.geometry) {
               child.geometry.computeBoundingBox();
-              // Создаем физические тела для крупных объектов (если bounding box есть)
               if (child.geometry.boundingBox) {
                 let bbox = child.geometry.boundingBox;
                 let size = new THREE.Vector3();
                 bbox.getSize(size);
-                let shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
+                let shape = new CANNON.Box(new CANNON.Vec3(size.x/2, size.y/2, size.z/2));
                 child.updateMatrixWorld();
                 let pos = new THREE.Vector3();
                 pos.setFromMatrixPosition(child.matrixWorld);
@@ -224,7 +233,7 @@
           console.error('Error loading city model:', error);
         });
 
-        // Загрузка модели терминала (отдельно, вне карты)
+        // Загрузка модели терминала (terminal.glb) – размещаем сбоку от основной карты
         loader.load('/static/models/terminal.glb', function (gltf) {
           terminalMesh = gltf.scene;
           terminalMesh.scale.set(1, 1, 1);
@@ -236,7 +245,7 @@
               let bbox = new THREE.Box3().setFromObject(child);
               let size = new THREE.Vector3();
               bbox.getSize(size);
-              let shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
+              let shape = new CANNON.Box(new CANNON.Vec3(size.x/2, size.y/2, size.z/2));
               child.updateMatrixWorld();
               let pos = new THREE.Vector3();
               pos.setFromMatrixPosition(child.matrixWorld);
@@ -251,12 +260,12 @@
           console.error('Error loading terminal model:', error);
         });
 
-        // Загрузка модели персонажа
+        // Загрузка модели персонажа (character.glb)
         loader.load('/static/models/character.glb', function (gltf) {
           playerMesh = gltf.scene;
           playerMesh.scale.set(1.2, 1.2, 1.2);
-          // Поднимаем модель немного, чтобы она была полностью видна и не пересекалась с терминалом
-          playerMesh.position.set(-10, 1, 10);
+          // Устанавливаем безопасное начальное положение (например, далеко от зданий)
+          playerMesh.position.set(-30, 1, 30);
           playerMesh.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -265,11 +274,11 @@
             }
           });
           scene.add(playerMesh);
-          // Создаем физическое тело для игрока по bounding box
+          // Создаем физическое тело для персонажа
           let box = new THREE.Box3().setFromObject(playerMesh);
           let size = new THREE.Vector3();
           box.getSize(size);
-          let shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
+          let shape = new CANNON.Box(new CANNON.Vec3(size.x/2, size.y/2, size.z/2));
           playerBody = new CANNON.Body({ mass: 1 });
           playerBody.addShape(shape);
           playerBody.position.copy(playerMesh.position);
@@ -278,10 +287,11 @@
           world.addBody(playerBody);
         }, undefined, function (error) {
           console.error('Error loading character model:', error);
+          // Фолбэк: простой куб
           const geometry = new THREE.BoxGeometry(1, 2, 1);
           const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
           playerMesh = new THREE.Mesh(geometry, material);
-          playerMesh.position.set(-10, 1, 10);
+          playerMesh.position.set(-30, 1, 30);
           scene.add(playerMesh);
           let shape = new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5));
           playerBody = new CANNON.Body({ mass: 1 });
@@ -291,11 +301,11 @@
           world.addBody(playerBody);
         });
 
-        // Загрузка модели NPC "Дядя Джон"
+        // Загрузка модели NPC "Дядя Джон" (uncle_john.glb)
         loader.load('/static/models/uncle_john.glb', function (gltf) {
           npcMesh = gltf.scene;
           npcMesh.scale.set(1, 1, 1);
-          // Размещаем NPC рядом с терминалом, если терминал загружен, иначе по умолчанию
+          // Размещаем NPC рядом с терминалом – если терминал загружен, используем его позицию; иначе задаём по умолчанию
           if (terminalMesh) {
             npcMesh.position.set(terminalMesh.position.x - 5, 0, terminalMesh.position.z + 5);
           } else {
@@ -308,11 +318,11 @@
             }
           });
           scene.add(npcMesh);
-          // Создаем для NPC статическое физическое тело
+          // Создаем статическое физическое тело для NPC
           let bbox = new THREE.Box3().setFromObject(npcMesh);
           let size = new THREE.Vector3();
           bbox.getSize(size);
-          let shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
+          let shape = new CANNON.Box(new CANNON.Vec3(size.x/2, size.y/2, size.z/2));
           npcMesh.updateMatrixWorld();
           let pos = new THREE.Vector3();
           pos.setFromMatrixPosition(npcMesh.matrixWorld);
@@ -353,11 +363,19 @@
             let deltaX = e.touches[0].pageX - touchStartX;
             let deltaY = e.touches[0].pageY - touchStartY;
             cameraRotationOffset += deltaX * 0.005;
-            cameraPitchOffset = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, cameraPitchOffset + deltaY * 0.005));
+            cameraPitchOffset = Math.max(-Math.PI/4, Math.min(Math.PI/4, cameraPitchOffset + deltaY * 0.005));
             touchStartX = e.touches[0].pageX;
             touchStartY = e.touches[0].pageY;
           }
         }, false);
+
+        // Обработчик кнопки прыжка (для мобильных)
+        document.getElementById('jump-btn').addEventListener('click', function () {
+          if (!isJumping) {
+            playerBody.velocity.y = jumpSpeed;
+            isJumping = true;
+          }
+        });
 
         // Интерфейсные кнопки
         document.getElementById('close-overlay').addEventListener('click', function () {
@@ -388,7 +406,7 @@
         previousTime = currentTime;
         requestAnimationFrame(animate);
 
-        // Шаг физического мира
+        // Шаг физического мира с фиксированным временным шагом
         const fixedTimeStep = 1.0 / 60.0;
         world.step(fixedTimeStep, delta, 10);
 
@@ -397,7 +415,7 @@
           playerMesh.position.copy(playerBody.position);
           playerMesh.quaternion.copy(playerBody.quaternion);
 
-          // Управление по джойстику (мобильные устройства)
+          // Управление джойстиком (мобильные устройства)
           if (joystickData) {
             let rad = THREE.Math.degToRad(joystickData.angle.degree);
             let factor = (joystickData.distance / 50) * moveSpeed;
@@ -407,7 +425,7 @@
             playerBody.velocity.x *= 0.9;
             playerBody.velocity.z *= 0.9;
           }
-          // Клавиатурное управление (для десктопа)
+          // Управление с клавиатуры (для десктопа)
           if (keys['ArrowLeft']) playerBody.velocity.x = -moveSpeed;
           if (keys['ArrowRight']) playerBody.velocity.x = moveSpeed;
           if (keys['ArrowUp']) playerBody.velocity.z = -moveSpeed;
@@ -425,7 +443,7 @@
             }
           }
 
-          // Ограничиваем движение по карте
+          // Ограничиваем движение игрока в пределах карты
           playerBody.position.x = Math.max(mapBounds.minX, Math.min(mapBounds.maxX, playerBody.position.x));
           playerBody.position.z = Math.max(mapBounds.minZ, Math.min(mapBounds.maxZ, playerBody.position.z));
 
@@ -445,7 +463,7 @@
             playerMesh.position.z + 10
           );
           let offset = new THREE.Vector3().subVectors(desiredPosition, playerMesh.position);
-          offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotationOffset);
+          offset.applyAxisAngle(new THREE.Vector3(0,1,0), cameraRotationOffset);
           desiredPosition = new THREE.Vector3().addVectors(playerMesh.position, offset);
           camera.position.lerp(desiredPosition, 0.1);
           camera.rotation.x = -cameraPitchOffset;
@@ -458,7 +476,7 @@
       document.addEventListener('keydown', (e) => { keys[e.code] = true; });
       document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-      // Функции мини-игры (график свечей)
+      // Функции мини-игры (генерация графика свечей)
       function generateCandlestickChart() {
         let candles = [];
         let price = Math.random() * 50 + 100;
