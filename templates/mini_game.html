@@ -245,8 +245,7 @@
     ];
 
     function updateCommentary() {
-      // (Optional: you can add an element for commentary if desired)
-      // For this version, commentary can be added later in the UI if needed.
+      // For simplicity, we output commentary to the console.
       console.log(comments[Math.floor(Math.random() * comments.length)]);
     }
 
@@ -345,7 +344,7 @@
     // Handle the player's guess ("Long" or "Short")
     function handleGuess(guess) {
       if (!gameRunning) return;
-      // Determine the correct direction randomly (this logic can be extended)
+      // Determine the correct direction randomly (can be extended with trend logic)
       let realDirection = Math.random() < 0.5 ? "Long" : "Short";
       let correct = (guess === realDirection);
       let resultText = correct ? "Profit" : "Loss";
@@ -354,7 +353,7 @@
       }
       pointsElem.textContent = points;
       updateCommentary();
-      // Decrement the number of forecasts left in the session
+      // Decrement forecasts left and update display
       guessesLeft--;
       guessesLeftElem.textContent = guessesLeft;
       if (guessesLeft <= 0) {
@@ -366,7 +365,7 @@
           endSession("Day over! You scored " + points + " points.");
         }
       }
-      // Display flag (L for Long, S for Short) on the last candle and animate a new candle
+      // Display flag (L for Long, S for Short) and result on the last candle, then animate new candle
       let flagLetter = (guess === "Long") ? "L" : "S";
       drawChart(true, flagLetter, resultText);
       setTimeout(() => {
@@ -402,9 +401,6 @@
     }
 
     // Bind button events
-    const btnLong = document.getElementById('btnLong');
-    const btnShort = document.getElementById('btnShort');
-
     btnLong.addEventListener('click', () => {
       if (gameRunning) handleGuess("Long");
     });
@@ -412,26 +408,29 @@
       if (gameRunning) handleGuess("Short");
     });
 
+    // Start button event handler
     startBtn.addEventListener('click', () => {
+      console.log("Start Game button clicked");
       menu.style.display = "none";
       terminal.style.display = "flex";
       exitBtn.style.display = "block";
       restartGame();
     });
 
+    // Exit button event handler: return to menu and stop game
     exitBtn.addEventListener('click', () => {
-      // Return to the start menu and end the game session
       menu.style.display = "flex";
       terminal.style.display = "none";
       exitBtn.style.display = "none";
       gameRunning = false;
     });
 
+    // Overlay restart button handler
     overlayBtn.addEventListener('click', () => {
       restartGame();
     });
 
-    // On page load, show the start menu and hide the game interface
+    // On page load, show the menu and hide game interface
     menu.style.display = "flex";
     terminal.style.display = "none";
     exitBtn.style.display = "none";
