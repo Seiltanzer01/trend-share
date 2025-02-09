@@ -23,7 +23,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.95);
+      background: rgba(0,0,0,0.95);
       display: none;
       z-index: 50;
       flex-direction: column;
@@ -48,7 +48,7 @@
       position: absolute;
       top: 10px;
       right: 10px;
-      background: rgba(255, 0, 0, 0.8);
+      background: rgba(255,0,0,0.8);
       border: none;
       color: #fff;
       font-size: 20px;
@@ -62,7 +62,7 @@
       position: absolute;
       top: 10px;
       right: 10px;
-      background: rgba(255, 255, 255, 0.8);
+      background: rgba(255,255,255,0.8);
       border: 2px solid #000;
       padding: 10px;
       color: #000;
@@ -75,8 +75,7 @@
       position: absolute;
       bottom: 20px;
       left: 20px;
-      z-index: 100; /* увеличен z-index для видимости */
-      /* Добавим немного прозрачного фона, чтобы джойстик всегда был виден */
+      z-index: 100; /* повышенный z-index для видимости */
       background: rgba(0,0,0,0.2);
       border-radius: 50%;
       padding: 10px;
@@ -88,7 +87,7 @@
       right: 20px;
       z-index: 55;
       padding: 10px 15px;
-      background: rgba(0, 128, 0, 0.8);
+      background: rgba(0,128,0,0.8);
       border: none;
       color: #fff;
       font-size: 16px;
@@ -102,7 +101,7 @@
       left: 10px;
       z-index: 55;
       padding: 8px 12px;
-      background: rgba(255, 0, 0, 0.8);
+      background: rgba(255,0,0,0.8);
       border: none;
       color: #fff;
       font-size: 16px;
@@ -117,7 +116,7 @@
       transform: translateX(-50%);
       z-index: 55;
       padding: 10px 20px;
-      background: rgba(0, 0, 255, 0.8);
+      background: rgba(0,0,255,0.8);
       border: none;
       color: #fff;
       font-size: 16px;
@@ -159,8 +158,10 @@
       // Глобальные переменные
       let scene, camera, renderer, clock;
       let world; // Физический мир Cannon.js
-      let playerMesh, cityMesh, terminalMesh, npcMesh;
+      let playerMesh, cityMesh, npcMesh;
       let playerBody;
+      // Установим фиксированные размеры для физического тела игрока (корректируйте под вашу модель)
+      const PLAYER_SIZE = { width: 1.0, height: 2.0, depth: 1.0 };
       let moveSpeed = 8, jumpSpeed = 6, gravity = -9.8;
       let isJumping = false;
       let joystickData = null;
@@ -168,10 +169,10 @@
       let keys = {};
       let previousTime = performance.now();
       let cameraRotationOffset = 0, cameraPitchOffset = 0;
-      // Ограничения карты (настройте под размеры вашей модели)
+      // Ограничения карты – настраивайте под размеры вашей модели карты
       const mapBounds = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
 
-      // Для ПК также добавим обработчик колесика для изменения вертикального обзора
+      // Для ПК: обработчик колесика для изменения вертикального обзора
       window.addEventListener('wheel', (e) => {
         cameraPitchOffset += e.deltaY * 0.001;
         cameraPitchOffset = Math.max(-Math.PI/4, Math.min(Math.PI/4, cameraPitchOffset));
@@ -194,11 +195,12 @@
         renderer.shadowMap.enabled = true;
         document.getElementById('game-container').appendChild(renderer.domElement);
 
-        // Создаем ground plane (фиксированный пол) для столкновений
+        // Создаем ground plane (пол) для столкновений
         const groundShape = new CANNON.Plane();
         const groundBody = new CANNON.Body({ mass: 0 });
         groundBody.addShape(groundShape);
         groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+        // Инициализируем физический мир с гравитацией
         world = new CANNON.World({ gravity: new CANNON.Vec3(0, gravity, 0) });
         world.addBody(groundBody);
         world.broadphase = new CANNON.NaiveBroadphase();
@@ -214,11 +216,11 @@
 
         const loader = new THREE.GLTFLoader();
 
-        // Загрузка карты (wall_street_city.glb)
-        loader.load('/static/models/wall_street_city.glb', function(gltf) {
+        // Загрузка карты: wall_street_city.glb
+        loader.load('/static/models/wall_street_city.glb', function (gltf) {
           cityMesh = gltf.scene;
           cityMesh.scale.set(1, 1, 1);
-          // Для каждого меша карты создаём статические физические тела (если boundingBox вычисляем)
+          // Для каждого меша карты создаём статические физические тела
           cityMesh.traverse(child => {
             if (child.isMesh && child.geometry) {
               child.geometry.computeBoundingBox();
@@ -241,19 +243,17 @@
             }
           });
           scene.add(cityMesh);
-        }, undefined, function(error) {
+        }, undefined, function (error) {
           console.error('Error loading city model:', error);
         });
 
-        // Теперь вместо отдельного терминала используем карту как основное пространство
-        // (Если терминал нужен, его можно добавить как дополнительный объект – здесь убираем его)
-
-        // Загрузка модели персонажа (character.glb)
-        loader.load('/static/models/character.glb', function(gltf) {
+        // Загрузка модели персонажа: character.glb
+        loader.load('/static/models/character.glb', function (gltf) {
           playerMesh = gltf.scene;
           playerMesh.scale.set(1.2, 1.2, 1.2);
-          // Выбираем стартовую позицию вне зданий (например, на открытой дороге)
-          playerMesh.position.set(-30, 1, 30);
+          // Устанавливаем безопасное начальное положение (на открытой дороге)
+          // Здесь мы задаём координаты так, чтобы персонаж не спавнился в зданиях.
+          playerMesh.position.set(-30, 0, 30);
           playerMesh.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -262,26 +262,32 @@
             }
           });
           scene.add(playerMesh);
-          // Создаем физическое тело для игрока на основе bounding box
+          // Для корректного спавна вычисляем bounding box и корректируем положение по Y,
+          // чтобы нижняя точка модели оказалась на уровне 0 (ground)
           let box = new THREE.Box3().setFromObject(playerMesh);
-          let size = new THREE.Vector3();
-          box.getSize(size);
-          let shape = new CANNON.Box(new CANNON.Vec3(size.x/2, size.y/2, size.z/2));
+          let minY = box.min.y;
+          // Сдвигаем модель вниз на значение minY, если оно меньше 0
+          if (minY < 0) {
+            playerMesh.position.y -= minY;
+          }
+          // Создаем простое физическое тело для игрока с фиксированными размерами
+          let shape = new CANNON.Box(new CANNON.Vec3(PLAYER_SIZE.width/2, PLAYER_SIZE.height/2, PLAYER_SIZE.depth/2));
           playerBody = new CANNON.Body({ mass: 1 });
           playerBody.addShape(shape);
-          playerBody.position.copy(playerMesh.position);
+          // Устанавливаем положение так, чтобы нижняя точка была на 0
+          playerBody.position.set(playerMesh.position.x, PLAYER_SIZE.height/2, playerMesh.position.z);
           playerBody.fixedRotation = true;
           playerBody.updateMassProperties();
           world.addBody(playerBody);
-        }, undefined, function(error) {
+        }, undefined, function (error) {
           console.error('Error loading character model:', error);
           // Фолбэк: простой куб
-          const geometry = new THREE.BoxGeometry(1, 2, 1);
+          const geometry = new THREE.BoxGeometry(PLAYER_SIZE.width, PLAYER_SIZE.height, PLAYER_SIZE.depth);
           const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
           playerMesh = new THREE.Mesh(geometry, material);
-          playerMesh.position.set(-30, 1, 30);
+          playerMesh.position.set(-30, PLAYER_SIZE.height/2, 30);
           scene.add(playerMesh);
-          let shape = new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5));
+          let shape = new CANNON.Box(new CANNON.Vec3(PLAYER_SIZE.width/2, PLAYER_SIZE.height/2, PLAYER_SIZE.depth/2));
           playerBody = new CANNON.Body({ mass: 1 });
           playerBody.addShape(shape);
           playerBody.position.copy(playerMesh.position);
@@ -289,11 +295,11 @@
           world.addBody(playerBody);
         });
 
-        // Загрузка модели NPC "Дядя Джон" (uncle_john.glb)
-        loader.load('/static/models/uncle_john.glb', function(gltf) {
+        // Загрузка модели NPC "Дядя Джон": uncle_john.glb
+        loader.load('/static/models/uncle_john.glb', function (gltf) {
           npcMesh = gltf.scene;
           npcMesh.scale.set(1, 1, 1);
-          // Размещаем NPC в удобном месте на карте, например, возле перекрестка
+          // Размещаем NPC в заранее заданной точке (например, возле перекрестка)
           npcMesh.position.set(-20, 0, 10);
           npcMesh.traverse(child => {
             if (child.isMesh) {
@@ -302,7 +308,7 @@
             }
           });
           scene.add(npcMesh);
-          // Для NPC создаём статическое физическое тело
+          // Создаем для NPC статическое физическое тело
           let bbox = new THREE.Box3().setFromObject(npcMesh);
           let size = new THREE.Vector3();
           bbox.getSize(size);
@@ -314,7 +320,7 @@
           body.addShape(shape);
           body.position.copy(new CANNON.Vec3(pos.x, pos.y, pos.z));
           world.addBody(body);
-        }, undefined, function(error) {
+        }, undefined, function (error) {
           console.error('Error loading NPC model:', error);
         });
 
@@ -325,16 +331,16 @@
           color: 'white',
           size: 100
         });
-        joystick.on('move', function(evt, data) {
+        joystick.on('move', function (evt, data) {
           if (data && data.angle) {
             joystickData = data;
           }
         });
-        joystick.on('end', function() {
+        joystick.on('end', function () {
           joystickData = null;
         });
 
-        // Обработка касаний для поворота камеры (один палец – горизонтально и вертикально)
+        // Обработка касаний для поворота камеры (один палец: горизонтально и вертикально)
         let touchStartX = null, touchStartY = null;
         document.addEventListener('touchstart', function(e) {
           if (e.touches.length === 1) {
@@ -353,7 +359,7 @@
           }
         }, false);
 
-        // Обработчик кнопки прыжка (мобильные устройства)
+        // Обработчик кнопки прыжка (для мобильных)
         document.getElementById('jump-btn').addEventListener('click', function() {
           if (!isJumping) {
             playerBody.velocity.y = jumpSpeed;
@@ -406,7 +412,7 @@
             playerBody.velocity.x = Math.cos(rad) * factor;
             playerBody.velocity.z = -Math.sin(rad) * factor;
           } else {
-            // Плавное затухание
+            // Плавное затухание скорости
             playerBody.velocity.x *= 0.9;
             playerBody.velocity.z *= 0.9;
           }
@@ -421,12 +427,12 @@
             playerBody.velocity.y = jumpSpeed;
             isJumping = true;
           }
-          if (isJumping && playerBody.position.y <= 0.5) {
+          if (isJumping && playerBody.position.y <= 0.55) {
             isJumping = false;
             playerBody.velocity.y = 0;
           }
 
-          // Ограничиваем движение в пределах карты
+          // Ограничение движения в пределах карты
           playerBody.position.x = Math.max(mapBounds.minX, Math.min(mapBounds.maxX, playerBody.position.x));
           playerBody.position.z = Math.max(mapBounds.minZ, Math.min(mapBounds.maxZ, playerBody.position.z));
 
@@ -446,7 +452,7 @@
             playerMesh.position.z + 10
           );
           let offset = new THREE.Vector3().subVectors(desiredPosition, playerMesh.position);
-          offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotationOffset);
+          offset.applyAxisAngle(new THREE.Vector3(0,1,0), cameraRotationOffset);
           desiredPosition = new THREE.Vector3().addVectors(playerMesh.position, offset);
           camera.position.lerp(desiredPosition, 0.1);
           camera.rotation.x = -cameraPitchOffset;
