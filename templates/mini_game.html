@@ -57,7 +57,7 @@
       border-radius: 50%;
       z-index: 55;
     }
-    /* Окно с очками – ставим в правый верхний угол */
+    /* Окно с очками – правый верхний угол */
     #points-window {
       position: absolute;
       top: 10px;
@@ -91,8 +91,24 @@
       cursor: pointer;
       border-radius: 4px;
     }
+    /* Кнопка "Talk" для NPC – появляется в нижней части по центру */
+    #talk-btn {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 55;
+      padding: 10px 20px;
+      background: rgba(0, 0, 255, 0.8);
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      display: none;
+    }
   </style>
-  <!-- Three.js, GLTFLoader и NippleJS -->
+  <!-- Подключаем Three.js, GLTFLoader и NippleJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -100,6 +116,8 @@
 <body>
   <!-- Кнопка выхода из игры -->
   <button id="exit-game-btn">Exit Game</button>
+  <!-- Кнопка "Talk" для NPC -->
+  <button id="talk-btn">Talk with Uncle John</button>
   
   <div id="game-container"></div>
   
@@ -126,13 +144,12 @@
       let scene, camera, renderer, clock;
       let player, city, terminal, npc;
       let moveSpeed = 5;
-      let joystick = null;
+      let joystickData = null;  // данные от джойстика
       let gamePaused = false;
       let points = 0;
-      let keys = {};  // для клавиатуры
-
-      // Для плавного движения используем переменную previousTime
+      let keys = {};
       let previousTime = performance.now();
+      let cameraRotationOffset = 0; // для поворота обзора
 
       // Инициализация Three.js
       init();
@@ -143,8 +160,8 @@
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xffffff, 20, 200);  // светлый мир
 
-        // Камера от третьего лица с уменьшенным near, чтобы не обрезать модель
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 1000);
+        // Камера от третьего лица с небольшим offset
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
         camera.position.set(0, 5, 12);
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -160,8 +177,9 @@
         directionalLight.castShadow = true;
         scene.add(directionalLight);
 
-        // Загрузка модели города (используем GLTFLoader, формат GLB)
         const loader = new THREE.GLTFLoader();
+
+        // Загрузка модели города
         loader.load('/static/models/wall_street_city.glb', function(gltf) {
           city = gltf.scene;
           city.scale.set(1, 1, 1);
@@ -180,7 +198,8 @@
         loader.load('/static/models/terminal.glb', function(gltf) {
           terminal = gltf.scene;
           terminal.scale.set(1, 1, 1);
-          terminal.position.set(15, 0, -20);
+          // Размещаем терминал в стороне от улицы
+          terminal.position.set(25, 0, -30);
           terminal.traverse(function(child) {
             if (child.isMesh) {
               child.castShadow = true;
@@ -195,23 +214,23 @@
         // Загрузка модели персонажа (игрока)
         loader.load('/static/models/character.glb', function(gltf) {
           player = gltf.scene;
-          // Если модель не отображается полностью, попробуйте увеличить масштаб и/или изменить позицию
+          // Увеличиваем масштаб и корректируем позицию, чтобы вся модель была видна
           player.scale.set(1.2, 1.2, 1.2);
-          player.position.set(0, 0, 0);
+          player.position.set(-10, 0, 10);
           player.traverse(function(child) {
             if (child.isMesh) {
               child.castShadow = true;
               child.receiveShadow = true;
+              child.material.side = THREE.DoubleSide;
             }
           });
           scene.add(player);
         }, undefined, function(error) {
           console.error('Error loading character model:', error);
-          // Фолбэк: простой куб
           const geometry = new THREE.BoxGeometry(1, 2, 1);
           const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
           player = new THREE.Mesh(geometry, material);
-          player.position.set(0, 1, 0);
+          player.position.set(-10, 1, 10);
           scene.add(player);
         });
 
@@ -219,7 +238,8 @@
         loader.load('/static/models/uncle_john.glb', function(gltf) {
           npc = gltf.scene;
           npc.scale.set(1, 1, 1);
-          npc.position.set(terminal.position.x - 3, 0, terminal.position.z + 2);
+          // Размещаем NPC рядом с терминалом, но немного отдельно (примерное положение)
+          npc.position.set(terminal ? terminal.position.x - 5 : 20, 0, terminal ? terminal.position.z + 5 : -25);
           npc.traverse(function(child) {
             if (child.isMesh) {
               child.castShadow = true;
@@ -231,31 +251,39 @@
           console.error('Error loading NPC model:', error);
         });
 
-        // Добавляем виртуальный джойстик. Для мобильных устройств используем режим "dynamic"
+        // Настройка виртуального джойстика для мобильных устройств (static режим для стабильности)
         joystick = nipplejs.create({
           zone: document.getElementById('joystick-container'),
-          mode: 'dynamic',
+          mode: 'static',
           position: { left: '60px', bottom: '60px' },
           color: 'white',
           size: 100
         });
 
         joystick.on('move', function (evt, data) {
-          if (player && data && data.angle) {
-            let rad = THREE.Math.degToRad(data.angle.degree);
-            // Используем скорость, умноженную на delta времени
-            let delta = clock.getDelta();
-            // Смягчаем движение (умножаем на коэффициент)
-            let factor = (data.distance / 50) * moveSpeed;
-            // Обновляем позицию с учетом направления
-            player.position.x += Math.cos(rad) * factor * delta;
-            player.position.z -= Math.sin(rad) * factor * delta;
+          if (data && data.angle) {
+            joystickData = data;
           }
         });
 
         joystick.on('end', function () {
-          // При отпускании джойстика можно сбрасывать скорость (если используете переменные скорости)
+          joystickData = null;
         });
+
+        // Обработка касаний для поворота обзора (один палец)
+        let touchStartX = null;
+        document.addEventListener('touchstart', function(e) {
+          if (e.touches.length === 1) {
+            touchStartX = e.touches[0].pageX;
+          }
+        }, false);
+        document.addEventListener('touchmove', function(e) {
+          if (e.touches.length === 1 && touchStartX !== null) {
+            let deltaX = e.touches[0].pageX - touchStartX;
+            cameraRotationOffset += deltaX * 0.005;
+            touchStartX = e.touches[0].pageX;
+          }
+        }, false);
 
         // Кнопка закрытия мини-игры
         document.getElementById('close-overlay').addEventListener('click', function() {
@@ -268,23 +296,16 @@
           window.location.href = '/';
         });
 
-        window.addEventListener('resize', onWindowResize, false);
+        // Кнопка "Talk" для NPC
+        document.getElementById('talk-btn').addEventListener('click', function() {
+          // Запускаем диалог с NPC (можно заменить alert на более сложный диалог)
+          alert("You are now talking with Uncle John. Let's start the mini-game!");
+          triggerMinigame();
+          // Скрываем кнопку после нажатия
+          document.getElementById('talk-btn').style.display = "none";
+        });
 
-        // Дополнительная обработка касаний для поворота обзора (движение пальцем по экрану)
-        let touchStartX = null;
-        document.addEventListener('touchstart', function(e) {
-          if (e.touches.length === 2) { // два пальца для поворота обзора
-            touchStartX = e.touches[0].pageX;
-          }
-        }, false);
-        document.addEventListener('touchmove', function(e) {
-          if (e.touches.length === 2 && touchStartX !== null) {
-            let deltaX = e.touches[0].pageX - touchStartX;
-            // Поворачиваем камеру вокруг игрока по оси Y
-            player.rotation.y -= deltaX * 0.005;
-            touchStartX = e.touches[0].pageX;
-          }
-        }, false);
+        window.addEventListener('resize', onWindowResize, false);
       }
 
       function onWindowResize() {
@@ -295,45 +316,58 @@
 
       function animate() {
         let currentTime = performance.now();
-        let delta = (currentTime - previousTime) / 1000; // время в секундах
+        let delta = (currentTime - previousTime) / 1000;  // delta в секундах
         previousTime = currentTime;
         requestAnimationFrame(animate);
 
         if (!gamePaused && player) {
-          // Для десктопа: клавиши
+          // Обновляем движение игрока по данным джойстика (если есть)
+          if (joystickData) {
+            let rad = THREE.Math.degToRad(joystickData.angle.degree);
+            let factor = (joystickData.distance / 50) * moveSpeed;
+            player.position.x += Math.cos(rad) * factor * delta;
+            player.position.z -= Math.sin(rad) * factor * delta;
+          }
+
+          // Обработка клавиатуры (для десктопа)
           if (keys['ArrowLeft']) player.position.x -= moveSpeed * delta;
           if (keys['ArrowRight']) player.position.x += moveSpeed * delta;
           if (keys['ArrowUp']) player.position.z -= moveSpeed * delta;
           if (keys['ArrowDown']) player.position.z += moveSpeed * delta;
 
-          // Если игрок рядом с NPC "Дядя Джон" (расстояние < 3), то начинаем диалог
-          if (npc && player.position.distanceTo(npc.position) < 3) {
-            // Можно вывести сообщение, например через alert или специальное окно
-            if (!gamePaused) {
-              gamePaused = true;
-              alert("Press OK to talk with Uncle John and start the game!");
-              triggerMinigame();
+          // Простая коллизия с терминалом: если игрок слишком близко, отталкиваем его назад
+          if (terminal) {
+            let distTerminal = player.position.distanceTo(terminal.position);
+            if (distTerminal < 2) {
+              let dir = player.position.clone().sub(terminal.position).normalize();
+              player.position.copy(terminal.position.clone().add(dir.multiplyScalar(2)));
             }
           }
 
-          // Простая коллизия с терминалом: не позволяем проходить сквозь него
-          if (terminal) {
-            let distanceToTerminal = player.position.distanceTo(terminal.position);
-            if (distanceToTerminal < 1.5) {
-              // Отодвигаем игрока обратно вдоль направления от терминала
-              let dir = player.position.clone().sub(terminal.position).normalize();
-              player.position.copy(terminal.position.clone().add(dir.multiplyScalar(1.5)));
+          // Если игрок находится рядом с NPC, показываем кнопку "Talk"
+          if (npc) {
+            let distNPC = player.position.distanceTo(npc.position);
+            let talkBtn = document.getElementById('talk-btn');
+            if (distNPC < 4) {
+              talkBtn.style.display = "block";
+            } else {
+              talkBtn.style.display = "none";
             }
           }
         }
 
-        // Камера следует за игроком (плавное движение)
+        // Камера следует за игроком с учетом поворота обзора
         if (player) {
           let desiredPosition = new THREE.Vector3(
             player.position.x,
             player.position.y + 5,
             player.position.z + 10
           );
+          // Применяем поворот обзора вокруг оси Y
+          let offset = new THREE.Vector3();
+          offset.copy(desiredPosition).sub(player.position);
+          offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotationOffset);
+          desiredPosition.copy(player.position).add(offset);
           camera.position.lerp(desiredPosition, 0.1);
           camera.lookAt(player.position);
         }
@@ -341,7 +375,7 @@
         renderer.render(scene, camera);
       }
 
-      // Клавиатурные обработчики
+      // Клавиатурные обработчики (для десктопа)
       document.addEventListener('keydown', (e) => { keys[e.code] = true; });
       document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
@@ -389,7 +423,7 @@
         });
       }
 
-      // Функция запуска мини-игры (остановка основного цикла и показ оверлея)
+      // Функция запуска мини-игры: останавливает основной цикл и показывает оверлей
       function triggerMinigame() {
         gamePaused = true;
         generateCandlestickChart();
