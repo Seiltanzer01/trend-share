@@ -7,19 +7,37 @@ from flask_wtf.csrf import validate_csrf, CSRFError
 from models import db, User, Config
 from best_setup_voting import send_token_reward as voting_send_token_reward
 import math
-
+import THREE  # если понадобится (псевдоним для three.js, здесь не используется в Python)
 # Создаем локальный логгер для данного модуля
 logger = logging.getLogger(__name__)
 
 mini_game_bp = Blueprint("mini_game_bp", __name__, template_folder="templates")
 
+# Для упрощенной физики мы добавим простой velocity и damping
+class Player:
+    def __init__(self, mesh):
+        self.mesh = mesh
+        self.velocity = [0, 0, 0]
+        self.damping = 0.9  # коэффициент затухания
+        self.speed = 5
+
+    def update(self, delta):
+        # Обновляем положение с учетом скорости и затухания
+        for i in range(3):
+            self.velocity[i] *= self.damping
+        self.mesh.position.x += self.velocity[0] * delta
+        self.mesh.position.y += self.velocity[1] * delta
+        self.mesh.position.z += self.velocity[2] * delta
+
+# Глобальные переменные (будут инициализированы в JS, здесь для описания API не требуются)
+# Функции API сервера для мини-игры (статус игры, угадывание направления и распределение очков) остаются без изменений
+
 @mini_game_bp.route('/retro-game', methods=['GET'])
 def retro_game():
     """
-    Возвращает страницу с 3D-игрой.
-    Если пользователь авторизован, ему показывается страница с 3D-сценой,
-    где он (персонаж) перемещается по улицам Wall Street и может войти в здание фондовой биржи (терминал),
-    чтобы запустить мини-игру с графиком свечей.
+    Возвращает страницу с 3D-игрой. Если пользователь авторизован, ему показывается страница с 3D‑сценой,
+    где персонаж перемещается по улицам Wall Street, не проходит сквозь здания (будет учтена простая коллизия),
+    а при приближении к терминалу или к интерактивному NPC «Дядя Джон» запускается мини‑игра (график свечей).
     """
     if 'user_id' not in session:
         flash("Пожалуйста, войдите в систему.", "warning")
@@ -28,15 +46,12 @@ def retro_game():
 
 @mini_game_bp.route('/api/game_status', methods=['GET'])
 def game_status():
-    """
-    Возвращает состояние игры для пользователя:
-      - plays today (times_played_today)
-      - weekly points (weekly_points)
-    """
     if 'user_id' not in session:
         return jsonify({"error": "Unauthorized"}), 401
     user_id = session['user_id']
-    record = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+    record = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
     if not record:
         return jsonify({"times_played_today": 0, "weekly_points": 0}), 200
     return jsonify({
@@ -46,11 +61,6 @@ def game_status():
 
 @mini_game_bp.route('/api/guess_direction', methods=['POST'])
 def guess_direction():
-    """
-    Получает от клиента направление ('up' или 'down') и сравнивает с случайно сгенерированным.
-    Если пользователь угадывает, начисляется 1 очко.
-    Ограничение: не более 5 попыток в день.
-    """
     try:
         csrf_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
         if not csrf_token:
@@ -67,11 +77,18 @@ def guess_direction():
     if user_guess not in ['up', 'down']:
         return jsonify({"error": "Invalid guess (must be 'up' or 'down')"}), 400
 
-    row = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+    row = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
     if row is None:
-        db.session.execute("INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)", {"uid": user_id})
+        db.session.execute(
+            "INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)",
+            {"uid": user_id}
+        )
         db.session.commit()
-        row = db.session.execute("SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}).fetchone()
+        row = db.session.execute(
+            "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+        ).fetchone()
 
     times_played_today = row["times_played_today"]
     last_played_date = row["last_played_date"]
