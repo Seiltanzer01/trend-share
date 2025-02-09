@@ -145,7 +145,7 @@
         // Загрузка модели города
         const loader = new THREE.GLTFLoader();
         // Здесь замените '/static/models/scene.gltf' на путь к вашей модели города (GLTF-файл)
-        loader.load('/static/models/scene.gltf', function(gltf) {
+        loader.load('/static/models/wall_street_city.glb', function(gltf) {
           city = gltf.scene;
           city.scale.set(1, 1, 1);
           scene.add(city);
@@ -155,7 +155,7 @@
 
         // Загрузка модели терминала фондовой биржи
         // Замените URL на реальный путь (например, '/static/models/terminal.gltf')
-        loader.load('/static/models/terminal.gltf', function(gltf) {
+        loader.load('/static/models/terminal.glb', function(gltf) {
           terminal = gltf.scene;
           terminal.scale.set(1, 1, 1);
           terminal.position.set(15, 0, -20);
@@ -166,7 +166,7 @@
 
         // Загрузка модели персонажа (игрока)
         // Замените URL на реальный путь (например, '/static/models/character.gltf')
-        loader.load('/static/models/character.gltf', function(gltf) {
+        loader.load('/static/models/character.glb', function(gltf) {
           player = gltf.scene;
           player.scale.set(1, 1, 1);
           player.position.set(0, 0, 0);
