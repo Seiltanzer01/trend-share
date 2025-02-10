@@ -734,13 +734,6 @@ def initialize():
                 logger.info("Columns for user_game_score table added.")
             except Exception as e:
                 logger.error(f"Error altering user_game_score table: {e}")
-                
-    try:
-        db.create_all()
-        logger.info("Database created or already exists.")
-
-        # Открываем одно соединение и внутри него делаем все нужные запросы
-        with db.engine.connect() as con:
 
             # -- 1) Выполняем ALTER TABLE
             try:
@@ -850,6 +843,17 @@ def initialize():
             db.session.rollback()
             logger.error(f"Error initializing unique wallets: {e}")
             logger.error(traceback.format_exc())
+
+        # -- 5) При необходимости заполняем предустановленные данные
+        if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
+            create_predefined_data()
+            create_predefined_data()
+            logger.info("Predefined data successfully updated.")
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error initializing the database: {e}")
+        logger.error(traceback.format_exc())
 
         # -- 5) При необходимости заполняем предустановленные данные
         if not models.InstrumentCategory.query.first() or not models.CriterionCategory.query.first():
