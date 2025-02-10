@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>Retro Chart Guessing Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <!-- Добавляем CSRF-токен в meta-теге -->
-  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <!-- Добавляем CSRF-токен в meta-теге (без вызова функции) -->
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <!-- Подключаем ретро-шрифт Press Start 2P через Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
@@ -294,7 +294,7 @@
           let weeklyPoints = data.weekly_points || 0;
           todayPlaysElem.textContent = timesPlayed;
           pointsElem.textContent = weeklyPoints;
-          // Синхронизируем глобальные переменные (без обнуления, т.к. сервер хранит состояние)
+          // Синхронизируем глобальные переменные (сервер хранит состояние, поэтому оно не обнуляется)
           points = weeklyPoints;
           currentSession = Math.floor(timesPlayed / 10) + 1;
           guessesLeft = 10 - (timesPlayed % 10);
@@ -521,12 +521,12 @@
     }
 
     // ======================================================
-    // Функция рестарта игры (загружает состояние с сервера – очки и сессия не обнуляются)
+    // Функция рестарта игры (загружает состояние с сервера – очки и сессия НЕ обнуляются)
     // ======================================================
     function restartGame() {
       // Загружаем сохранённое состояние (очки, сессия, прогнозы) с сервера
       initializeGameState();
-      // Генерируем новый набор свечей (история графика обновляется)
+      // Генерируем новый набор свечей (история графика обновляется, старые остаются)
       generateInitialCandles();
       drawChart();
       overlay.style.display = "none";
