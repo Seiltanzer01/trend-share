@@ -375,32 +375,60 @@
     }
 
     // ======================================================
-    // Функция анимации добавления новой свечи (без удаления всей истории)
+    // Функция генерации новой свечи на основе предыдущей
     // ======================================================
-    function addNewCandle() {
-      // Обновляем все текущие свечи – каждому добавляем индивидуальный рандомный сдвиг
-      candles = candles.map(c => {
-        return {
-          open: c.open + (Math.random() - 0.5) * 0.5,
-          close: c.close + (Math.random() - 0.5) * 0.5,
-          high: c.high + (Math.random() - 0.5) * 0.5,
-          low: c.low + (Math.random() - 0.5) * 0.5
-        };
-      });
-      // Генерируем новую свечу на основе последней
-      let lastCandle = candles[candles.length - 1];
-      let open = lastCandle.close;
+    function generateNewCandle(prevCandle) {
+      let open = prevCandle.close;
       let newChange = (Math.random() - 0.5) * 4;
       let newClose = open + newChange;
       let newHigh = Math.max(open, newClose) + Math.random() * 2;
       let newLow = Math.min(open, newClose) - Math.random() * 2;
-      let newCandle = { open: open, close: newClose, high: newHigh, low: newLow };
-      candles.push(newCandle);
-      // Оставляем только последние numCandles свечей
-      if (candles.length > numCandles) {
+      return { open: open, close: newClose, high: newHigh, low: newLow };
+    }
+
+    // ======================================================
+    // Функция анимации нового графика
+    // ======================================================
+    // После выбора прогноз, запускается анимация, которая генерирует "numCandles" новых свечей,
+    // заменяя таким образом весь видимый график. После завершения анимации сравнивается итоговая цена
+    // последней свечи с ценой, зафиксированной в момент выбора, и показывается результат сделки.
+    function animateChart(lockedPrice, guess, callback) {
+      const iterations = numCandles; // число новых свечей, равное количеству видимых свечей
+      function animateIteration(iteration) {
+        if (iteration >= iterations) {
+          // Анимация окончена – получаем итоговую свечу
+          let finalCandle = candles[candles.length - 1];
+          let finalClose = finalCandle.close;
+          let outcome = "";
+          if (guess === "long") {
+            outcome = finalClose > lockedPrice ? "Profit" : "Loss";
+          } else { // short
+            outcome = finalClose < lockedPrice ? "Profit" : "Loss";
+          }
+          // Отображаем итоговую свечу с аннотацией
+          drawChart(true, (guess === "long" ? "L" : "S"), outcome);
+          // После паузы вызываем callback (например, чтобы продолжить игру)
+          if (callback) {
+            setTimeout(callback, 1500);
+          }
+          return;
+        }
+        // Генерируем новую свечу на основе последней
+        let prevCandle = candles[candles.length - 1];
+        let newCandle = generateNewCandle(prevCandle);
+        // Добавляем новую свечу и удаляем самую старую, чтобы сохранить длину массива
+        candles.push(newCandle);
+        if (candles.length > numCandles) {
           candles = candles.slice(-numCandles);
+        }
+        // Перерисовываем график без аннотаций
+        drawChart(false, "", "");
+        // Запускаем следующую итерацию через 150 мс
+        setTimeout(() => {
+          animateIteration(iteration + 1);
+        }, 150);
       }
-      drawChart();
+      animateIteration(0);
     }
 
     // ======================================================
@@ -422,7 +450,7 @@
               alert(data.error);
               return;
           }
-          // Обновляем UI и синхронизируем глобальное состояние из ответа сервера
+          // Обновляем состояние (очки, число прогнозов) из ответа сервера
           pointsElem.textContent = data.weekly_points;
           todayPlaysElem.textContent = data.times_played_today;
           points = data.weekly_points;
@@ -432,23 +460,26 @@
           if (guessesLeft < 0) guessesLeft = 0;
           sessionIndexElem.textContent = currentSession;
           guessesLeftElem.textContent = guessesLeft;
-          let flagLetter = (guess === "Long") ? "L" : "S";
-          let resultText = data.result === "correct" ? "Profit" : "Loss";
-          drawChart(true, flagLetter, resultText);
-          if (guessesLeft <= 0) {
-              currentSession++;
-              if (currentSession > maxSessions) {
-                  endGame(`День окончен! Вы набрали ${data.weekly_points} очков за сегодня.`);
-              } else {
-                  setTimeout(() => {
-                      endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
-                  }, 1200);
+
+          // Фиксируем цену последней свечи в момент выбора
+          let lockedPrice = candles[candles.length - 1].close;
+          // Сразу отрисовываем флажок над текущей свечой (без результата пока)
+          drawChart(true, (guess === "long" ? "L" : "S"), "");
+          // Запускаем анимацию нового графика – в течение обновится весь график
+          animateChart(lockedPrice, guess, () => {
+              // По окончании анимации проверяем, завершилась ли сессия
+              if (guessesLeft <= 0) {
+                  currentSession++;
+                  if (currentSession > maxSessions) {
+                      endGame(`День окончен! Вы набрали ${data.weekly_points} очков за сегодня.`);
+                  } else {
+                      setTimeout(() => {
+                          endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+                      }, 1200);
+                  }
               }
-          } else {
-              setTimeout(() => {
-                  addNewCandle();
-              }, 1200);
-          }
+              // Если сессия не закончилась – кнопки остаются активными для следующего прогноза
+          });
       })
       .catch(error => {
           console.error('Error:', error);
@@ -456,7 +487,7 @@
     }
 
     // ======================================================
-    // Функция обработки кнопки Hold
+    // Функция обработки кнопки Hold (без анимации полного графика)
     // ======================================================
     function handleHold() {
       if (!gameRunning) return;
@@ -491,7 +522,7 @@
           }
       } else {
           setTimeout(() => {
-              addNewCandle();
+              addNewCandle(); // Просто добавляем одну свечу для Hold
           }, 1000);
       }
     }
@@ -521,12 +552,12 @@
     }
 
     // ======================================================
-    // Функция рестарта игры (загружает состояние с сервера – очки и сессия НЕ обнуляются)
+    // Функция рестарта игры (состояние с сервера НЕ обнуляется)
     // ======================================================
     function restartGame() {
       // Загружаем сохранённое состояние (очки, сессия, прогнозы) с сервера
       initializeGameState();
-      // Генерируем новый набор свечей (история графика обновляется, старые остаются)
+      // Генерируем новый набор свечей – история обновляется (старые остаются, пока весь график не заменится)
       generateInitialCandles();
       drawChart();
       overlay.style.display = "none";
@@ -539,8 +570,8 @@
     // ======================================================
     // События кнопок
     // ======================================================
-    btnLong.addEventListener('click', () => handleGuess("Long"));
-    btnShort.addEventListener('click', () => handleGuess("Short"));
+    btnLong.addEventListener('click', () => handleGuess("long"));
+    btnShort.addEventListener('click', () => handleGuess("short"));
     btnHold.addEventListener('click', () => handleHold());
     overlayBtn.addEventListener('click', () => {
       if (currentSession > maxSessions) {
@@ -564,7 +595,7 @@
       restartGame();
     });
     btnRules.addEventListener('click', () => {
-      alert("Правила:\n1) 10 прогнозов – 1 сессия.\n2) Можно сыграть 3 сессии за день (30 сделок).\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1 или –1 очко случайно.\n5) За каждое верное направление – 1 очко.\n6) Очки копятся всю неделю и не сбрасываются при повторном входе в игру.");
+      alert("Правила:\n1) 10 прогнозов – 1 сессия.\n2) Можно сыграть 3 сессии за день (30 сделок).\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1 или –1 очко случайно.\n5) За каждое верное направление – 1 очко.\n6) После выбора Long или Short запускается анимация, в ходе которой генерируется новый график (все свечи плавно заменяются), и по итоговой цене последней свечи определяется результат сделки.\n7) Очки копятся всю неделю и не сбрасываются при повторном входе в игру.");
     });
     exitBtn.addEventListener('click', () => { window.location.href = '/'; });
     window.addEventListener('load', () => {
