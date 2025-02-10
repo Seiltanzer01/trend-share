@@ -25,6 +25,7 @@ class User(db.Model):
     auth_token_creation_time = db.Column(db.DateTime, nullable=True)
     registered_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     assistant_premium = db.Column(db.Boolean, default=False)
+    game_scores = db.relationship('UserGameScore', back_populates='user', lazy=True)
     wallet_address = db.Column(db.String(42), unique=True, nullable=True)  # Основной кошелёк
     private_key = db.Column(db.String(128), nullable=True)  # Приватный ключ основного кошелька
 
