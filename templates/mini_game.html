@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Retro Chart Guessing Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <!-- Добавляем мета-тег для CSRF-токена -->
+  <!-- Добавляем CSRF-токен в meta-теге -->
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <!-- Подключаем ретро-шрифт Press Start 2P через Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -204,7 +204,7 @@
         <strong>10</strong> прогнозов за сессию, максимум <strong>3</strong> сессии в день (30 сделок).
       </p>
       <p>
-        За каждое верное предсказание — <strong>1 балл</strong>.<br>
+        За каждое верное предсказание – <strong>1 балл</strong>.<br>
         Очки копятся всю неделю и распределяются реальные токены!
       </p>
       <button class="menu-btn" id="btn-rules">Правила</button>
@@ -271,11 +271,11 @@
     // Глобальные переменные игры
     // ------------------------------
     let candles = [];           // История свечей (накапливается)
-    const numCandles = 30;      // На экране отображаем последние 30 свечей
-    let points = 0;             // Недельные очки (загружаются с сервера)
+    const numCandles = 30;      // Отображаются последние 30 свечей
+    let points = 0;             // Недельные очки (берутся с сервера)
     let currentSession = 1;
     let maxSessions = 3;
-    let guessesLeft = 10;       // Прогнозов на сессию
+    let guessesLeft = 10;       // Прогнозов в сессии
     let dailyGuessesUsed = 0;   // Прогнозов сегодня
     const dailyGuessesMax = 30; // Максимум прогнозов за день
     let gameRunning = false;
@@ -284,7 +284,7 @@
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
     // ======================================================
-    // Функция загрузки сохранённого состояния игры с сервера
+    // Функция загрузки состояния игры с сервера
     // ======================================================
     function initializeGameState() {
       fetch('/game/api/game_status', { credentials: 'include' })
@@ -294,7 +294,7 @@
           let weeklyPoints = data.weekly_points || 0;
           todayPlaysElem.textContent = timesPlayed;
           pointsElem.textContent = weeklyPoints;
-          // Синхронизируем глобальные переменные (не обнуляем очки)
+          // Синхронизируем глобальные переменные (без обнуления, т.к. сервер хранит состояние)
           points = weeklyPoints;
           currentSession = Math.floor(timesPlayed / 10) + 1;
           guessesLeft = 10 - (timesPlayed % 10);
@@ -306,24 +306,24 @@
     }
 
     // ======================================================
-    // Функция генерации начальных свечей (начальный набор истории)
+    // Функция генерации начального набора свечей (история графика)
     // ======================================================
     function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
       candles = [];
       for (let i = 0; i < numCandles; i++) {
-        let open = price;
-        let change = (Math.random() - 0.5) * 5;
-        let close = open + change;
-        let high = Math.max(open, close) + Math.random() * 3;
-        let low = Math.min(open, close) - Math.random() * 3;
-        candles.push({ open, close, high, low });
-        price = close;
+          let open = price;
+          let change = (Math.random() - 0.5) * 5;
+          let close = open + change;
+          let high = Math.max(open, close) + Math.random() * 3;
+          let low = Math.min(open, close) - Math.random() * 3;
+          candles.push({ open, close, high, low });
+          price = close;
       }
     }
 
     // ======================================================
-    // Функция отрисовки графика по массиву свечей (отображаются последние numCandles)
+    // Функция отрисовки графика по массиву свечей (последние numCandles)
     // ======================================================
     function drawChartFromArray(arr, showFlag, flagLetter, resultText) {
       const displayCandles = arr.slice(-numCandles);
@@ -337,35 +337,35 @@
       let scale = chartHeight / (maxPrice - minPrice);
       let candleWidth = chartWidth / displayCandles.length;
       displayCandles.forEach((c, i) => {
-        let x = i * candleWidth;
-        let openY = chartHeight - (c.open - minPrice) * scale;
-        let closeY = chartHeight - (c.close - minPrice) * scale;
-        let highY = chartHeight - (c.high - minPrice) * scale;
-        let lowY = chartHeight - (c.low - minPrice) * scale;
-        ctx.strokeStyle = "#00FF00";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x + candleWidth/2, highY);
-        ctx.lineTo(x + candleWidth/2, lowY);
-        ctx.stroke();
-        let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
-        ctx.fillStyle = color;
-        let rectY = Math.min(openY, closeY);
-        let rectH = Math.abs(openY - closeY);
-        if (rectH < 2) rectH = 2;
-        ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
+          let x = i * candleWidth;
+          let openY = chartHeight - (c.open - minPrice) * scale;
+          let closeY = chartHeight - (c.close - minPrice) * scale;
+          let highY = chartHeight - (c.high - minPrice) * scale;
+          let lowY = chartHeight - (c.low - minPrice) * scale;
+          ctx.strokeStyle = "#00FF00";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x + candleWidth/2, highY);
+          ctx.lineTo(x + candleWidth/2, lowY);
+          ctx.stroke();
+          let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
+          ctx.fillStyle = color;
+          let rectY = Math.min(openY, closeY);
+          let rectH = Math.abs(openY - closeY);
+          if (rectH < 2) rectH = 2;
+          ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
       });
       if (showFlag) {
-        let lastIndex = displayCandles.length - 1;
-        let lastCandle = displayCandles[lastIndex];
-        let x = lastIndex * candleWidth;
-        let textY = chartHeight - (lastCandle.high - minPrice) * scale - 20;
-        ctx.font = "bold 18px 'Press Start 2P'";
-        ctx.fillStyle = "#FFFF00";
-        ctx.fillText(flagLetter, x + candleWidth/2 - 10, textY);
-        ctx.font = "16px 'Press Start 2P'";
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
+          let lastIndex = displayCandles.length - 1;
+          let lastCandle = displayCandles[lastIndex];
+          let x = lastIndex * candleWidth;
+          let textY = chartHeight - (lastCandle.high - minPrice) * scale - 20;
+          ctx.font = "bold 18px 'Press Start 2P'";
+          ctx.fillStyle = "#FFFF00";
+          ctx.fillText(flagLetter, x + candleWidth/2 - 10, textY);
+          ctx.font = "16px 'Press Start 2P'";
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
       }
     }
 
@@ -375,31 +375,30 @@
     }
 
     // ======================================================
-    // Функция обновления графика: обновляем все свечи маленьким рандомным сдвигом и добавляем новую свечу
+    // Функция анимации добавления новой свечи (без удаления всей истории)
     // ======================================================
     function addNewCandle() {
-      // Обновляем ВСЕ текущие свечи – добавляем к ним маленький рандомный сдвиг
+      // Обновляем все текущие свечи – каждому добавляем индивидуальный рандомный сдвиг
       candles = candles.map(c => {
-        let delta = (Math.random() - 0.5) * 0.5; // небольшой сдвиг
         return {
-          open: c.open,
-          close: c.close + delta,
-          high: c.high + delta,
-          low: c.low + delta
+          open: c.open + (Math.random() - 0.5) * 0.5,
+          close: c.close + (Math.random() - 0.5) * 0.5,
+          high: c.high + (Math.random() - 0.5) * 0.5,
+          low: c.low + (Math.random() - 0.5) * 0.5
         };
       });
       // Генерируем новую свечу на основе последней
       let lastCandle = candles[candles.length - 1];
       let open = lastCandle.close;
-      let baseChange = (Math.random() - 0.5) * 4;
-      let newClose = open + baseChange;
+      let newChange = (Math.random() - 0.5) * 4;
+      let newClose = open + newChange;
       let newHigh = Math.max(open, newClose) + Math.random() * 2;
       let newLow = Math.min(open, newClose) - Math.random() * 2;
       let newCandle = { open: open, close: newClose, high: newHigh, low: newLow };
       candles.push(newCandle);
-      // Сохраняем только последние numCandles свечей (если нужно)
+      // Оставляем только последние numCandles свечей
       if (candles.length > numCandles) {
-        candles = candles.slice(-numCandles);
+          candles = candles.slice(-numCandles);
       }
       drawChart();
     }
@@ -411,7 +410,6 @@
       if (!gameRunning) return;
       let formData = new FormData();
       formData.append('direction', guess);
-      // Добавляем CSRF-токен
       formData.append('csrf_token', csrfToken);
       fetch('/game/api/guess_direction', {
           method: 'POST',
@@ -424,7 +422,7 @@
               alert(data.error);
               return;
           }
-          // Обновляем UI и глобальные переменные согласно данным с сервера
+          // Обновляем UI и синхронизируем глобальное состояние из ответа сервера
           pointsElem.textContent = data.weekly_points;
           todayPlaysElem.textContent = data.times_played_today;
           points = data.weekly_points;
@@ -452,7 +450,9 @@
               }, 1200);
           }
       })
-      .catch(error => { console.error('Error:', error); });
+      .catch(error => {
+          console.error('Error:', error);
+      });
     }
 
     // ======================================================
@@ -490,7 +490,9 @@
               }, 1000);
           }
       } else {
-          setTimeout(() => { addNewCandle(); }, 1000);
+          setTimeout(() => {
+              addNewCandle();
+          }, 1000);
       }
     }
 
@@ -519,10 +521,10 @@
     }
 
     // ======================================================
-    // Функция рестарта игры (загружает сохранённое состояние с сервера, не обнуляя очки и сессию)
+    // Функция рестарта игры (загружает состояние с сервера – очки и сессия не обнуляются)
     // ======================================================
     function restartGame() {
-      // При рестарте загружаем состояние с сервера (очки, сессия, прогнозы)
+      // Загружаем сохранённое состояние (очки, сессия, прогнозы) с сервера
       initializeGameState();
       // Генерируем новый набор свечей (история графика обновляется)
       generateInitialCandles();
@@ -562,7 +564,7 @@
       restartGame();
     });
     btnRules.addEventListener('click', () => {
-      alert("Правила:\n1) 10 прогнозов — 1 сессия.\n2) Можно сыграть 3 сессии за день.\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1/-1 очко случайно.\n5) За каждое верное направление – 1 очко.\n6) Очки копятся всю неделю, затем распределяются реальные токены!");
+      alert("Правила:\n1) 10 прогнозов – 1 сессия.\n2) Можно сыграть 3 сессии за день (30 сделок).\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1 или –1 очко случайно.\n5) За каждое верное направление – 1 очко.\n6) Очки копятся всю неделю и не сбрасываются при повторном входе в игру.");
     });
     exitBtn.addEventListener('click', () => { window.location.href = '/'; });
     window.addEventListener('load', () => {
