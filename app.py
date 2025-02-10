@@ -707,6 +707,41 @@ def initialize():
         # Открываем одно соединение и внутри него делаем все нужные запросы
         with db.engine.connect() as con:
 
+            # Добавляем новую таблицу для игры
+            try:
+                con.execute("""
+                    CREATE TABLE IF NOT EXISTS user_game_score (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES "user"(id),
+                        weekly_points INTEGER NOT NULL DEFAULT 0,
+                        times_played_today INTEGER NOT NULL DEFAULT 0,
+                        last_played_date DATE,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                logger.info("Table user_game_score created/exists.")
+            except Exception as e:
+                logger.error(f"Error creating user_game_score: {e}")
+
+            # Инициализация столбцов для сохранения очков
+            try:
+                con.execute("""
+                    ALTER TABLE user_game_score
+                    ADD COLUMN IF NOT EXISTS weekly_points INTEGER NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS times_played_today INTEGER NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS last_played_date DATE
+                """)
+                logger.info("Columns for user_game_score table added.")
+            except Exception as e:
+                logger.error(f"Error altering user_game_score table: {e}")
+                
+    try:
+        db.create_all()
+        logger.info("Database created or already exists.")
+
+        # Открываем одно соединение и внутри него делаем все нужные запросы
+        with db.engine.connect() as con:
+
             # -- 1) Выполняем ALTER TABLE
             try:
                 # 1) First remove (if exists):
