@@ -349,18 +349,18 @@
     }
 
     // Отрисовка свечей с динамическим цветом
-    function drawChart() {
-      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+    function drawChart(showFlag, flagLetter, resultText) {
+    ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
 
-      let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
-      let minPrice = Math.min(...allPrices);
-      let maxPrice = Math.max(...allPrices);
-      let chartHeight = chartCanvas.height;
-      let chartWidth = chartCanvas.width;
-      let scale = chartHeight / (maxPrice - minPrice);
-      let candleWidth = chartWidth / candles.length;
+    let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
+    let minPrice = Math.min(...allPrices);
+    let maxPrice = Math.max(...allPrices);
+    let chartHeight = chartCanvas.height;
+    let chartWidth = chartCanvas.width;
+    let scale = chartHeight / (maxPrice - minPrice);
+    let candleWidth = chartWidth / candles.length;
 
-      candles.forEach((c, i) => {
+    candles.forEach((c, i) => {
         let x = i * candleWidth;
         let openY = chartHeight - (c.open - minPrice) * scale;
         let closeY = chartHeight - (c.close - minPrice) * scale;
@@ -380,12 +380,9 @@
         let rectH = Math.abs(openY - closeY);
         if (rectH < 2) rectH = 2;
         ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
-      });
-    
+    });
 
-
-      // Если нужно показать флажок (L/S) + результат (Profit/Loss)
-      if (showFlag) {
+    if (showFlag) {
         let lastIndex = candles.length - 1;
         let lastCandle = candles[lastIndex];
         let x = lastIndex * candleWidth;
@@ -393,13 +390,13 @@
 
         ctx.font = "bold 18px 'Press Start 2P'";
         ctx.fillStyle = "#FFFF00";
-        ctx.fillText(flagText, x + candleWidth/2 - 10, textY);
+        ctx.fillText(flagLetter, x + candleWidth/2 - 10, textY);
         
         ctx.font = "16px 'Press Start 2P'";
         ctx.fillStyle = "#FFFFFF";
         ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
-      }
     }
+}
 
     // ------------------------------
     // Анимация добавления новой свечи
@@ -477,53 +474,53 @@
     // ------------------------------
     // Обработка выбора (Long / Short)
     // ------------------------------
-    function handleGuess(guess) {
-      if (!gameRunning) return;
+   function handleGuess(guess) {
+    if (!gameRunning) return;
 
-      // Реальная «направление» — просто рандом (50/50) или зависит от будущей свечи
-      // Для простоты пока оставляем 50/50
-      let realDirection = Math.random() < 0.5 ? "Long" : "Short";
-      let correct = (guess === realDirection);
-      let resultText = correct ? "Profit" : "Loss";
+    // Реальная «направление» — просто рандом (50/50) или зависит от будущей свечи
+    // Для простоты пока оставляем 50/50
+    let realDirection = Math.random() < 0.5 ? "Long" : "Short";
+    let correct = (guess === realDirection);
+    let resultText = correct ? "Profit" : "Loss";
 
-      if (correct) {
+    if (correct) {
         points++;
         pointsElem.textContent = points;
-      }
+    }
 
-      // Увеличиваем счётчик сделок на сегодня
-      dailyGuessesUsed++;
-      if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
-      todayPlaysElem.textContent = dailyGuessesUsed;
+    // Увеличиваем счётчик сделок на сегодня
+    dailyGuessesUsed++;
+    if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
+    todayPlaysElem.textContent = dailyGuessesUsed;
 
-      // Уменьшаем оставшиеся прогнозы в текущей сессии
-      guessesLeft--;
-      if (guessesLeft < 0) guessesLeft = 0;
-      guessesLeftElem.textContent = guessesLeft;
+    // Уменьшаем оставшиеся прогнозы в текущей сессии
+    guessesLeft--;
+    if (guessesLeft < 0) guessesLeft = 0;
+    guessesLeftElem.textContent = guessesLeft;
 
-      // Рисуем флажок "L" / "S" + результат
-      let flagLetter = (guess === "Long") ? "L" : "S";
-      drawChart(true, flagLetter, resultText);
+    // Рисуем флажок "L" / "S" + результат
+    let flagLetter = (guess === "Long") ? "L" : "S";
+    drawChart(true, flagLetter, resultText);
 
-      // Если закончились прогнозы в сессии, переходим к следующей
-      if (guessesLeft <= 0) {
+    // Если закончились прогнозы в сессии, переходим к следующей
+    if (guessesLeft <= 0) {
         currentSession++;
         if (currentSession > maxSessions) {
-          // Игра на сегодня закончена
-          endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
+            // Игра на сегодня закончена
+            endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
         } else {
-          // Следующая сессия
-          setTimeout(() => {
-            endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
-          }, 1200);
+            // Следующая сессия
+            setTimeout(() => {
+                endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+            }, 1200);
         }
-      } else {
+    } else {
         // Подождём чуть, потом новая свеча
         setTimeout(() => {
-          addNewCandle();
+            addNewCandle();
         }, 1200);
-      }
     }
+}
 
     // ------------------------------
     // Доп. кнопка Hold для разнообразия
