@@ -62,7 +62,7 @@ def guess_direction():
     row = db.session.execute(
         "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
     ).fetchone()
-    if row is None:
+    if not row:
         db.session.execute(
             "INSERT INTO user_game_score (user_id, weekly_points, times_played_today, last_played_date) VALUES (:uid, 0, 0, CURRENT_DATE)",
             {"uid": user_id}
@@ -81,28 +81,48 @@ def guess_direction():
     if times_played_today >= 30:
         return jsonify({"error": "Daily limit reached (30 forecasts per day)."}), 400
 
-    real_direction = random.choice(['long', 'short'])
-    is_correct = (user_guess == real_direction)
-    points_earned = 1 if is_correct else 0
-    new_weekly_points = row["weekly_points"] + points_earned
     new_times_played_today = times_played_today + 1
 
     db.session.execute("""
         UPDATE user_game_score
-           SET weekly_points = :wpts,
-               times_played_today = :tp,
+           SET times_played_today = :tp,
                last_played_date = :ld
          WHERE user_id = :uid
-    """, {"wpts": new_weekly_points, "tp": new_times_played_today, "ld": today_date, "uid": user_id})
+    """, {"tp": new_times_played_today, "ld": today_date, "uid": user_id})
     db.session.commit()
 
+    # Здесь weekly_points не меняется – он будет обновлён отдельно после анимации
     return jsonify({
-        "result": "correct" if is_correct else "wrong",
-        "real_direction": real_direction,
-        "points_earned": points_earned,
-        "weekly_points": new_weekly_points,
+        "result": "",  # Клиент определит итог (Profit/Loss)
+        "weekly_points": row["weekly_points"],
         "times_played_today": new_times_played_today
     }), 200
+
+@mini_game_bp.route('/api/update_score', methods=['POST'])
+def update_score():
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    outcome = request.json.get("outcome", "")
+    if outcome not in ["Profit", "Loss"]:
+        return jsonify({"error": "Invalid outcome"}), 400
+    user_id = session['user_id']
+    row = db.session.execute(
+        "SELECT * FROM user_game_score WHERE user_id = :uid", {"uid": user_id}
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Game state not found"}), 400
+    current_points = row["weekly_points"]
+    if outcome == "Profit":
+        new_points = current_points + 1
+    else:  # Loss
+        new_points = max(0, current_points - 1)
+    db.session.execute("""
+        UPDATE user_game_score
+           SET weekly_points = :wpts
+         WHERE user_id = :uid
+    """, {"wpts": new_points, "uid": user_id})
+    db.session.commit()
+    return jsonify({"weekly_points": new_points}), 200
 
 def distribute_game_rewards():
     """
