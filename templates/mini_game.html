@@ -319,27 +319,29 @@
   // ------------------------------
   let candles = [];
   const numCandles = 30; // Сколько свечей на экране
-  let points = 0;
-
-  // Сессии, лимиты
+  let points = 0;        // Сохраняем недельные очки
   let currentSession = 1;
   let maxSessions = 3;
-  let guessesLeft = 10; // 10 прогнозов на сессию
-  let dailyGuessesUsed = 0; // для отображения
-  const dailyGuessesMax = 30; // 3 сессии * 10 = 30
+  let guessesLeft = 10;  // Прогнозов на сессию
+  let dailyGuessesUsed = 0; // Прогнозов сегодня
+  const dailyGuessesMax = 30; // Максимум прогнозов за день
 
   let gameRunning = false;
 
-  // Функция для загрузки состояния игры (количество прогнозов за день и недельные очки) с сервера
+  // ======================================================
+  // Функция загрузки сохранённого состояния игры с сервера
+  // ======================================================
   function initializeGameState() {
       fetch('/game/api/game_status', { credentials: 'include' })
       .then(response => response.json())
       .then(data => {
+          // Если сервер вернул значения, используем их
           let timesPlayed = data.times_played_today || 0;
           let weeklyPoints = data.weekly_points || 0;
           todayPlaysElem.textContent = timesPlayed;
           pointsElem.textContent = weeklyPoints;
-          // Вычисляем текущую сессию и оставшиеся прогнозы
+          // Синхронизируем глобальные переменные:
+          points = weeklyPoints;
           currentSession = Math.floor(timesPlayed / 10) + 1;
           guessesLeft = 10 - (timesPlayed % 10);
           if (guessesLeft < 0) guessesLeft = 0;
@@ -349,7 +351,9 @@
       .catch(err => console.error("Error fetching game state:", err));
   }
 
-  // Функция генерации начальных свечей
+  // ======================================================
+  // Функция генерации начальных свечей (история графика)
+  // ======================================================
   function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
       candles = [];
@@ -364,7 +368,9 @@
       }
   }
 
-  // Функция отрисовки свечей
+  // ======================================================
+  // Функция отрисовки графика (свечей)
+  // ======================================================
   function drawChart(showFlag, flagLetter, resultText) {
       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
 
@@ -414,7 +420,9 @@
       }
   }
 
-  // Функция анимации добавления новой свечи (реализована через сдвиг истории)
+  // ======================================================
+  // Функция анимации добавления новой свечи (сдвиг истории)
+  // ======================================================
   function addNewCandle() {
       let lastCandle = candles[candles.length - 1];
       let open = lastCandle.close;
@@ -454,6 +462,7 @@
               low: lastCandle.close + (newCandle.low - lastCandle.close) * t
           };
 
+          // Сдвигаем историю: удаляем самую первую свечу и добавляем текущую в конец
           candles.shift();
           candles.push(currentCandle);
           drawChart();
@@ -461,6 +470,7 @@
           if (step < steps) {
               requestAnimationFrame(animateStep);
           } else {
+              // Финализируем: сдвигаем ещё раз и добавляем новую свечу
               candles.shift();
               candles.push(newCandle);
               drawChart();
@@ -469,7 +479,9 @@
       animateStep();
   }
 
+  // ======================================================
   // Функция обработки выбора (Long / Short)
+  // ======================================================
   function handleGuess(guess) {
       if (!gameRunning) return;
 
@@ -487,8 +499,10 @@
               alert(data.error);
               return;
           }
+          // Обновляем UI значениями с сервера и синхронизируем глобальные переменные
           pointsElem.textContent = data.weekly_points;
           todayPlaysElem.textContent = data.times_played_today;
+          points = data.weekly_points;  // обновляем глобальные очки
 
           let timesPlayed = data.times_played_today;
           currentSession = Math.floor(timesPlayed / 10) + 1;
@@ -521,7 +535,9 @@
       });
   }
 
+  // ======================================================
   // Функция обработки кнопки Hold
+  // ======================================================
   function handleHold() {
       if (!gameRunning) return;
       let chance = Math.random();
@@ -563,7 +579,9 @@
       }
   }
 
+  // ======================================================
   // Функция завершения сессии
+  // ======================================================
   function endSession(message) {
       gameRunning = false;
       overlayMsg.textContent = message;
@@ -573,7 +591,9 @@
       btnHold.disabled = true;
   }
 
+  // ======================================================
   // Функция окончания игры
+  // ======================================================
   function endGame(message) {
       gameRunning = false;
       overlayMsg.textContent = message;
@@ -583,11 +603,16 @@
       btnHold.disabled = true;
   }
 
+  // ======================================================
   // Функция рестарта игры (загружает сохранённое состояние)
+  // ======================================================
   function restartGame() {
+      // Загружаем сохранённое состояние из базы (без обнуления очков и сессии)
       initializeGameState();
+      // Генерируем новые свечи (история графика обновляется, старые остаются в истории)
       generateInitialCandles();
       drawChart();
+      
       overlay.style.display = "none";
       gameRunning = true;
       btnLong.disabled = false;
@@ -595,9 +620,9 @@
       btnHold.disabled = false;
   }
 
-  // ------------------------------
+  // ======================================================
   // События кнопок
-  // ------------------------------
+  // ======================================================
   btnLong.addEventListener('click', () => handleGuess("Long"));
   btnShort.addEventListener('click', () => handleGuess("Short"));
   btnHold.addEventListener('click', () => handleHold());
@@ -618,12 +643,12 @@
       }
   });
 
+  // Измените обработчик для кнопки "Начать игру":
   btnStart.addEventListener('click', () => {
       mainMenu.style.display = "none";
       terminal.style.display = "flex";
       exitBtn.style.display = "block";
-      initializeGameState();
-      gameRunning = true;
+      restartGame();
   });
 
   btnRules.addEventListener('click', () => {
