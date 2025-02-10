@@ -330,6 +330,26 @@
 
     let gameRunning = false;
 
+
+    // Функция для загрузки состояния игры (количество прогнозов за день и недельные очки) с сервера
+function initializeGameState() {
+    fetch('/game/api/game_status', { credentials: 'include' })
+    .then(response => response.json())
+    .then(data => {
+        let timesPlayed = data.times_played_today || 0;
+        let weeklyPoints = data.weekly_points || 0;
+        todayPlaysElem.textContent = timesPlayed;
+        pointsElem.textContent = weeklyPoints;
+        // Вычисляем текущую сессию и оставшиеся прогнозы
+        currentSession = Math.floor(timesPlayed / 10) + 1;
+        guessesLeft = 10 - (timesPlayed % 10);
+        if (guessesLeft < 0) guessesLeft = 0;
+        sessionIndexElem.textContent = currentSession;
+        guessesLeftElem.textContent = guessesLeft;
+    })
+    .catch(err => console.error("Error fetching game state:", err));
+}
+    
     // ------------------------------
     // Генерация начальных свечей
     // ------------------------------
@@ -402,11 +422,11 @@
     // Анимация добавления новой свечи
     // (Теперь более «реалистичное» движение цены + иногда «события»)
     // ------------------------------
-    function addNewCandle() {
+  function addNewCandle() {
   let lastCandle = candles[candles.length - 1];
   let open = lastCandle.close;
 
-  // Генерируем «трендовое» смещение
+  // Генерируем трендовое смещение
   let recentCandles = candles.slice(-3);
   let avgChange = 0;
   recentCandles.forEach(c => {
@@ -436,38 +456,28 @@
   function animateStep() {
     step++;
     let t = step / steps;
+    // Интерполяция новой свечи для анимации
+    let currentCandle = {
+      open: lastCandle.close + (newCandle.open - lastCandle.close) * t,
+      close: lastCandle.close + (newCandle.close - lastCandle.close) * t,
+      high: lastCandle.close + (newCandle.high - lastCandle.close) * t,
+      low: lastCandle.close + (newCandle.low - lastCandle.close) * t
+    };
 
-    // Интерполяция:
-    // Открытие всегда двигается к open (оно равно lastCandle.close, так что "ot" = open = lastCandle.close)
-    let currentOpen = lastCandle.close + (newCandle.open - lastCandle.close) * t;
-    let currentClose = lastCandle.close + (newCandle.close - lastCandle.close) * t;
-
-    // Для high/low тоже плавная интерполяция
-    let currentHigh = lastCandle.close + (newCandle.high - lastCandle.close) * t;
-    let currentLow = lastCandle.close + (newCandle.low - lastCandle.close) * t;
-
-    // Временно убираем последний элемент
-    candles.pop();
-    candles.push({
-      open: currentOpen,
-      close: currentClose,
-      high: currentHigh,
-      low: currentLow
-    });
-
-    // Перерисовываем
+    // Сдвигаем массив свечей: удаляем первую свечу и добавляем текущую свечу в конец
+    candles.shift();
+    candles.push(currentCandle);
     drawChart();
 
     if (step < steps) {
       requestAnimationFrame(animateStep);
     } else {
-      // Финализируем
-      candles.pop();
+      // Финализируем: сдвигаем ещё раз и добавляем новую свечу
+      candles.shift();
       candles.push(newCandle);
       drawChart();
     }
   }
-
   animateStep();
 }
 
@@ -476,50 +486,56 @@
     // ------------------------------
    function handleGuess(guess) {
     if (!gameRunning) return;
-
-    // Реальная «направление» — просто рандом (50/50) или зависит от будущей свечи
-    // Для простоты пока оставляем 50/50
-    let realDirection = Math.random() < 0.5 ? "Long" : "Short";
-    let correct = (guess === realDirection);
-    let resultText = correct ? "Profit" : "Loss";
-
-    if (correct) {
-        points++;
-        pointsElem.textContent = points;
-    }
-
-    // Увеличиваем счётчик сделок на сегодня
-    dailyGuessesUsed++;
-    if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
-    todayPlaysElem.textContent = dailyGuessesUsed;
-
-    // Уменьшаем оставшиеся прогнозы в текущей сессии
-    guessesLeft--;
-    if (guessesLeft < 0) guessesLeft = 0;
-    guessesLeftElem.textContent = guessesLeft;
-
-    // Рисуем флажок "L" / "S" + результат
-    let flagLetter = (guess === "Long") ? "L" : "S";
-    drawChart(true, flagLetter, resultText);
-
-    // Если закончились прогнозы в сессии, переходим к следующей
-    if (guessesLeft <= 0) {
-        currentSession++;
-        if (currentSession > maxSessions) {
-            // Игра на сегодня закончена
-            endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
+    
+    // Формируем данные для AJAX-запроса
+    let formData = new FormData();
+    formData.append('direction', guess);
+    
+    fetch('/game/api/guess_direction', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        // Обновляем UI по ответу сервера
+        pointsElem.textContent = data.weekly_points;
+        todayPlaysElem.textContent = data.times_played_today;
+        
+        // Вычисляем текущую сессию и оставшиеся прогнозы
+        let timesPlayed = data.times_played_today;
+        currentSession = Math.floor(timesPlayed / 10) + 1;
+        guessesLeft = 10 - (timesPlayed % 10);
+        if (guessesLeft < 0) guessesLeft = 0;
+        sessionIndexElem.textContent = currentSession;
+        guessesLeftElem.textContent = guessesLeft;
+        
+        let flagLetter = (guess === "Long") ? "L" : "S";
+        let resultText = data.result === "correct" ? "Profit" : "Loss";
+        drawChart(true, flagLetter, resultText);
+        
+        if (guessesLeft <= 0) {
+            currentSession++;
+            if (currentSession > maxSessions) {
+                endGame(`День окончен! Вы набрали ${data.weekly_points} очков за сегодня.`);
+            } else {
+                setTimeout(() => {
+                    endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+                }, 1200);
+            }
         } else {
-            // Следующая сессия
             setTimeout(() => {
-                endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+                addNewCandle();
             }, 1200);
         }
-    } else {
-        // Подождём чуть, потом новая свеча
-        setTimeout(() => {
-            addNewCandle();
-        }, 1200);
-    }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
 }
 
     // ------------------------------
@@ -599,18 +615,20 @@
     // ------------------------------
     // Рестарт игры / сессии
     // ------------------------------
-    function restartGame() {
-      // Сброс
-      points = 0;
-      currentSession = 1;
-      guessesLeft = 10;
-      dailyGuessesUsed = 0;
-
-      // Отобразим
-      sessionIndexElem.textContent = currentSession;
-      guessesLeftElem.textContent = guessesLeft;
-      pointsElem.textContent = points;
-      todayPlaysElem.textContent = dailyGuessesUsed;
+   function restartGame() {
+    // Вместо обнуления состояния – загрузим сохранённое состояние из базы
+    initializeGameState();
+    // Генерируем новые свечи (история будет сдвигаться)
+    generateInitialCandles();
+    drawChart();
+    
+    overlay.style.display = "none";
+    gameRunning = true;
+    
+    btnLong.disabled = false;
+    btnShort.disabled = false;
+    btnHold.disabled = false;
+}
 
       // Генерация новых свечей
       generateInitialCandles();
@@ -652,11 +670,12 @@
 
     // Меню (главное) — кнопка "Начать игру"
     btnStart.addEventListener('click', () => {
-      mainMenu.style.display = "none";
-      terminal.style.display = "flex";
-      exitBtn.style.display = "block";
-      restartGame();
-    });
+    mainMenu.style.display = "none";
+    terminal.style.display = "flex";
+    exitBtn.style.display = "block";
+    initializeGameState();
+    gameRunning = true;
+});
 
     // Пример: кнопка "Правила" — просто alert или что-то подобное
     btnRules.addEventListener('click', () => {
@@ -670,10 +689,12 @@
 
     // При загрузке страницы показываем меню
     window.addEventListener('load', () => {
-      mainMenu.style.display = "flex";
-      terminal.style.display = "none";
-      exitBtn.style.display = "none";
-    });
+    mainMenu.style.display = "flex";
+    terminal.style.display = "none";
+    exitBtn.style.display = "none";
+    // Если пользователь уже залогинен, загрузим состояние игры
+    initializeGameState();
+});
   </script>
 </body>
 </html>
