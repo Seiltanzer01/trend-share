@@ -410,62 +410,73 @@
     // (Теперь более «реалистичное» движение цены + иногда «события»)
     // ------------------------------
     function addNewCandle() {
-      let lastCandle = candles[candles.length - 1];
-      let open = lastCandle.close;
+  let lastCandle = candles[candles.length - 1];
+  let open = lastCandle.close;
 
-      // Генерируем «трендовое» смещение
-      // Например, возьмём предыдущие 3 свечи, чтобы оценить текущее направление
-      let recentCandles = candles.slice(-3);
-      let avgChange = 0;
-      recentCandles.forEach(c => {
-        avgChange += (c.close - c.open);
-      });
-      avgChange /= 3.0;
+  // Генерируем «трендовое» смещение
+  let recentCandles = candles.slice(-3);
+  let avgChange = 0;
+  recentCandles.forEach(c => {
+    avgChange += (c.close - c.open);
+  });
+  avgChange /= 3.0;
 
-      // Базовое случайное изменение
-      let baseChange = (Math.random() - 0.5) * 4;
-      // Учтём «средний тренд», чтобы движение не было совсем хаотичным
-      let trendFactor = avgChange * 0.5;
-      let change = baseChange + trendFactor;
+  let baseChange = (Math.random() - 0.5) * 4;
+  let trendFactor = avgChange * 0.5;
+  let change = baseChange + trendFactor;
 
-      // Периодический «всплеск» (Breaking News) с некоторой вероятностью
-      if (Math.random() < 0.15) {
-        // Волатильное событие
-        change *= (2 + Math.random() * 3); // усиливаем
-        console.log("Breaking News! Price spikes!");
-      }
+  // Breaking News
+  if (Math.random() < 0.15) {
+    change *= (2 + Math.random() * 3);
+    console.log("Breaking News! Price spikes!");
+  }
 
-      let close = open + change;
-      let high = Math.max(open, close) + Math.random() * 2;
-      let low = Math.min(open, close) - Math.random() * 2;
+  let close = open + change;
+  let high = Math.max(open, close) + Math.random() * 2;
+  let low = Math.min(open, close) - Math.random() * 2;
 
-      let newCandle = { open, close, high, low };
+  let newCandle = { open, close, high, low };
 
-      // Плавная анимация:
-      const steps = 30;
-      let step = 0;
-      function animateStep() {
-        step++;
-        let t = step / steps;
-        // Интерполяция от "lastCandle.close" к новым значениям
-        let interpolated = {
-          open: lastCandle.close + (newCandle.open - lastCandle.close) * t,
-          close: lastCandle.close + (newCandle.close - lastCandle.close) * t,
-          high: lastCandle.close + (newCandle.high - lastCandle.close) * t,
-          low: lastCandle.close + (newCandle.low - lastCandle.close) * t
-        };
-        candles.shift();
-        candles.push(interpolated);
-        drawChart();
-        if (step < steps) {
-          requestAnimationFrame(animateStep);
-        } else {
-          candles[candles.length - 1] = newCandle;
-          drawChart();
-        }
-      }
-      animateStep();
+  const steps = 30;
+  let step = 0;
+
+  function animateStep() {
+    step++;
+    let t = step / steps;
+
+    // Интерполяция:
+    // Открытие всегда двигается к open (оно равно lastCandle.close, так что "ot" = open = lastCandle.close)
+    let currentOpen = lastCandle.close + (newCandle.open - lastCandle.close) * t;
+    let currentClose = lastCandle.close + (newCandle.close - lastCandle.close) * t;
+
+    // Для high/low тоже плавная интерполяция
+    let currentHigh = lastCandle.close + (newCandle.high - lastCandle.close) * t;
+    let currentLow = lastCandle.close + (newCandle.low - lastCandle.close) * t;
+
+    // Временно убираем последний элемент
+    candles.pop();
+    candles.push({
+      open: currentOpen,
+      close: currentClose,
+      high: currentHigh,
+      low: currentLow
+    });
+
+    // Перерисовываем
+    drawChart();
+
+    if (step < steps) {
+      requestAnimationFrame(animateStep);
+    } else {
+      // Финализируем
+      candles.pop();
+      candles.push(newCandle);
+      drawChart();
     }
+  }
+
+  animateStep();
+}
 
     // ------------------------------
     // Обработка выбора (Long / Short)
