@@ -317,13 +317,13 @@
   // ------------------------------
   // Глобальные переменные игры
   // ------------------------------
-  let candles = [];
-  const numCandles = 30; // Сколько свечей на экране
-  let points = 0;        // Сохраняем недельные очки
+  let candles = [];           // Глобальный массив для истории свечей (будет накапливаться)
+  const numCandles = 30;      // На экране показываем только последние 30 свечей
+  let points = 0;             // Недельные очки (загружаются с сервера)
   let currentSession = 1;
   let maxSessions = 3;
-  let guessesLeft = 10;  // Прогнозов на сессию
-  let dailyGuessesUsed = 0; // Прогнозов сегодня
+  let guessesLeft = 10;       // Прогнозов на сессию
+  let dailyGuessesUsed = 0;   // Прогнозов сегодня
   const dailyGuessesMax = 30; // Максимум прогнозов за день
 
   let gameRunning = false;
@@ -335,7 +335,6 @@
       fetch('/game/api/game_status', { credentials: 'include' })
       .then(response => response.json())
       .then(data => {
-          // Если сервер вернул значения, используем их
           let timesPlayed = data.times_played_today || 0;
           let weeklyPoints = data.weekly_points || 0;
           todayPlaysElem.textContent = timesPlayed;
@@ -352,7 +351,7 @@
   }
 
   // ======================================================
-  // Функция генерации начальных свечей (история графика)
+  // Функция генерации начальных свечей (начальный набор истории)
   // ======================================================
   function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
@@ -369,89 +368,78 @@
   }
 
   // ======================================================
-  // Функция отрисовки графика (свечей)
+  // Функция отрисовки графика по заданному массиву свечей
   // ======================================================
-  function drawChart(showFlag, flagLetter, resultText) {
+  function drawChartFromArray(arr, showFlag, flagLetter, resultText) {
       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-
-      let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
+      let displayCandles = arr.slice(-numCandles);
+      if (displayCandles.length === 0) return;
+      let allPrices = displayCandles.flatMap(c => [c.open, c.close, c.high, c.low]);
       let minPrice = Math.min(...allPrices);
       let maxPrice = Math.max(...allPrices);
       let chartHeight = chartCanvas.height;
       let chartWidth = chartCanvas.width;
       let scale = chartHeight / (maxPrice - minPrice);
-      let candleWidth = chartWidth / candles.length;
-
-      candles.forEach((c, i) => {
+      let candleWidth = chartWidth / displayCandles.length;
+      displayCandles.forEach((c, i) => {
           let x = i * candleWidth;
           let openY = chartHeight - (c.open - minPrice) * scale;
           let closeY = chartHeight - (c.close - minPrice) * scale;
           let highY = chartHeight - (c.high - minPrice) * scale;
           let lowY = chartHeight - (c.low - minPrice) * scale;
-
           ctx.strokeStyle = "#00FF00";
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.moveTo(x + candleWidth / 2, highY);
-          ctx.lineTo(x + candleWidth / 2, lowY);
+          ctx.moveTo(x + candleWidth/2, highY);
+          ctx.lineTo(x + candleWidth/2, lowY);
           ctx.stroke();
-
           let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
           ctx.fillStyle = color;
           let rectY = Math.min(openY, closeY);
           let rectH = Math.abs(openY - closeY);
-          if (rectH < 2) rectH = 2;
+          if(rectH < 2) rectH = 2;
           ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
       });
-
       if (showFlag) {
-          let lastIndex = candles.length - 1;
-          let lastCandle = candles[lastIndex];
+          let lastIndex = displayCandles.length - 1;
+          let lastCandle = displayCandles[lastIndex];
           let x = lastIndex * candleWidth;
           let textY = chartHeight - (lastCandle.high - minPrice) * scale - 20;
-
           ctx.font = "bold 18px 'Press Start 2P'";
           ctx.fillStyle = "#FFFF00";
           ctx.fillText(flagLetter, x + candleWidth/2 - 10, textY);
-
           ctx.font = "16px 'Press Start 2P'";
           ctx.fillStyle = "#FFFFFF";
           ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
       }
   }
 
+  // Основная функция отрисовки (использует глобальный массив candles)
+  function drawChart(showFlag, flagLetter, resultText) {
+      drawChartFromArray(candles, showFlag, flagLetter, resultText);
+  }
+
   // ======================================================
-  // Функция анимации добавления новой свечи (сдвиг истории)
+  // Функция анимации добавления новой свечи (без удаления истории)
   // ======================================================
   function addNewCandle() {
       let lastCandle = candles[candles.length - 1];
       let open = lastCandle.close;
-
       let recentCandles = candles.slice(-3);
-      let avgChange = 0;
-      recentCandles.forEach(c => {
-          avgChange += (c.close - c.open);
-      });
-      avgChange /= 3.0;
-
+      let avgChange = recentCandles.reduce((sum, c) => sum + (c.close - c.open), 0) / (recentCandles.length || 1);
       let baseChange = (Math.random() - 0.5) * 4;
       let trendFactor = avgChange * 0.5;
       let change = baseChange + trendFactor;
-
       if (Math.random() < 0.15) {
           change *= (2 + Math.random() * 3);
           console.log("Breaking News! Price spikes!");
       }
-
       let close = open + change;
       let high = Math.max(open, close) + Math.random() * 2;
       let low = Math.min(open, close) - Math.random() * 2;
-
       let newCandle = { open, close, high, low };
-
       const steps = 30;
       let step = 0;
-
       function animateStep() {
           step++;
           let t = step / steps;
@@ -461,19 +449,15 @@
               high: lastCandle.close + (newCandle.high - lastCandle.close) * t,
               low: lastCandle.close + (newCandle.low - lastCandle.close) * t
           };
-
-          // Сдвигаем историю: удаляем самую первую свечу и добавляем текущую в конец
-          candles.shift();
-          candles.push(currentCandle);
-          drawChart();
-
+          // Создаем временный массив для анимации, добавляя промежуточную свечу к истории
+          let tempCandles = candles.concat([currentCandle]);
+          drawChartFromArray(tempCandles, false, "", "");
           if (step < steps) {
               requestAnimationFrame(animateStep);
           } else {
-              // Финализируем: сдвигаем ещё раз и добавляем новую свечу
-              candles.shift();
+              // По окончании анимации добавляем новую свечу в глобальную историю
               candles.push(newCandle);
-              drawChart();
+              drawChart(); // финальная отрисовка
           }
       }
       animateStep();
@@ -484,10 +468,8 @@
   // ======================================================
   function handleGuess(guess) {
       if (!gameRunning) return;
-
       let formData = new FormData();
       formData.append('direction', guess);
-
       fetch('/game/api/guess_direction', {
           method: 'POST',
           body: formData,
@@ -499,22 +481,19 @@
               alert(data.error);
               return;
           }
-          // Обновляем UI значениями с сервера и синхронизируем глобальные переменные
+          // Обновляем UI и глобальные переменные согласно данным с сервера
           pointsElem.textContent = data.weekly_points;
           todayPlaysElem.textContent = data.times_played_today;
-          points = data.weekly_points;  // обновляем глобальные очки
-
+          points = data.weekly_points;
           let timesPlayed = data.times_played_today;
           currentSession = Math.floor(timesPlayed / 10) + 1;
           guessesLeft = 10 - (timesPlayed % 10);
           if (guessesLeft < 0) guessesLeft = 0;
           sessionIndexElem.textContent = currentSession;
           guessesLeftElem.textContent = guessesLeft;
-
           let flagLetter = (guess === "Long") ? "L" : "S";
           let resultText = data.result === "correct" ? "Profit" : "Loss";
           drawChart(true, flagLetter, resultText);
-
           if (guessesLeft <= 0) {
               currentSession++;
               if (currentSession > maxSessions) {
@@ -554,15 +533,12 @@
       } else {
           console.log("No effect from Hold.");
       }
-
       dailyGuessesUsed++;
       if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
       todayPlaysElem.textContent = dailyGuessesUsed;
-
       guessesLeft--;
       if (guessesLeft < 0) guessesLeft = 0;
       guessesLeftElem.textContent = guessesLeft;
-
       if (guessesLeft <= 0) {
           currentSession++;
           if (currentSession > maxSessions) {
@@ -604,15 +580,14 @@
   }
 
   // ======================================================
-  // Функция рестарта игры (загружает сохранённое состояние)
+  // Функция рестарта игры (загружает сохранённое состояние, не сбрасывая очки/сессию)
   // ======================================================
   function restartGame() {
-      // Загружаем сохранённое состояние из базы (без обнуления очков и сессии)
+      // При рестарте мы загружаем сохранённое состояние (очки, сессия и прогнозы) с сервера,
+      // а затем создаём новый набор свечей для нового раунда.
       initializeGameState();
-      // Генерируем новые свечи (история графика обновляется, старые остаются в истории)
       generateInitialCandles();
       drawChart();
-      
       overlay.style.display = "none";
       gameRunning = true;
       btnLong.disabled = false;
@@ -643,7 +618,7 @@
       }
   });
 
-  // Измените обработчик для кнопки "Начать игру":
+  // Обработчик для кнопки "Начать игру"
   btnStart.addEventListener('click', () => {
       mainMenu.style.display = "none";
       terminal.style.display = "flex";
