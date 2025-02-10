@@ -287,282 +287,258 @@
     </div>
   </div>
 
-  <script>
-    // ------------------------------
-    // Переменные интерфейса
-    // ------------------------------
-    const mainMenu = document.getElementById('main-menu');
-    const btnStart = document.getElementById('btn-start');
-    const btnRules = document.getElementById('btn-rules');
-    const exitBtn = document.getElementById('exit-btn');
-    const gameContainer = document.getElementById('game-container');
-    const terminal = document.getElementById('terminal');
+<script>
+  // ------------------------------
+  // Переменные интерфейса
+  // ------------------------------
+  const mainMenu = document.getElementById('main-menu');
+  const btnStart = document.getElementById('btn-start');
+  const btnRules = document.getElementById('btn-rules');
+  const exitBtn = document.getElementById('exit-btn');
+  const gameContainer = document.getElementById('game-container');
+  const terminal = document.getElementById('terminal');
 
-    const chartCanvas = document.getElementById('chartCanvas');
-    const ctx = chartCanvas.getContext('2d');
+  const chartCanvas = document.getElementById('chartCanvas');
+  const ctx = chartCanvas.getContext('2d');
 
-    const sessionIndexElem = document.getElementById('session-index');
-    const guessesLeftElem = document.getElementById('guesses-left');
-    const pointsElem = document.getElementById('points-value');
-    const todayPlaysElem = document.getElementById('today-plays');
+  const sessionIndexElem = document.getElementById('session-index');
+  const guessesLeftElem = document.getElementById('guesses-left');
+  const pointsElem = document.getElementById('points-value');
+  const todayPlaysElem = document.getElementById('today-plays');
 
-    const btnLong = document.getElementById('btnLong');
-    const btnShort = document.getElementById('btnShort');
-    const btnHold = document.getElementById('btnHold');
+  const btnLong = document.getElementById('btnLong');
+  const btnShort = document.getElementById('btnShort');
+  const btnHold = document.getElementById('btnHold');
 
-    const overlay = document.getElementById('overlay');
-    const overlayMsg = document.getElementById('overlay-message');
-    const overlayBtn = document.getElementById('overlay-btn');
+  const overlay = document.getElementById('overlay');
+  const overlayMsg = document.getElementById('overlay-message');
+  const overlayBtn = document.getElementById('overlay-btn');
 
-    // ------------------------------
-    // Глобальные переменные игры
-    // ------------------------------
-    let candles = [];
-    const numCandles = 30; // Сколько свечей на экране
-    let points = 0;
+  // ------------------------------
+  // Глобальные переменные игры
+  // ------------------------------
+  let candles = [];
+  const numCandles = 30; // Сколько свечей на экране
+  let points = 0;
 
-    // Сессии, лимиты
-    let currentSession = 1;
-    let maxSessions = 3;
-    let guessesLeft = 10; // 10 прогнозов на сессию
-    let dailyGuessesUsed = 0; // для отображения
-    const dailyGuessesMax = 30; // 3 сессии * 10 = 30
+  // Сессии, лимиты
+  let currentSession = 1;
+  let maxSessions = 3;
+  let guessesLeft = 10; // 10 прогнозов на сессию
+  let dailyGuessesUsed = 0; // для отображения
+  const dailyGuessesMax = 30; // 3 сессии * 10 = 30
 
-    let gameRunning = false;
+  let gameRunning = false;
 
+  // Функция для загрузки состояния игры (количество прогнозов за день и недельные очки) с сервера
+  function initializeGameState() {
+      fetch('/game/api/game_status', { credentials: 'include' })
+      .then(response => response.json())
+      .then(data => {
+          let timesPlayed = data.times_played_today || 0;
+          let weeklyPoints = data.weekly_points || 0;
+          todayPlaysElem.textContent = timesPlayed;
+          pointsElem.textContent = weeklyPoints;
+          // Вычисляем текущую сессию и оставшиеся прогнозы
+          currentSession = Math.floor(timesPlayed / 10) + 1;
+          guessesLeft = 10 - (timesPlayed % 10);
+          if (guessesLeft < 0) guessesLeft = 0;
+          sessionIndexElem.textContent = currentSession;
+          guessesLeftElem.textContent = guessesLeft;
+      })
+      .catch(err => console.error("Error fetching game state:", err));
+  }
 
-    // Функция для загрузки состояния игры (количество прогнозов за день и недельные очки) с сервера
-function initializeGameState() {
-    fetch('/game/api/game_status', { credentials: 'include' })
-    .then(response => response.json())
-    .then(data => {
-        let timesPlayed = data.times_played_today || 0;
-        let weeklyPoints = data.weekly_points || 0;
-        todayPlaysElem.textContent = timesPlayed;
-        pointsElem.textContent = weeklyPoints;
-        // Вычисляем текущую сессию и оставшиеся прогнозы
-        currentSession = Math.floor(timesPlayed / 10) + 1;
-        guessesLeft = 10 - (timesPlayed % 10);
-        if (guessesLeft < 0) guessesLeft = 0;
-        sessionIndexElem.textContent = currentSession;
-        guessesLeftElem.textContent = guessesLeft;
-    })
-    .catch(err => console.error("Error fetching game state:", err));
-}
-    
-    // ------------------------------
-    // Генерация начальных свечей
-    // ------------------------------
-    // Генерация начальных свечей
-    function generateInitialCandles() {
+  // Функция генерации начальных свечей
+  function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
       candles = [];
       for (let i = 0; i < numCandles; i++) {
-        let open = price;
-        let change = (Math.random() - 0.5) * 5;
-        let close = open + change;
-        let high = Math.max(open, close) + Math.random() * 3;
-        let low = Math.min(open, close) - Math.random() * 3;
-        candles.push({ open, close, high, low });
-        price = close;
+          let open = price;
+          let change = (Math.random() - 0.5) * 5;
+          let close = open + change;
+          let high = Math.max(open, close) + Math.random() * 3;
+          let low = Math.min(open, close) - Math.random() * 3;
+          candles.push({ open, close, high, low });
+          price = close;
       }
-    }
+  }
 
-    // Отрисовка свечей с динамическим цветом
-    function drawChart(showFlag, flagLetter, resultText) {
-    ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+  // Функция отрисовки свечей
+  function drawChart(showFlag, flagLetter, resultText) {
+      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
 
-    let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
-    let minPrice = Math.min(...allPrices);
-    let maxPrice = Math.max(...allPrices);
-    let chartHeight = chartCanvas.height;
-    let chartWidth = chartCanvas.width;
-    let scale = chartHeight / (maxPrice - minPrice);
-    let candleWidth = chartWidth / candles.length;
+      let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
+      let minPrice = Math.min(...allPrices);
+      let maxPrice = Math.max(...allPrices);
+      let chartHeight = chartCanvas.height;
+      let chartWidth = chartCanvas.width;
+      let scale = chartHeight / (maxPrice - minPrice);
+      let candleWidth = chartWidth / candles.length;
 
-    candles.forEach((c, i) => {
-        let x = i * candleWidth;
-        let openY = chartHeight - (c.open - minPrice) * scale;
-        let closeY = chartHeight - (c.close - minPrice) * scale;
-        let highY = chartHeight - (c.high - minPrice) * scale;
-        let lowY = chartHeight - (c.low - minPrice) * scale;
+      candles.forEach((c, i) => {
+          let x = i * candleWidth;
+          let openY = chartHeight - (c.open - minPrice) * scale;
+          let closeY = chartHeight - (c.close - minPrice) * scale;
+          let highY = chartHeight - (c.high - minPrice) * scale;
+          let lowY = chartHeight - (c.low - minPrice) * scale;
 
-        ctx.strokeStyle = "#00FF00";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x + candleWidth / 2, highY);
-        ctx.lineTo(x + candleWidth / 2, lowY);
-        ctx.stroke();
+          ctx.strokeStyle = "#00FF00";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x + candleWidth / 2, highY);
+          ctx.lineTo(x + candleWidth / 2, lowY);
+          ctx.stroke();
 
-        let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
-        ctx.fillStyle = color;
-        let rectY = Math.min(openY, closeY);
-        let rectH = Math.abs(openY - closeY);
-        if (rectH < 2) rectH = 2;
-        ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
-    });
+          let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
+          ctx.fillStyle = color;
+          let rectY = Math.min(openY, closeY);
+          let rectH = Math.abs(openY - closeY);
+          if (rectH < 2) rectH = 2;
+          ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
+      });
 
-    if (showFlag) {
-        let lastIndex = candles.length - 1;
-        let lastCandle = candles[lastIndex];
-        let x = lastIndex * candleWidth;
-        let textY = chartHeight - (lastCandle.high - minPrice) * scale - 20;
+      if (showFlag) {
+          let lastIndex = candles.length - 1;
+          let lastCandle = candles[lastIndex];
+          let x = lastIndex * candleWidth;
+          let textY = chartHeight - (lastCandle.high - minPrice) * scale - 20;
 
-        ctx.font = "bold 18px 'Press Start 2P'";
-        ctx.fillStyle = "#FFFF00";
-        ctx.fillText(flagLetter, x + candleWidth/2 - 10, textY);
-        
-        ctx.font = "16px 'Press Start 2P'";
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
-    }
-}
+          ctx.font = "bold 18px 'Press Start 2P'";
+          ctx.fillStyle = "#FFFF00";
+          ctx.fillText(flagLetter, x + candleWidth/2 - 10, textY);
 
-    // ------------------------------
-    // Анимация добавления новой свечи
-    // (Теперь более «реалистичное» движение цены + иногда «события»)
-    // ------------------------------
+          ctx.font = "16px 'Press Start 2P'";
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillText(resultText, x + candleWidth/2 - 30, textY + 20);
+      }
+  }
+
+  // Функция анимации добавления новой свечи (реализована через сдвиг истории)
   function addNewCandle() {
-  let lastCandle = candles[candles.length - 1];
-  let open = lastCandle.close;
+      let lastCandle = candles[candles.length - 1];
+      let open = lastCandle.close;
 
-  // Генерируем трендовое смещение
-  let recentCandles = candles.slice(-3);
-  let avgChange = 0;
-  recentCandles.forEach(c => {
-    avgChange += (c.close - c.open);
-  });
-  avgChange /= 3.0;
+      let recentCandles = candles.slice(-3);
+      let avgChange = 0;
+      recentCandles.forEach(c => {
+          avgChange += (c.close - c.open);
+      });
+      avgChange /= 3.0;
 
-  let baseChange = (Math.random() - 0.5) * 4;
-  let trendFactor = avgChange * 0.5;
-  let change = baseChange + trendFactor;
+      let baseChange = (Math.random() - 0.5) * 4;
+      let trendFactor = avgChange * 0.5;
+      let change = baseChange + trendFactor;
 
-  // Breaking News
-  if (Math.random() < 0.15) {
-    change *= (2 + Math.random() * 3);
-    console.log("Breaking News! Price spikes!");
+      if (Math.random() < 0.15) {
+          change *= (2 + Math.random() * 3);
+          console.log("Breaking News! Price spikes!");
+      }
+
+      let close = open + change;
+      let high = Math.max(open, close) + Math.random() * 2;
+      let low = Math.min(open, close) - Math.random() * 2;
+
+      let newCandle = { open, close, high, low };
+
+      const steps = 30;
+      let step = 0;
+
+      function animateStep() {
+          step++;
+          let t = step / steps;
+          let currentCandle = {
+              open: lastCandle.close + (newCandle.open - lastCandle.close) * t,
+              close: lastCandle.close + (newCandle.close - lastCandle.close) * t,
+              high: lastCandle.close + (newCandle.high - lastCandle.close) * t,
+              low: lastCandle.close + (newCandle.low - lastCandle.close) * t
+          };
+
+          candles.shift();
+          candles.push(currentCandle);
+          drawChart();
+
+          if (step < steps) {
+              requestAnimationFrame(animateStep);
+          } else {
+              candles.shift();
+              candles.push(newCandle);
+              drawChart();
+          }
+      }
+      animateStep();
   }
 
-  let close = open + change;
-  let high = Math.max(open, close) + Math.random() * 2;
-  let low = Math.min(open, close) - Math.random() * 2;
-
-  let newCandle = { open, close, high, low };
-
-  const steps = 30;
-  let step = 0;
-
-  function animateStep() {
-    step++;
-    let t = step / steps;
-    // Интерполяция новой свечи для анимации
-    let currentCandle = {
-      open: lastCandle.close + (newCandle.open - lastCandle.close) * t,
-      close: lastCandle.close + (newCandle.close - lastCandle.close) * t,
-      high: lastCandle.close + (newCandle.high - lastCandle.close) * t,
-      low: lastCandle.close + (newCandle.low - lastCandle.close) * t
-    };
-
-    // Сдвигаем массив свечей: удаляем первую свечу и добавляем текущую свечу в конец
-    candles.shift();
-    candles.push(currentCandle);
-    drawChart();
-
-    if (step < steps) {
-      requestAnimationFrame(animateStep);
-    } else {
-      // Финализируем: сдвигаем ещё раз и добавляем новую свечу
-      candles.shift();
-      candles.push(newCandle);
-      drawChart();
-    }
-  }
-  animateStep();
-}
-
-    // ------------------------------
-    // Обработка выбора (Long / Short)
-    // ------------------------------
-   function handleGuess(guess) {
-    if (!gameRunning) return;
-    
-    // Формируем данные для AJAX-запроса
-    let formData = new FormData();
-    formData.append('direction', guess);
-    
-    fetch('/game/api/guess_direction', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert(data.error);
-            return;
-        }
-        // Обновляем UI по ответу сервера
-        pointsElem.textContent = data.weekly_points;
-        todayPlaysElem.textContent = data.times_played_today;
-        
-        // Вычисляем текущую сессию и оставшиеся прогнозы
-        let timesPlayed = data.times_played_today;
-        currentSession = Math.floor(timesPlayed / 10) + 1;
-        guessesLeft = 10 - (timesPlayed % 10);
-        if (guessesLeft < 0) guessesLeft = 0;
-        sessionIndexElem.textContent = currentSession;
-        guessesLeftElem.textContent = guessesLeft;
-        
-        let flagLetter = (guess === "Long") ? "L" : "S";
-        let resultText = data.result === "correct" ? "Profit" : "Loss";
-        drawChart(true, flagLetter, resultText);
-        
-        if (guessesLeft <= 0) {
-            currentSession++;
-            if (currentSession > maxSessions) {
-                endGame(`День окончен! Вы набрали ${data.weekly_points} очков за сегодня.`);
-            } else {
-                setTimeout(() => {
-                    endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
-                }, 1200);
-            }
-        } else {
-            setTimeout(() => {
-                addNewCandle();
-            }, 1200);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-}
-
-    // ------------------------------
-    // Доп. кнопка Hold для разнообразия
-    // ------------------------------
-    function handleHold() {
+  // Функция обработки выбора (Long / Short)
+  function handleGuess(guess) {
       if (!gameRunning) return;
-      // Шанс получить +1 очко "за терпение" или -1 "за упущенную возможность"
+
+      let formData = new FormData();
+      formData.append('direction', guess);
+
+      fetch('/game/api/guess_direction', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.error) {
+              alert(data.error);
+              return;
+          }
+          pointsElem.textContent = data.weekly_points;
+          todayPlaysElem.textContent = data.times_played_today;
+
+          let timesPlayed = data.times_played_today;
+          currentSession = Math.floor(timesPlayed / 10) + 1;
+          guessesLeft = 10 - (timesPlayed % 10);
+          if (guessesLeft < 0) guessesLeft = 0;
+          sessionIndexElem.textContent = currentSession;
+          guessesLeftElem.textContent = guessesLeft;
+
+          let flagLetter = (guess === "Long") ? "L" : "S";
+          let resultText = data.result === "correct" ? "Profit" : "Loss";
+          drawChart(true, flagLetter, resultText);
+
+          if (guessesLeft <= 0) {
+              currentSession++;
+              if (currentSession > maxSessions) {
+                  endGame(`День окончен! Вы набрали ${data.weekly_points} очков за сегодня.`);
+              } else {
+                  setTimeout(() => {
+                      endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+                  }, 1200);
+              }
+          } else {
+              setTimeout(() => {
+                  addNewCandle();
+              }, 1200);
+          }
+      })
+      .catch(error => {
+          console.error('Error:', error);
+      });
+  }
+
+  // Функция обработки кнопки Hold
+  function handleHold() {
+      if (!gameRunning) return;
       let chance = Math.random();
       if (chance < 0.3) {
-        // +1 очко
-        points++;
-        pointsElem.textContent = points;
-        console.log("Hold Bonus!");
-      } else if (chance < 0.5) {
-        // -1 очко
-        if (points > 0) {
-          points--;
+          points++;
           pointsElem.textContent = points;
-        }
-        console.log("Hold Penalty!");
+          console.log("Hold Bonus!");
+      } else if (chance < 0.5) {
+          if (points > 0) {
+              points--;
+              pointsElem.textContent = points;
+          }
+          console.log("Hold Penalty!");
       } else {
-        console.log("No effect from Hold.");
+          console.log("No effect from Hold.");
       }
 
-      // Считаем это за «прогноз»? Или нет?
-      // Давайте сделаем так, что Hold тоже уменьшает прогнозы
       dailyGuessesUsed++;
       if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
       todayPlaysElem.textContent = dailyGuessesUsed;
@@ -572,129 +548,98 @@ function initializeGameState() {
       guessesLeftElem.textContent = guessesLeft;
 
       if (guessesLeft <= 0) {
-        currentSession++;
-        if (currentSession > maxSessions) {
-          endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
-        } else {
-          setTimeout(() => {
-            endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
-          }, 1000);
-        }
+          currentSession++;
+          if (currentSession > maxSessions) {
+              endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
+          } else {
+              setTimeout(() => {
+                  endSession(`Сессия завершена! Начнём сессию №${currentSession}`);
+              }, 1000);
+          }
       } else {
-        setTimeout(() => {
-          addNewCandle();
-        }, 1000);
+          setTimeout(() => {
+              addNewCandle();
+          }, 1000);
       }
-    }
+  }
 
-    // ------------------------------
-    // Завершение текущей сессии
-    // ------------------------------
-    function endSession(message) {
+  // Функция завершения сессии
+  function endSession(message) {
       gameRunning = false;
       overlayMsg.textContent = message;
       overlay.style.display = "flex";
       btnLong.disabled = true;
       btnShort.disabled = true;
       btnHold.disabled = true;
-    }
+  }
 
-    // ------------------------------
-    // Окончание игры (все сессии исчерпаны)
-    // ------------------------------
-    function endGame(message) {
+  // Функция окончания игры
+  function endGame(message) {
       gameRunning = false;
       overlayMsg.textContent = message;
       overlay.style.display = "flex";
-
       btnLong.disabled = true;
       btnShort.disabled = true;
       btnHold.disabled = true;
-    }
+  }
 
-    // ------------------------------
-    // Рестарт игры / сессии
-    // ------------------------------
-   function restartGame() {
-    // Вместо обнуления состояния – загрузим сохранённое состояние из базы
-    initializeGameState();
-    // Генерируем новые свечи (история будет сдвигаться)
-    generateInitialCandles();
-    drawChart();
-    
-    overlay.style.display = "none";
-    gameRunning = true;
-    
-    btnLong.disabled = false;
-    btnShort.disabled = false;
-    btnHold.disabled = false;
-}
-
-      // Генерация новых свечей
+  // Функция рестарта игры (загружает сохранённое состояние)
+  function restartGame() {
+      initializeGameState();
       generateInitialCandles();
       drawChart();
-
-      // Разблок кнопок
       overlay.style.display = "none";
       gameRunning = true;
-
       btnLong.disabled = false;
       btnShort.disabled = false;
       btnHold.disabled = false;
-    }
+  }
 
-    // ------------------------------
-    // События кнопок
-    // ------------------------------
-    btnLong.addEventListener('click', () => handleGuess("Long"));
-    btnShort.addEventListener('click', () => handleGuess("Short"));
-    btnHold.addEventListener('click', () => handleHold());
+  // ------------------------------
+  // События кнопок
+  // ------------------------------
+  btnLong.addEventListener('click', () => handleGuess("Long"));
+  btnShort.addEventListener('click', () => handleGuess("Short"));
+  btnHold.addEventListener('click', () => handleHold());
 
-    overlayBtn.addEventListener('click', () => {
+  overlayBtn.addEventListener('click', () => {
       if (currentSession > maxSessions) {
-        // Все сессии исчерпаны: начнём заново
-        restartGame();
+          restartGame();
       } else {
-        // Новая сессия
-        overlay.style.display = "none";
-        guessesLeft = 10;
-        guessesLeftElem.textContent = guessesLeft;
-        sessionIndexElem.textContent = currentSession;
-        gameRunning = true;
-        btnLong.disabled = false;
-        btnShort.disabled = false;
-        btnHold.disabled = false;
-        addNewCandle();
+          overlay.style.display = "none";
+          guessesLeft = 10;
+          guessesLeftElem.textContent = guessesLeft;
+          sessionIndexElem.textContent = currentSession;
+          gameRunning = true;
+          btnLong.disabled = false;
+          btnShort.disabled = false;
+          btnHold.disabled = false;
+          addNewCandle();
       }
-    });
+  });
 
-    // Меню (главное) — кнопка "Начать игру"
-    btnStart.addEventListener('click', () => {
-    mainMenu.style.display = "none";
-    terminal.style.display = "flex";
-    exitBtn.style.display = "block";
-    initializeGameState();
-    gameRunning = true;
-});
+  btnStart.addEventListener('click', () => {
+      mainMenu.style.display = "none";
+      terminal.style.display = "flex";
+      exitBtn.style.display = "block";
+      initializeGameState();
+      gameRunning = true;
+  });
 
-    // Пример: кнопка "Правила" — просто alert или что-то подобное
-    btnRules.addEventListener('click', () => {
+  btnRules.addEventListener('click', () => {
       alert("Правила:\n1) 10 прогнозов — 1 сессия.\n2) Можно сыграть 3 сессии за день.\n3) Long — ставка на рост, Short — на падение.\n4) Hold — пропустить ход, может дать +1/-1 очко случайно.\n5) За каждое верное направление — 1 очко.\n6) Очки копятся всю неделю, затем распределяются реальные токены!");
-    });
+  });
 
-    // Кнопка выхода — возвращаемся на главную страницу/мини-приложение
-    exitBtn.addEventListener('click', () => {
-      window.location.href = '/';  // Укажите нужный URL (например, главная вашего Flask)
-    });
+  exitBtn.addEventListener('click', () => {
+      window.location.href = '/';
+  });
 
-    // При загрузке страницы показываем меню
-    window.addEventListener('load', () => {
-    mainMenu.style.display = "flex";
-    terminal.style.display = "none";
-    exitBtn.style.display = "none";
-    // Если пользователь уже залогинен, загрузим состояние игры
-    initializeGameState();
-});
-  </script>
+  window.addEventListener('load', () => {
+      mainMenu.style.display = "flex";
+      terminal.style.display = "none";
+      exitBtn.style.display = "none";
+      initializeGameState();
+  });
+</script>
 </body>
 </html>
