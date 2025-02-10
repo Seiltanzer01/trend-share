@@ -762,7 +762,8 @@ def initialize():
                     ALTER TABLE "user"
                     ADD COLUMN IF NOT EXISTS private_key VARCHAR(128),
                     ADD COLUMN IF NOT EXISTS unique_wallet_address VARCHAR(42) UNIQUE,
-                    ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128)
+                    ADD COLUMN IF NOT EXISTS unique_private_key VARCHAR(128),
+                    ADD COLUMN IF NOT EXISTS game_scores INTEGER
                 """)
                 logger.info("Columns 'private_key', 'unique_wallet_address' and 'unique_private_key' added to 'user' table.")
                 
