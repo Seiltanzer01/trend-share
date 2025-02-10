@@ -260,3 +260,13 @@ class PriceHistory(db.Model):
     
     instrument = db.relationship('Instrument', back_populates='price_history')
     __table_args__ = (db.UniqueConstraint('instrument_id', 'date', name='_instrument_date_uc'),)
+
+class UserGameScore(db.Model):
+    __tablename__ = 'user_game_score'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    weekly_points = db.Column(db.Integer, default=0)
+    times_played_today = db.Column(db.Integer, default=0)
+    last_played_date = db.Column(db.Date)
+
+    user = db.relationship('User', back_populates='game_scores')
