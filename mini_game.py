@@ -55,7 +55,7 @@ def guess_direction():
 
     user_id = session['user_id']
     user_guess = request.form.get('direction', '').strip().lower()
-    # Expecting "long" or "short"
+
     if user_guess not in ['long', 'short']:
         return jsonify({"error": "Invalid guess (must be 'long' or 'short')"}), 400
 
@@ -78,7 +78,7 @@ def guess_direction():
     if last_played_date is None or last_played_date < today_date:
         times_played_today = 0
 
-    if times_played_today >= 30:  # e.g., max 30 forecasts per day (10 forecasts * 3 sessions)
+    if times_played_today >= 30:
         return jsonify({"error": "Daily limit reached (30 forecasts per day)."}), 400
 
     real_direction = random.choice(['long', 'short'])
