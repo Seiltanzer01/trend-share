@@ -333,12 +333,12 @@
     // ------------------------------
     // Генерация начальных свечей
     // ------------------------------
+    // Генерация начальных свечей
     function generateInitialCandles() {
       let price = 100 + Math.random() * 50;
       candles = [];
       for (let i = 0; i < numCandles; i++) {
         let open = price;
-        // «Реалистичный» небольшой шаг
         let change = (Math.random() - 0.5) * 5;
         let close = open + change;
         let high = Math.max(open, close) + Math.random() * 3;
@@ -348,11 +348,8 @@
       }
     }
 
-    // ------------------------------
-    // Отрисовка свечей
-    // (с флажком/результатом при необходимости)
-    // ------------------------------
-    function drawChart(showFlag = false, flagText = "", resultText = "") {
+    // Отрисовка свечей с динамическим цветом
+    function drawChart() {
       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
 
       let allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
@@ -360,7 +357,6 @@
       let maxPrice = Math.max(...allPrices);
       let chartHeight = chartCanvas.height;
       let chartWidth = chartCanvas.width;
-
       let scale = chartHeight / (maxPrice - minPrice);
       let candleWidth = chartWidth / candles.length;
 
@@ -371,7 +367,6 @@
         let highY = chartHeight - (c.high - minPrice) * scale;
         let lowY = chartHeight - (c.low - minPrice) * scale;
 
-        // "Фитиль"
         ctx.strokeStyle = "#00FF00";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -379,7 +374,6 @@
         ctx.lineTo(x + candleWidth / 2, lowY);
         ctx.stroke();
 
-        // "Тело"
         let color = (c.close >= c.open) ? "#00FF00" : "#FF0000";
         ctx.fillStyle = color;
         let rectY = Math.min(openY, closeY);
@@ -387,6 +381,8 @@
         if (rectH < 2) rectH = 2;
         ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
       });
+    
+
 
       // Если нужно показать флажок (L/S) + результат (Profit/Loss)
       if (showFlag) {
