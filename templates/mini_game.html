@@ -88,6 +88,19 @@
       color: #000;
       box-shadow: 0 0 5px #fff, 0 0 15px #0f0, 0 0 20px #0f0;
     }
+    /* Дополнительный блок с общими очками пользователя */
+    #total-score {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: #000;
+      border: 3px solid #00FF00;
+      padding: 10px 15px;
+      font-size: 16px;
+      color: #00FF00;
+      z-index: 1000;
+      font-family: 'Press Start 2P', cursive;
+    }
     /* Терминал с графиком */
     #terminal {
       position: relative;
@@ -194,6 +207,8 @@
   </style>
 </head>
 <body>
+  <!-- Блок для отображения общих очков -->
+  <div id="total-score">Общие очки: <span id="total-points">0</span></div>
   <!-- Главное меню -->
   <div id="main-menu">
     <div id="menu-content">
@@ -259,6 +274,7 @@
     const sessionIndexElem = document.getElementById('session-index');
     const guessesLeftElem = document.getElementById('guesses-left');
     const pointsElem = document.getElementById('points-value');
+    const totalPointsElem = document.getElementById('total-points');
     const todayPlaysElem = document.getElementById('today-plays');
     const btnLong = document.getElementById('btnLong');
     const btnShort = document.getElementById('btnShort');
@@ -294,6 +310,7 @@
           let weeklyPoints = data.weekly_points || 0;
           todayPlaysElem.textContent = timesPlayed;
           pointsElem.textContent = weeklyPoints;
+          totalPointsElem.textContent = weeklyPoints; // Показываем общее число очков в меню
           // Синхронизируем глобальные переменные (сервер хранит состояние, поэтому оно не обнуляется)
           points = weeklyPoints;
           currentSession = Math.floor(timesPlayed / 10) + 1;
@@ -325,7 +342,7 @@
     // ======================================================
     // Функция отрисовки графика по массиву свечей (последние numCandles)
     // ======================================================
-    function drawChartFromArray(arr, showFlag, flagAnnotation, resultAnnotation) {
+    function drawChartFromArray(arr, showFlag, openFlagAnnotation, resultAnnotation) {
       const displayCandles = arr.slice(-numCandles);
       if (displayCandles.length === 0) return;
       ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
@@ -356,18 +373,17 @@
           ctx.fillRect(x + candleWidth * 0.1, rectY, candleWidth * 0.8, rectH);
       });
       if (showFlag) {
-          // Если flagAnnotation не пустая, отображаем её на свече, которая была зафиксирована в начале (индекс = lockedIndex)
-          // Здесь lockedIndex равен последнему индексу до анимации (то есть, displayCandles[displayCandles.length-1] – текущая "начальная" свеча)
-          if (flagAnnotation) {
-              let lockedIndex = displayCandles.length - 1;
-              let lockedCandle = displayCandles[lockedIndex];
-              let x = lockedIndex * candleWidth;
-              let textY = chartHeight - (lockedCandle.high - minPrice) * scale - 20;
+          // На первой свече отображаем открывающий флажок (S или L)
+          if (openFlagAnnotation) {
+              let firstIndex = 0;
+              let firstCandle = displayCandles[firstIndex];
+              let x = firstIndex * candleWidth;
+              let textY = chartHeight - (firstCandle.high - minPrice) * scale - 20;
               ctx.font = "bold 18px 'Press Start 2P'";
               ctx.fillStyle = "#FFFF00";
-              ctx.fillText(flagAnnotation, x + candleWidth/2 - 10, textY);
+              ctx.fillText(openFlagAnnotation, x + candleWidth/2 - 10, textY);
           }
-          // Если resultAnnotation не пустая, отображаем её на последней свече текущего массива (новую финальную свечу)
+          // На последней свече отображаем результат сделки (Profit или Loss)
           if (resultAnnotation) {
               let finalIndex = displayCandles.length - 1;
               let finalCandle = displayCandles[finalIndex];
@@ -381,8 +397,8 @@
     }
 
     // Основная функция отрисовки (использует глобальный массив candles)
-    function drawChart(showFlag=false, flagAnnotation="", resultAnnotation="") {
-      drawChartFromArray(candles, showFlag, flagAnnotation, resultAnnotation);
+    function drawChart(showFlag=false, openFlagAnnotation="", resultAnnotation="") {
+      drawChartFromArray(candles, showFlag, openFlagAnnotation, resultAnnotation);
     }
 
     // ======================================================
@@ -400,43 +416,65 @@
     // ======================================================
     // Функция анимации нового графика
     // ======================================================
-    // Эта функция генерирует "numCandles" новых свечей, плавно заменяя весь график.
-    // По окончании анимации сравнивается итоговая цена последней свечи с зафиксированной lockedPrice,
-    // и в callback передается результат ("Profit" или "Loss").
-    function animateChart(lockedPrice, guess, callback) {
-      const iterations = numCandles; // число итераций равно количеству видимых свечей
+    // Здесь мы сохраняем первую свечу (с открывающим флажком) и генерируем оставшиеся новые свечи,
+    // заменяя таким образом весь график. По окончании анимации вызывается callback с результатом сделки.
+    function animateChart(lockedCandle, guess, callback) {
+      // Формируем новый массив свечей: первая свеча – сохранённая lockedCandle (с открывающим флажком)
+      const iterations = numCandles - 1; // оставшиеся свечи
+      let newCandles = [lockedCandle];
       function animateIteration(iteration) {
         if (iteration >= iterations) {
-          // Анимация завершена – вычисляем итоговый результат
-          let finalCandle = candles[candles.length - 1];
-          let finalClose = finalCandle.close;
+          // Анимация завершена – итоговая свеча:
+          let finalCandle = newCandles[newCandles.length - 1];
+          // Определяем результат сделки: сравнение цены закрытия финальной свечи с ценой закрытия lockedCandle
           let outcome = "";
           if (guess === "long") {
-            outcome = finalClose > lockedPrice ? "Profit" : "Loss";
+            outcome = (finalCandle.close > lockedCandle.close) ? "Profit" : "Loss";
           } else { // short
-            outcome = finalClose < lockedPrice ? "Profit" : "Loss";
+            outcome = (finalCandle.close < lockedCandle.close) ? "Profit" : "Loss";
           }
-          // Отображаем итоговую свечу с результатом (без открывающего флажка)
-          drawChart(true, "", outcome);
+          // Обновляем глобальный массив свечей и отрисовываем график с двумя аннотациями:
+          candles = newCandles;
+          drawChart(true, (guess === "long" ? "L" : "S"), outcome);
           if (callback) {
             callback(outcome);
           }
           return;
         }
-        // Генерируем новую свечу
-        let prevCandle = candles[candles.length - 1];
-        let newCandle = generateNewCandle(prevCandle);
-        candles.push(newCandle);
-        if (candles.length > numCandles) {
-          candles = candles.slice(-numCandles);
-        }
-        // Отрисовываем график без аннотаций во время анимации
+        let prevCandle = newCandles[newCandles.length - 1];
+        let nextCandle = generateNewCandle(prevCandle);
+        newCandles.push(nextCandle);
+        candles = newCandles;
         drawChart(false, "", "");
         setTimeout(() => {
           animateIteration(iteration + 1);
         }, 150);
       }
       animateIteration(0);
+    }
+
+    // ======================================================
+    // Функция обновления счёта на сервере (на основании результата движения графика)
+    // ======================================================
+    function updateScoreOnServer(outcome) {
+      fetch('/game/api/update_score', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ outcome: outcome })
+      })
+      .then(response => response.json())
+      .then(data => {
+        // Обновляем общий счёт в интерфейсе
+        points = data.weekly_points;
+        pointsElem.textContent = points;
+        totalPointsElem.textContent = points;
+      })
+      .catch(error => {
+        console.error('Error updating score:', error);
+      });
     }
 
     // ======================================================
@@ -458,9 +496,9 @@
               alert(data.error);
               return;
           }
-          // Обновляем состояние (очки, число прогнозов) из ответа сервера
-          pointsElem.textContent = data.weekly_points;
+          // Обновляем число прогнозов из ответа сервера (weekly_points не меняется на сервере здесь)
           todayPlaysElem.textContent = data.times_played_today;
+          // Обновляем локальное значение очков (не меняем его здесь – оно обновится после анимации)
           points = data.weekly_points;
           let timesPlayed = data.times_played_today;
           currentSession = Math.floor(timesPlayed / 10) + 1;
@@ -469,23 +507,16 @@
           sessionIndexElem.textContent = currentSession;
           guessesLeftElem.textContent = guessesLeft;
 
-          // Фиксируем цену последней свечи в момент выбора
-          let lockedPrice = candles[candles.length - 1].close;
-          // Сразу отрисовываем открывающий флажок на текущей (начальной) свече
+          // Фиксируем свечу, с которой начинается движение (зафиксированная свеча с открывающим флажком)
+          let lockedCandle = candles[candles.length - 1];
+          // Рисуем на этой свече открывающий флажок (L или S)
           let openFlag = (guess === "long" ? "L" : "S");
-          drawChart(true, openFlag, ""); // Рисуем на начальной свече только флажок
-
-          // Запускаем анимацию нового графика – график полностью обновится
-          animateChart(lockedPrice, guess, function(outcome) {
-              // По окончании анимации обновляем очки согласно результату:
-              // Если Profit, прибавляем 1; если Loss, отнимаем 1, не давая очкам упасть ниже 0.
-              if (outcome === "Profit") {
-                  points = points + 1;
-              } else if (outcome === "Loss") {
-                  points = Math.max(0, points - 1);
-              }
-              pointsElem.textContent = points;
-              // Если сессия закончилась, проверяем состояние
+          drawChart(true, openFlag, "");
+          // Запускаем анимацию нового графика; по окончании анимации возвращается итоговый результат
+          animateChart(lockedCandle, guess, function(outcome) {
+              // После завершения анимации обновляем очки на сервере
+              updateScoreOnServer(outcome);
+              // Проверяем, если прогнозов закончились – завершаем сессию/игру
               if (guessesLeft <= 0) {
                   currentSession++;
                   if (currentSession > maxSessions) {
@@ -496,7 +527,6 @@
                       }, 1200);
                   }
               }
-              // (При новом прогнозе аннотация результата исчезнет, так как в handleGuess мы снова отрисуем открывающий флажок)
           });
       })
       .catch(error => {
@@ -515,10 +545,8 @@
           pointsElem.textContent = points;
           console.log("Hold Bonus!");
       } else if (chance < 0.5) {
-          if (points > 0) {
-              points = Math.max(0, points - 1);
-              pointsElem.textContent = points;
-          }
+          points = Math.max(0, points - 1);
+          pointsElem.textContent = points;
           console.log("Hold Penalty!");
       } else {
           console.log("No effect from Hold.");
@@ -613,7 +641,7 @@
       restartGame();
     });
     btnRules.addEventListener('click', () => {
-      alert("Правила:\n1) 10 прогнозов – 1 сессия.\n2) Можно сыграть 3 сессии за день (30 сделок).\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1 или –1 очко случайно.\n5) За каждое верное направление – 1 очко (Profit прибавляет, Loss отнимает, но не ниже 0).\n6) После выбора Long или Short сначала на текущей свече отображается флажок открытия (L или S), затем запускается анимация полного обновления графика, и по итоговой цене новой последней свечи определяется результат (Profit/Loss). При новом прогнозе результат предыдущей сделки исчезает.");
+      alert("Правила:\n1) 10 прогнозов – 1 сессия.\n2) Можно сыграть 3 сессии за день (30 сделок).\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1 или –1 очко случайно.\n5) Очки изменяются только в результате движения графика: если итоговая свеча показывает Profit – прибавляется 1, если Loss – отнимается 1 (но счёт не может стать отрицательным).\n6) После выбора Long или Short сначала на текущей свече отображается открывающий флажок (L или S), затем запускается анимация полного обновления графика, и по итоговой цене последней свечи определяется результат сделки.\n7) Общий счёт отображается в меню игры и сохраняется между сессиями.");
     });
     exitBtn.addEventListener('click', () => { window.location.href = '/'; });
     window.addEventListener('load', () => {
