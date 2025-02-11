@@ -29,10 +29,10 @@
       align-items: center;
       justify-content: center;
     }
-    /* Кнопка выхода (смещена ниже для мобильных экранов) */
+    /* Кнопка выхода (на странице игры) – смещена ниже */
     #exit-btn {
       position: absolute;
-      top: 60px; /* было 20px */
+      top: 120px; /* увеличено с 60px до 120px */
       right: 20px;
       z-index: 999;
       background: #000;
@@ -88,27 +88,31 @@
       color: #000;
       box-shadow: 0 0 5px #fff, 0 0 15px #0f0, 0 0 20px #0f0;
     }
-    /* Новое: кнопка Exit в меню игры */
+    /* Новая кнопка Exit в меню (вынесена за рамки основного блока меню) */
     #menu-exit-btn {
-      display: inline-block;
-      margin: 10px;
-      padding: 10px 15px;
-      font-size: 14px;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
       background: #000;
       color: #0f0;
       border: 2px solid #0f0;
+      padding: 10px 15px;
+      font-size: 14px;
       cursor: pointer;
       transition: all 0.2s;
+      font-family: 'Press Start 2P', cursive;
     }
     #menu-exit-btn:hover {
       background: #0f0;
       color: #000;
       box-shadow: 0 0 5px #fff, 0 0 15px #0f0, 0 0 20px #0f0;
     }
-    /* Блок с общими очками пользователя (сдвинут ближе к центру) */
+    /* Блок с общими очками пользователя – теперь опущен ниже */
     #total-score {
       position: fixed;
-      top: 10px; /* уменьшили отступ сверху */
+      top: 50px; /* увеличено с 10px до 50px */
       left: 10px;
       background: #000;
       border: 3px solid #00FF00;
@@ -219,7 +223,7 @@
       #info-panel .info-box { font-size: 12px; padding: 6px 8px; }
       .control-btn { font-size: 14px; padding: 6px 10px; margin: 5px; }
       #overlay { font-size: 16px; }
-      #exit-btn { font-size: 14px; padding: 8px 12px; top: 60px; }
+      #exit-btn { font-size: 14px; padding: 8px 12px; top: 120px; }
     }
   </style>
 </head>
@@ -239,11 +243,11 @@
         За каждое верное предсказание – <strong>1 балл</strong>.<br>
         Очки копятся всю неделю и распределяются реальные токены!
       </p>
-      <!-- Новая кнопка Exit в меню игры -->
-      <button class="menu-btn" id="menu-exit-btn" onclick="window.location.href='/'">Exit</button>
       <button class="menu-btn" id="btn-rules">Правила</button>
       <button class="menu-btn" id="btn-start">Начать игру</button>
     </div>
+    <!-- Кнопка Exit для меню (вынесена за рамки основного блока меню) -->
+    <button class="menu-btn" id="menu-exit-btn" onclick="window.location.href='/'">Exit</button>
   </div>
 
   <div id="game-container">
