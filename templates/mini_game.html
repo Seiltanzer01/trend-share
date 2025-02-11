@@ -229,22 +229,22 @@
 </head>
 <body>
   <!-- Блок для отображения общих очков -->
-  <div id="total-score">Общие очки: <span id="total-points">0</span></div>
+  <div id="total-score">Total score: <span id="total-points">0</span></div>
   <!-- Главное меню -->
   <div id="main-menu">
     <div id="menu-content">
       <h1>Retro Trading Game</h1>
       <p>
-        Добро пожаловать в ретро-игру про трейдинг!<br>
-        Делайте прогнозы (Long/Short).<br>
-        <strong>10</strong> прогнозов за сессию, максимум <strong>3</strong> сессии в день (30 сделок).
+        Welcome to the play-to-earn trading game!<br>
+        Make predictions (Long/Short).<br>
+        <strong>10</strong> trades per session, with a maximum of <strong>3</strong> sessions per day (30 trades).
       </p>
       <p>
-        За каждое верное предсказание – <strong>1 балл</strong>.<br>
-        Очки копятся всю неделю и распределяются реальные токены!
+        For each correct prediction – <strong>1 point</strong>.<br>
+        At the end of the week, all players share the $UJO token pool; the more points you have, the greater the reward!
       </p>
-      <button class="menu-btn" id="btn-rules">Правила</button>
-      <button class="menu-btn" id="btn-start">Начать игру</button>
+      <!--<button class="menu-btn" id="btn-rules">Правила</button>-->
+      <button class="menu-btn" id="btn-start">Start Gameу</button>
     </div>
     <!-- Кнопка Exit для меню (вынесена за рамки основного блока меню) -->
     <button class="menu-btn" id="menu-exit-btn" onclick="window.location.href='/'">Exit</button>
@@ -259,14 +259,14 @@
       <canvas id="chartCanvas" width="600" height="300"></canvas>
       <div id="info-panel">
         <div class="info-box" id="session-box">
-          Сессия: <span id="session-index">1</span> / 3<br>
+          Session: <span id="session-index">1</span> / 3<br>
           Прогнозов в сессии: <span id="guesses-left">10</span>
         </div>
         <div class="info-box">
-          Очки (неделя): <span id="points-value">0</span>
+          Points (week): <span id="points-value">0</span>
         </div>
         <div class="info-box" id="daily-panel">
-          Прогнозов сегодня: <span id="today-plays">0</span>/30
+          Predictions in session: <span id="today-plays">0</span>/30
         </div>
       </div>
       <div id="controls">
@@ -647,7 +647,7 @@
       restartGame();
     });
     btnRules.addEventListener('click', () => {
-      alert("Правила:\n1) 10 прогнозов – 1 сессия.\n2) Можно сыграть 3 сессии за день (30 сделок).\n3) Long – ставка на рост, Short – на падение.\n4) Hold – пропустить ход, может дать +1 или –1 очко случайно.\n5) Очки изменяются только в результате движения графика: если итоговая свеча показывает Profit – прибавляется 1, если Loss – отнимается 1 (но счёт не может стать отрицательным).\n6) После выбора Long или Short сначала на первой (начальной) свече отображается открывающий флажок (L или S), затем запускается анимация полного обновления графика, и по итоговой цене последней свечи определяется результат сделки.\n7) Общий счёт отображается в меню игры и сохраняется между сессиями.");
+      alert("Rules:\n1) 10 predictions – 1 session.\n2) You can play 3 sessions per day (30 trades).\n3) Long – bet on growth, Short – bet on decline.\n4) Hold – skip your turn, which may randomly give +1 or -1 point.");
     });
     exitBtn.addEventListener('click', () => { window.location.href = '/'; });
     window.addEventListener('load', () => {
