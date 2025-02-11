@@ -272,7 +272,7 @@
       <div id="controls">
         <button class="control-btn" id="btnLong">Long</button>
         <button class="control-btn" id="btnShort">Short</button>
-        <button class="control-btn" id="btnHold">Hold</button>
+        <!-- Кнопка Hold удалена -->
       </div>
     </div>
     <!-- Оверлей окончания игры -->
@@ -301,7 +301,7 @@
     const todayPlaysElem = document.getElementById('today-plays');
     const btnLong = document.getElementById('btnLong');
     const btnShort = document.getElementById('btnShort');
-    const btnHold = document.getElementById('btnHold');
+    // Кнопка btnHold удалена
     const overlay = document.getElementById('overlay');
     const overlayMsg = document.getElementById('overlay-message');
     const overlayBtn = document.getElementById('overlay-btn');
@@ -546,40 +546,7 @@
       });
     }
 
-    // ======================================================
-    // Функция обработки кнопки Hold (без полной анимации графика)
-    // ======================================================
-    function handleHold() {
-      if (!gameRunning) return;
-      let chance = Math.random();
-      if (chance < 0.3) {
-          points++;
-          pointsElem.textContent = points;
-          console.log("Hold Bonus!");
-      } else if (chance < 0.5) {
-          points = Math.max(0, points - 1);
-          pointsElem.textContent = points;
-          console.log("Hold Penalty!");
-      } else {
-          console.log("No effect from Hold.");
-      }
-      dailyGuessesUsed++;
-      if (dailyGuessesUsed > dailyGuessesMax) dailyGuessesUsed = dailyGuessesMax;
-      todayPlaysElem.textContent = dailyGuessesUsed;
-      guessesLeft--;
-      if (guessesLeft < 0) guessesLeft = 0;
-      guessesLeftElem.textContent = guessesLeft;
-      if (guessesLeft <= 0) {
-          currentSession++;
-          if (currentSession > maxSessions) {
-              endGame(`День окончен! Вы набрали ${points} очков за сегодня.`);
-          } else {
-              setTimeout(() => { endSession(`Сессия завершена! Начнём сессию №${currentSession}`); }, 1000);
-          }
-      } else {
-          setTimeout(() => { addNewCandle(); }, 1000);
-      }
-    }
+    // Функция обработки кнопки Hold удалена
 
     // ======================================================
     // Функция завершения сессии
@@ -590,7 +557,6 @@
       overlay.style.display = "flex";
       btnLong.disabled = true;
       btnShort.disabled = true;
-      btnHold.disabled = true;
     }
 
     // ======================================================
@@ -602,7 +568,6 @@
       overlay.style.display = "flex";
       btnLong.disabled = true;
       btnShort.disabled = true;
-      btnHold.disabled = true;
     }
 
     // ======================================================
@@ -616,7 +581,6 @@
       gameRunning = true;
       btnLong.disabled = false;
       btnShort.disabled = false;
-      btnHold.disabled = false;
     }
 
     // ======================================================
@@ -624,7 +588,7 @@
     // ======================================================
     btnLong.addEventListener('click', () => handleGuess("long"));
     btnShort.addEventListener('click', () => handleGuess("short"));
-    btnHold.addEventListener('click', () => handleHold());
+    // Обработчик для btnHold удалён
     overlayBtn.addEventListener('click', () => {
       if (currentSession > maxSessions) {
           restartGame();
@@ -636,7 +600,7 @@
           gameRunning = true;
           btnLong.disabled = false;
           btnShort.disabled = false;
-          btnHold.disabled = false;
+          // вызов addNewCandle(), если он нужен, остаётся без изменений
           addNewCandle();
       }
     });
@@ -656,6 +620,15 @@
       exitBtn.style.display = "none";
       initializeGameState();
     });
+    
+    // Если функция addNewCandle() используется, убедитесь, что она определена
+    function addNewCandle() {
+      // Пример простого добавления новой свечи:
+      let lastCandle = candles[candles.length - 1];
+      let newCandle = generateNewCandle(lastCandle);
+      candles.push(newCandle);
+      drawChart();
+    }
   </script>
 </body>
 </html>
