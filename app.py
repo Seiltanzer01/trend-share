@@ -950,8 +950,8 @@ scheduler.add_job(
     trigger='cron',
     day_of_week='sun',
     hour=23,
-    minute=59,
-    next_run_time=datetime.now(pytz.UTC) + timedelta(seconds=30)
+    minute=59
+    
 )
 
 scheduler.start()
