@@ -3,112 +3,129 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>{% if language == 'ru' %}Predict to earn{% else %}Predict to earn{% endif %}</h1>
+<style>
+  /* Новый класс для ограничения переполнения текста */
+  .vote-container {
+    max-width: 100%;
+    overflow-wrap: break-word; /* Перенос длинных слов */
+    word-wrap: break-word;     /* Для поддержки в старых браузерах */
+    word-break: break-all;      /* Разбивка длинных строк */
+    box-sizing: border-box;     /* Включение отступов в общую ширину */
+    padding: 10px;              /* Небольшой отступ внутри контейнера */
+  }
+  /* Можно дополнительно установить ограничение по ширине, если нужно */
+  .vote-container p, .vote-container h1, .vote-container h2, .vote-container h3 {
+    margin: 0 0 1em 0;
+  }
+</style>
 
-<div class="nes-container is-rounded">
-    <h2>{% if language == 'ru' %}Голосование для прогнозирования цены активов{% else %}Voting to predict asset prices{% endif %}</h2>
-    {% if language == 'ru' %}
-        <p>Участвуйте в опросах и показывайте свои способности в анализе цен! В каждом опросе для каждого актива выбирается лучший предсказатель, который получает реальные UJO-токены в качестве вознаграждения. Так же это отличный индикатор для понимания ожиданий рынка, сравнивайте свои прогнозы с рыночными и получайте заслуженное признание за точность ваших оценок.</p>
-        <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
-        <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
-    {% else %}
-        <p>Participate in surveys and show your skills in price analysis! In each survey, the best predictor is selected for each asset, who receives real UJO tokens as a reward. It is also a great indicator for understanding market expectations, compare your forecasts with the market and get well-deserved recognition for the accuracy of your estimates.</p>
-        <p><strong>Voting Starts:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
-        <p><strong>Voting Ends:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
-    {% endif %}
-</div>
+<div class="vote-container">
+  <h1>{% if language == 'ru' %}Predict to earn{% else %}Predict to earn{% endif %}</h1>
 
-<br>
+  <div class="nes-container is-rounded">
+      <h2>{% if language == 'ru' %}Голосование для прогнозирования цены активов{% else %}Voting to predict asset prices{% endif %}</h2>
+      {% if language == 'ru' %}
+          <p>Участвуйте в опросах и показывайте свои способности в анализе цен! В каждом опросе для каждого актива выбирается лучший предсказатель, который получает реальные UJO-токены в качестве вознаграждения. Это отличный способ оценить свои ожидания рынка и получить признание за точность ваших прогнозов.</p>
+          <p><strong>Начало голосования:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+          <p><strong>Завершение голосования:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+      {% else %}
+          <p>Participate in surveys and showcase your skills in price analysis! In each survey, the best predictor for each asset is selected, and they receive real UJO tokens as a reward. This is an excellent way to gauge market expectations and get recognition for the accuracy of your forecasts.</p>
+          <p><strong>Voting Starts:</strong> {{ active_poll.start_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+          <p><strong>Voting Ends:</strong> {{ active_poll.end_date.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+      {% endif %}
+  </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, message in messages %}
-      <div class="nes-container is-rounded is-{{ category }}">
-        <p>{{ message }}</p>
-      </div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+  <br>
 
-<div id="predictions-container">
-    {% if existing_predictions %}
-        <div class="nes-container is-rounded is-primary">
-            <h2>{% if language == 'ru' %}Ваши Предсказания{% else %}Your Predictions{% endif %}</h2>
-            <ul id="predictions-list">
-                {% for prediction in existing_predictions %}
-                    <li>
-                        <strong>{% if language == 'ru' %}Инструмент:{% else %}Instrument:{% endif %}</strong> {{ prediction.instrument.name }}<br>
-                        <strong>{% if language == 'ru' %}Предсказанная цена:{% else %}Predicted Price:{% endif %}</strong> {{ prediction.predicted_price }}<br>
-                        {% if prediction.real_price %}
-                            <strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> {{ prediction.real_price }}<br>
-                            <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> {{ prediction.deviation }}%
-                        {% else %}
-                            <strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> {% if language == 'ru' %}Ещё не определена{% else %}Not determined yet{% endif %}.<br>
-                            <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> {% if language == 'ru' %}Ещё не рассчитано{% else %}Not calculated yet{% endif %}.
-                        {% endif %}
-                    </li>
-                    <hr>
-                {% endfor %}
-            </ul>
-            <p>{% if language == 'ru' %}Спасибо за участие в голосовании!{% else %}Thank you for participating in voting!{% endif %}</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="nes-container is-rounded is-{{ category }}">
+          <p>{{ message }}</p>
         </div>
-    {% else %}
-        <form method="POST" id="prediction-form">
-            {{ form.hidden_tag() }}
-            <div class="nes-field">
-                {{ form.instrument.label }}<br>
-                {{ form.instrument(class="nes-select") }}
-                {% for error in form.instrument.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </div>
-            <div class="nes-field">
-                {{ form.predicted_price.label }}<br>
-                {{ form.predicted_price(class="nes-input", placeholder=( "Введите ожидаемую цену" if language == "ru" else "Enter expected price" )) }}
-                {% for error in form.predicted_price.errors %}
-                    <span style="color: red;">[{{ error }}]</span>
-                {% endfor %}
-            </div>
-            <div class="nes-field">
-                {{ form.submit(class="nes-btn is-primary") }}
-            </div>
-        </form>
+      {% endfor %}
     {% endif %}
+  {% endwith %}
+
+  <div id="predictions-container">
+      {% if existing_predictions %}
+          <div class="nes-container is-rounded is-primary">
+              <h2>{% if language == 'ru' %}Ваши Предсказания{% else %}Your Predictions{% endif %}</h2>
+              <ul id="predictions-list">
+                  {% for prediction in existing_predictions %}
+                      <li>
+                          <strong>{% if language == 'ru' %}Инструмент:{% else %}Instrument:{% endif %}</strong> {{ prediction.instrument.name }}<br>
+                          <strong>{% if language == 'ru' %}Предсказанная цена:{% else %}Predicted Price:{% endif %}</strong> {{ prediction.predicted_price }}<br>
+                          {% if prediction.real_price %}
+                              <strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> {{ prediction.real_price }}<br>
+                              <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> {{ prediction.deviation }}%
+                          {% else %}
+                              <strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> {% if language == 'ru' %}Ещё не определена{% else %}Not determined yet{% endif %}.<br>
+                              <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> {% if language == 'ru' %}Ещё не рассчитано{% else %}Not calculated yet{% endif %}.
+                          {% endif %}
+                      </li>
+                      <hr>
+                  {% endfor %}
+              </ul>
+              <p>{% if language == 'ru' %}Спасибо за участие в голосовании!{% else %}Thank you for participating in voting!{% endif %}</p>
+          </div>
+      {% else %}
+          <form method="POST" id="prediction-form">
+              {{ form.hidden_tag() }}
+              <div class="nes-field">
+                  {{ form.instrument.label }}<br>
+                  {{ form.instrument(class="nes-select") }}
+                  {% for error in form.instrument.errors %}
+                      <span style="color: red;">[{{ error }}]</span>
+                  {% endfor %}
+              </div>
+              <div class="nes-field">
+                  {{ form.predicted_price.label }}<br>
+                  {{ form.predicted_price(class="nes-input", placeholder=( "Введите ожидаемую цену" if language == "ru" else "Enter expected price" )) }}
+                  {% for error in form.predicted_price.errors %}
+                      <span style="color: red;">[{{ error }}]</span>
+                  {% endfor %}
+              </div>
+              <div class="nes-field">
+                  {{ form.submit(class="nes-btn is-primary") }}
+              </div>
+          </form>
+      {% endif %}
+  </div>
+
+  <script>
+      function fetchPredictions() {
+          fetch("{{ url_for('fetch_predictions') }}")
+              .then(response => response.json())
+              .then(data => {
+                  if (data.error) {
+                      console.error('Error:', data.error);
+                      return;
+                  }
+
+                  const predictionsList = document.getElementById('predictions-list');
+                  predictionsList.innerHTML = '';
+
+                  data.predictions.forEach(prediction => {
+                      const listItem = document.createElement('li');
+                      listItem.innerHTML = `
+                          <strong>{% if language == 'ru' %}Инструмент:{% else %}Instrument:{% endif %}</strong> ${prediction.instrument}<br>
+                          <strong>{% if language == 'ru' %}Предсказанная цена:{% else %}Predicted Price:{% endif %}</strong> ${prediction.predicted_price}<br>
+                          ${prediction.real_price !== null ? `<strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> ${prediction.real_price}<br>
+                          <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> ${prediction.deviation.toFixed(2)}%` : `<strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> {% if language == 'ru' %}Ещё не определена{% else %}Not determined yet{% endif %}.<br>
+                          <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> {% if language == 'ru' %}Ещё не рассчитано{% else %}Not calculated yet{% endif %}.`}
+                          <hr>
+                      `;
+                      predictionsList.appendChild(listItem);
+                  });
+              })
+              .catch(error => {
+                  console.error('Error fetching predictions:', error);
+              });
+      }
+
+      setInterval(fetchPredictions, 30000);
+      window.onload = fetchPredictions;
+  </script>
 </div>
-
-<script>
-    function fetchPredictions() {
-        fetch("{{ url_for('fetch_predictions') }}")
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Error:', data.error);
-                    return;
-                }
-
-                const predictionsList = document.getElementById('predictions-list');
-                predictionsList.innerHTML = '';
-
-                data.predictions.forEach(prediction => {
-                    const listItem = document.createElement('li');
-                    listItem.innerHTML = `
-                        <strong>{% if language == 'ru' %}Инструмент:{% else %}Instrument:{% endif %}</strong> ${prediction.instrument}<br>
-                        <strong>{% if language == 'ru' %}Предсказанная цена:{% else %}Predicted Price:{% endif %}</strong> ${prediction.predicted_price}<br>
-                        ${prediction.real_price !== null ? `<strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> ${prediction.real_price}<br>
-                        <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> ${prediction.deviation.toFixed(2)}%` : `<strong>{% if language == 'ru' %}Реальная цена:{% else %}Real Price:{% endif %}</strong> {% if language == 'ru' %}Ещё не определена{% else %}Not determined yet{% endif %}.<br>
-                        <strong>{% if language == 'ru' %}Отклонение:{% else %}Deviation:{% endif %}</strong> {% if language == 'ru' %}Ещё не рассчитано{% else %}Not calculated yet{% endif %}.`}
-                        <hr>
-                    `;
-                    predictionsList.appendChild(listItem);
-                });
-            })
-            .catch(error => {
-                console.error('Error fetching predictions:', error);
-            });
-    }
-
-    setInterval(fetchPredictions, 30000);
-    window.onload = fetchPredictions;
-</script>
-
 {% endblock %}
