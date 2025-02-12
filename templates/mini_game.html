@@ -325,25 +325,49 @@
     // ======================================================
     // Функция загрузки состояния игры с сервера
     // ======================================================
-    function initializeGameState() {
-      fetch('/game/api/game_status', { credentials: 'include' })
-        .then(response => response.json())
-        .then(data => {
-          let timesPlayed = data.times_played_today || 0;
-          let weeklyPoints = data.weekly_points || 0;
-          todayPlaysElem.textContent = timesPlayed;
-          pointsElem.textContent = weeklyPoints;
-          totalPointsElem.textContent = weeklyPoints; // Обновляем общий счёт в меню
-          // Синхронизируем глобальные переменные (сервер хранит состояние, поэтому оно не обнуляется)
-          points = weeklyPoints;
-          currentSession = Math.floor(timesPlayed / 10) + 1;
-          guessesLeft = 10 - (timesPlayed % 10);
-          if (guessesLeft < 0) guessesLeft = 0;
-          sessionIndexElem.textContent = currentSession;
-          guessesLeftElem.textContent = guessesLeft;
-        })
-        .catch(err => console.error("Error fetching game state:", err));
-    }
+    // Глобальная переменная для хранения даты последнего обновления (в формате YYYY-MM-DD)
+let lastFetchUTCDate = null;
+
+function initializeGameState() {
+  fetch('/game/api/game_status', { credentials: 'include' })
+    .then(response => response.json())
+    .then(data => {
+      let timesPlayed = data.times_played_today || 0;
+      let weeklyPoints = data.weekly_points || 0;
+      todayPlaysElem.textContent = timesPlayed;
+      pointsElem.textContent = weeklyPoints;
+      totalPointsElem.textContent = weeklyPoints;
+
+      // Получаем текущую UTC-дату в формате "YYYY-MM-DD"
+      const currentUTCDate = new Date().toISOString().slice(0, 10);
+      if (!lastFetchUTCDate) {
+        lastFetchUTCDate = currentUTCDate;
+      }
+      // Если текущая UTC-дата изменилась (новый день по UTC)
+      if (currentUTCDate !== lastFetchUTCDate) {
+        timesPlayed = 0;
+        todayPlaysElem.textContent = 0;
+        currentSession = 1;
+        guessesLeft = 10;
+        sessionIndexElem.textContent = currentSession;
+        guessesLeftElem.textContent = guessesLeft;
+        lastFetchUTCDate = currentUTCDate;
+      } else {
+        currentSession = Math.floor(timesPlayed / 10) + 1;
+        guessesLeft = 10 - (timesPlayed % 10);
+        if (guessesLeft < 0) guessesLeft = 0;
+        sessionIndexElem.textContent = currentSession;
+        guessesLeftElem.textContent = guessesLeft;
+      }
+    })
+    .catch(err => console.error("Error fetching game state:", err));
+}
+
+// При загрузке страницы сразу обновляем состояние и устанавливаем периодический опрос сервера каждые 60 секунд
+window.addEventListener('load', () => {
+  initializeGameState();
+  setInterval(initializeGameState, 60000); // обновление состояния каждую минуту
+});
 
     // ======================================================
     // Функция генерации начального набора свечей (история графика)
