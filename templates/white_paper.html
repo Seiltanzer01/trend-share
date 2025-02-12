@@ -1,104 +1,155 @@
 {% extends "base.html" %}
 {% block content %}
-  <section class="white-paper nes-container with-title is-rounded">
+  <section class="white-paper nes-container with-title is-rounded" style="margin: 20px auto; max-width: 800px; padding: 20px;">
     {% if language == 'ru' %}
-      <h2 class="title">White Paper – Trend Share: Полное руководство по заработку</h2>
+      <h2 class="title">White Paper – Trend Share: Платформа для монетизации торговых навыков и сотрудничества сообщества</h2>
       <article>
         <h3>Обзор проекта</h3>
         <p>
-          Trend Share – это инновационная платформа для трейдеров, объединяющая торговый журнал, интеллектуального ассистента «Uncle John», систему голосований за лучшие торговые сетапы и стейкинг. Платформа позволяет зарабатывать токены UJO двумя способами: через точные прогнозы и через участие в конкурсах торговых сетапов.
+          Trend Share – это универсальная платформа, которая открывает перед трейдерами неограниченные возможности для дополнительного заработка. Наше приложение объединяет мощный торговый журнал, интеллектуального ассистента «Uncle John», систему прогнозов, голосование за лучшие торговые сетапы, стейкинг и уникальную play-to-earn игру. Здесь вы не только систематизируете свои сделки, но и превращаете свои навыки торговли в реальный доход, получая токены UJO.
         </p>
-        <h3>Способы заработка</h3>
-        <h4>1. Заработок через прогнозы</h4>
+        
+        <h3>Возможности и преимущества Trend Share</h3>
         <ul>
-          <li><strong>Делайте прогнозы:</strong> Выбирайте актив в разделе «Predict to earn», вводите предполагаемую цену и отправляйте прогноз.</li>
-          <li><strong>Голосование и вознаграждение:</strong> В конце опроса система определяет победителей, и за точные прогнозы начисляются токены UJO.</li>
-        </ul>
-        <h4>2. Заработок через торговые сетапы</h4>
-        <ul>
-          <li><strong>Создание сетапа:</strong> В разделе «Управление Сетапами» создайте свою торговую стратегию. Если ваш сетап имеет достаточное количество сделок и высокий win rate, он может быть отобран для участия в конкурсе.</li>
-          <li><strong>Участие в голосовании:</strong> Премиум-пользователи переходят в раздел «Explore to Earn» и голосуют за лучшие сетапы. Если ваш сетап побеждает, вы получаете вознаграждение из призового пула.</li>
-          <li><strong>Дополнительный заработок:</strong> Кроме авторов сетапов, все пользователи, проголосовавшие за победителей, получают свою долю (часть пула распределяются равномерно среди голосующих).</li>
-        </ul>
-        <h3>Как добавить сделку через ассистента</h3>
-        <p>
-          Вы можете добавить новую сделку в торговый журнал, просто отправив сообщение нашему интеллектуальному помощнику «Uncle John». Например, напишите:
-        </p>
-        <blockquote>
-          "Добавь сделку: BTC-USD, Sell, 29000, открыта 2025-02-01 09:30, закрыта 2025-02-01 15:00, комментарий: сильное падение после новостей."
-        </blockquote>
-        <p>
-          Ассистент проверит введённые данные и попросит подтвердить добавление сделки. После вашего подтверждения сделка будет сохранена в журнале.
-        </p>
-        <h3>Пошаговое руководство по использованию Trend Share</h3>
-        <ol>
-          <li><strong>Регистрация через Telegram:</strong> Нажмите кнопку для перехода к боту TrendShare и авторизуйтесь.</li>
-          <li><strong>Заполнение торгового журнала:</strong>
-            <ul>
-              <li>Через форму: перейдите в раздел «Добавить Сделку» и заполните все поля.</li>
-              <li>Через ассистента: отправьте сообщение с описанием сделки – ассистент добавит её после подтверждения.</li>
-            </ul>
+          <li>
+            <strong>Дополнительная монетизация торговли:</strong>  
+            Зарабатывайте токены за точные прогнозы и успешные торговые стратегии. Чем точнее вы предскажете динамику рынка, тем выше ваше вознаграждение.
           </li>
-          <li><strong>Управление торговыми сетапами:</strong> Создавайте и редактируйте свои стратегии. Если ваш сетап успешен, он может стать кандидатом в конкурс и принести дополнительный заработок.</li>
-          <li><strong>Подписка и премиум-функции:</strong> Оформите подписку для доступа к интеллектуальному ассистенту и возможности участвовать в голосованиях за лучшие сетапы.</li>
-          <li><strong>Участие в прогнозах и голосованиях:</strong> Делайте прогнозы в разделе «Predict to earn» и голосуйте за лучшие сетапы, чтобы зарабатывать токены UJO.</li>
-          <li><strong>Настройка кошелька:</strong> Обязательно укажите уникальный адрес кошелька через раздел «Wallet» или «Set Wallet» для получения вознаграждений.</li>
-          <li><strong>Стейкинг:</strong> В разделе «Депозит» инвестируйте токены для получения пассивного дохода.</li>
-          <li><strong>Обучение и поддержка:</strong> Изучите обучающие видео и инструкции, доступные на платформе, чтобы быстро освоить все функции Trend Share.</li>
+          <li>
+            <strong>Совместная работа сообщества:</strong>  
+            Делитесь своими торговыми сетапами в разделе «Управление Сетапами». Чтобы участвовать в голосовании, ваш сетап должен иметь достаточный объем сделок и показывать стабильную эффективность. Лучшие стратегии, отобранные системой, получают вознаграждение, а участники голосования также получают бонусы.
+          </li>
+          <li>
+            <strong>Play-to-Earn игра:</strong>  
+            Участвуйте в увлекательной мини-игре, где за правильный прогноз направления рынка (выбор «long» или «short») вы получаете бонусные токены. Вы можете сыграть до 30 раз в день, а накопленные баллы конвертируются в дополнительные вознаграждения.
+          </li>
+          <li>
+            <strong>Интеллектуальный ассистент «Uncle John»: </strong>  
+            Вносите сделки через удобную форму и получайте рекомендации по оптимизации ваших торговых стратегий на основе анализа исторических данных.
+          </li>
+          <li>
+            <strong>Стейкинг:</strong>  
+            Инвестируйте свои токены (минимум 10 UJO) для получения пассивного дохода. Ваши токены будут заблокированы на 30 дней, а ежедневно начисляемые бонусы помогут вам наращивать капитал.
+          </li>
+        </ul>
+        
+        <h3>Как работает платформа</h3>
+        <ol>
+          <li>
+            <strong>Авторизация через Telegram:</strong>  
+            Вход в приложение происходит автоматически через Telegram – система распознаёт вашу учётную запись без необходимости дополнительных действий.
+          </li>
+          <li>
+            <strong>Ведение торгового журнала:</strong>  
+            <em>Что делать:</em> Записывайте свои сделки с помощью специальной формы. Укажите инструмент, направление, цену входа, время открытия и, при необходимости, время закрытия и комментарий.  
+            <em>Зачем:</em> Это позволяет вести подробный анализ ваших торговых операций.
+          </li>
+          <li>
+            <strong>Создание торговых сетапов и голосование:</strong>  
+            <em>Что делать:</em> В разделе «Управление Сетапами» создавайте свои торговые стратегии, указывая название, описание и выбирая минимум 2 критерия эффективности.  
+            <em>Условия участия:</em> Для того чтобы ваш сетап был допущен к голосованию, он должен включать не менее 10 сделок и демонстрировать стабильный уровень успешности (win rate от 65% до 90%). Каждый пользователь может иметь не более 3 активных сетапов.
+          </li>
+          <li>
+            <strong>Прогнозирование (Predict to Earn):</strong>  
+            <em>Что делать:</em> Перейдите в раздел «Predict to Earn», выберите интересующий актив и введите предполагаемую цену за 10 минут до начала опроса.  
+            <em>Как это работает:</em> После отправки прогнозов, в течение 7 дней система автоматически получает актуальную цену актива с помощью сервиса yfinance. Система сравнивает вашу прогнозную цену с реальной, определяя, насколько точно вы предсказали рыночное движение. Чем точнее ваш прогноз, тем выше ваше вознаграждение в UJO токенах.
+          </li>
+          <li>
+            <strong>Настройка кошелька и стейкинг:</strong>  
+            <em>Что делать:</em> В разделе «Wallet» введите уникальный адрес вашего криптокошелька для получения вознаграждений. Затем в разделе «Deposit» выберите сумму для стейкинга (не менее 10 UJO) и подтвердите транзакцию.  
+            <em>Зачем:</em> Это необходимо для автоматического начисления бонусов и формирования стабильного источника пассивного дохода.
+          </li>
+          <li>
+            <strong>Участие в play-to-earn игре:</strong>  
+            <em>Что делать:</em> Зайдите в раздел мини-игр, выберите игру «Guess the Direction» и сделайте свой прогноз по направлению рынка (выберите «long» или «short»).  
+            <em>Условия участия:</em> Каждый пользователь может участвовать до 30 раз в день, а итоговый балловой счёт еженедельно конвертируется в бонусные токены.
+          </li>
         </ol>
+        
+        <h3>Пошаговое руководство по использованию приложения</h3>
+        <ol>
+          <li>
+            <strong>Шаг 1. Авторизация:</strong>  
+            Откройте приложение через Telegram – система автоматически определяет вашу учётную запись.
+          </li>
+          <li>
+            <strong>Шаг 2. Настройка кошелька:</strong>  
+            Перейдите в раздел «Wallet» и введите адрес своего криптокошелька для получения всех вознаграждений.
+          </li>
+          <li>
+            <strong>Шаг 3. Запись сделок:</strong>  
+            В разделе «Добавить Сделку» заполните обязательные поля (инструмент, направление, цена входа, время открытия) и сохраните сделку в торговом журнале.
+          </li>
+          <li>
+            <strong>Шаг 4. Создание сетапов:</strong>  
+            В разделе «Управление Сетапами» создайте торговые стратегии, указав название, описание и выбрав минимум 2 критерия эффективности. Обратите внимание, что для участия в голосовании ваш сетап должен иметь не менее 10 сделок и win rate от 65% до 90%. Максимальное количество активных сетапов – 3.
+          </li>
+          <li>
+            <strong>Шаг 5. Прогнозирование:</strong>  
+            Перейдите в раздел «Predict to Earn», выберите актив, введите предполагаемую цену и отправьте прогноз (за 10 минут до начала опроса). Через 7 дней система автоматически получает актуальную цену выбранного актива и сравнивает её с вашим прогнозом, определяя точность вашего предсказания. Чем точнее вы предсказали, тем выше будет ваше вознаграждение в UJO токенах.
+          </li>
+          <li>
+            <strong>Шаг 6. Стейкинг:</strong>  
+            В разделе «Deposit» выберите сумму для стейкинга (не менее 10 UJO) и подтвердите операцию – токены будут заблокированы на 30 дней, в течение которых ежедневно начисляются вознаграждения.
+          </li>
+          <li>
+            <strong>Шаг 7. Игра:</strong>  
+            Участвуйте в мини-игре, выбирайте прогноз (long или short) и зарабатывайте бонусные токены. Вы можете участвовать до 30 раз в день, а итоговый балловой счёт еженедельно конвертируется в UJO.
+          </li>
+        </ol>
+        
         <h3>Заключение</h3>
         <p>
-          Trend Share – это комплексное решение для трейдеров, которое помогает вести учет сделок, анализировать стратегии и зарабатывать токены UJO как через точные прогнозы, так и через участие в голосованиях за лучшие торговые сетапы. Присоединяйтесь, обучайтесь и начинайте зарабатывать уже сегодня!
+          Trend Share – это полноценная экосистема для трейдеров, позволяющая монетизировать ваши торговые навыки, работать в сообществе и получать дополнительный доход через точные прогнозы, голосование за лучшие торговые стратегии, стейкинг и play-to-earn игру. Система прогнозирования автоматически отслеживает актуальные рыночные данные, определяя точность ваших предсказаний, что позволяет вам получать вознаграждения за свои аналитические способности. Присоединяйтесь к Trend Share уже сегодня, совершенствуйте свои торговые стратегии и начинайте зарабатывать токены UJO!
         </p>
       </article>
     {% else %}
-      <h2 class="title">White Paper – Trend Share: A Comprehensive Guide to Earning</h2>
+      <h2 class="title">White Paper – Trend Share: Next-Generation Platform for Monetizing Trading Skills and Community Collaboration</h2>
       <article>
         <h3>Project Overview</h3>
         <p>
-          Trend Share is an innovative platform for traders that combines a trading journal, an intelligent assistant “Uncle John”, a voting system for the best trading setups, and staking. You can earn UJO tokens in two ways: by making accurate predictions and by participating in contests for the best trading setups.
+          Trend Share is a comprehensive platform that empowers traders to monetize their skills through various innovative features. Our application integrates a robust trading journal, an intelligent assistant, a forecasting system, voting for the best trading setups, staking, and a unique play-to-earn game. Here, you not only record your trades but also convert your trading expertise into real income through UJO tokens.
         </p>
-        <h3>Earning Methods</h3>
-        <h4>1. Earning through Predictions</h4>
+        <h3>Main Features and Benefits</h3>
         <ul>
-          <li><strong>Make Predictions:</strong> In the "Predict to earn" section, choose an asset, enter your forecasted price, and submit your prediction.</li>
-          <li><strong>Voting and Rewards:</strong> At the end of each poll, the system automatically selects winners and rewards accurate predictions with UJO tokens.</li>
+          <li><strong>Monetization of Trading Skills:</strong> Earn UJO tokens for accurate forecasts and successful trading strategies. The more precise your predictions, the higher your rewards.</li>
+          <li><strong>Community Collaboration:</strong> Share your trading setups in the “Manage Setups” section. To be eligible for the voting contest, each setup must have at least 10 trades and a win rate between 65% and 90%. The system automatically selects the top setups for the contest, and rewards are distributed among both the winners and the voters. Each user may have up to 3 active setups.</li>
+          <li><strong>Play-to-Earn Game:</strong> Participate in engaging mini-games where you predict market direction (long or short) and earn bonus tokens. Users can play up to 30 times per day, with weekly scores converted into bonus UJO tokens.</li>
+          <li><strong>Intelligent Assistant “Uncle John”: </strong> Log your trades using a dedicated form and receive actionable recommendations based on historical data – no voice commands required.</li>
+          <li><strong>Staking for Passive Income:</strong> Stake your tokens (minimum 10 UJO) for a 30-day period and earn daily rewards at a fixed annual rate (e.g., 12% per year).</li>
         </ul>
-        <h4>2. Earning through Trading Setups</h4>
-        <ul>
-          <li><strong>Create Your Setup:</strong> In the "Manage Setups" section, build your trading strategy. If your setup has enough trades and a high winning percentage, it may be selected as a candidate for the competition.</li>
-          <li><strong>Participate in Voting:</strong> Premium users can vote in the "Explore to Earn" section. If your installation wins, you will receive a larger share of the prize pool.</li>
-          <li><strong>Additional Earnings:</strong> Even if you are not the author, by voting for the winning options you get your share of the total pool, which is equally distributed among voters.</li>
-        </ul>
-        <h3>How to Add a Trade via the Assistant</h3>
-        <p>
-          You can quickly add a new trade to your journal simply by sending a message to our intelligent assistant “Uncle John”. For example, type:
-        </p>
-        <blockquote>
-          "Add trade: BTC-USD, Sell, 29000, opened 2025-02-01 09:30, closed 2025-02-01 15:00, comment: sharp decline after news."
-        </blockquote>
-        <p>
-          The assistant will verify the details and ask you to confirm the addition. Upon confirmation, the trade will be recorded in your journal.
-        </p>
-        <h3>Step-by-Step User Guide</h3>
+        <h3>How the Platform Works</h3>
         <ol>
-          <li><strong>Register via Telegram:</strong> Click the registration button or go to the TrendShare bot for instant access.</li>
-          <li><strong>Maintain Your Trading Journal:</strong>
-            <ul>
-              <li>Via the form: Go to "Add Trade" and complete the required fields.</li>
-              <li>Via the assistant: Send a message describing your trade and follow the confirmation prompts.</li>
-            </ul>
-          </li>
-          <li><strong>Manage Your Trading Setups:</strong> Create and edit your strategies. A successful setup may be selected for the contest and earn extra rewards.</li>
-          <li><strong>Subscribe for Premium Features:</strong> Subscribe to access the intelligent assistant and participate in setup contests.</li>
-          <li><strong>Participate in Predictions and Voting:</strong> Enter your forecasts in the "Predict to earn" section and vote for the best setups to earn UJO tokens.</li>
-          <li><strong>Configure Your Wallet:</strong> Set up your unique wallet via the "Wallet" or "Set Wallet" section to receive rewards.</li>
-          <li><strong>Staking:</strong> Use the "Deposit" section to stake your tokens and earn passive income.</li>
-          <li><strong>Learn and Get Support:</strong> Watch tutorials and read guides available on the platform to quickly master all features of Trend Share.</li>
+          <li><strong>Telegram Authorization:</strong> Log in automatically via Telegram; no need to press a “Register” button.</li>
+          <li><strong>Trading Journal:</strong> Record your trades using the dedicated form by entering the instrument, direction, entry price, and opening time (optional fields include closing time and comments).</li>
+          <li><strong>Creating Trading Setups and Voting:</strong> In the “Manage Setups” section, create and save your trading strategies by providing a name, description, and selecting at least 2 performance criteria. To qualify for the voting contest, your setup must have at least 10 trades and a win rate between 65% and 90%. Each user may have up to 3 active setups at a time. The system automatically selects the top setups for the contest, and rewards are distributed among the winners and voters.</li>
+          <li><strong>Forecasting (Predict to Earn):</strong> Submit your asset price forecasts in the “Predict to Earn” section at least 10 minutes before the poll begins. Each poll runs for 7 days; after it ends, the system retrieves current market data via yfinance and evaluates your prediction accuracy. The most accurate forecast wins and earns a reward in UJO tokens.</li>
+          <li><strong>Wallet Setup and Staking:</strong> Enter your unique wallet address in the “Wallet” section to receive rewards, then stake your tokens in the “Deposit” section (minimum 10 UJO, 30-day lock-up) to earn daily rewards.</li>
+          <li><strong>Play-to-Earn Game:</strong> Participate in the “Guess the Direction” mini-game by choosing either “long” or “short.” You can play up to 30 times per day, and your weekly score is converted into bonus UJO tokens.</li>
+        </ol>
+        <h3>Participation Criteria and Conditions</h3>
+        <ul>
+          <li><strong>Forecasts:</strong> Forecasts must be submitted at least 10 minutes before the poll begins. After the 7-day period, the system retrieves current market prices and determines which forecast was the most accurate. The most accurate prediction wins a reward in UJO tokens.</li>
+          <li><strong>Trading Setups:</strong> Each user may have up to 3 active setups. To participate in the voting contest, each setup must have at least 10 trades and a win rate between 65% and 90%. The system automatically selects the top setups for the contest, and rewards are distributed among the winners and voters.</li>
+          <li><strong>Staking:</strong> The minimum staking amount is 10 UJO, with a 30-day lock-up period. Daily rewards are calculated based on a fixed annual rate (e.g., 12% per year) and can be withdrawn after the staking period ends.</li>
+          <li><strong>Play-to-Earn Game:</strong> Users can participate in up to 30 plays per day. The final weekly score is converted into bonus UJO tokens and distributed proportionally.</li>
+        </ul>
+        <h3>Step-by-Step Usage Guide</h3>
+        <p>
+          To get started with Trend Share, follow these steps:
+        </p>
+        <ol>
+          <li><strong>Step 1 – Authorization:</strong> Open the app via Telegram; your account is automatically recognized.</li>
+          <li><strong>Step 2 – Wallet Setup:</strong> Go to the “Wallet” section and enter your unique wallet address to receive rewards.</li>
+          <li><strong>Step 3 – Recording Trades:</strong> Use the “Add Trade” form to enter the required details (instrument, direction, entry price, opening time) and save your trade.</li>
+          <li><strong>Step 4 – Creating Setups:</strong> In “Manage Setups,” create your trading strategies by providing a name, description, and selecting at least 2 performance criteria. Ensure your setup has at least 10 trades and a win rate between 65% and 90% to be eligible for voting. A maximum of 3 active setups is allowed per user.</li>
+          <li><strong>Step 5 – Forecasting:</strong> Submit your price forecasts in “Predict to Earn” at least 10 minutes before the poll begins. Each poll runs for 7 days; after the poll, the system retrieves current market data and evaluates your prediction accuracy, awarding the most accurate forecast with UJO tokens.</li>
+          <li><strong>Step 6 – Staking:</strong> Visit “Deposit” to stake your tokens (minimum 10 UJO) for a 30-day period and earn daily rewards.</li>
+          <li><strong>Step 7 – Play-to-Earn Game:</strong> Participate in the mini-game by choosing your prediction (long or short) and accumulate points. You can play up to 30 times per day; your weekly score will be converted into bonus UJO tokens.</li>
         </ol>
         <h3>Conclusion</h3>
         <p>
-          Trend Share is a complete ecosystem that not only helps you maintain a trading journal and analyze your strategies but also provides multiple ways to earn UJO tokens – through accurate predictions and participation in best setup contests. Join Trend Share, learn, analyze, and start earning today!
+          Trend Share is more than just a trading tool—it’s a complete ecosystem that empowers traders to monetize their skills, collaborate with a vibrant community, and earn additional income through various channels. Whether you are recording trades, developing winning strategies, submitting forecasts (with your prediction accuracy evaluated using real-time market data), staking your tokens, or competing in the play-to-earn game, Trend Share offers countless opportunities for growth and profit. Join Trend Share today, enhance your trading expertise, and start earning UJO tokens through your active participation!
         </p>
       </article>
     {% endif %}
