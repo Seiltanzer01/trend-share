@@ -374,34 +374,46 @@ def get_balances(user: User) -> dict:
 
 def get_token_price_in_usd() -> float:
     """
-    Запрашиваем DexScreener. Если не удалось — вернём 0.0
+    Запрашиваем цену токена с GeckoTerminal. Если не удалось — вернём 0.0
     """
     try:
         pair_address = os.environ.get("DEXScreener_PAIR_ADDRESS", "")
         if not pair_address:
-            logger.error("DEXScreener_PAIR_ADDRESS не задан.")
+            logger.error("DEXScreener_PAIR_ADDRESS (адрес токена) не задан.")
             return 0.0
 
-        chain_name = "base"
-        api_url = f"https://api.dexscreener.com/latest/dex/pairs/{chain_name}/{pair_address}"
-        resp = requests.get(api_url, timeout=10)
+        # Формируем URL для GeckoTerminal:
+        api_url = (
+            f"https://api.geckoterminal.com/api/v2/simple/networks/base/"
+            f"token_price/{pair_address}?include_market_cap=false&include_24hr_vol=false"
+        )
+
+        # Укажем версию API через заголовок
+        headers = {
+            "Accept": "application/json;version=20230302"
+        }
+
+        # Делаем GET-запрос
+        resp = requests.get(api_url, headers=headers, timeout=10)
         if resp.status_code != 200:
-            logger.error(f"DexScreener code={resp.status_code}")
+            logger.error(f"GeckoTerminal code={resp.status_code}")
             return 0.0
 
         data = resp.json()
-        pair = data.get("pair", {})
-        if not pair:
-            logger.warning("Пара не найдена на DexScreener.")
+        # Из структуры ответа нам нужно добраться до:
+        # data -> attributes -> token_prices -> ["<address>"]
+        attributes = data.get("data", {}).get("attributes", {})
+        token_prices = attributes.get("token_prices", {})
+
+        # Попробуем взять цену по адресу (в нижнем регистре)
+        price_str = token_prices.get(pair_address.lower())
+        if not price_str:
+            logger.warning("Цена USD не найдена в ответе GeckoTerminal.")
             return 0.0
 
-        price_usd = pair.get("priceUsd", "0")
-        if not price_usd:
-            logger.warning("Цена USD не найдена в ответе DexScreener.")
-            return 0.0
+        logger.info(f"Цена UJO: {price_str} USD")
+        return float(price_str)
 
-        logger.info(f"Цена UJO: {price_usd} USD")
-        return float(price_usd)
     except Exception as e:
         logger.error(f"get_token_price_in_usd: {e}", exc_info=True)
         return 0.0
