@@ -538,5 +538,33 @@ def force_finalize_best_setup_voting():
     flash("Active poll has been forcefully finalized.", "success")
     return redirect(url_for('admin_users'))
 
+@best_setup_voting_bp.route('/delete_wallet', methods=['POST'])
+def delete_wallet():
+    """Удаляет wallet_address пользователя.
+       Если пользователь участвует в актуальном голосовании или претендует на награды,
+       можно добавить проверки и выводить предупреждение либо блокировать удаление."""
+    user_id = session.get('user_id')
+    if not user_id:
+        flash("Please log in first.", "warning")
+        return redirect(url_for('best_setup_voting.set_wallet'))
+
+    user = User.query.get(user_id)
+    if not user:
+        flash("User not found.", "danger")
+        return redirect(url_for('best_setup_voting.set_wallet'))
+
+    # -- Пример дополнительной проверки:
+    # active_poll = BestSetupPoll.query.filter_by(status='active').first()
+    # if active_poll:
+    #     flash("You cannot remove your wallet while an active poll is running!", "danger")
+    #     return redirect(url_for('best_setup_voting.set_wallet'))
+
+    # Сбрасываем кошелек
+    user.wallet_address = None
+    db.session.commit()
+
+    flash("Wallet address has been removed. You will not receive any pending rewards unless you re-add a wallet.", "warning")
+    return redirect(url_for('best_setup_voting.set_wallet'))
+
 def init_best_setup_voting_routes(app, db_instance):
     app.register_blueprint(best_setup_voting_bp)
