@@ -11,6 +11,20 @@
         <input type="text" name="wallet_address" id="wallet_address" class="nes-input" placeholder="0x..." value="{{ user.wallet_address if user.wallet_address else '' }}">
     </div>
     <br>
-    <button type="submit" class="nes-btn is-primary"><i class="fas fa-save"></i> {% if language == 'ru' %}Сохранить{% else %}Save{% endif %}</button>
+    <button type="submit" class="nes-btn is-primary"><i class="fas fa-save"></i> 
+        {% if language == 'ru' %}Сохранить{% else %}Save{% endif %}
+    </button>
 </form>
+
+{% if user.wallet_address %}
+<!-- Добавляем кнопку удаления кошелька -->
+<form method="post" action="{{ url_for('best_setup_voting.delete_wallet') }}" 
+      class="nes-container is-rounded" style="margin-top:1em;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="nes-btn is-error">
+        <i class="fas fa-trash"></i> 
+        {% if language=='ru' %}Сбросить кошелёк{% else %}Remove Wallet{% endif %}
+    </button>
+</form>
+{% endif %}
 {% endblock %}
