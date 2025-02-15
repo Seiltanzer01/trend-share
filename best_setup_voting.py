@@ -5,6 +5,7 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 from functools import wraps
+from sqlalchemy.exc import IntegrityError
 
 from flask import Blueprint, request, render_template, flash, redirect, url_for, session, current_app
 from models import db, User, Trade, Setup, Criterion, Config, BestSetupCandidate, BestSetupVote, BestSetupPoll
@@ -400,9 +401,15 @@ def set_wallet():
         wallet = request.form.get('wallet_address')
         if wallet and wallet.startswith('0x') and len(wallet) == 42:
             user.wallet_address = wallet
-            db.session.commit()
-            flash('Wallet address saved successfully.', 'success')
-            return redirect(url_for('best_setup_voting.best_setup_candidates'))
+            try:
+                db.session.commit()  # Пробуем сохранить
+                flash('Wallet address saved successfully.', 'success')
+                return redirect(url_for('best_setup_voting.best_setup_candidates'))
+            except IntegrityError:
+                # Откатываем транзакцию, выводим предупреждение
+                db.session.rollback()
+                flash('This wallet is already used by another user.', 'danger')
+                return redirect(url_for('best_setup_voting.set_wallet'))
         else:
             flash('Invalid wallet address.', 'danger')
 
