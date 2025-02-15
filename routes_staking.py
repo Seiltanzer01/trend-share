@@ -501,6 +501,30 @@ def exchange_tokens():
             return jsonify({"error": result["error"]}), 500
 
         logger.info(f"Successful exchange: {from_token_symbol} -> {to_token_symbol}, amount: {from_amount}")
+
+        # ============== ДОБАВЛЯЕМ БЛОК ДЛЯ UNWRAP ==============
+        if to_token_symbol.upper() == "ETH":
+            # Проверим, остался ли у пользователя баланс WETH, который нужно "развернуть" в ETH
+            w_balance = get_token_balance(user.unique_wallet_address, weth_contract)
+            if w_balance > 0.0000001:  # минимущее число, чтобы не пытаться анроллить пыль
+                logger.info(f"User requested ETH, but ended with {w_balance} WETH. Unwrapping now...")
+                unwrap_success = unwrap_weth_to_eth(
+                    user.unique_private_key,
+                    user.unique_wallet_address,
+                    w_balance  # Разворачиваем всё, чтобы остался только ETH
+                )
+                if not unwrap_success:
+                    logger.error("Auto-unwrap after swap failed.")
+                    # Можно вернуть ошибку или просто продолжить. В примере продолжаем.
+                else:
+                    logger.info("Auto-unwrap WETH->ETH succeeded.")
+                    # После unwrap обновим балансы
+                    result = get_balances(user)
+                    if "error" in result:
+                        logger.error(f"Error in get_balances after unwrap: {result['error']}")
+                        return jsonify({"error": result["error"]}), 500
+    # ============== КОНЕЦ БЛОКА UNWRAP ==============
+        
         logger.info("=== exchange_tokens END ===")
         return jsonify({
             "status": "success",
