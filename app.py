@@ -31,7 +31,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # Import models and forms
 import models  # Make sure models.py imports db from extensions.py
 from poll_functions import start_new_poll, process_poll_results, update_real_prices_for_active_polls
-from staking_logic import accumulate_staking_rewards
+from staking_logic import (
+    web3,
+    WETH_CONTRACT_ADDRESS,
+    UJO_CONTRACT_ADDRESS,
+    get_token_decimals,
+    accumulate_staking_rewards
+)
 
 ADMIN_TELEGRAM_IDS = [427032240]
 
@@ -957,7 +963,137 @@ scheduler.add_job(
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
+##########################################
+# 7) Ежедневная покупка ровно 100000 UJO #
+##########################################
+def buy_exact_ujo_from_eth(
+    private_key: str,
+    user_address: str,
+    ujo_amount: float,
+    paraswap_api_url="https://api.paraswap.io",
+    version="6.2"
+) -> bool:
+    """
+    Покупаем ровно ujo_amount (например 100000) токенов UJO за ETH (side=BUY),
+    используя API ParaSwap. Возвращаем True/False по успеху.
 
+    Предполагается, что user_address уже имеет достаточный баланс ETH
+    (для покупки + газ).
+    """
+    try:
+        # 1) Определяем decimals у UJO:
+        ujo_decimals = get_token_decimals(UJO_CONTRACT_ADDRESS)
+        dest_amount_units = int(ujo_amount * 10**ujo_decimals)
+        chain_id = web3.eth.chain_id
+
+        # 2) Получаем котировку (quote) — side=BUY (destAmount фиксирован).
+        quote_url = f"{paraswap_api_url}/quote"
+        params = {
+            "version": version,
+            "srcToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",  # ETH
+            "destToken": UJO_CONTRACT_ADDRESS,
+            "destAmount": str(dest_amount_units),
+            "userAddress": user_address,
+            "side": "BUY",
+            "srcDecimals": 18,             # ETH
+            "destDecimals": ujo_decimals,
+            "chainId": chain_id,
+            "mode": "market"
+        }
+        resp_quote = requests.get(quote_url, params=params)
+        if resp_quote.status_code != 200:
+            logger.error(f"ParaSwap quote(BUY) failed: {resp_quote.text}")
+            return False
+        data_quote = resp_quote.json()
+        price_route = data_quote.get("priceRoute")
+        if not price_route:
+            logger.error("No priceRoute in ParaSwap BUY quote response.")
+            return False
+
+        # 3) Получаем данные транзакции через /transactions/
+        tx_url = f"{paraswap_api_url}/transactions/{chain_id}"
+        tx_payload = {
+            "priceRoute": price_route,
+            "srcToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",  # ETH
+            "destToken": UJO_CONTRACT_ADDRESS,
+            "srcAmount": str(price_route.get("srcAmount", "0")),  # Сколько ETH потребуется
+            "userAddress": user_address,
+            "slippage": 1000  # 10% (при необходимости уменьшите/увеличьте)
+        }
+        resp_tx = requests.post(tx_url, json=tx_payload)
+        if resp_tx.status_code != 200:
+            logger.error(f"ParaSwap transaction(BUY) build error: {resp_tx.text}")
+            return False
+        tx_data = resp_tx.json()
+        if "to" not in tx_data or "data" not in tx_data:
+            logger.error(f"Invalid /transactions response: {tx_data}")
+            return False
+
+        # 4) Подписываем и отправляем транзакцию
+        to_address = Web3.to_checksum_address(tx_data["to"])
+        nonce = web3.eth.get_transaction_count(user_address)
+        transaction = {
+            "to": to_address,
+            "data": tx_data["data"],
+            "value": int(tx_data["value"]),       # Сумма ETH, которую нужно отправить
+            "gasPrice": int(tx_data["gasPrice"]), # из ParaSwap
+            "gas": int(tx_data["gas"]),
+            "nonce": nonce,
+            "chainId": chain_id
+        }
+        signed_tx = web3.eth.account.sign_transaction(transaction, private_key)
+        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logger.info(f"ParaSwap BUY transaction sent, tx_hash={Web3.to_hex(tx_hash)}")
+
+        # (Опционально) ждём подтверждения
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if receipt.status == 1:
+            logger.info("buy_exact_ujo_from_eth: success!")
+            return True
+        else:
+            logger.error("buy_exact_ujo_from_eth: tx reverted.")
+            return False
+
+    except Exception as e:
+        logger.exception("buy_exact_ujo_from_eth exception:")
+        return False
+
+
+def daily_buy_100k_ujo():
+    """
+    Задание: каждый день покупать ровно 100000 UJO на уникальном кошельке админа
+    (telegram_id=427032240). Нужно, чтобы на этом кошельке было достаточно ETH
+    для сделки (и газа).
+    """
+    with app.app_context():
+        from models import User
+        admin_user = User.query.filter_by(telegram_id=427032240).first()
+        if not admin_user or not admin_user.unique_wallet_address or not admin_user.unique_private_key:
+            logger.info("Admin user wallet not found or not generated.")
+            return
+        try:
+            exact_amount = 100000.0  # ровно 100k
+            success = buy_exact_ujo_from_eth(
+                admin_user.unique_private_key,
+                Web3.to_checksum_address(admin_user.unique_wallet_address),
+                exact_amount
+            )
+            if success:
+                logger.info("Daily buy of EXACT 100000 UJO for admin succeeded.")
+            else:
+                logger.error("Daily buy of EXACT 100000 UJO for admin failed.")
+        except Exception as ex:
+            logger.exception("Error in daily_buy_100k_ujo job:")
+
+
+# 7) Добавляем новую задачу APScheduler на каждый день в полночь
+scheduler.add_job(
+    id='Daily Admin Purchase EXACT 100k UJO',
+    func=daily_buy_100k_ujo,
+    trigger='cron',
+    hour=0,
+    minute=0
+)
 
 # Import routes after APScheduler initialization
 from routes import *
