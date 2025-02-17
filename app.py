@@ -993,7 +993,7 @@ def buy_exact_ujo_from_eth(
             "version": version,
             "srcToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",  # ETH
             "destToken": UJO_CONTRACT_ADDRESS,
-            "destAmount": str(dest_amount_units),
+            "amount": str(dest_amount_units),
             "userAddress": user_address,
             "side": "BUY",
             "srcDecimals": 18,             # ETH
