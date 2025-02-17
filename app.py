@@ -1215,20 +1215,20 @@ def daily_buy_100k_ujo():
 
 
 # 7) Добавляем новую задачу APScheduler на каждый день в полночь
-#scheduler.add_job(
-    #id='Daily Admin Purchase EXACT 100k UJO',
-    #func=daily_buy_100k_ujo,
-    #trigger='cron',
-    #hour=0,
-    #minute=0
-#)
 scheduler.add_job(
     id='Daily Admin Purchase EXACT 100k UJO',
     func=daily_buy_100k_ujo,
-    trigger='interval',
-    minutes=10,  # Устанавливаем интервал в 10 минут для тестирования
-    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=10)
+    trigger='cron',
+    hour=0,
+    minute=0
 )
+#scheduler.add_job(
+    #id='Daily Admin Purchase EXACT 100k UJO',
+    #func=daily_buy_100k_ujo,
+    #trigger='interval',
+    #minutes=10,  # Устанавливаем интервал в 10 минут для тестирования
+    #next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=10)
+#)
 
 # Import routes after APScheduler initialization
 from routes import *
