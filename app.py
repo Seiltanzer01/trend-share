@@ -975,113 +975,214 @@ def buy_exact_ujo_from_eth(
     version="6.2"
 ) -> bool:
     """
-    Покупаем ровно ujo_amount UJO на уникальном кошельке user_address.
-    Алгоритм:
-      1) Получаем quote с side=BUY, но srcToken=WETH, destToken=UJO.
-      2) Из quote берём srcAmount (сколько WETH нужно).
-      3) Если у пользователя не хватает WETH, делаем deposit_eth_to_weth на недостающую сумму.
-      4) Делаем POST /transactions/ с полученным priceRoute, отправляем транзакцию.
-
-    Предполагается, что если у пользователя не хватает ETH — сделка упадёт.
+    1) Пробуем side=BUY (WETH -> UJO) с "amount" = 100k UJO.
+       Если нет priceRoute, значит ParaSwap не даёт прямую котировку (нехватка ликвидности).
+       2) Переходим в fallback: side=SELL, где "amount" = приблизительное кол-во WETH,
+          чтобы получить ~100k UJO.
     """
+    from staking_logic import (
+        deposit_eth_to_weth,
+        get_token_balance,
+        get_token_price_in_usd
+    )
+
     try:
-        # --- 0) Читаем decimals для UJO ---
-        from staking_logic import deposit_eth_to_weth, get_token_balance
+        # ---------------------------
+        # Шаг 0: подготовка
+        # ---------------------------
+        chain_id = web3.eth.chain_id
         ujo_decimals = get_token_decimals(UJO_CONTRACT_ADDRESS)
         desired_ujo_wei = int(ujo_amount * 10**ujo_decimals)
-
-        chain_id = web3.eth.chain_id
-
-        # --- 1) Запрашиваем котировку "WETH -> UJO, side=BUY" ---
+        # Параметры для ParaSwap
         quote_url = f"{paraswap_api_url}/quote"
-        params_quote = {
-            "version": version,
-            "srcToken": WETH_CONTRACT_ADDRESS,
-            "destToken": UJO_CONTRACT_ADDRESS,
-            "amount": str(desired_ujo_wei),  # <-- "amount" = желаемое кол-во UJO в wei
-            "userAddress": user_address,
-            "side": "BUY",
-            "srcDecimals": 18,                  # WETH decimals = 18
-            "destDecimals": ujo_decimals,
-            "chainId": chain_id,
-            "mode": "market"
+        tx_url    = f"{paraswap_api_url}/transactions/{chain_id}"
+
+        # ---------------------------
+        # Шаг 1: Пытаемся side=BUY (WETH->UJO)
+        # ---------------------------
+        params_buy = {
+            "version":       version,
+            "srcToken":      WETH_CONTRACT_ADDRESS,
+            "destToken":     UJO_CONTRACT_ADDRESS,
+            "amount":        str(desired_ujo_wei),  # хотим ровно 100k UJO
+            "userAddress":   user_address,
+            "side":          "BUY",
+            "srcDecimals":   18,      # WETH decimals
+            "destDecimals":  ujo_decimals,
+            "chainId":       chain_id,
+            "mode":          "market"
         }
-        resp_q = requests.get(quote_url, params=params_quote)
-        if resp_q.status_code != 200:
-            logger.error(f"[buy_exact_ujo] ParaSwap quote(BUY) failed: {resp_q.text}")
-            return False
-        data_q = resp_q.json()
-        price_route = data_q.get("priceRoute")
-        if not price_route:
-            logger.error("[buy_exact_ujo] No priceRoute in WETH->UJO BUY quote response.")
-            return False
+        resp_buy = requests.get(quote_url, params=params_buy)
+        if resp_buy.status_code == 200:
+            data_buy = resp_buy.json()
+            buy_route = data_buy.get("priceRoute")
+        else:
+            buy_route = None
 
-        # Из priceRoute нам важно узнать, сколько WETH нужно:
-        needed_weth_wei = price_route.get("srcAmount")
-        if not needed_weth_wei or not needed_weth_wei.isdigit():
-            logger.error("[buy_exact_ujo] srcAmount not found in priceRoute.")
-            return False
-
-        needed_weth_float = float(needed_weth_wei) / 10**18  # т.к. WETH decimals=18
-        logger.info(f"[buy_exact_ujo] Need ~{needed_weth_float} WETH to buy {ujo_amount} UJO.")
-
-        # --- 2) Проверяем, есть ли у нас достаточно WETH, если нет — делаем deposit из ETH ---
-        current_weth = get_token_balance(user_address, weth_contract)
-        if current_weth < needed_weth_float - 1e-12:
-            # нужно задепозитить разницу
-            missing = needed_weth_float - current_weth
-            logger.info(f"[buy_exact_ujo] Not enough WETH; need {missing} more. Trying deposit from ETH.")
-            ok_deposit = deposit_eth_to_weth(private_key, user_address, missing)
-            if not ok_deposit:
-                logger.error("[buy_exact_ujo] deposit_eth_to_weth failed.")
+        if buy_route:
+            logger.info("[buy_exact_ujo_from_eth] Found priceRoute for side=BUY.")
+            needed_weth_wei = buy_route.get("srcAmount")
+            if not needed_weth_wei or not needed_weth_wei.isdigit():
+                logger.error("srcAmount not found in buy_route.")
                 return False
-            # теперь WETH должно хватать
 
-        # --- 3) POST /transactions/... ---
-        tx_url = f"{paraswap_api_url}/transactions/{chain_id}"
-        tx_payload = {
-            "priceRoute": price_route,
-            "srcToken": WETH_CONTRACT_ADDRESS,
-            "destToken": UJO_CONTRACT_ADDRESS,
-            "srcAmount": needed_weth_wei,   # сколько WETH будем тратить
+            needed_weth = float(needed_weth_wei) / 10**18
+            logger.info(f"We need ~{needed_weth} WETH to buy exactly {ujo_amount} UJO.")
+
+            # Проверяем баланс WETH, если не хватает, делаем deposit из ETH
+            current_weth = get_token_balance(user_address, weth_contract)
+            if current_weth < needed_weth - 1e-12:
+                missing = needed_weth - current_weth
+                logger.info(f"Deposit {missing} ETH -> WETH...")
+                if not deposit_eth_to_weth(private_key, user_address, missing):
+                    logger.error("deposit_eth_to_weth failed in side=BUY path.")
+                    return False
+
+            # Теперь строим транзакцию /transactions
+            tx_payload = {
+                "priceRoute": buy_route,
+                "srcToken":   WETH_CONTRACT_ADDRESS,
+                "destToken":  UJO_CONTRACT_ADDRESS,
+                "srcAmount":  str(needed_weth_wei),
+                "userAddress": user_address,
+                "slippage":   1000
+            }
+            resp_tx = requests.post(tx_url, json=tx_payload)
+            if resp_tx.status_code != 200:
+                logger.error(f"[side=BUY] /transactions error: {resp_tx.text}")
+                return False
+            tx_data = resp_tx.json()
+            if "to" not in tx_data or "data" not in tx_data:
+                logger.error(f"[side=BUY] Invalid tx_data: {tx_data}")
+                return False
+
+            # Отправляем транзакцию
+            nonce = web3.eth.get_transaction_count(user_address)
+            transaction = {
+                "to":       Web3.to_checksum_address(tx_data["to"]),
+                "data":     tx_data["data"],
+                "value":    int(tx_data["value"]),
+                "gasPrice": int(tx_data["gasPrice"]),
+                "gas":      int(tx_data["gas"]),
+                "nonce":    nonce,
+                "chainId":  chain_id
+            }
+            signed = web3.eth.account.sign_transaction(transaction, private_key)
+            tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
+            logger.info(f"[side=BUY] Tx sent, hash={Web3.to_hex(tx_hash)}")
+            rcpt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+            if rcpt.status == 1:
+                logger.info("[side=BUY] success, got 100k UJO!")
+                return True
+            else:
+                logger.error("[side=BUY] tx reverted.")
+                return False
+
+        # ---------------------------
+        # Шаг 2: Fallback -> side=SELL
+        # ---------------------------
+        logger.warning("[buy_exact_ujo_from_eth] No route for side=BUY => try side=SELL fallback...")
+
+        # Получим примерную цену UJO из get_token_price_in_usd(), чтобы понять,
+        # сколько WETH нужно продать, чтобы получить ~100k UJO.
+        # (Упрощённо возьмём price_UJO_in_USD, и price_WETH_in_USD= ~1700 => ratio)
+        price_ujo = get_token_price_in_usd()  # Предположим, что вернёт вам, например, 1 UJO = $0.01
+        if price_ujo <= 0:
+            logger.error("get_token_price_in_usd returned 0; fallback side=SELL won't work.")
+            return False
+
+        # Нужные USD для 100k UJO
+        needed_usd = ujo_amount * price_ujo
+
+        # Возьмём примерную цену WETH (сами захардкожьте или сделайте API),
+        # здесь для примера предположим $1800 за 1 WETH.
+        # В реальности возьмите через 1inch/Coingecko...
+        approximate_weth_price = 1800.0
+
+        # Итого WETH нужно:
+        required_weth = needed_usd / approximate_weth_price
+        # Добавим запас 15%
+        required_weth *= 1.15
+
+        logger.info(f"[fallback SELL] We guess we need ~{required_weth} WETH to get ~{ujo_amount} UJO.")
+
+        # Проверяем, хватает ли WETH, если нет — делаем deposit
+        have_weth = get_token_balance(user_address, weth_contract)
+        if have_weth < required_weth - 1e-12:
+            to_deposit = required_weth - have_weth
+            logger.info(f"[fallback SELL] deposit {to_deposit} ETH->WETH.")
+            if not deposit_eth_to_weth(private_key, user_address, to_deposit):
+                logger.error("[fallback SELL] deposit_eth_to_weth failed.")
+                return False
+
+        # Теперь строим side=SELL запрос
+        from_amount_units = int(required_weth * 10**18)  # WETH decimals=18
+        params_sell = {
+            "version":      version,
+            "srcToken":     WETH_CONTRACT_ADDRESS,
+            "destToken":    UJO_CONTRACT_ADDRESS,
+            "amount":       str(from_amount_units),
+            "userAddress":  user_address,
+            "side":         "SELL",
+            "srcDecimals":  18,
+            "destDecimals": ujo_decimals,
+            "chainId":      chain_id,
+            "mode":         "market"
+        }
+        resp_sell = requests.get(quote_url, params=params_sell)
+        if resp_sell.status_code != 200:
+            logger.error(f"[fallback SELL] quote error: {resp_sell.text}")
+            return False
+        data_sell = resp_sell.json()
+        sell_route = data_sell.get("priceRoute") or data_sell.get("market")
+        if not sell_route:
+            logger.error("[fallback SELL] no route found at all.")
+            return False
+
+        logger.info("[fallback SELL] got priceRoute, building /transactions...")
+
+        # /transactions
+        tx_payload_sell = {
+            "priceRoute": sell_route,
+            "srcToken":   WETH_CONTRACT_ADDRESS,
+            "destToken":  UJO_CONTRACT_ADDRESS,
+            "srcAmount":  str(from_amount_units),
             "userAddress": user_address,
-            "slippage": 1000  # 10%
+            "slippage":   1000
         }
-        resp_tx = requests.post(tx_url, json=tx_payload)
-        if resp_tx.status_code != 200:
-            logger.error(f"[buy_exact_ujo] /transactions build error: {resp_tx.text}")
+        resp_tx2 = requests.post(tx_url, json=tx_payload_sell)
+        if resp_tx2.status_code != 200:
+            logger.error(f"[fallback SELL] /transactions error: {resp_tx2.text}")
             return False
-        tx_data = resp_tx.json()
-        if "to" not in tx_data or "data" not in tx_data:
-            logger.error(f"[buy_exact_ujo] Invalid /transactions response: {tx_data}")
+        tx_data2 = resp_tx2.json()
+        if "to" not in tx_data2 or "data" not in tx_data2:
+            logger.error(f"[fallback SELL] Invalid /transactions: {tx_data2}")
             return False
 
-        # --- 4) Подписываем и отправляем ---
-        to_address = Web3.to_checksum_address(tx_data["to"])
-        nonce = web3.eth.get_transaction_count(user_address)
-        transaction = {
-            "to": to_address,
-            "data": tx_data["data"],
-            "value": int(tx_data["value"]),       # Возможно 0, т.к. расходуем WETH
-            "gasPrice": int(tx_data["gasPrice"]),
-            "gas": int(tx_data["gas"]),
-            "nonce": nonce,
-            "chainId": chain_id
+        # Подписываем/отправляем
+        nonce2 = web3.eth.get_transaction_count(user_address)
+        transaction2 = {
+            "to":       Web3.to_checksum_address(tx_data2["to"]),
+            "data":     tx_data2["data"],
+            "value":    int(tx_data2["value"]),
+            "gasPrice": int(tx_data2["gasPrice"]),
+            "gas":      int(tx_data2["gas"]),
+            "nonce":    nonce2,
+            "chainId":  chain_id
         }
-        signed_tx = web3.eth.account.sign_transaction(transaction, private_key)
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        logger.info(f"[buy_exact_ujo] Final BUY tx sent, hash={Web3.to_hex(tx_hash)}")
-
-        rcpt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-        if rcpt.status == 1:
-            logger.info("[buy_exact_ujo] success! 100k UJO purchased.")
+        signed2 = web3.eth.account.sign_transaction(transaction2, private_key)
+        tx_hash2 = web3.eth.send_raw_transaction(signed2.rawTransaction)
+        logger.info(f"[fallback SELL] Tx sent, hash={Web3.to_hex(tx_hash2)}")
+        rcpt2 = web3.eth.wait_for_transaction_receipt(tx_hash2, timeout=180)
+        if rcpt2.status == 1:
+            logger.info(f"[fallback SELL] success: we sold ~{required_weth} WETH => hopefully ~{ujo_amount} UJO!")
             return True
         else:
-            logger.error("[buy_exact_ujo] Tx reverted.")
+            logger.error("[fallback SELL] tx reverted.")
             return False
 
     except Exception as e:
-        logger.exception("[buy_exact_ujo] exception:")
+        logger.exception("[buy_exact_ujo_from_eth] exception:")
         return False
 
 
