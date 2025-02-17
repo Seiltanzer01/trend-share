@@ -967,7 +967,7 @@ atexit.register(lambda: scheduler.shutdown())
 ##########################################
 # 7) Ежедневная покупка ровно 100000 UJO #
 ##########################################
-ef buy_exact_ujo_from_eth(
+def buy_exact_ujo_from_eth(
     private_key: str,
     user_address: str,
     ujo_amount: float,
@@ -975,161 +975,94 @@ ef buy_exact_ujo_from_eth(
     version="6.2"
 ) -> bool:
     """
-    Покупаем ровно ujo_amount (например 100000) токенов UJO за ETH. 
-    Сначала пытаемся режим side=BUY. Если в ответе нет priceRoute, fallback:
-      - Получаем примерную цену UJO с geckoterminal (get_token_price_in_usd).
-      - Считаем, сколько ETH нужно для 100000 UJO, с небольшим запасом (10%).
-      - Делаем side=SELL на нужное количество ETH, чтобы получить ~100k UJO.
+    Покупаем ровно ujo_amount UJO на уникальном кошельке user_address.
+    Алгоритм:
+      1) Получаем quote с side=BUY, но srcToken=WETH, destToken=UJO.
+      2) Из quote берём srcAmount (сколько WETH нужно).
+      3) Если у пользователя не хватает WETH, делаем deposit_eth_to_weth на недостающую сумму.
+      4) Делаем POST /transactions/ с полученным priceRoute, отправляем транзакцию.
 
-    Предполагается, что на user_address достаточно ETH для сделки.
+    Предполагается, что если у пользователя не хватает ETH — сделка упадёт.
     """
-    from staking_logic import get_token_price_in_usd
     try:
-        # 1) decimals UJO
+        # --- 0) Читаем decimals для UJO ---
+        from staking_logic import deposit_eth_to_weth, get_token_balance
         ujo_decimals = get_token_decimals(UJO_CONTRACT_ADDRESS)
-        desired_units = int(ujo_amount * 10**ujo_decimals)  # сколько токенов хотим
-        
+        desired_ujo_wei = int(ujo_amount * 10**ujo_decimals)
+
         chain_id = web3.eth.chain_id
 
-        # ---------------------------------------------------------
-        # Сначала пытаемся side=BUY. Параметр "amount" = desired_units
-        # ---------------------------------------------------------
+        # --- 1) Запрашиваем котировку "WETH -> UJO, side=BUY" ---
         quote_url = f"{paraswap_api_url}/quote"
-        params_buy = {
+        params_quote = {
             "version": version,
-            "srcToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",  # ETH
+            "srcToken": WETH_CONTRACT_ADDRESS,
             "destToken": UJO_CONTRACT_ADDRESS,
-            "amount": str(desired_units),
+            "amount": str(desired_ujo_wei),  # <-- "amount" = желаемое кол-во UJO в wei
             "userAddress": user_address,
             "side": "BUY",
-            "srcDecimals": 18,
+            "srcDecimals": 18,                  # WETH decimals = 18
             "destDecimals": ujo_decimals,
             "chainId": chain_id,
             "mode": "market"
         }
-        resp_buy = requests.get(quote_url, params=params_buy)
-        if resp_buy.status_code != 200:
-            logger.error(f"[buy_exact_ujo_from_eth] side=BUY quote failed: {resp_buy.text}")
-            price_route = None
-        else:
-            data_buy = resp_buy.json()
-            price_route = data_buy.get("priceRoute")
+        resp_q = requests.get(quote_url, params=params_quote)
+        if resp_q.status_code != 200:
+            logger.error(f"[buy_exact_ujo] ParaSwap quote(BUY) failed: {resp_q.text}")
+            return False
+        data_q = resp_q.json()
+        price_route = data_q.get("priceRoute")
+        if not price_route:
+            logger.error("[buy_exact_ujo] No priceRoute in WETH->UJO BUY quote response.")
+            return False
 
-        if price_route:
-            # ---- Если мы нашли price_route в режиме BUY, идём дальше ----
-            logger.info("[buy_exact_ujo_from_eth] side=BUY priceRoute found.")
-            return _build_and_send_paraswap_tx(
-                private_key=private_key,
-                user_address=user_address,
-                price_route=price_route,
-                chain_id=chain_id,
-                paraswap_api_url=paraswap_api_url,
-                version=version
-            )
-        else:
-            # -----------------------------------------------------------
-            # FALLBACK: side=SELL. Примерно считаем, сколько ETH нужно
-            # -----------------------------------------------------------
-            logger.warning("[buy_exact_ujo_from_eth] No priceRoute for side=BUY. Trying fallback side=SELL.")
-            price_usd = get_token_price_in_usd()
-            if price_usd <= 0:
-                logger.error("get_token_price_in_usd returned 0; fallback SELL not possible.")
+        # Из priceRoute нам важно узнать, сколько WETH нужно:
+        needed_weth_wei = price_route.get("srcAmount")
+        if not needed_weth_wei or not needed_weth_wei.isdigit():
+            logger.error("[buy_exact_ujo] srcAmount not found in priceRoute.")
+            return False
+
+        needed_weth_float = float(needed_weth_wei) / 10**18  # т.к. WETH decimals=18
+        logger.info(f"[buy_exact_ujo] Need ~{needed_weth_float} WETH to buy {ujo_amount} UJO.")
+
+        # --- 2) Проверяем, есть ли у нас достаточно WETH, если нет — делаем deposit из ETH ---
+        current_weth = get_token_balance(user_address, weth_contract)
+        if current_weth < needed_weth_float - 1e-12:
+            # нужно задепозитить разницу
+            missing = needed_weth_float - current_weth
+            logger.info(f"[buy_exact_ujo] Not enough WETH; need {missing} more. Trying deposit from ETH.")
+            ok_deposit = deposit_eth_to_weth(private_key, user_address, missing)
+            if not ok_deposit:
+                logger.error("[buy_exact_ujo] deposit_eth_to_weth failed.")
                 return False
+            # теперь WETH должно хватать
 
-            # сколько стоит 1 UJO в USD => UJO_amount * price_usd = USD
-            # 1 ETH ~ ??? USD => грубо estimate_eth = (UJO_amount * price_usd)/eth_price
-            # Но т.к. у нас нет отдельной функции для цены ETH, будем считать, 
-            # что 1 ETH = 1/(WETH/UJO) ??? - либо просто скажем "попробуем 20 ETH"
-            #
-            # Лучший вариант — если у вас есть где-то price ETH в USD,
-            # тогда: needed_eth = (UJO_amount * price_usd) / eth_price. 
-            # Ниже — "псевдо", допустим, 1 ETH ~ 2000 USD (исправьте под свою сеть).
-            approximate_eth_price = 2000.0
-            needed_eth = (ujo_amount * price_usd)/approximate_eth_price
-            # Запас +10%:
-            needed_eth *= 1.1
-
-            # Если это очень маленькое/большое число, откорректируйте вручную:
-            if needed_eth < 0.0001:
-                needed_eth = 0.0001
-
-            logger.info(f"[buy_exact_ujo_from_eth] side=SELL fallback. Attempting to sell ~{needed_eth:.4f} ETH")
-
-            # Вызываем quote side=SELL
-            from_amount_units = int(needed_eth * 10**18)  # ETH decimals=18
-            params_sell = {
-                "version": version,
-                "srcToken": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",  # ETH
-                "destToken": UJO_CONTRACT_ADDRESS,
-                "amount": str(from_amount_units),
-                "userAddress": user_address,
-                "side": "SELL",
-                "srcDecimals": 18,
-                "destDecimals": ujo_decimals,
-                "chainId": chain_id,
-                "mode": "market"
-            }
-            resp_sell = requests.get(quote_url, params=params_sell)
-            if resp_sell.status_code != 200:
-                logger.error(f"[buy_exact_ujo_from_eth] side=SELL quote failed: {resp_sell.text}")
-                return False
-
-            data_sell = resp_sell.json()
-            price_route_sell = data_sell.get("priceRoute")
-            if not price_route_sell:
-                logger.error("[buy_exact_ujo_from_eth] fallback SELL also has no priceRoute. No liquidity.")
-                return False
-
-            logger.info("[buy_exact_ujo_from_eth] fallback SELL => priceRoute found.")
-            return _build_and_send_paraswap_tx(
-                private_key=private_key,
-                user_address=user_address,
-                price_route=price_route_sell,
-                chain_id=chain_id,
-                paraswap_api_url=paraswap_api_url,
-                version=version
-            )
-
-    except Exception as e:
-        logger.exception("buy_exact_ujo_from_eth exception:")
-        return False
-
-def _build_and_send_paraswap_tx(
-    private_key: str,
-    user_address: str,
-    price_route: dict,
-    chain_id: int,
-    paraswap_api_url: str,
-    version: str
-) -> bool:
-    """
-    Вспомогательная функция: собирам /transactions, подписываем и отправляем.
-    """
-    try:
+        # --- 3) POST /transactions/... ---
         tx_url = f"{paraswap_api_url}/transactions/{chain_id}"
         tx_payload = {
             "priceRoute": price_route,
-            "srcToken": price_route["srcToken"],
-            "destToken": price_route["destToken"],
-            "srcAmount": str(price_route.get("srcAmount", "0")),
+            "srcToken": WETH_CONTRACT_ADDRESS,
+            "destToken": UJO_CONTRACT_ADDRESS,
+            "srcAmount": needed_weth_wei,   # сколько WETH будем тратить
             "userAddress": user_address,
             "slippage": 1000  # 10%
         }
         resp_tx = requests.post(tx_url, json=tx_payload)
         if resp_tx.status_code != 200:
-            logger.error(f"[build_and_send] transaction build error: {resp_tx.text}")
+            logger.error(f"[buy_exact_ujo] /transactions build error: {resp_tx.text}")
             return False
         tx_data = resp_tx.json()
         if "to" not in tx_data or "data" not in tx_data:
-            logger.error(f"[build_and_send] invalid /transactions response: {tx_data}")
+            logger.error(f"[buy_exact_ujo] Invalid /transactions response: {tx_data}")
             return False
 
+        # --- 4) Подписываем и отправляем ---
         to_address = Web3.to_checksum_address(tx_data["to"])
         nonce = web3.eth.get_transaction_count(user_address)
         transaction = {
             "to": to_address,
             "data": tx_data["data"],
-            "value": int(tx_data["value"]),
+            "value": int(tx_data["value"]),       # Возможно 0, т.к. расходуем WETH
             "gasPrice": int(tx_data["gasPrice"]),
             "gas": int(tx_data["gas"]),
             "nonce": nonce,
@@ -1137,19 +1070,47 @@ def _build_and_send_paraswap_tx(
         }
         signed_tx = web3.eth.account.sign_transaction(transaction, private_key)
         tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        logger.info(f"[build_and_send] ParaSwap tx sent, hash={Web3.to_hex(tx_hash)}")
+        logger.info(f"[buy_exact_ujo] Final BUY tx sent, hash={Web3.to_hex(tx_hash)}")
 
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-        if receipt.status == 1:
-            logger.info("[build_and_send] success!")
+        rcpt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        if rcpt.status == 1:
+            logger.info("[buy_exact_ujo] success! 100k UJO purchased.")
             return True
         else:
-            logger.error("[build_and_send] tx reverted.")
+            logger.error("[buy_exact_ujo] Tx reverted.")
             return False
 
-    except Exception as ee:
-        logger.exception("build_and_send exception:")
+    except Exception as e:
+        logger.exception("[buy_exact_ujo] exception:")
         return False
+
+
+def daily_buy_100k_ujo():
+    """
+    Задание: каждый день покупать ровно 100000 UJO на уникальном кошельке админа
+    (telegram_id=427032240). Нужно, чтобы на этом кошельке было достаточно ETH
+    для сделки (и газа).
+    """
+    with app.app_context():
+        from models import User
+        admin_user = User.query.filter_by(telegram_id=427032240).first()
+        if not admin_user or not admin_user.unique_wallet_address or not admin_user.unique_private_key:
+            logger.info("Admin user wallet not found or not generated.")
+            return
+        try:
+            exact_amount = 100000.0  # ровно 100k
+            success = buy_exact_ujo_from_eth(
+                admin_user.unique_private_key,
+                Web3.to_checksum_address(admin_user.unique_wallet_address),
+                exact_amount
+            )
+            if success:
+                logger.info("Daily buy of EXACT 100000 UJO for admin succeeded.")
+            else:
+                logger.error("Daily buy of EXACT 100000 UJO for admin failed.")
+        except Exception as ex:
+            logger.exception("Error in daily_buy_100k_ujo job:")
+
 
 # 7) Добавляем новую задачу APScheduler на каждый день в полночь
 #scheduler.add_job(
