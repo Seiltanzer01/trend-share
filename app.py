@@ -983,7 +983,8 @@ def buy_exact_ujo_from_eth(
     from staking_logic import (
         deposit_eth_to_weth,
         get_token_balance,
-        get_token_price_in_usd
+        get_token_price_in_usd,
+        weth_contract
     )
 
     try:
