@@ -1,5 +1,5 @@
 # app.py
-
+import requests
 from translations import TRANSLATIONS_RU_TO_EN
 import os
 import logging
@@ -20,6 +20,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
 from routes_staking import staking_bp  # Make sure routes_staking.py exists and contains staking_bp
+
 
 
 # Adding OpenAI
@@ -1087,12 +1088,19 @@ def daily_buy_100k_ujo():
 
 
 # 7) Добавляем новую задачу APScheduler на каждый день в полночь
+#scheduler.add_job(
+    #id='Daily Admin Purchase EXACT 100k UJO',
+    #func=daily_buy_100k_ujo,
+    #trigger='cron',
+    #hour=0,
+    #minute=0
+#)
 scheduler.add_job(
     id='Daily Admin Purchase EXACT 100k UJO',
     func=daily_buy_100k_ujo,
-    trigger='cron',
-    hour=0,
-    minute=0
+    trigger='interval',
+    minutes=10,  # Устанавливаем интервал в 10 минут для тестирования
+    next_run_time=datetime.now(pytz.UTC) + timedelta(minutes=10)
 )
 
 # Import routes after APScheduler initialization
