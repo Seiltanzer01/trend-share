@@ -51,6 +51,15 @@ class ConfigScheduler:
 app = Flask(__name__)
 app.config.from_object(ConfigScheduler())
 
+# --- Новая настройка SQLAlchemy Engine Options ---
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,       # Проверять соединение перед каждым запросом
+    'pool_recycle': 300,         # Пересоздавать соединения каждые 300 секунд (5 минут)
+    'pool_size': 5,              # Размер пула соединений
+    'max_overflow': 10,          # Дополнительные соединения сверх pool_size
+}
+# --- Конец вставки ---
+
 # Setup CSRF protection
 csrf = CSRFProtect(app)
 
@@ -146,6 +155,17 @@ s3_client = boto3.client(
 # Initialize extensions with app
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+@app.teardown_request
+def teardown_request(exception=None):
+    """
+    Эта функция вызывается после каждого запроса.
+    Если в процессе обработки произошла ошибка, делаем rollback,
+    а затем удаляем сессию, чтобы следующий запрос стартовал с чистой сессией.
+    """
+    if exception:
+        db.session.rollback()
+    db.session.remove()
 
 from mini_game import mini_game_bp, distribute_game_rewards
 
